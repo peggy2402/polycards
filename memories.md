@@ -94,6 +94,8 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 - [`InAppBrowserModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/in-app-browser-modal.tsx): phát hiện trình duyệt nhúng Zalo/TikTok/Facebook và cung cấp nút copy link mở ngoài.
 - Build production thành công 100% đạt 12/12 static prerendered pages.
 
-### [ ] Bước 5: Script tạo mã QR & Hướng dẫn kiểm thử di động
-- Script Node sinh QR SVG/PNG vào `qr-output/`.
-- Hướng dẫn cấu hình HTTPS nội bộ hoặc tunnel (Cloudflare / ngrok) để test camera trực tiếp trên điện thoại.
+### [x] Bước 5: Script tạo mã QR & Hướng dẫn kiểm thử di động (Đã hoàn thành)
+- Hoàn thành script [`scripts/generate-qr.ts`](file:///Users/peggy2402/Projects/polycards/scripts/generate-qr.ts) và lệnh `npm run generate-qr`.
+- Xuất thành công toàn bộ mã QR dạng PNG độ nét cao và SVG vector in ấn vào cả `public/qr-output/` và `qr-output/` cho 6 con vật.
+- Hỗ trợ đầy đủ 2 định dạng nội dung: URL web trực tiếp (`https://<domain>/ar/<slug>`) và mã định danh thẻ bài (`AR-LION-005`,...).
+- Sẵn sàng cơ chế bảo mật lọc link lạ và hướng dẫn cấu hình HTTPS qua tunnel để test thực tế trên mobile.

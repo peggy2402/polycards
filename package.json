@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate-qr": "tsx scripts/generate-qr.ts"
   },
   "dependencies": {
     "@google/model-viewer": "^4.4.0",
