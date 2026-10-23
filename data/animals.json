@@ -1,0 +1,128 @@
+[
+  {
+    "id": "deer-001",
+    "slug": "deer",
+    "qrCode": "AR-DEER-001",
+    "nameEn": "Deer",
+    "nameVi": "Con hươu",
+    "ipa": "/dɪr/",
+    "description": "Hươu là loài động vật hiền lành sống trong rừng nhiệt đới và ôn đới, nổi bật với đôi gạc duyên dáng và đôi mắt trong veo.",
+    "price": 249000,
+    "images": [
+      "/images/animals/deer.svg"
+    ],
+    "audioUrl": "/audio/deer.mp3",
+    "modelUrl": "/models/deer.glb",
+    "iosModelUrl": "/models/deer.usdz",
+    "posterUrl": "/images/posters/deer-poster.svg",
+    "animations": ["Idle", "Walk"],
+    "arEnabled": true,
+    "buyUrl": "https://shopee.vn/polycards_official",
+    "badge": "Yêu thích nhất"
+  },
+  {
+    "id": "cat-002",
+    "slug": "cat",
+    "qrCode": "AR-CAT-002",
+    "nameEn": "Cat",
+    "nameVi": "Con mèo",
+    "ipa": "/kæt/",
+    "description": "Mèo là người bạn bốn chân quen thuộc, thích cuộn tròn sưởi nắng và có đôi tai vô cùng nhạy bén với âm thanh.",
+    "price": 219000,
+    "images": [
+      "/images/animals/cat.svg"
+    ],
+    "audioUrl": "/audio/cat.mp3",
+    "modelUrl": "/models/cat.glb",
+    "iosModelUrl": "/models/cat.usdz",
+    "posterUrl": "/images/posters/cat-poster.svg",
+    "animations": ["Idle"],
+    "arEnabled": true,
+    "buyUrl": "",
+    "badge": "Thân thiện"
+  },
+  {
+    "id": "dog-003",
+    "slug": "dog",
+    "qrCode": "AR-DOG-003",
+    "nameEn": "Dog",
+    "nameVi": "Con chó",
+    "ipa": "/dɔːɡ/",
+    "description": "Chú chó trung thành, thông minh và tràn đầy năng lượng, luôn là người bạn đồng hành vui vẻ của các bé nhỏ.",
+    "price": 219000,
+    "images": [
+      "/images/animals/dog.svg"
+    ],
+    "audioUrl": "/audio/dog.mp3",
+    "modelUrl": "/models/dog.glb",
+    "iosModelUrl": "/models/dog.usdz",
+    "posterUrl": "/images/posters/dog-poster.svg",
+    "animations": ["Idle", "Run"],
+    "arEnabled": true,
+    "buyUrl": "https://shopee.vn/polycards_official",
+    "badge": "Bán chạy"
+  },
+  {
+    "id": "elephant-004",
+    "slug": "elephant",
+    "qrCode": "AR-ELEPHANT-004",
+    "nameEn": "Elephant",
+    "nameVi": "Con voi",
+    "ipa": "/ˈel.ə.fənt/",
+    "description": "Voi là loài động vật trên cạn lớn nhất thế giới, nổi tiếng với chiếc vòi linh hoạt và trí nhớ tuyệt vời.",
+    "price": 269000,
+    "images": [
+      "/images/animals/elephant.svg"
+    ],
+    "audioUrl": "/audio/elephant.mp3",
+    "modelUrl": "/models/elephant.glb",
+    "iosModelUrl": "/models/elephant.usdz",
+    "posterUrl": "/images/posters/elephant-poster.svg",
+    "animations": [],
+    "arEnabled": true,
+    "buyUrl": "",
+    "badge": "Mô hình lớn"
+  },
+  {
+    "id": "lion-005",
+    "slug": "lion",
+    "qrCode": "AR-LION-005",
+    "nameEn": "Lion",
+    "nameVi": "Sư tử",
+    "ipa": "/ˈlaɪ.ən/",
+    "description": "Sư tử được mệnh danh là chúa sơn lâm dũng mãnh, sở hữu bộ bờm uy nghi và tiếng gầm vang khắp thảo nguyên.",
+    "price": 269000,
+    "images": [
+      "/images/animals/lion.svg"
+    ],
+    "audioUrl": "/audio/lion.mp3",
+    "modelUrl": "/models/lion.glb",
+    "iosModelUrl": "/models/lion.usdz",
+    "posterUrl": "/images/posters/lion-poster.svg",
+    "animations": ["Roar", "Idle"],
+    "arEnabled": true,
+    "buyUrl": "https://shopee.vn/polycards_official",
+    "badge": "Dũng mãnh"
+  },
+  {
+    "id": "panda-006",
+    "slug": "panda",
+    "qrCode": "AR-PANDA-006",
+    "nameEn": "Panda",
+    "nameVi": "Gấu trúc",
+    "ipa": "/ˈpæn.də/",
+    "description": "Gấu trúc khổng lồ đáng yêu với hai khoang mắt đen đặc trưng, món ăn yêu thích nhất của bạn ấy là những cành trúc tươi non.",
+    "price": 259000,
+    "images": [
+      "/images/animals/panda.svg"
+    ],
+    "audioUrl": "/audio/panda.mp3",
+    "modelUrl": "/models/panda.glb",
+    "iosModelUrl": "/models/panda.usdz",
+    "posterUrl": "/images/posters/panda-poster.svg",
+    "animations": ["Idle"],
+    "arEnabled": true,
+    "buyUrl": "",
+    "badge": "Dễ thương"
+  }
+]
