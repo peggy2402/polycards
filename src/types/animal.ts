@@ -1,14 +1,24 @@
+export interface AnimalAudio {
+  en: string;
+  vi: string;
+  zh?: string;
+}
+
 export interface Animal {
   id: string;
   slug: string;
   qrCode: string;
   nameEn: string;
   nameVi: string;
+  nameZh?: string;
   ipa: string;
+  ipaVi?: string;
+  pinyinZh?: string;
   description: string;
   price: number;
   images: string[];
   audioUrl: string;
+  audios?: AnimalAudio;
   modelUrl: string;
   iosModelUrl: string;
   posterUrl: string;

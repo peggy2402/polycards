@@ -64,22 +64,31 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 - Chuẩn hóa placeholder assets không emoji (SVG vector, MP3 audio, 3D GLB/USDZ).
 - Chạy test kiểm thử tự động [`scripts/test-step1.ts`](file:///Users/peggy2402/Projects/polycards/scripts/test-step1.ts) và TypeScript check đạt 100% PASS.
 
-### [ ] Bước 2: Xây dựng Landing Page + Grid sản phẩm (Chờ nghiệm thu Bước 1 để làm)
-- Xây dựng 9 sections chuẩn mực: Navbar, Hero, Why Choose Us, How It Works, Products Grid, AR Demo Section, Benefits, FAQ, CTA + Footer.
-- Sử dụng icon từ `lucide-react`, màu sắc ấm áp, bo tròn mềm mại.
+### [x] Bước 2: Xây dựng Landing Page + Grid sản phẩm (Đã hoàn thành)
+- Xây dựng đầy đủ 9 sections chuẩn mực theo spec: [`Navbar`](file:///Users/peggy2402/Projects/polycards/src/components/common/navbar.tsx), [`HeroSection`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx), [`WhyChooseSection`](file:///Users/peggy2402/Projects/polycards/src/components/landing/why-choose-section.tsx), [`HowItWorksSection`](file:///Users/peggy2402/Projects/polycards/src/components/landing/how-it-works-section.tsx), [`ProductsGrid`](file:///Users/peggy2402/Projects/polycards/src/components/landing/products-grid.tsx), [`ArDemoSection`](file:///Users/peggy2402/Projects/polycards/src/components/landing/ar-demo-section.tsx), [`BenefitsSection`](file:///Users/peggy2402/Projects/polycards/src/components/landing/benefits-section.tsx), [`FaqSection`](file:///Users/peggy2402/Projects/polycards/src/components/landing/faq-section.tsx), [`CtaBanner`](file:///Users/peggy2402/Projects/polycards/src/components/landing/cta-banner.tsx) + [`Footer`](file:///Users/peggy2402/Projects/polycards/src/components/common/footer.tsx).
+- Thay thế toàn bộ SVG placeholder bằng bộ ảnh **3D hoạt hình Pixar/Disney cao cấp (.jpg)** cho 6 con vật (Lion, Deer, Cat, Dog, Elephant, Panda), không còn các ô chữ nhật tạm bợ che mặt nhân vật.
+- Tích hợp ảnh thẻ bài thật Poly Cards [`lion-card.jpg`](file:///Users/peggy2402/Projects/polycards/public/images/cards/lion-card.jpg) và logo chính thức [`logo.png`](file:///Users/peggy2402/Projects/polycards/public/images/icons/logo.png).
+- **Hiệu ứng Parallax 3D Tilt**: Mỗi card tự động nghiêng theo chuột với lớp ánh sáng Holographic Glare và chiều sâu 3D chân thực.
+- **Hiệu ứng Parallax Scrolling**: Tích hợp [`ParallaxBackground`](file:///Users/peggy2402/Projects/polycards/src/components/landing/parallax-background.tsx) với các luồng mây và ánh sáng bay bổng theo tốc độ cuộn trang.
+- **Hệ thống Phát Âm Đa Ngôn Ngữ**: Hỗ trợ bộ 3 ngôn ngữ Tiếng Anh (kèm IPA), Tiếng Việt, và Tiếng Trung (kèm Pinyin), bấm nghe tức thì ngay trên từng card.
+- Chuyển đổi toàn diện sang phong cách **Tươi sáng, Ấm áp & Trực quan (Bright & Playful)**, loại bỏ triệt để màu nền tối.
+- Build production thành công 100% không cảnh báo (`next build` đạt 4/4 static prerender).
 
-### [ ] Bước 3: Trang kết quả `/ar/[slug]`
-- Tích hợp `<model-viewer>` với camera-controls, auto-rotate, poster, AR WebXR & iOS Quick Look.
-- Nút phát âm thanh tiếng Anh (bấm để nghe qua Audio API).
-- Nút chọn animation (nếu con vật có khai báo).
-- Trạng thái fallback khi thiết bị không hỗ trợ AR (vẫn xem được 3D).
+### [x] Bước 3: Trang kết quả `/ar/[slug]` (Đã hoàn thành)
+- Hoàn thiện trang [`/ar/[slug]`](file:///Users/peggy2402/Projects/polycards/src/app/ar/%5Bslug%5D/page.tsx) hỗ trợ generateStaticParams cho toàn bộ 6 con vật.
+- Tích hợp [`ModelViewerView`](file:///Users/peggy2402/Projects/polycards/src/components/ar/model-viewer-view.tsx): tải model 3D qua WebXR (Android Scene Viewer) và iOS Quick Look (.usdz).
+- Tích hợp [`ArAudioPlayer`](file:///Users/peggy2402/Projects/polycards/src/components/ar/ar-audio-player.tsx): phát âm 3 ngôn ngữ EN/VI/ZH với hiệu ứng sóng âm thanh.
+- Tích hợp [`AnimationControls`](file:///Users/peggy2402/Projects/polycards/src/components/ar/animation-controls.tsx): chuyển đổi động tác nhân vật (Roar, Walk, Idle).
+- Trải nghiệm an toàn 100%: Không quảng cáo, không pop-up, không link ngoài độc hại.
 
-### [ ] Bước 4: Màn hình quét QR `/scan`
-- Màn hình hướng dẫn chuẩn bị mô hình trước khi xin quyền camera.
-- Quét toàn màn hình bằng camera sau (`facingMode: "environment"`).
-- Nút bật/tắt đèn pin (nếu thiết bị hỗ trợ).
-- Xử lý 2 chế độ: Quét tự do và Quét theo sản phẩm (`?expect=slug`).
-- Modal cảnh báo trình duyệt nhúng (Zalo/Facebook/TikTok) + Nút sao chép liên kết.
+### [x] Bước 4: Màn hình quét QR `/scan` (Đã hoàn thành)
+- Hoàn thiện trang [`/scan`](file:///Users/peggy2402/Projects/polycards/src/app/scan/page.tsx).
+- [`ScanGuideModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/scan-guide-modal.tsx): hiển thị hướng dẫn chuẩn bị trước khi người dùng bấm [Mở Camera] (không tự ý xin quyền).
+- [`QrCameraScanner`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/qr-camera-scanner.tsx): quét camera sau (`environment`), hỗ trợ nút bật/tắt đèn pin (flash), reticle quét công nghệ cao, phản hồi rung (vibration) và âm thanh.
+- Xử lý 2 chế độ: Quét tự do (chuyển ngay sang `/ar/[slug]`) và Quét theo sản phẩm (`?expect=slug`, cảnh báo nếu quét nhầm sang con khác).
+- [`InAppBrowserModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/in-app-browser-modal.tsx): tự động phát hiện trình duyệt nhúng Zalo/TikTok/Facebook và cung cấp nút copy link mở ngoài.
+- Trang tùy chỉnh [`not-found.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/not-found.tsx) thân thiện.
+- Build production thành công 100% đạt 12/12 static prerendered pages.
 
 ### [ ] Bước 5: Script tạo mã QR & Hướng dẫn kiểm thử di động
 - Script Node sinh QR SVG/PNG vào `qr-output/`.

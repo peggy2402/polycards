@@ -1,0 +1,61 @@
+import React from "react";
+import Link from "next/link";
+import { siteConfig } from "@/config/site";
+import { Sparkles, QrCode, ShoppingBag, ExternalLink } from "lucide-react";
+
+export function CtaBanner() {
+  return (
+    <section className="py-16 sm:py-20 bg-stone-50 dark:bg-stone-950 transition-colors">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-600 via-amber-700 to-emerald-800 px-6 py-12 sm:px-12 sm:py-16 text-center text-white shadow-xl">
+          {/* Decorative Circles */}
+          <div
+            className="pointer-events-none absolute -top-12 -right-12 h-64 w-64 rounded-full bg-white/10 blur-2xl"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute -bottom-12 -left-12 h-64 w-64 rounded-full bg-emerald-500/20 blur-2xl"
+            aria-hidden="true"
+          />
+
+          <div className="relative mx-auto max-w-3xl space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold backdrop-blur-md">
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              <span>Sẵn Sàng Cho Trải Nghiệm Học Tập Mới</span>
+            </div>
+
+            <h2 className="text-2xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+              Mang Cả Thế Giới Động Vật Sống Động Vào Căn Phòng Của Bé
+            </h2>
+
+            <p className="mx-auto max-w-2xl text-sm leading-relaxed text-amber-100 sm:text-base">
+              Đặt hàng ngay hôm nay để nhận trọn bộ thẻ bài chống nước, mô hình vật lý cao cấp và quyền truy cập thế giới thực tế ảo AR Poly Cards không giới hạn.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+              <a
+                href={siteConfig.socials.shopee}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-white px-6 py-3.5 text-base font-bold text-stone-900 shadow-md transition-all hover:bg-stone-100 active:scale-[0.98]"
+              >
+                <ShoppingBag className="h-5 w-5 text-amber-600" />
+                <span>Mua Trọn Bộ Tại Shopee</span>
+                <ExternalLink className="h-4 w-4 text-stone-400" />
+              </a>
+
+              <Link
+                href="/scan"
+                className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl border-2 border-white/60 bg-white/10 px-6 py-3 text-base font-bold text-white backdrop-blur-sm transition-all hover:bg-white/20 active:scale-[0.98]"
+              >
+                <QrCode className="h-5 w-5" />
+                <span>Quét Mã Dùng Thử Ngay</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
