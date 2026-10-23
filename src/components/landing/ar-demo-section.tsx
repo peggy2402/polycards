@@ -91,25 +91,22 @@ export function ArDemoSection() {
               </div>
 
               {/* Viewport Box Tươi Sáng */}
-              <div className="relative my-4 aspect-4/3 overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-100 via-amber-50/70 to-emerald-100/80 flex items-center justify-center p-6 border border-emerald-200/60">
+              <div className="relative my-4 aspect-4/3 overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-100 via-amber-50/70 to-emerald-100/80 flex items-center justify-center p-3 border border-emerald-200/60 shadow-inner">
                 {/* 3D Deer Model Poster */}
-                <div className="relative h-48 w-48 transition-transform duration-500 hover:scale-105">
+                <div className="relative h-full w-full rounded-xl overflow-hidden transition-transform duration-500 hover:scale-103">
                   <Image
-                    src="/images/animals/deer.svg"
+                    src="/images/animals/deer.jpg"
                     alt="Mô hình Deer AR tương tác"
                     fill
-                    className="object-contain drop-shadow-lg"
+                    className="object-cover rounded-xl"
                   />
                 </div>
 
                 {/* Simulated 360 rotating badge */}
-                <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-emerald-800 shadow-sm border border-emerald-200">
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-emerald-800 shadow-md border border-emerald-200">
                   <RotateCw className="h-3.5 w-3.5 text-emerald-600 animate-spin" style={{ animationDuration: "8s" }} />
-                  <span>Xoay 360°</span>
+                  <span>Xoay 360° Sống Động</span>
                 </div>
-
-                {/* Reticle */}
-                <div className="absolute inset-4 pointer-events-none rounded-xl border border-dashed border-emerald-500/40" />
               </div>
 
               {/* Controls Toolbar */}
@@ -117,23 +114,23 @@ export function ArDemoSection() {
                 <button
                   type="button"
                   onClick={handlePlayAudio}
-                  className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border-2 px-3 py-2 text-xs font-bold transition-all active:scale-95 ${
+                  className={`inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border-2 px-3 py-2 text-xs font-black transition-all active:scale-95 ${
                     isPlayingAudio
-                      ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/30"
-                      : "border-amber-300 bg-amber-50/80 text-amber-900 hover:bg-amber-100"
+                      ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/30 animate-pulse"
+                      : "border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
                   }`}
                   aria-label="Nghe phát âm con hươu"
                 >
-                  <Volume2 className="h-4 w-4" />
-                  <span>{isPlayingAudio ? "Đang phát..." : "Nghe Phát Âm"}</span>
+                  <Volume2 className="h-4 w-4 text-amber-600" />
+                  <span>{isPlayingAudio ? "Đang phát..." : "Nghe Giọng Đọc"}</span>
                 </button>
 
                 <Link
-                  href="/scan?expect=deer"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95"
+                  href="/ar/deer"
+                  className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/20 transition-all hover:scale-102 active:scale-95"
                 >
                   <Smartphone className="h-4 w-4" />
-                  <span>Mở Trình Quét AR</span>
+                  <span>Xem Mô Hình 3D</span>
                 </Link>
               </div>
             </div>

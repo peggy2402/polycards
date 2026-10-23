@@ -49,20 +49,20 @@ export function FaqSection() {
   };
 
   return (
-    <section id="faq" className="scroll-mt-20 py-16 sm:py-24 bg-white dark:bg-stone-900 transition-colors">
+    <section id="faq" className="scroll-mt-20 py-16 sm:py-24 bg-[#FCFBF7] transition-colors">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1 text-xs font-semibold text-amber-900 dark:bg-amber-950/80 dark:text-amber-300">
-            <HelpCircle className="h-4 w-4" />
-            <span>Giải Đáp Thắc Mắc</span>
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-4 py-1.5 text-xs font-extrabold text-amber-950">
+            <HelpCircle className="h-4 w-4 text-amber-600" />
+            <span>Giải Đáp Thắc Mắc Cho Ba Mẹ</span>
           </div>
 
-          <h2 className="mt-4 text-2xl font-bold tracking-tight text-stone-900 sm:text-4xl dark:text-stone-50">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
             Câu Hỏi Thường Gặp (FAQ)
           </h2>
 
-          <p className="mt-3 text-base text-stone-600 sm:text-lg dark:text-stone-400">
+          <p className="text-base text-slate-600 sm:text-lg font-medium">
             Mọi điều bố mẹ cần biết trước khi bắt đầu hành trình trải nghiệm AR cùng bé.
           </p>
         </div>
@@ -74,24 +74,24 @@ export function FaqSection() {
             return (
               <div
                 key={index}
-                className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50/50 transition-colors dark:border-stone-800 dark:bg-stone-950/40"
+                className="overflow-hidden rounded-2xl border-2 border-amber-200/80 bg-white shadow-xs transition-colors"
               >
                 <button
                   type="button"
                   onClick={() => toggleAccordion(index)}
-                  className="flex min-h-[52px] w-full items-center justify-between gap-4 px-5 py-4 text-left font-semibold text-stone-900 transition-colors hover:text-emerald-700 dark:text-stone-100 dark:hover:text-emerald-400"
+                  className="flex min-h-[52px] w-full items-center justify-between gap-4 px-6 py-4.5 text-left font-bold text-slate-900 transition-colors hover:text-emerald-700"
                   aria-expanded={isOpen}
                 >
                   <span className="text-base">{faq.question}</span>
                   <ChevronDown
-                    className={`h-5 w-5 shrink-0 text-stone-500 transition-transform duration-200 ${
-                      isOpen ? "rotate-180 text-emerald-600 dark:text-emerald-400" : ""
+                    className={`h-5 w-5 shrink-0 text-amber-600 transition-transform duration-200 ${
+                      isOpen ? "rotate-180 text-emerald-600" : ""
                     }`}
                   />
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-stone-100 px-5 pt-3 pb-5 text-sm leading-relaxed text-stone-600 dark:border-stone-800/80 dark:text-stone-300 animate-in fade-in duration-200">
+                  <div className="border-t border-amber-100 px-6 pt-3 pb-5 text-sm leading-relaxed text-slate-600 font-medium animate-in fade-in duration-200">
                     {faq.answer}
                   </div>
                 )}

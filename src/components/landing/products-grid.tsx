@@ -35,10 +35,10 @@ export function ProductsGrid({ animals }: ProductsGridProps) {
         </div>
 
         {/* Note under grid */}
-        <div className="mt-12 rounded-2xl border border-stone-200 bg-stone-50 p-4 text-center text-xs text-stone-500 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-400">
-          <p className="flex items-center justify-center gap-1.5">
+        <div className="mt-12 rounded-2xl border-2 border-amber-200/80 bg-white/90 p-4 text-center text-xs font-bold text-slate-700 shadow-sm backdrop-blur-md">
+          <p className="flex items-center justify-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
-            <span>Mỗi sản phẩm đều đi kèm mã QR riêng biệt và quyền truy cập không giới hạn vào trải nghiệm AR tương tác 3D.</span>
+            <span>Mỗi thẻ bài đều đi kèm mã QR riêng biệt và quyền truy cập không giới hạn vào trải nghiệm AR tương tác 3D.</span>
           </p>
         </div>
       </div>

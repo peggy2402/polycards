@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FCFBF7;
+  --foreground: #0F172A;
+  --font-display: var(--font-jakarta), system-ui, -apple-system, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-jakarta), system-ui, -apple-system, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Force pure bright playful theme - No ugly grey dark mode */
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+  background-color: #FCFBF7;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Soft 3D Glow and Shadow Utilities */
+.shadow-playful {
+  box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.15), 0 4px 12px -2px rgba(16, 185, 129, 0.1);
+}
+
+.shadow-card-3d {
+  box-shadow: 0 25px 50px -12px rgba(217, 119, 6, 0.22), 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+
+.shadow-glass {
+  box-shadow: 0 10px 35px -5px rgba(30, 41, 59, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+/* Shimmer animation for card highlights */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s infinite;
+}
+
+/* Gentle floating animation for cards & badges */
+@keyframes gentle-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(0.5deg); }
+}
+
+.animate-float {
+  animation: gentle-float 5s ease-in-out infinite;
+}
+
+/* Tactile 3D Toy Button effect */
+.btn-toy-3d {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18), 0 10px 20px -3px rgba(16, 185, 129, 0.35);
+}
+
+.btn-toy-3d:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.18), 0 14px 25px -4px rgba(16, 185, 129, 0.45);
+}
+
+.btn-toy-3d:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18), 0 4px 10px -2px rgba(16, 185, 129, 0.25);
 }

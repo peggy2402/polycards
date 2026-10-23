@@ -247,24 +247,24 @@ export function ProductCard({ animal }: ProductCardProps) {
         {/* Action Buttons: Touch Target >= 44px */}
         <div className="relative z-10 mt-3 grid grid-cols-2 gap-2.5 pt-1">
           <Link
-            href={targetScanUrl}
-            className="inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-amber-500/15 px-3 py-2 text-xs font-extrabold text-amber-900 border border-amber-300/80 transition-all hover:bg-amber-500/25 active:scale-95"
-            aria-label={`Trải nghiệm AR cho ${animal.nameEn}`}
+            href={`/ar/${animal.slug}`}
+            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 px-3 py-2 text-xs font-black text-slate-950 shadow-md transition-all hover:scale-102 active:scale-95"
+            aria-label={`Trải nghiệm 3D và AR cho ${animal.nameEn}`}
           >
-            <Smartphone className="h-4 w-4 text-amber-600" />
-            <span>Thử AR</span>
+            <Smartphone className="h-4 w-4" />
+            <span>Thử AR 3D</span>
           </Link>
 
           <a
             href={buyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-extrabold text-white shadow-md shadow-emerald-600/25 transition-all hover:from-emerald-700 hover:to-teal-700 active:scale-95"
-            aria-label={`Mua ngay mô hình ${animal.nameEn}`}
+            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/25 transition-all hover:scale-102 active:scale-95"
+            aria-label={`Mua ngay bộ thẻ ${animal.nameEn}`}
           >
             <ShoppingBag className="h-4 w-4" />
-            <span>Mua Ngay</span>
-            <ExternalLink className="h-3 w-3 opacity-75" />
+            <span>Mua Thẻ</span>
+            <ExternalLink className="h-3 w-3 opacity-80" />
           </a>
         </div>
       </article>

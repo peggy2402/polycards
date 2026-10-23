@@ -2,9 +2,11 @@ import React from "react";
 import {
   PackageCheck,
   ScanLine,
-  Volume2,
   Box,
+  Volume2,
+  Trophy,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 
 export function HowItWorksSection() {
@@ -12,86 +14,102 @@ export function HowItWorksSection() {
     {
       number: "01",
       icon: PackageCheck,
-      title: "Chọn Mô Hình Động Vật",
+      title: "Cầm Thẻ Bài Thật",
       description:
-        "Bé tự tay chọn bạn động vật yêu thích từ bộ sưu tập đồ chơi an toàn Poly Cards để cầm nắm và quan sát.",
-      badgeColor: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+        "Bé chọn bạn thú yêu thích, cầm nắm thẻ bài bo góc an toàn chứng nhận FSC kích thích xúc giác và giảm lệ thuộc màn hình.",
+      badgeColor: "bg-amber-100 text-amber-950 border border-amber-300",
+      iconColor: "text-amber-600 bg-amber-50",
     },
     {
       number: "02",
       icon: ScanLine,
-      title: "Quét Mã QR Thông Minh",
+      title: "Quét QR Bằng Camera",
       description:
-        "Dùng camera điện thoại hoặc nút quét trên trang web Poly Cards đưa vào mã QR in trên đế hoặc thẻ bài.",
-      badgeColor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+        "Dùng camera điện thoại đưa vào mã QR trên thẻ. Không cần tải app, công nghệ WebXR mở ra thế giới 3D tức thì.",
+      badgeColor: "bg-emerald-100 text-emerald-950 border border-emerald-300",
+      iconColor: "text-emerald-600 bg-emerald-50",
     },
     {
       number: "03",
-      icon: Volume2,
-      title: "Nghe & Khám Phá Từ Vựng",
+      icon: Box,
+      title: "Xem 3D & Đưa Vào AR",
       description:
-        "Nghe phát âm chuẩn bản xứ, đọc phiên âm quốc tế IPA và đọc những mẩu truyện ngắn thú vị về tập tính con vật.",
-      badgeColor: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
+        "Bạn thú 3D sống động xuất hiện ngay trên bàn học hoặc sàn nhà của bé, có thể xoay 360° và phóng to ngắm nhìn chi tiết.",
+      badgeColor: "bg-sky-100 text-sky-950 border border-sky-300",
+      iconColor: "text-sky-600 bg-sky-50",
     },
     {
       number: "04",
-      icon: Box,
-      title: "Đưa Con Vật Vào AR Thật",
+      icon: Volume2,
+      title: "Nghe Phát Âm 3 Ngôn Ngữ",
       description:
-        "Chỉ cần bấm một nút để đưa bạn hươu, voi hay sư tử 3D chuyển động trực tiếp trên sàn nhà hoặc bàn học của bé.",
-      badgeColor: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
+        "Bé nghe giọng đọc bản xứ tiếng Anh (kèm phiên âm IPA chuẩn), tiếng Việt và tiếng Trung (kèm pinyin) trong giai đoạn vàng ngôn ngữ.",
+      badgeColor: "bg-purple-100 text-purple-950 border border-purple-300",
+      iconColor: "text-purple-600 bg-purple-50",
+    },
+    {
+      number: "05",
+      icon: Trophy,
+      title: "Thử Thách & Luyện Tập",
+      description:
+        "Tham gia mini game tương tác nhanh để củng cố phản xạ, nhận sao thưởng và kích thích não bộ ghi nhớ sâu dài lâu.",
+      badgeColor: "bg-rose-100 text-rose-950 border border-rose-300",
+      iconColor: "text-rose-600 bg-rose-50",
     },
   ];
 
   return (
-    <section id="how-it-works" className="scroll-mt-20 py-16 sm:py-24 bg-stone-50 dark:bg-stone-950/60 transition-colors">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <section id="how-it-works" className="scroll-mt-20 py-16 sm:py-24 bg-gradient-to-b from-white via-amber-50/20 to-white transition-colors">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="mx-auto max-w-3xl text-center">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1 text-xs font-semibold text-amber-900 dark:bg-amber-950/80 dark:text-amber-300">
-            <span>Dễ Dàng Cho Cả Bé & Ba Mẹ</span>
+        <div className="mx-auto max-w-3xl text-center space-y-3">
+          <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-1.5 text-xs font-black text-amber-950 shadow-xs">
+            <Sparkles className="h-4 w-4 text-amber-600" />
+            <span>Quy Trình Học 5 Bước Độc Quyền Poly Cards</span>
           </div>
 
-          <h2 className="mt-4 text-2xl font-bold tracking-tight text-stone-900 sm:text-4xl dark:text-stone-50">
-            Cách Hoạt Động Chỉ Với 4 Bước Đơn Giản
+          <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+            Từ Thẻ Bài Vật Lý Đến Thế Giới 3D AR
           </h2>
 
-          <p className="mt-3 text-base text-stone-600 sm:text-lg dark:text-stone-400">
-            Không cần tài khoản, không cần cấu hình phức tạp. Trải nghiệm bắt đầu ngay tức thì khi camera chạm vào mã QR.
+          <p className="text-base text-slate-600 sm:text-lg font-medium">
+            Khác với flashcard truyền thống chỉ nhìn và quên, Poly Cards dẫn dắt trẻ qua chu trình tương tác đa giác quan khép kín.
           </p>
         </div>
 
-        {/* 4 Steps Grid */}
-        <div className="mt-14 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 5 Steps Grid */}
+        <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
           {steps.map((step, index) => {
             const Icon = step.icon;
             return (
               <div
                 key={index}
-                className="relative flex flex-col rounded-3xl border border-stone-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 dark:border-stone-800 dark:bg-stone-900"
+                className="relative flex flex-col justify-between rounded-3xl border-2 border-amber-200/80 bg-white p-5 shadow-lg shadow-amber-950/5 transition-all duration-300 hover:-translate-y-1.5 hover:border-amber-400 hover:shadow-2xl"
               >
-                {/* Step Number & Icon */}
-                <div className="flex items-center justify-between pb-4">
-                  <span className={`inline-flex items-center justify-center rounded-xl px-2.5 py-1 text-xs font-bold ${step.badgeColor}`}>
-                    Bước {step.number}
-                  </span>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-100 text-stone-800 dark:bg-stone-800 dark:text-stone-200">
-                    <Icon className="h-5 w-5" />
+                <div>
+                  {/* Step Number & Icon */}
+                  <div className="flex items-center justify-between pb-3">
+                    <span className={`inline-flex items-center justify-center rounded-xl px-2.5 py-1 text-xs font-black ${step.badgeColor}`}>
+                      Bước {step.number}
+                    </span>
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${step.iconColor} shadow-inner`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
                   </div>
+
+                  <h3 className="text-base font-black text-slate-900">
+                    {step.title}
+                  </h3>
+
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 font-medium">
+                    {step.description}
+                  </p>
                 </div>
-
-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">
-                  {step.title}
-                </h3>
-
-                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-                  {step.description}
-                </p>
 
                 {/* Arrow indicator for desktop */}
                 {index < steps.length - 1 && (
-                  <div className="hidden lg:block absolute -right-4 top-1/2 -translate-y-1/2 z-10 text-stone-400">
-                    <ArrowRight className="h-5 w-5" />
+                  <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10 text-amber-400">
+                    <ArrowRight className="h-4 w-4" />
                   </div>
                 )}
               </div>

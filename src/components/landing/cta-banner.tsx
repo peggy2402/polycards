@@ -5,9 +5,9 @@ import { Sparkles, QrCode, ShoppingBag, ExternalLink } from "lucide-react";
 
 export function CtaBanner() {
   return (
-    <section className="py-16 sm:py-20 bg-stone-50 dark:bg-stone-950 transition-colors">
+    <section className="py-16 sm:py-20 bg-transparent transition-colors">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-600 via-amber-700 to-emerald-800 px-6 py-12 sm:px-12 sm:py-16 text-center text-white shadow-xl">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-amber-600 to-emerald-700 px-6 py-12 sm:px-12 sm:py-16 text-center text-white shadow-2xl shadow-amber-950/15">
           {/* Decorative Circles */}
           <div
             className="pointer-events-none absolute -top-12 -right-12 h-64 w-64 rounded-full bg-white/10 blur-2xl"

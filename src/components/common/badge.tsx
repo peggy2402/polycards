@@ -15,10 +15,10 @@ export function Badge({
   className = "",
 }: BadgeProps) {
   const variantStyles = {
-    primary: "bg-amber-100 text-amber-900 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
-    secondary: "bg-emerald-100 text-emerald-900 border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
-    accent: "bg-sky-100 text-sky-900 border border-sky-200/80 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800",
-    outline: "bg-white/80 backdrop-blur-sm text-stone-700 border border-stone-200 dark:bg-stone-900/80 dark:text-stone-300 dark:border-stone-700",
+    primary: "bg-amber-100 text-amber-950 border border-amber-300 font-extrabold",
+    secondary: "bg-emerald-100 text-emerald-950 border border-emerald-300 font-extrabold",
+    accent: "bg-sky-100 text-sky-950 border border-sky-300 font-extrabold",
+    outline: "bg-white/95 backdrop-blur-sm text-slate-800 border border-amber-200 font-extrabold",
   };
 
   const renderIcon = () => {

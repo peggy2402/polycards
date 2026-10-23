@@ -4,35 +4,35 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { siteConfig, navItems } from "@/config/site";
-import { Sparkles, QrCode, Menu, X, ArrowUpRight } from "lucide-react";
+import { QrCode, Menu, X, ArrowUpRight, Sparkles } from "lucide-react";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-stone-200/80 bg-white/85 backdrop-blur-md dark:border-stone-800/80 dark:bg-stone-950/85 transition-colors">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand Logo */}
+    <header className="sticky top-3 sm:top-5 z-40 w-full px-3 sm:px-6 transition-all">
+      <div className="mx-auto flex h-16 sm:h-18 max-w-6xl items-center justify-between rounded-2xl sm:rounded-full border-2 border-amber-200/80 bg-white/95 px-4 sm:px-6 shadow-[0_12px_36px_-8px_rgba(217,119,6,0.14)] backdrop-blur-xl">
+        {/* Brand Logo & Name */}
         <Link
           href="/"
-          className="flex items-center gap-2.5 rounded-lg p-1 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+          className="flex items-center gap-3 rounded-full p-1 transition-transform hover:scale-102 focus:outline-hidden"
           aria-label={`${siteConfig.name} Trang chủ`}
         >
-          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-white shadow-xs p-0.5">
+          <div className="relative h-11 w-11 sm:h-12 sm:w-12 shrink-0 overflow-hidden rounded-full bg-white shadow-xs p-1 border-2 border-amber-300">
             <Image
               src="/images/icons/logo.png"
               alt="Poly Cards Logo"
-              width={44}
-              height={44}
+              width={48}
+              height={48}
               priority
               className="h-full w-full object-contain"
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-xl font-extrabold tracking-tight text-amber-950 dark:text-stone-100">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-tight">
               {siteConfig.name}
             </span>
-            <span className="text-[10px] font-bold tracking-wider text-emerald-600 uppercase">
+            <span className="text-[10px] font-black tracking-widest text-emerald-600 uppercase">
               AR Smart Cards
             </span>
           </div>
@@ -44,61 +44,57 @@ export function Navbar() {
             <a
               key={item.href}
               href={item.href}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-stone-100"
+              className="rounded-full px-4 py-2 text-sm font-bold text-slate-700 transition-all hover:bg-amber-100/70 hover:text-amber-950 hover:scale-105 active:scale-95"
             >
               {item.label}
             </a>
           ))}
         </nav>
 
-        {/* Desktop Action Button */}
+        {/* Desktop Action CTA Button */}
         <div className="hidden md:flex items-center gap-3">
           <Link
             href="/scan"
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/25 active:scale-[0.98] focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-6 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-600/30 transition-all"
           >
-            <QrCode className="h-4 w-4" />
+            <QrCode className="h-4.5 w-4.5" />
             <span>Quét QR Trải Nghiệm</span>
           </Link>
         </div>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Hamburger Menu Button */}
         <div className="flex md:hidden">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2.5 text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-slate-700 hover:bg-amber-50"
             aria-expanded={mobileMenuOpen}
-            aria-label={mobileMenuOpen ? "Đóng menu điều hướng" : "Mở menu điều hướng"}
+            aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
           >
-            {mobileMenuOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer Navigation */}
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-stone-200 bg-white px-4 pt-2 pb-6 shadow-xl dark:border-stone-800 dark:bg-stone-950 animate-in fade-in slide-in-from-top-2 duration-150">
-          <nav className="flex flex-col space-y-1">
+        <div className="mx-auto mt-2 max-w-6xl md:hidden overflow-hidden rounded-3xl border border-amber-200 bg-white/98 p-4 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150">
+          <nav className="flex flex-col space-y-1.5">
             {navItems.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex min-h-[44px] items-center rounded-xl px-4 py-2.5 text-base font-medium text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-900"
+                className="flex min-h-[44px] items-center rounded-2xl px-4 py-2.5 text-base font-bold text-slate-700 hover:bg-amber-50"
               >
                 {item.label}
               </a>
             ))}
-            <div className="pt-3">
+            <div className="pt-2">
               <Link
                 href="/scan"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98]"
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-base font-extrabold text-white shadow-md shadow-emerald-600/25 active:scale-98"
               >
                 <QrCode className="h-5 w-5" />
                 <span>Quét QR Trải Nghiệm AR</span>

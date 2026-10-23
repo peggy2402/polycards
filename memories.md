@@ -81,13 +81,17 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 - Tích hợp [`AnimationControls`](file:///Users/peggy2402/Projects/polycards/src/components/ar/animation-controls.tsx): chuyển đổi động tác nhân vật (Roar, Walk, Idle).
 - Trải nghiệm an toàn 100%: Không quảng cáo, không pop-up, không link ngoài độc hại.
 
-### [x] Bước 4: Màn hình quét QR `/scan` (Đã hoàn thành)
+### [x] Bước 4: Màn hình quét QR & Công nghệ Camera AR `/scan` (Đã hoàn thiện nâng cao)
 - Hoàn thiện trang [`/scan`](file:///Users/peggy2402/Projects/polycards/src/app/scan/page.tsx).
-- [`ScanGuideModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/scan-guide-modal.tsx): hiển thị hướng dẫn chuẩn bị trước khi người dùng bấm [Mở Camera] (không tự ý xin quyền).
-- [`QrCameraScanner`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/qr-camera-scanner.tsx): quét camera sau (`environment`), hỗ trợ nút bật/tắt đèn pin (flash), reticle quét công nghệ cao, phản hồi rung (vibration) và âm thanh.
-- Xử lý 2 chế độ: Quét tự do (chuyển ngay sang `/ar/[slug]`) và Quét theo sản phẩm (`?expect=slug`, cảnh báo nếu quét nhầm sang con khác).
-- [`InAppBrowserModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/in-app-browser-modal.tsx): tự động phát hiện trình duyệt nhúng Zalo/TikTok/Facebook và cung cấp nút copy link mở ngoài.
-- Trang tùy chỉnh [`not-found.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/not-found.tsx) thân thiện.
+- [`ScanGuideModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/scan-guide-modal.tsx): hướng dẫn chi tiết, bổ sung nút mở trực tiếp các thẻ mẫu ảo mà không bắt buộc có thẻ giấy.
+- [`QrCameraScanner`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/qr-camera-scanner.tsx):
+  - Khung ngắm AR HUD tương lai với đường quét laser chuyển động và 4 góc bo kim loại phát sáng.
+  - Tích hợp tính năng **Quét từ file ảnh**: Tải ảnh thẻ bài/mã QR từ thư viện ảnh máy (`scanFile`).
+  - Tích hợp **Khay Thẻ Mẫu Ảo (Quick Virtual Demo Cards)**: Cho phép phụ huynh hoặc tester bấm thử nghiệm nhanh 6 con vật ngay cả trên máy tính không có webcam/không có thẻ thật.
+  - Hiệu ứng **Khóa mục tiêu AR (Target Locked Banner)**: Rung phản hồi haptic và popup xác nhận tên con vật trước khi mở không gian 3D.
+  - Bật/tắt đèn flash trợ sáng (Torch) và chuyển đổi linh hoạt.
+- Tích hợp [`ArInteractiveQuiz`](file:///Users/peggy2402/Projects/polycards/src/components/ar/ar-interactive-quiz.tsx) vào [`/ar/[slug]`](file:///Users/peggy2402/Projects/polycards/src/app/ar/%5Bslug%5D/ar-viewer-container.tsx): Khép kín chu trình 5 bước theo đúng tài liệu kinh doanh: Thẻ bài vật lý → Quét AR Camera → Xem 3D 360° → Nghe giọng bản xứ 3 ngôn ngữ → Thử thách tương tác mini game củng cố trí nhớ.
+- [`InAppBrowserModal`](file:///Users/peggy2402/Projects/polycards/src/components/scanner/in-app-browser-modal.tsx): phát hiện trình duyệt nhúng Zalo/TikTok/Facebook và cung cấp nút copy link mở ngoài.
 - Build production thành công 100% đạt 12/12 static prerendered pages.
 
 ### [ ] Bước 5: Script tạo mã QR & Hướng dẫn kiểm thử di động

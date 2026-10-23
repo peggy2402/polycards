@@ -16,7 +16,7 @@ export default function HomePage() {
   const animals = getAllAnimals();
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-stone-50/50">
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#FCFBF7]">
       {/* Dynamic Parallax Background Orbs & Sparkles */}
       <ParallaxBackground />
 
