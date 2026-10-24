@@ -40,7 +40,6 @@ export interface SiteConfig {
     facebook: string;
     zalo: string;
     tiktok: string;
-    shopee: string;
   };
   defaultBuyUrl: string;
 }

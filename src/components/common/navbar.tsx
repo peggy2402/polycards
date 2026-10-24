@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { siteConfig, navItems } from "@/config/site";
-import { QrCode, Menu, X, ArrowUpRight, Sparkles } from "lucide-react";
+import { QrCode, Menu, X, ArrowUpRight, Sparkles, ShoppingBag } from "lucide-react";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -51,14 +51,22 @@ export function Navbar() {
           ))}
         </nav>
 
-        {/* Desktop Action CTA Button */}
-        <div className="hidden md:flex items-center gap-3">
+        {/* Desktop Action CTA Buttons */}
+        <div className="hidden md:flex items-center gap-2.5">
+          <Link
+            href="/order"
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full border-2 border-amber-300 bg-amber-50 px-4 py-2 text-xs font-black text-amber-950 hover:bg-amber-100 active:scale-95 transition-all shadow-xs"
+          >
+            <ShoppingBag className="h-4 w-4 text-amber-600" />
+            <span>Đặt Mua Thẻ</span>
+          </Link>
+
           <Link
             href="/scan"
-            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-6 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-600/30 transition-all"
+            className="btn-toy-3d inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-5 py-2 text-xs font-black text-white shadow-lg shadow-emerald-600/30 transition-all"
           >
-            <QrCode className="h-4.5 w-4.5" />
-            <span>Quét QR Trải Nghiệm</span>
+            <QrCode className="h-4 w-4" />
+            <span>Quét QR AR</span>
           </Link>
         </div>
 
@@ -90,7 +98,15 @@ export function Navbar() {
                 {item.label}
               </a>
             ))}
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col gap-2">
+              <Link
+                href="/order"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-2.5 text-base font-black text-amber-950 active:scale-98 shadow-xs"
+              >
+                <ShoppingBag className="h-5 w-5 text-amber-600" />
+                <span>Đặt Mua Thẻ Poly Cards</span>
+              </Link>
               <Link
                 href="/scan"
                 onClick={() => setMobileMenuOpen(false)}

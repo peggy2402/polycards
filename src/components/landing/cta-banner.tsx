@@ -34,16 +34,13 @@ export function CtaBanner() {
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <a
-                href={siteConfig.socials.shopee}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-white px-6 py-3.5 text-base font-bold text-stone-900 shadow-md transition-all hover:bg-stone-100 active:scale-[0.98]"
+              <Link
+                href="/order"
+                className="btn-toy-3d inline-flex min-h-[50px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-white px-7 py-3.5 text-base font-black text-slate-900 shadow-xl transition-all hover:bg-amber-50 active:scale-95"
               >
                 <ShoppingBag className="h-5 w-5 text-amber-600" />
-                <span>Mua Trọn Bộ Tại Shopee</span>
-                <ExternalLink className="h-4 w-4 text-stone-400" />
-              </a>
+                <span>Đặt Mua Trọn Bộ Thẻ AR</span>
+              </Link>
 
               <Link
                 href="/scan"

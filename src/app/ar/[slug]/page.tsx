@@ -140,16 +140,13 @@ export default async function ArDetailPage({ params }: ArPageProps) {
 
           {/* Quick Action Buttons */}
           <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 pt-2">
-            <a
-              href={buyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-[48px] w-full sm:w-auto flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-extrabold text-white shadow-md shadow-emerald-600/25 hover:from-emerald-700 hover:to-teal-700 active:scale-95 transition-all"
+            <Link
+              href={`/order?animal=${animal.slug}`}
+              className="btn-toy-3d inline-flex min-h-[48px] w-full sm:w-auto flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/25 active:scale-95 transition-all"
             >
               <ShoppingBag className="h-4 w-4" />
-              <span>Mua Mô Hình & Bộ Thẻ {animal.nameEn} Tại Shopee</span>
-              <ExternalLink className="h-3.5 w-3.5 opacity-80" />
-            </a>
+              <span>Đặt Mua Thẻ Bài AR {animal.nameEn} ({animal.nameVi})</span>
+            </Link>
 
             <Link
               href="/scan"

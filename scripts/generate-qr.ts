@@ -27,7 +27,7 @@ async function generateQrCodes() {
   const rawData = fs.readFileSync(animalsJsonPath, "utf-8");
   const animals: AnimalData[] = JSON.parse(rawData);
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://polycards.vn";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://polycards-one.vercel.app";
 
   console.log(`🚀 Đang khởi tạo mã QR cho ${animals.length} con vật với domain gốc: ${siteUrl}...`);
 

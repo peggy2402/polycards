@@ -24,7 +24,7 @@
     "posterUrl": "/images/posters/deer-poster.jpg",
     "animations": ["Idle", "Walk"],
     "arEnabled": true,
-    "buyUrl": "https://shopee.vn/polycards_official",
+    "buyUrl": "/order?animal=deer",
     "badge": "Yêu thích nhất"
   },
   {
@@ -52,7 +52,7 @@
     "posterUrl": "/images/posters/cat-poster.jpg",
     "animations": ["Idle"],
     "arEnabled": true,
-    "buyUrl": "",
+    "buyUrl": "/order?animal=cat",
     "badge": "Thân thiện"
   },
   {
@@ -80,7 +80,7 @@
     "posterUrl": "/images/posters/dog-poster.jpg",
     "animations": ["Idle", "Run"],
     "arEnabled": true,
-    "buyUrl": "https://shopee.vn/polycards_official",
+    "buyUrl": "/order?animal=dog",
     "badge": "Bán chạy"
   },
   {
@@ -108,7 +108,7 @@
     "posterUrl": "/images/posters/elephant-poster.jpg",
     "animations": [],
     "arEnabled": true,
-    "buyUrl": "",
+    "buyUrl": "/order?animal=elephant",
     "badge": "Mô hình lớn"
   },
   {
@@ -136,7 +136,7 @@
     "posterUrl": "/images/posters/lion-poster.jpg",
     "animations": ["Roar", "Idle"],
     "arEnabled": true,
-    "buyUrl": "https://shopee.vn/polycards_official",
+    "buyUrl": "/order?animal=lion",
     "badge": "Dũng mãnh"
   },
   {
@@ -164,7 +164,7 @@
     "posterUrl": "/images/posters/panda-poster.jpg",
     "animations": ["Idle"],
     "arEnabled": true,
-    "buyUrl": "",
+    "buyUrl": "/order?animal=panda",
     "badge": "Dễ thương"
   }
 ]

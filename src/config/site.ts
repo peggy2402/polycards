@@ -5,7 +5,7 @@ export const siteConfig: SiteConfig = {
   tagline: "Học tiếng Anh bằng cách chạm vào thế giới thật",
   description:
     "Bộ thẻ & đồ chơi giáo dục AR thông minh dành cho trẻ từ 3 đến 8 tuổi. Quét mã QR để mở ra thế giới động vật 3D sống động kèm phát âm chuẩn bản xứ.",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://polycards.vn",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://polycards-one.vercel.app",
   hotline: "1900 8866 22",
   email: "hello@polycards.vn",
   address: "Tòa nhà Innovation Hub, Quận 1, TP. Hồ Chí Minh",
@@ -13,9 +13,8 @@ export const siteConfig: SiteConfig = {
     facebook: "https://facebook.com/polycards.vn",
     zalo: "https://zalo.me/polycards",
     tiktok: "https://tiktok.com/@polycards",
-    shopee: "https://shopee.vn/polycards_official",
   },
-  defaultBuyUrl: "https://shopee.vn/polycards_official",
+  defaultBuyUrl: "/order",
 };
 
 export const navItems = [

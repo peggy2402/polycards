@@ -133,18 +133,18 @@ export function Footer() {
               Kênh Chính Hãng
             </h3>
             <div className="flex flex-col gap-2.5">
-              <a
-                href={siteConfig.socials.shopee}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-between rounded-2xl border-2 border-amber-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-xs transition-colors hover:border-amber-400 hover:text-amber-700"
+              <Link
+                href="/order"
+                className="inline-flex min-h-[44px] items-center justify-between rounded-2xl border-2 border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-xs transition-colors hover:border-emerald-400 hover:text-emerald-700"
               >
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-amber-600" />
-                  <span>Shopee Official Store</span>
+                  <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                  <span>Đặt Mua Thẻ Poly Cards</span>
                 </div>
-                <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-              </a>
+                <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Mới
+                </span>
+              </Link>
 
               <a
                 href={siteConfig.socials.zalo}

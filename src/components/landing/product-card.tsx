@@ -127,8 +127,11 @@ export function ProductCard({ animal }: ProductCardProps) {
           )}
         </div>
 
-        {/* 3D Animal Poster Image - Hoàn toàn trong trẻo, không che mặt */}
-        <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 p-2 border border-amber-100 shadow-inner">
+        {/* 3D Animal Poster Image - Bấm vào chuyển thẳng sang trang chi tiết AR */}
+        <Link
+          href={`/ar/${animal.slug}`}
+          className="group/img relative block aspect-square w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 p-2 border border-amber-100 shadow-inner cursor-pointer"
+        >
           <div
             style={{
               transform: tilt.active ? "translateZ(30px)" : "translateZ(0)",
@@ -140,35 +143,35 @@ export function ProductCard({ animal }: ProductCardProps) {
               src={animal.images[0] || "/images/animals/lion.jpg"}
               alt={`Mô hình đồ chơi 3D ${animal.nameVi} (${animal.nameEn})`}
               fill
-              className="object-cover rounded-xl transition-transform duration-500 group-hover:scale-106"
+              className="object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-108"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
           </div>
 
           {/* Quick AR Badge */}
-          <div className="absolute bottom-2.5 right-2.5 z-10 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-amber-900 shadow-sm border border-amber-200 backdrop-blur-xs">
+          <div className="absolute bottom-2.5 right-2.5 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-black text-amber-950 shadow-sm border border-amber-200 backdrop-blur-xs">
             <Sparkles className="h-3 w-3 text-amber-500 animate-spin" style={{ animationDuration: "6s" }} />
-            <span>Mô Hình 3D</span>
+            <span>Xem Chi Tiết 3D</span>
           </div>
-        </div>
+        </Link>
 
         {/* Info Area */}
         <div className="relative z-10 flex flex-1 flex-col pt-4 pb-2">
           {/* Multilingual Animal Name Header */}
           <div className="flex items-baseline justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h3 className="text-2xl font-extrabold tracking-tight text-stone-900">
+            <Link href={`/ar/${animal.slug}`} className="flex items-center gap-2 group/title">
+              <h3 className="text-2xl font-black tracking-tight text-slate-900 group-hover/title:text-emerald-700 transition-colors">
                 {animal.nameEn}
               </h3>
-              <span className="font-mono text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+              <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
                 {animal.ipa}
               </span>
-            </div>
+            </Link>
 
             {animal.nameZh && (
               <div className="text-right">
-                <span className="text-sm font-bold text-stone-700">{animal.nameZh}</span>
-                <span className="block text-[10px] text-stone-500 font-medium">{animal.pinyinZh}</span>
+                <span className="text-sm font-bold text-slate-800">{animal.nameZh}</span>
+                <span className="block text-[10px] text-slate-500 font-medium">{animal.pinyinZh}</span>
               </div>
             )}
           </div>
@@ -255,17 +258,14 @@ export function ProductCard({ animal }: ProductCardProps) {
             <span>Thử AR 3D</span>
           </Link>
 
-          <a
-            href={buyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href={`/order?animal=${animal.slug}`}
             className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/25 transition-all hover:scale-102 active:scale-95"
-            aria-label={`Mua ngay bộ thẻ ${animal.nameEn}`}
+            aria-label={`Đặt mua bộ thẻ ${animal.nameEn}`}
           >
             <ShoppingBag className="h-4 w-4" />
             <span>Mua Thẻ</span>
-            <ExternalLink className="h-3 w-3 opacity-80" />
-          </a>
+          </Link>
         </div>
       </article>
     </div>
