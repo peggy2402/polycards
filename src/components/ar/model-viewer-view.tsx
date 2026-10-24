@@ -42,18 +42,50 @@ export function ModelViewerView({
       }
     };
 
+    const handleModelLoad = () => {
+      const v = viewer as any;
+      const available: string[] = v.availableAnimations || [];
+      if (available.length > 0) {
+        if (selectedAnimation && available.includes(selectedAnimation)) {
+          v.animationName = selectedAnimation;
+        } else {
+          v.animationName = available[0];
+        }
+        if (typeof v.play === "function") {
+          v.play();
+        }
+      }
+    };
+
     const handleError = () => {
       setLoadError(true);
     };
 
     viewer.addEventListener("ar-status", handleArStatus);
     viewer.addEventListener("error", handleError);
+    viewer.addEventListener("load", handleModelLoad);
 
     return () => {
       viewer.removeEventListener("ar-status", handleArStatus);
       viewer.removeEventListener("error", handleError);
+      viewer.removeEventListener("load", handleModelLoad);
     };
-  }, [isLoaded]);
+  }, [isLoaded, selectedAnimation]);
+
+  useEffect(() => {
+    const viewer = modelViewerRef.current as any;
+    if (!viewer) return;
+    const available: string[] = viewer.availableAnimations || [];
+    if (available.length > 0) {
+      if (selectedAnimation && available.includes(selectedAnimation)) {
+        viewer.animationName = selectedAnimation;
+        if (typeof viewer.play === "function") viewer.play();
+      } else if (available.length > 0) {
+        viewer.animationName = available[0];
+        if (typeof viewer.play === "function") viewer.play();
+      }
+    }
+  }, [selectedAnimation]);
 
   const handleLaunchAr = () => {
     const viewer = modelViewerRef.current as any;

@@ -50,7 +50,7 @@
     "modelUrl": "/models/cat.glb",
     "iosModelUrl": "/models/cat.usdz",
     "posterUrl": "/images/posters/cat-poster.jpg",
-    "animations": ["Idle"],
+    "animations": ["Walk", "Idle"],
     "arEnabled": true,
     "buyUrl": "/order?animal=cat",
     "badge": "Thân thiện"
