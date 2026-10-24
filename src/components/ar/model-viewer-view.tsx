@@ -3,7 +3,19 @@
 import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { Animal } from "@/types/animal";
-import { Sparkles, Box, RefreshCw, AlertCircle, RotateCcw } from "lucide-react";
+import {
+  Sparkles,
+  Box,
+  RefreshCw,
+  AlertCircle,
+  RotateCcw,
+  HelpCircle,
+  X,
+  ExternalLink,
+  Smartphone,
+  CheckCircle2,
+  Layers,
+} from "lucide-react";
 
 interface ModelViewerViewProps {
   animal: Animal;
@@ -17,9 +29,15 @@ export function ModelViewerView({
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [arSupported, setArSupported] = useState<boolean | null>(null);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [showArGuide, setShowArGuide] = useState(false);
+  const [arModePreference, setArModePreference] = useState<"scene-viewer" | "webxr">("scene-viewer");
   const modelViewerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    if (typeof navigator !== "undefined") {
+      setIsAndroid(/android/i.test(navigator.userAgent));
+    }
     // Dynamic import Web Component @google/model-viewer on client
     import("@google/model-viewer")
       .then(() => {
@@ -39,6 +57,9 @@ export function ModelViewerView({
       const customEvent = event as CustomEvent<{ status: string }>;
       if (customEvent.detail.status === "failed") {
         setArSupported(false);
+        setShowArGuide(true);
+      } else if (customEvent.detail.status === "session-started") {
+        setArSupported(true);
       }
     };
 
@@ -145,7 +166,11 @@ export function ModelViewerView({
             poster={animal.posterUrl}
             alt={`Mô hình 3D AR ${animal.nameEn}`}
             ar={true}
-            ar-modes="scene-viewer webxr quick-look"
+            ar-modes={
+              arModePreference === "webxr"
+                ? "webxr scene-viewer quick-look"
+                : "scene-viewer webxr quick-look"
+            }
             ar-scale="auto"
             ar-placement="floor"
             bounds="tight"
@@ -206,7 +231,7 @@ export function ModelViewerView({
         </div>
       </div>
 
-      {/* Primary Action Button: Launch AR (WebXR / Quick Look) */}
+      {/* Primary Action Button & Android AR Helper Bar */}
       <div className="border-t border-amber-100 bg-white/90 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="text-center sm:text-left">
           <div className="flex items-center justify-center sm:justify-start gap-2">
@@ -222,20 +247,159 @@ export function ModelViewerView({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleLaunchAr}
-          className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-600/30 transition-all hover:from-emerald-700 hover:to-teal-700 active:scale-95"
-        >
-          <Box className="h-5 w-5" />
-          <span>Đưa {animal.nameEn} Vào Không Gian Thật</span>
-        </button>
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={handleLaunchAr}
+            className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-600/30 transition-all hover:from-emerald-700 hover:to-teal-700 active:scale-95 cursor-pointer"
+          >
+            <Box className="h-5 w-5" />
+            <span>Đưa {animal.nameEn} Vào Không Gian Thật</span>
+          </button>
+
+          {isAndroid && (
+            <button
+              type="button"
+              onClick={() => setShowArGuide(true)}
+              className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs font-bold text-amber-900 transition-all hover:bg-amber-100 active:scale-95 cursor-pointer"
+              title="Hướng dẫn kích hoạt AR cho điện thoại Android"
+            >
+              <HelpCircle className="h-4 w-4 text-amber-600" />
+              <span>Trợ Giúp AR</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Fallback Notice when AR is not hardware supported */}
+      {/* Fallback Notice when AR encounters issues */}
       {arSupported === false && (
-        <div className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 border-t border-amber-200">
-          Thiết bị này chưa hỗ trợ cảm biến AR chuyên dụng. Bạn vẫn có thể xoay ngắm mô hình 3D 360 độ và nghe âm thanh đầy đủ ở trên!
+        <div className="bg-amber-50 px-4 py-3 text-center text-xs text-amber-800 border-t border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>
+            Thiết bị của bạn chưa khởi chạy được camera AR? Đừng lo, bé vẫn có thể tương tác 3D 360° trực tiếp trên màn hình này!
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowArGuide(true)}
+            className="inline-flex items-center gap-1 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 active:scale-95 cursor-pointer transition-all shrink-0"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            <span>Xem Hướng Dẫn Kích Hoạt</span>
+          </button>
+        </div>
+      )}
+
+      {/* Modal Hướng Dẫn & Trợ Giúp AR Cho Android */}
+      {showArGuide && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
+          <div className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white p-5 sm:p-6 shadow-2xl max-h-[88vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+                  <Smartphone className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-stone-900">
+                    Hướng Dẫn Camera AR Trên Android
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    Khắc phục khi camera không mở hoặc ứng dụng Google bị dừng
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowArGuide(false)}
+                className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors"
+                title="Đóng"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Danh sách các bước giải pháp */}
+            <div className="mt-4 space-y-3.5 text-xs text-stone-700">
+              {/* Bước 1: Cài đặt Dịch vụ Google Play cho AR */}
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
+                <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Bước 1: Cài ứng dụng "Dịch vụ Google Play cho AR"</span>
+                </div>
+                <p className="mt-1 text-emerald-800 text-[11px] leading-relaxed">
+                  Để đặt được con vật lên sàn nhà, hệ điều hành Android yêu cầu gói cảm biến <b>ARCore</b> chính thức từ Google.
+                </p>
+                <a
+                  href="https://play.google.com/store/apps/details?id=com.google.ar.core"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Cài đặt trên CH Play (Google Play)</span>
+                </a>
+              </div>
+
+              {/* Bước 2: Sửa lỗi Google tiếp tục dừng */}
+              <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3.5">
+                <div className="flex items-center gap-2 font-bold text-amber-950 text-sm">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>Bước 2: Nếu bị báo "Google tiếp tục dừng"</span>
+                </div>
+                <p className="mt-1 text-amber-900 text-[11px] leading-relaxed">
+                  Ứng dụng Google trên máy bị đầy bộ nhớ đệm: Vào <b>Cài đặt điện thoại &gt; Ứng dụng &gt; Google &gt; Lưu trữ &gt; Xóa bộ nhớ đệm (Clear cache)</b> và đảm bảo đã bật quyền <b>Máy ảnh (Camera)</b>.
+                </p>
+              </div>
+
+              {/* Bước 3: Đổi chế độ AR Trình duyệt */}
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-stone-900 text-sm">
+                    <Layers className="h-4 w-4 text-teal-600 shrink-0" />
+                    <span>Bước 3: Đổi chế độ khởi chạy AR</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-200 text-stone-700">
+                    {arModePreference === "scene-viewer" ? "Google App" : "Trình duyệt WebXR"}
+                  </span>
+                </div>
+                <p className="mt-1 text-stone-600 text-[11px]">
+                  Nếu Google Scene Viewer bị đóng đột ngột, bạn có thể chuyển sang chế độ <b>WebXR</b> chạy trực tiếp trong Chrome (không qua ứng dụng Google ngoài):
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setArModePreference((prev) =>
+                      prev === "scene-viewer" ? "webxr" : "scene-viewer"
+                    )
+                  }
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-800 hover:bg-stone-100 active:scale-95 transition-all shadow-2xs"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 text-stone-600" />
+                  <span>
+                    Chuyển sang: {arModePreference === "scene-viewer" ? "Trình duyệt WebXR" : "Google Scene Viewer"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Lựa chọn không cần cài app */}
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-3.5 text-sky-950">
+                <p className="font-bold text-sm">Không muốn cài đặt thêm ứng dụng?</p>
+                <p className="mt-1 text-[11px] text-sky-800 leading-relaxed">
+                  Bé hoàn toàn có thể <b>tương tác 3D 360°</b>, thu phóng cử động con vật và nghe phát âm 3 ngôn ngữ (Anh - Việt - Trung) ngay trên màn hình này mà <b>không cần cài thêm bất kỳ ứng dụng nào</b>!
+                </p>
+              </div>
+            </div>
+
+            {/* Footer close button */}
+            <div className="mt-5 border-t border-stone-100 pt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowArGuide(false)}
+                className="w-full sm:w-auto rounded-xl bg-stone-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-stone-800 active:scale-95 transition-colors"
+              >
+                Đã Hiểu & Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
