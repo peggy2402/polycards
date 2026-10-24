@@ -8,7 +8,7 @@ export const siteConfig: SiteConfig = {
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://polycards-one.vercel.app",
   hotline: "1900 8866 22",
   email: "hello@polycards.vn",
-  address: "Tòa nhà Innovation Hub, Quận 1, TP. Hồ Chí Minh",
+  address: "294 Lĩnh Nam, Hoàng Mai, Hà Nội",
   socials: {
     facebook: "https://facebook.com/polycards.vn",
     zalo: "https://zalo.me/polycards",
