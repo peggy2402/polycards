@@ -628,7 +628,7 @@ export default function ToolsPage() {
                           : "bg-white text-slate-700 hover:bg-amber-100"
                       }`}
                     >
-                      Production Vercel
+                      Domain
                     </button>
                     <button
                       type="button"
@@ -639,7 +639,7 @@ export default function ToolsPage() {
                           : "bg-white text-slate-700 hover:bg-amber-100"
                       }`}
                     >
-                      Localhost:3000
+                      localhost:3000
                     </button>
                     <button
                       type="button"

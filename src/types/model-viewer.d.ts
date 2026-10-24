@@ -23,6 +23,7 @@ type ModelViewerAttributes = React.HTMLAttributes<HTMLElement> & {
   reveal?: "auto" | "interaction" | "manual";
   "camera-orbit"?: string;
   "field-of-view"?: string;
+  bounds?: string;
 };
 
 declare module "react" {

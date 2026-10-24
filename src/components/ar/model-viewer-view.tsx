@@ -145,7 +145,10 @@ export function ModelViewerView({
             poster={animal.posterUrl}
             alt={`Mô hình 3D AR ${animal.nameEn}`}
             ar={true}
-            ar-modes="webxr scene-viewer quick-look"
+            ar-modes="scene-viewer webxr quick-look"
+            ar-scale="auto"
+            ar-placement="floor"
+            bounds="tight"
             camera-controls={true}
             auto-rotate={true}
             auto-rotate-delay="3000"
@@ -178,23 +181,28 @@ export function ModelViewerView({
           </div>
         )}
 
-        {/* Camera Reset Button */}
-        {isLoaded && !loadError && (
-          <button
-            type="button"
-            onClick={handleResetCamera}
-            className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-stone-700 shadow-md border border-amber-200 hover:bg-white active:scale-95 transition-all"
-            title="Đặt lại góc nhìn xoay 360"
-          >
-            <RotateCcw className="h-3.5 w-3.5 text-amber-600" />
-            <span>Góc Nhìn Gốc</span>
-          </button>
-        )}
+        {/* Top Floating Control Bar - Responsive & Non-overlapping on narrow Android/iPhone screens */}
+        <div className="absolute top-3.5 inset-x-3.5 z-10 flex items-center justify-between gap-2 pointer-events-none">
+          {/* Hint Chip for Touch Interaction */}
+          <div className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-stone-900/85 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md shadow-xs shrink min-w-0">
+            <Sparkles className="h-3 w-3 shrink-0 text-amber-400" />
+            <span className="hidden sm:inline truncate">Dùng ngón tay xoay 360° & Phóng to</span>
+            <span className="sm:hidden truncate">Xoay 360° & Zoom</span>
+          </div>
 
-        {/* Hint Chip for Touch Interaction */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 rounded-full bg-stone-900/80 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-md shadow-xs">
-          <Sparkles className="h-3 w-3 text-amber-400" />
-          <span>Dùng ngón tay xoay 360° & Phóng to</span>
+          {/* Camera Reset Button */}
+          {isLoaded && !loadError && (
+            <button
+              type="button"
+              onClick={handleResetCamera}
+              className="pointer-events-auto shrink-0 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-stone-700 shadow-md border border-amber-200 hover:bg-white active:scale-95 transition-all"
+              title="Đặt lại góc nhìn xoay 360"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Góc Nhìn Gốc</span>
+              <span className="sm:hidden">Đặt lại</span>
+            </button>
+          )}
         </div>
       </div>
 
