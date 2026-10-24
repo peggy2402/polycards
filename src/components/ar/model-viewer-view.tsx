@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Animal } from "@/types/animal";
 import {
@@ -26,6 +27,7 @@ export function ModelViewerView({
   animal,
   selectedAnimation,
 }: ModelViewerViewProps) {
+  const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [arSupported, setArSupported] = useState<boolean | null>(null);
@@ -35,9 +37,24 @@ export function ModelViewerView({
   const modelViewerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    setMounted(true);
     if (typeof navigator !== "undefined") {
       setIsAndroid(/android/i.test(navigator.userAgent));
     }
+  }, []);
+
+  useEffect(() => {
+    if (showArGuide) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showArGuide]);
+
+  useEffect(() => {
     // Dynamic import Web Component @google/model-viewer on client
     import("@google/model-viewer")
       .then(() => {
@@ -288,120 +305,135 @@ export function ModelViewerView({
         </div>
       )}
 
-      {/* Modal Hướng Dẫn & Trợ Giúp AR Cho Android */}
-      {showArGuide && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
-          <div className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white p-5 sm:p-6 shadow-2xl max-h-[88vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
-                  <Smartphone className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-stone-900">
-                    Hướng Dẫn Camera AR Trên Android
-                  </h3>
-                  <p className="text-[11px] text-stone-500">
-                    Khắc phục khi camera không mở hoặc ứng dụng Google bị dừng
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowArGuide(false)}
-                className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors"
-                title="Đóng"
+      {/* Portal Modal Hướng Dẫn & Trợ Giúp AR Cho Android (Gắn trực tiếp vào document.body tránh bị che khuất) */}
+      {mounted && showArGuide && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-stone-950/70 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setShowArGuide(false);
+              }}
+            >
+              <div
+                className="relative w-full max-w-lg rounded-t-[32px] sm:rounded-3xl bg-white p-5 sm:p-6 shadow-2xl border border-stone-200/80 max-h-[88vh] flex flex-col animate-in slide-in-from-bottom-6 duration-300"
+                role="dialog"
+                aria-modal="true"
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+                {/* Mobile Bottom Sheet Grab Handle */}
+                <div className="sm:hidden w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-3 shrink-0" />
 
-            {/* Danh sách các bước giải pháp */}
-            <div className="mt-4 space-y-3.5 text-xs text-stone-700">
-              {/* Bước 1: Cài đặt Dịch vụ Google Play cho AR */}
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span>Bước 1: Cài ứng dụng "Dịch vụ Google Play cho AR"</span>
-                </div>
-                <p className="mt-1 text-emerald-800 text-[11px] leading-relaxed">
-                  Để đặt được con vật lên sàn nhà, hệ điều hành Android yêu cầu gói cảm biến <b>ARCore</b> chính thức từ Google.
-                </p>
-                <a
-                  href="https://play.google.com/store/apps/details?id=com.google.ar.core"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>Cài đặt trên CH Play (Google Play)</span>
-                </a>
-              </div>
-
-              {/* Bước 2: Sửa lỗi Google tiếp tục dừng */}
-              <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3.5">
-                <div className="flex items-center gap-2 font-bold text-amber-950 text-sm">
-                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                  <span>Bước 2: Nếu bị báo "Google tiếp tục dừng"</span>
-                </div>
-                <p className="mt-1 text-amber-900 text-[11px] leading-relaxed">
-                  Ứng dụng Google trên máy bị đầy bộ nhớ đệm: Vào <b>Cài đặt điện thoại &gt; Ứng dụng &gt; Google &gt; Lưu trữ &gt; Xóa bộ nhớ đệm (Clear cache)</b> và đảm bảo đã bật quyền <b>Máy ảnh (Camera)</b>.
-                </p>
-              </div>
-
-              {/* Bước 3: Đổi chế độ AR Trình duyệt */}
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-stone-900 text-sm">
-                    <Layers className="h-4 w-4 text-teal-600 shrink-0" />
-                    <span>Bước 3: Đổi chế độ khởi chạy AR</span>
+                {/* Header cố định */}
+                <div className="flex items-center justify-between border-b border-stone-100 pb-3 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 shrink-0">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-stone-900 leading-tight">
+                        Hướng Dẫn Camera AR Trên Android
+                      </h3>
+                      <p className="text-[11px] text-stone-500 mt-0.5">
+                        Khắc phục khi camera không mở hoặc ứng dụng Google bị dừng
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-200 text-stone-700">
-                    {arModePreference === "scene-viewer" ? "Google App" : "Trình duyệt WebXR"}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowArGuide(false)}
+                    className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors cursor-pointer"
+                    title="Đóng cửa sổ"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-                <p className="mt-1 text-stone-600 text-[11px]">
-                  Nếu Google Scene Viewer bị đóng đột ngột, bạn có thể chuyển sang chế độ <b>WebXR</b> chạy trực tiếp trong Chrome (không qua ứng dụng Google ngoài):
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setArModePreference((prev) =>
-                      prev === "scene-viewer" ? "webxr" : "scene-viewer"
-                    )
-                  }
-                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-800 hover:bg-stone-100 active:scale-95 transition-all shadow-2xs"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 text-stone-600" />
-                  <span>
-                    Chuyển sang: {arModePreference === "scene-viewer" ? "Trình duyệt WebXR" : "Google Scene Viewer"}
-                  </span>
-                </button>
-              </div>
 
-              {/* Lựa chọn không cần cài app */}
-              <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-3.5 text-sky-950">
-                <p className="font-bold text-sm">Không muốn cài đặt thêm ứng dụng?</p>
-                <p className="mt-1 text-[11px] text-sky-800 leading-relaxed">
-                  Bé hoàn toàn có thể <b>tương tác 3D 360°</b>, thu phóng cử động con vật và nghe phát âm 3 ngôn ngữ (Anh - Việt - Trung) ngay trên màn hình này mà <b>không cần cài thêm bất kỳ ứng dụng nào</b>!
-                </p>
-              </div>
-            </div>
+                {/* Nội dung các bước (Cuộn độc lập mượt mà) */}
+                <div className="mt-3.5 flex-1 overflow-y-auto pr-1 space-y-3.5 text-xs text-stone-700">
+                  {/* Bước 1: Cài đặt Dịch vụ Google Play cho AR */}
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
+                    <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span>Bước 1: Cài ứng dụng "Dịch vụ Google Play cho AR"</span>
+                    </div>
+                    <p className="mt-1 text-emerald-800 text-[11px] leading-relaxed">
+                      Để đặt được con vật lên sàn nhà, hệ điều hành Android yêu cầu gói cảm biến <b>ARCore</b> chính thức từ Google.
+                    </p>
+                    <a
+                      href="https://play.google.com/store/apps/details?id=com.google.ar.core"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Cài đặt trên CH Play (Google Play)</span>
+                    </a>
+                  </div>
 
-            {/* Footer close button */}
-            <div className="mt-5 border-t border-stone-100 pt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowArGuide(false)}
-                className="w-full sm:w-auto rounded-xl bg-stone-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-stone-800 active:scale-95 transition-colors"
-              >
-                Đã Hiểu & Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                  {/* Bước 2: Sửa lỗi Google tiếp tục dừng */}
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3.5">
+                    <div className="flex items-center gap-2 font-bold text-amber-950 text-sm">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Bước 2: Nếu bị báo "Google tiếp tục dừng"</span>
+                    </div>
+                    <p className="mt-1 text-amber-900 text-[11px] leading-relaxed">
+                      Ứng dụng Google trên máy bị đầy bộ nhớ đệm: Vào <b>Cài đặt điện thoại &gt; Ứng dụng &gt; Google &gt; Lưu trữ &gt; Xóa bộ nhớ đệm (Clear cache)</b> và đảm bảo đã bật quyền <b>Máy ảnh (Camera)</b>.
+                    </p>
+                  </div>
+
+                  {/* Bước 3: Đổi chế độ AR Trình duyệt */}
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-bold text-stone-900 text-sm">
+                        <Layers className="h-4 w-4 text-teal-600 shrink-0" />
+                        <span>Bước 3: Đổi chế độ khởi chạy AR</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-200 text-stone-700">
+                        {arModePreference === "scene-viewer" ? "Google App" : "Trình duyệt WebXR"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-stone-600 text-[11px]">
+                      Nếu Google Scene Viewer bị đóng đột ngột, bạn có thể chuyển sang chế độ <b>WebXR</b> chạy trực tiếp trong Chrome (không qua ứng dụng Google ngoài):
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setArModePreference((prev) =>
+                          prev === "scene-viewer" ? "webxr" : "scene-viewer"
+                        )
+                      }
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-800 hover:bg-stone-100 active:scale-95 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 text-stone-600" />
+                      <span>
+                        Chuyển sang: {arModePreference === "scene-viewer" ? "Trình duyệt WebXR" : "Google Scene Viewer"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Lựa chọn không cần cài app */}
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-3.5 text-sky-950">
+                    <p className="font-bold text-sm">Không muốn cài đặt thêm ứng dụng?</p>
+                    <p className="mt-1 text-[11px] text-sky-800 leading-relaxed">
+                      Bé hoàn toàn có thể <b>tương tác 3D 360°</b>, thu phóng cử động con vật và nghe phát âm 3 ngôn ngữ (Anh - Việt - Trung) ngay trên màn hình này mà <b>không cần cài thêm bất kỳ ứng dụng nào</b>!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer cố định */}
+                <div className="mt-4 border-t border-stone-100 pt-3 flex justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowArGuide(false)}
+                    className="w-full sm:w-auto rounded-xl bg-stone-900 px-6 py-2.5 text-xs font-bold text-white hover:bg-stone-800 active:scale-95 transition-colors cursor-pointer"
+                  >
+                    Đã Hiểu & Đóng
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
