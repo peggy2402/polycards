@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-qr": "tsx scripts/generate-qr.ts"
+    "generate-qr": "tsx scripts/generate-qr.ts",
+    "convert-usdz": "blender --background --python scripts/convert_glb_to_usdz.py --"
   },
   "dependencies": {
     "@google/model-viewer": "^4.4.0",
