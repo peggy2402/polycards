@@ -28,7 +28,12 @@ function ScanContent() {
   }, []);
 
   return (
-    <div suppressHydrationWarning className="min-h-[100dvh] w-full bg-stone-950">
+    <div
+      suppressHydrationWarning
+      className={`min-h-[100dvh] w-full transition-colors duration-300 ${
+        isScanning ? "bg-stone-950" : "bg-[#FCFBF7]"
+      }`}
+    >
       {/* Show in-app warning if opened in Zalo/Facebook/TikTok */}
       {inAppInfo.isInApp && <InAppBrowserModal appName={inAppInfo.appName} />}
 
