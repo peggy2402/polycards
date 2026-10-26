@@ -21,7 +21,7 @@ if (!res1.valid || res1.slug !== "deer") throw new Error("Case 1 failed");
 console.log("[PASS] Case 1 (AR ID): OK");
 
 // Case 2: valid internal URL
-const res2 = parseAndValidateQr("https://polycards.vn/ar/cat");
+const res2 = parseAndValidateQr("https://polycards-one.vercel.app/ar/cat");
 if (!res2.valid || res2.slug !== "cat") throw new Error("Case 2 failed");
 console.log("[PASS] Case 2 (Full URL): OK");
 

@@ -57,6 +57,8 @@ export function parseAndValidateQr(
         const isAllowedDomain =
           parsedUrl.host.toLowerCase() === configuredHost ||
           parsedUrl.host.toLowerCase() === currentHost ||
+          parsedUrl.hostname === "polycards-one.vercel.app" ||
+          (parsedUrl.hostname.endsWith(".vercel.app") && parsedUrl.hostname.includes("polycards")) ||
           parsedUrl.hostname === "localhost" ||
           parsedUrl.hostname === "127.0.0.1" ||
           parsedUrl.hostname.endsWith(".ngrok-free.app") ||
