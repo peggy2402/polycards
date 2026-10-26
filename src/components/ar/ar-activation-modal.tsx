@@ -226,8 +226,12 @@ export function ArActivationModal({
                     setErrorMsg(null);
                   }}
                   placeholder="POLYCARDS hoặc POLY-VIP"
-                  className="w-full max-w-full box-border min-h-[48px] rounded-2xl border-2 border-amber-300 px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold tracking-normal text-stone-900 uppercase focus:border-amber-500 focus:outline-hidden"
-                  autoFocus
+                  className="w-full max-w-full box-border min-h-[48px] rounded-2xl border-2 border-amber-300 px-4 py-2.5 text-base sm:text-sm font-mono font-bold tracking-normal text-stone-900 uppercase focus:border-amber-500 focus:outline-hidden bg-white"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <span className="text-[11px] text-stone-500 mt-1 block leading-tight">
                   (Mẹo: Bạn có thể nhập mã dùng thử: <strong>POLYCARDS</strong> hoặc <strong>POLY-VIP</strong>)
@@ -251,7 +255,10 @@ export function ArActivationModal({
               <div className="flex items-center gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => setTab("options")}
+                  onClick={() => {
+                    setErrorMsg(null);
+                    setTab("options");
+                  }}
                   className="flex-1 min-h-[48px] rounded-2xl border-2 border-stone-200 text-xs font-bold text-stone-700 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
                 >
                   Quay Lại
