@@ -8,7 +8,7 @@ function getSecretKey(): string {
     const envPath = path.join(process.cwd(), ".env");
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, "utf-8");
-      const match = content.match(/TOOLS_SECRET_KEY\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\r\n#]+))/);
+      const match = content.match(/POLY_KEY_TOOLS\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\r\n#]+))/);
       if (match) {
         const val = match[1] ?? match[2] ?? match[3];
         if (val) return val.trim();
@@ -19,7 +19,7 @@ function getSecretKey(): string {
   }
 
   // 2. Mặc định đọc từ process.env (chuẩn trên Vercel / Production)
-  return process.env.TOOLS_SECRET_KEY || "polycard2025";
+  return process.env.POLY_KEY_TOOLS || "polycard2025";
 }
 
 export async function POST(req: NextRequest) {
