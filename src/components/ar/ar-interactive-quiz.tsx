@@ -68,24 +68,24 @@ export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
   };
 
   return (
-    <div className="rounded-3xl border-2 border-emerald-200/90 bg-white/95 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 backdrop-blur-md">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-emerald-100">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 shadow-xs">
+    <div className="w-full max-w-full overflow-hidden rounded-3xl border-2 border-emerald-200/90 bg-white/95 p-4 sm:p-6 shadow-xl shadow-emerald-950/5 backdrop-blur-md">
+      {/* Header - Chuẩn Responsive di động, tự ngắt dòng khi hẹp */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-emerald-100">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 shadow-xs">
             <Trophy className="h-5 w-5 text-amber-600" />
           </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-black text-slate-900">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
               Thử Thách Tương Tác: Bé Nhớ Được Gì?
             </h3>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
               Mini game củng cố trí nhớ sau khi xem mô hình 3D AR
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900 border border-amber-300">
+        <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-900 border border-amber-300 self-start sm:self-auto shrink-0">
           <Star className="h-3.5 w-3.5 text-amber-600 fill-amber-500" />
           <span>+10 Điểm Thưởng</span>
         </div>

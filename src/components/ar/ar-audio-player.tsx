@@ -60,17 +60,17 @@ export function ArAudioPlayer({ animal }: ArAudioPlayerProps) {
   };
 
   return (
-    <div className="rounded-3xl border-2 border-amber-200/90 bg-white/95 p-5 shadow-lg shadow-amber-900/5 backdrop-blur-md">
-      <div className="flex items-center justify-between pb-3 border-b border-amber-100">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+    <div className="w-full max-w-full overflow-hidden rounded-3xl border-2 border-amber-200/90 bg-white/95 p-4 sm:p-5 shadow-lg shadow-amber-900/5 backdrop-blur-md">
+      <div className="flex items-center justify-between gap-2 pb-3 border-b border-amber-100">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
             <Volume2 className="h-5 w-5" />
           </div>
-          <div>
-            <h3 className="text-base font-extrabold text-stone-900">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm sm:text-base font-extrabold text-stone-900 truncate">
               Luyện Nghe & Phát Âm Chuẩn
             </h3>
-            <span className="text-[11px] text-stone-500">
+            <span className="text-[11px] text-stone-500 block truncate">
               Bấm để nghe phát âm từng ngôn ngữ
             </span>
           </div>

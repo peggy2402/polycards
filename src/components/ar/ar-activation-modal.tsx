@@ -37,20 +37,28 @@ export function ArActivationModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Khóa cuộn trang khi modal mở
+  // Khóa cuộn trang khi modal mở - Chuẩn iOS Safari không bị nhảy background
   useEffect(() => {
     if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      const prevPosition = document.body.style.position;
+      const prevWidth = document.body.style.width;
+
       document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+
+      return () => {
+        document.body.style.overflow = prevOverflow;
+        document.body.style.position = prevPosition;
+        document.body.style.width = prevWidth;
+      };
     } else {
-      document.body.style.overflow = "";
       setTab("options");
       setCode("");
       setErrorMsg(null);
       setSuccessMsg(null);
     }
-    return () => {
-      document.body.style.overflow = "";
-    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -77,30 +85,32 @@ export function ArActivationModal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-0 sm:p-4 touch-pan-y overflow-x-hidden w-full max-w-full"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md animate-in fade-in duration-200 p-0 sm:p-4 overflow-y-auto overflow-x-hidden w-full max-w-[100vw]"
+      style={{ width: "100vw", maxWidth: "100vw" }}
       onClick={onClose}
     >
       {/* Container: Chuẩn Mobile Bottom Sheet (<640px) và Centered Modal (>=640px) - Chống tràn ngang tuyệt đối */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md max-h-[92dvh] sm:max-h-[88vh] overflow-x-hidden rounded-t-[32px] sm:rounded-3xl border-t-2 sm:border-2 border-amber-300/90 bg-white shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300 sm:zoom-in-95"
+        className="relative w-full max-w-full sm:max-w-md max-h-[90dvh] sm:max-h-[88vh] overflow-x-hidden rounded-t-[32px] sm:rounded-3xl border-t-2 sm:border-2 border-amber-300/90 bg-white shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300 sm:zoom-in-95 box-border"
+        style={{ maxWidth: "100vw" }}
       >
         {/* Grab handle nhỏ nhắn trên Mobile */}
         <div className="w-12 h-1.5 rounded-full bg-stone-900/20 mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
 
         {/* Header: Responsive chuẩn 360px+, không bị va chạm nút đóng, Touch Target >= 44px */}
-        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-4 sm:px-6 py-4 text-stone-950 shrink-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-stone-950 text-amber-400 shadow-md">
-                <Sparkles className="h-5 w-5" />
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-3.5 sm:px-6 py-3.5 text-stone-950 shrink-0 overflow-hidden w-full">
+          <div className="flex items-center justify-between gap-2.5 w-full">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-2xl bg-stone-950 text-amber-400 shadow-md">
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-stone-950/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-stone-950 truncate max-w-full">
-                  <ShieldCheck className="h-3 w-3 shrink-0" />
+                <span className="inline-flex items-center gap-1 rounded-full bg-stone-950/15 px-2 py-0.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-stone-950 truncate max-w-full">
+                  <ShieldCheck className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
                   <span className="truncate">Poly Cards AR Bản Quyền</span>
                 </span>
-                <h3 className="text-base sm:text-lg font-black leading-tight text-stone-950 truncate mt-0.5">
+                <h3 className="text-sm sm:text-base font-black leading-tight text-stone-950 truncate mt-0.5">
                   Mở Khóa {animal.nameVi} ({animal.nameEn})
                 </h3>
               </div>
@@ -120,7 +130,7 @@ export function ArActivationModal({
         </div>
 
         {/* Nội dung có thanh cuộn mượt mà khi mở bàn phím điện thoại */}
-        <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden space-y-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] w-full">
+        <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden space-y-3.5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] w-full">
           {tab === "options" ? (
             <>
               <p className="text-xs text-stone-600 leading-relaxed">
@@ -134,17 +144,17 @@ export function ArActivationModal({
                   onClose();
                   onStartTrial();
                 }}
-                className="w-full min-h-[58px] flex items-center justify-between p-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50/80 hover:bg-amber-100/80 transition-all active:scale-98 text-left group cursor-pointer"
+                className="w-full min-h-[58px] flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50/80 hover:bg-amber-100/80 transition-all active:scale-98 text-left group cursor-pointer"
               >
-                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-stone-950 font-black shadow-xs">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1.5">
+                  <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-stone-950 font-black shadow-xs">
                     <Clock className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-xs sm:text-sm font-black text-stone-900 group-hover:text-amber-900 truncate">
                       Trải Nghiệm Thử 30 Giây
                     </h4>
-                    <span className="text-[11px] text-stone-500 truncate block">
+                    <span className="text-[10px] sm:text-[11px] text-stone-500 truncate block">
                       Dùng thử camera AR trực tiếp trên màn hình
                     </span>
                   </div>
@@ -156,10 +166,10 @@ export function ArActivationModal({
               <Link
                 href={`/order?animal=${animal.slug}`}
                 onClick={onClose}
-                className="w-full min-h-[58px] flex items-center justify-between p-3.5 rounded-2xl border-2 border-emerald-400 bg-emerald-50/80 hover:bg-emerald-100/80 transition-all active:scale-98 text-left group cursor-pointer"
+                className="w-full min-h-[58px] flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border-2 border-emerald-400 bg-emerald-50/80 hover:bg-emerald-100/80 transition-all active:scale-98 text-left group cursor-pointer"
               >
-                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white font-black shadow-xs">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1.5">
+                  <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white font-black shadow-xs">
                     <ShoppingBag className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -171,7 +181,7 @@ export function ArActivationModal({
                         Ưu đãi
                       </span>
                     </div>
-                    <span className="text-[11px] text-stone-500 truncate block">
+                    <span className="text-[10px] sm:text-[11px] text-stone-500 truncate block">
                       Bộ 30+ thẻ bài cứng cao cấp, bảo hành học tập
                     </span>
                   </div>
@@ -183,17 +193,17 @@ export function ArActivationModal({
               <button
                 type="button"
                 onClick={() => setTab("enter_code")}
-                className="w-full min-h-[58px] flex items-center justify-between p-3.5 rounded-2xl border-2 border-stone-200 bg-stone-50/90 hover:bg-stone-100 transition-all active:scale-98 text-left group cursor-pointer"
+                className="w-full min-h-[58px] flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border-2 border-stone-200 bg-stone-50/90 hover:bg-stone-100 transition-all active:scale-98 text-left group cursor-pointer"
               >
-                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-900 text-amber-300 font-black shadow-xs">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1.5">
+                  <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-900 text-amber-300 font-black shadow-xs">
                     <KeyRound className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-xs sm:text-sm font-black text-stone-900 group-hover:text-stone-950 truncate">
                       Tôi Đã Mua Thẻ Bài
                     </h4>
-                    <span className="text-[11px] text-stone-500 truncate block">
+                    <span className="text-[10px] sm:text-[11px] text-stone-500 truncate block">
                       Nhập mã VIP đi kèm bên trong hộp thẻ
                     </span>
                   </div>
@@ -215,12 +225,12 @@ export function ArActivationModal({
                     setCode(e.target.value);
                     setErrorMsg(null);
                   }}
-                  placeholder="Ví dụ: POLYCARDS hoặc POLY-VIP"
-                  className="w-full max-w-full box-border min-h-[48px] rounded-2xl border-2 border-amber-300 px-4 py-2.5 text-sm font-mono font-bold tracking-wider text-stone-900 uppercase focus:border-amber-500 focus:outline-hidden"
+                  placeholder="POLYCARDS hoặc POLY-VIP"
+                  className="w-full max-w-full box-border min-h-[48px] rounded-2xl border-2 border-amber-300 px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold tracking-normal text-stone-900 uppercase focus:border-amber-500 focus:outline-hidden"
                   autoFocus
                 />
                 <span className="text-[11px] text-stone-500 mt-1 block leading-tight">
-                  (Mẹo trải nghiệm: Bạn có thể nhập mã dùng thử: <strong>POLYCARDS</strong> hoặc <strong>POLY-VIP</strong>)
+                  (Mẹo: Bạn có thể nhập mã dùng thử: <strong>POLYCARDS</strong> hoặc <strong>POLY-VIP</strong>)
                 </span>
               </div>
 

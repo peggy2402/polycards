@@ -242,7 +242,7 @@ export function CardFlashcardView({
           </button>
         )}
 
-        <div className="flex items-center gap-2 w-full">
+        {/* <div className="flex items-center gap-2 w-full">
           <button
             type="button"
             onClick={() => setIsFlipped(!isFlipped)}
@@ -261,7 +261,7 @@ export function CardFlashcardView({
           >
             <Maximize2 className="h-4 w-4 text-amber-700" />
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* Gợi ý cho phụ huynh / bé */}
