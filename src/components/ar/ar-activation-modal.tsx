@@ -225,7 +225,7 @@ export function ArActivationModal({
                     setCode(e.target.value);
                     setErrorMsg(null);
                   }}
-                  placeholder="POLYCARDS hoặc POLY-VIP"
+                  placeholder="Nhập mã của bạn"
                   className="w-full max-w-full box-border min-h-[48px] rounded-2xl border-2 border-amber-300 px-4 py-2.5 text-base sm:text-sm font-mono font-bold tracking-normal text-stone-900 uppercase focus:border-amber-500 focus:outline-hidden bg-white"
                   inputMode="text"
                   autoCapitalize="characters"
@@ -233,9 +233,6 @@ export function ArActivationModal({
                   autoCorrect="off"
                   spellCheck={false}
                 />
-                <span className="text-[11px] text-stone-500 mt-1 block leading-tight">
-                  (Mẹo: Bạn có thể nhập mã dùng thử: <strong>POLYCARDS</strong> hoặc <strong>POLY-VIP</strong>)
-                </span>
               </div>
 
               {errorMsg && (
