@@ -59,11 +59,25 @@ export function activateWithCode(code: string): { success: boolean; message: str
     clean.length >= 6;
 
   if (isValid) {
+    // 1. Lưu cờ mở khóa toàn bộ hệ thống
     localStorage.setItem(STORAGE_KEY_ALL, "true");
     localStorage.setItem("polycards_activation_code", clean);
+
+    // 2. Mở khóa tường minh cho từng con vật trong toàn bộ bộ sưu tập
+    const allAnimalSlugs = ["cat", "lion", "dog", "deer", "elephant", "panda"];
+    allAnimalSlugs.forEach((s) => {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${s}`, "true");
+    });
+
+    // 3. Phát thông điệp để toàn bộ ứng dụng và các tab đang mở cập nhật tức thì
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new CustomEvent("polycards_activated"));
+    }
+
     return {
       success: true,
-      message: "Chúc mừng bạn! Toàn bộ 30+ thẻ bài AR Poly Cards đã được mở khóa vĩnh viễn.",
+      message: "Chúc mừng bạn! Mã bản quyền đã mở khóa vĩnh viễn TOÀN BỘ các thẻ bài AR Poly Cards.",
     };
   }
 

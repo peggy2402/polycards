@@ -39,9 +39,21 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
   const [unlocked, setUnlocked] = useState<boolean>(false);
 
-  // Kiểm tra trạng thái bản quyền (Đã kích hoạt hay chưa)
+  // Kiểm tra trạng thái bản quyền (Đã kích hoạt hay chưa) và đồng bộ tức thì
   useEffect(() => {
-    setUnlocked(isAnimalUnlocked(animal.slug));
+    const updateUnlockStatus = () => {
+      setUnlocked(isAnimalUnlocked(animal.slug));
+    };
+
+    updateUnlockStatus();
+
+    window.addEventListener("storage", updateUnlockStatus);
+    window.addEventListener("polycards_activated", updateUnlockStatus);
+
+    return () => {
+      window.removeEventListener("storage", updateUnlockStatus);
+      window.removeEventListener("polycards_activated", updateUnlockStatus);
+    };
   }, [animal.slug]);
 
   // Xử lý khi người dùng bấm nút mở WebAR

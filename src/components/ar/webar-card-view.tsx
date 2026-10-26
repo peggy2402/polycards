@@ -21,6 +21,8 @@ import {
   ShoppingBag,
   KeyRound,
   Clock,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 
 declare global {
@@ -59,6 +61,32 @@ export function WebArCardView({
   const actionsRef = useRef<{ [name: string]: any }>({});
   const clockRef = useRef<any>(null);
 
+  // Nhóm điều khiển vị trí, tỉ lệ và xoay 3D
+  const pivotGroupRef = useRef<any>(null);
+  const baseScaleRef = useRef<number>(0.25);
+  const userScaleRef = useRef<number>(1.0);
+  const userRotYRef = useRef<number>(0);
+  const userRotXRef = useRef<number>(0);
+
+  const [zoomPercent, setZoomPercent] = useState<number>(100);
+  const [tapFeedback, setTapFeedback] = useState<string | null>(null);
+  const tapFeedbackTimeoutRef = useRef<any>(null);
+
+  // Refs bắt cử chỉ cảm ứng đa điểm (Touch Gestures)
+  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const touchStartTimeRef = useRef<number>(0);
+  const lastTouchPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasTouchMovedRef = useRef<boolean>(false);
+  const initialPinchDistRef = useRef<number>(0);
+  const initialPinchScaleRef = useRef<number>(1.0);
+
+  // Refs bắt cử chỉ chuột máy tính (Desktop Gestures)
+  const isMouseDownRef = useRef<boolean>(false);
+  const mouseStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const mouseStartTimeRef = useRef<number>(0);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasMouseMovedRef = useRef<boolean>(false);
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isTargetFound, setIsTargetFound] = useState<boolean>(false);
@@ -75,6 +103,66 @@ export function WebArCardView({
   // Bộ đếm thời gian dùng thử (30s trial)
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 30 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
+
+  // Cập nhật ma trận biến đổi (Scale + Rotation) cho Pivot Group
+  const applyTransform = useCallback(() => {
+    if (!pivotGroupRef.current) return;
+    const s = baseScaleRef.current * userScaleRef.current;
+    pivotGroupRef.current.scale.set(s, s, s);
+    pivotGroupRef.current.rotation.y = userRotYRef.current;
+    pivotGroupRef.current.rotation.x = userRotXRef.current;
+  }, []);
+
+  // Nút bấm tăng / giảm tỉ lệ mô hình 3D
+  const handleZoom = useCallback((delta: number) => {
+    const next = Math.max(0.35, Math.min(2.5, Math.round((userScaleRef.current + delta) * 100) / 100));
+    userScaleRef.current = next;
+    setZoomPercent(Math.round(next * 100));
+    applyTransform();
+  }, [applyTransform]);
+
+  // Đặt lại góc nhìn và tỉ lệ mô hình về chuẩn 100%
+  const handleResetTransform = useCallback(() => {
+    userScaleRef.current = 1.0;
+    userRotYRef.current = 0;
+    userRotXRef.current = 0;
+    setZoomPercent(100);
+    applyTransform();
+  }, [applyTransform]);
+
+  // Hiệu ứng tương tác: Mô hình nhún nhảy tinh nghịch khi chạm
+  const triggerModelReaction = useCallback(() => {
+    if (!pivotGroupRef.current) return;
+    const pivot = pivotGroupRef.current;
+    const baseY = pivot.position.y;
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      pivot.position.y = baseY + Math.sin(step * 0.5) * 0.04;
+      if (step >= 12) {
+        clearInterval(interval);
+        pivot.position.y = baseY;
+      }
+    }, 25);
+  }, []);
+
+  // Xử lý chạm tương tác trực tiếp lên con vật
+  const triggerTapInteraction = useCallback(() => {
+    playAnimalSoundEffect(animal.slug);
+    triggerModelReaction();
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate([30, 40, 30]);
+      } catch {}
+    }
+    setTapFeedback(`Bé vừa tương tác với ${animal.nameVi}!`);
+    if (tapFeedbackTimeoutRef.current) {
+      clearTimeout(tapFeedbackTimeoutRef.current);
+    }
+    tapFeedbackTimeoutRef.current = setTimeout(() => {
+      setTapFeedback(null);
+    }, 1800);
+  }, [animal.slug, animal.nameVi, triggerModelReaction]);
 
   // Dynamic script loader utility
   const loadScript = useCallback((src: string): Promise<void> => {
@@ -113,23 +201,20 @@ export function WebArCardView({
 
   // Điều phối vị trí mô hình giữa Anchor Thẻ Bài và Companion Trước Camera
   const switchModelParent = useCallback((mode: "card" | "companion") => {
-    const model = modelRef.current;
+    const pivot = pivotGroupRef.current;
     const anchorGroup = anchorGroupRef.current;
     const companionGroup = companionGroupRef.current;
-    if (!model || !anchorGroup || !companionGroup) return;
+    if (!pivot || !anchorGroup || !companionGroup) return;
 
     if (mode === "card") {
-      anchorGroup.add(model);
-      model.position.set(0, -0.35, 0);
-      model.rotation.set(0, 0, 0);
-      model.scale.set(0.35, 0.35, 0.35);
+      anchorGroup.add(pivot);
+      pivot.position.set(0, 0, 0);
     } else {
-      companionGroup.add(model);
-      model.position.set(0, -0.15, 0);
-      model.rotation.set(0, 0, 0);
-      model.scale.set(0.32, 0.32, 0.32);
+      companionGroup.add(pivot);
+      pivot.position.set(0, -0.12, 0);
     }
-  }, []);
+    applyTransform();
+  }, [applyTransform]);
 
   // Initialize MindAR and Three.js scene
   useEffect(() => {
@@ -192,8 +277,9 @@ export function WebArCardView({
         anchorGroupRef.current = anchor.group;
 
         // B. Anchor Đồng Hành (Companion Group) gắn liền trước mắt Camera
+        // Đặt ở khoảng cách z = -1.35m tạo góc nhìn tự nhiên, vừa vặn khung hình camera điện thoại
         const companion = new THREE.Group();
-        companion.position.set(0, -0.2, -0.9);
+        companion.position.set(0, -0.20, -1.35);
         camera.add(companion);
         scene.add(camera);
         companionGroupRef.current = companion;
@@ -206,11 +292,10 @@ export function WebArCardView({
             playAnimalSoundEffect(animal.slug);
 
             // Khi tìm thấy thẻ, tự động bám sát thẻ bài
-            if (modelRef.current && anchorGroupRef.current) {
-              anchorGroupRef.current.add(modelRef.current);
-              modelRef.current.position.set(0, -0.35, 0);
-              modelRef.current.rotation.set(0, 0, 0);
-              modelRef.current.scale.set(0.35, 0.35, 0.35);
+            if (pivotGroupRef.current && anchorGroupRef.current) {
+              anchorGroupRef.current.add(pivotGroupRef.current);
+              pivotGroupRef.current.position.set(0, 0, 0);
+              applyTransform();
             }
           }
         };
@@ -218,13 +303,12 @@ export function WebArCardView({
         anchor.onTargetLost = () => {
           if (!isCancelled) {
             setIsTargetFound(false);
-            // GIẢI PHÁP ĐỘT PHÁ: Khi thẻ rời khung hình, nếu đã quét 1 lần,
+            // Khi thẻ rời khung hình, nếu đã quét 1 lần,
             // con vật KHÔNG BIẾN MẤT mà chuyển sang chế độ Đồng Hành trước camera!
-            if (modelRef.current && companionGroupRef.current) {
-              companionGroupRef.current.add(modelRef.current);
-              modelRef.current.position.set(0, -0.15, 0);
-              modelRef.current.rotation.set(0, 0, 0);
-              modelRef.current.scale.set(0.32, 0.32, 0.32);
+            if (pivotGroupRef.current && companionGroupRef.current) {
+              companionGroupRef.current.add(pivotGroupRef.current);
+              pivotGroupRef.current.position.set(0, -0.12, 0);
+              applyTransform();
             }
           }
         };
@@ -236,18 +320,40 @@ export function WebArCardView({
           (gltf: any) => {
             if (isCancelled) return;
 
-            const model = gltf.scene;
-            model.scale.set(0.35, 0.35, 0.35);
-            model.position.set(0, -0.35, 0);
-            model.rotation.set(0, 0, 0);
+            const rawModel = gltf.scene;
+
+            // 1. Tính toán bounding box để chuẩn hóa kích thước vật thể
+            const bbox = new THREE.Box3().setFromObject(rawModel);
+            const size = bbox.getSize(new THREE.Vector3());
+            const center = bbox.getCenter(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+            // Canh giữa mô hình vào tâm trục tọa độ (chân chạm y=0)
+            rawModel.position.set(-center.x, -bbox.min.y, -center.z);
+
+            // Tạo Pivot Group làm tâm xoay và tỉ lệ độc lập
+            const pivot = new THREE.Group();
+            pivot.add(rawModel);
+
+            // Chuẩn hóa kích thước: vật thể chiếm tỉ lệ vàng ~0.36m (vừa vặn ~35% khung hình camera)
+            const targetDim = 0.36;
+            const baseScale = targetDim / maxDim;
+            baseScaleRef.current = baseScale;
+
+            const initialScale = baseScale * userScaleRef.current;
+            pivot.scale.set(initialScale, initialScale, initialScale);
+            pivot.position.set(0, 0, 0);
+            pivot.rotation.set(userRotXRef.current, userRotYRef.current, 0);
+
+            pivotGroupRef.current = pivot;
+            modelRef.current = rawModel;
 
             // Mặc định gắn vào Anchor thẻ bài
-            anchor.group.add(model);
-            modelRef.current = model;
+            anchor.group.add(pivot);
 
             // Xử lý các Animations nếu mô hình có hoạt ảnh
             if (gltf.animations && gltf.animations.length > 0) {
-              const mixer = new THREE.AnimationMixer(model);
+              const mixer = new THREE.AnimationMixer(rawModel);
               mixerRef.current = mixer;
               actionsRef.current = {};
 
@@ -279,9 +385,13 @@ export function WebArCardView({
                   }
 
                   // Hiệu ứng nhẹ khi ở chế độ đồng hành trước camera
-                  if (modelRef.current && companionGroupRef.current && companionGroupRef.current.children.includes(modelRef.current)) {
+                  if (
+                    pivotGroupRef.current &&
+                    companionGroupRef.current &&
+                    companionGroupRef.current.children.includes(pivotGroupRef.current)
+                  ) {
                     const elapsed = clockRef.current ? clockRef.current.getElapsedTime() : 0;
-                    modelRef.current.position.y = -0.15 + Math.sin(elapsed * 2) * 0.02;
+                    pivotGroupRef.current.position.y = -0.12 + Math.sin(elapsed * 2) * 0.015;
                   }
 
                   renderer.render(scene, camera);
@@ -317,6 +427,9 @@ export function WebArCardView({
 
     return () => {
       isCancelled = true;
+      if (tapFeedbackTimeoutRef.current) {
+        clearTimeout(tapFeedbackTimeoutRef.current);
+      }
       if (mindarRef.current) {
         try {
           mindarRef.current.stop();
@@ -328,13 +441,118 @@ export function WebArCardView({
         }
       }
     };
-  }, [animal, loadScript]);
+  }, [animal, loadScript, applyTransform]);
 
   // Xử lý chuyển đổi thủ công giữa Ghim trước mắt & Bám thẻ
   const toggleTrackingMode = () => {
     const nextMode = trackingMode === "companion" ? "card" : "companion";
     setTrackingMode(nextMode);
     switchModelParent(nextMode);
+  };
+
+  // 1. Cử chỉ chạm đa điểm (Touch Gestures: 1 ngón xoay 360, 2 ngón thu phóng, Chạm để tương tác)
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1) {
+      touchStartPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      touchStartTimeRef.current = Date.now();
+      hasTouchMovedRef.current = false;
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      initialPinchDistRef.current = dist;
+      initialPinchScaleRef.current = userScaleRef.current;
+      hasTouchMovedRef.current = true;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1) {
+      const clientX = e.touches[0].clientX;
+      const clientY = e.touches[0].clientY;
+      const dx = clientX - lastTouchPosRef.current.x;
+      const dy = clientY - lastTouchPosRef.current.y;
+      const totalDist = Math.hypot(
+        clientX - touchStartPosRef.current.x,
+        clientY - touchStartPosRef.current.y
+      );
+      if (totalDist > 8) {
+        hasTouchMovedRef.current = true;
+      }
+      // Xoay 360 độ quanh trục Y
+      userRotYRef.current += dx * 0.012;
+      // Nghiêng nhẹ trục X (giới hạn từ -0.4 rad đến +0.6 rad)
+      userRotXRef.current = Math.max(-0.4, Math.min(0.6, userRotXRef.current + dy * 0.008));
+      applyTransform();
+      lastTouchPosRef.current = { x: clientX, y: clientY };
+    } else if (e.touches.length === 2 && initialPinchDistRef.current > 0) {
+      hasTouchMovedRef.current = true;
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = currentDist / initialPinchDistRef.current;
+      const nextScale = Math.max(0.35, Math.min(2.5, initialPinchScaleRef.current * factor));
+      userScaleRef.current = nextScale;
+      setZoomPercent(Math.round(nextScale * 100));
+      applyTransform();
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 0) {
+      const elapsed = Date.now() - touchStartTimeRef.current;
+      if (!hasTouchMovedRef.current && elapsed < 350) {
+        triggerTapInteraction();
+      }
+      initialPinchDistRef.current = 0;
+    } else if (e.touches.length === 1) {
+      lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      initialPinchDistRef.current = 0;
+    }
+  };
+
+  // 2. Cử chỉ chuột dự phòng (Desktop / Chuột máy tính)
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    isMouseDownRef.current = true;
+    mouseStartPosRef.current = { x: e.clientX, y: e.clientY };
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    mouseStartTimeRef.current = Date.now();
+    hasMouseMovedRef.current = false;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMouseDownRef.current) return;
+    const dx = e.clientX - lastMousePosRef.current.x;
+    const dy = e.clientY - lastMousePosRef.current.y;
+    const totalDist = Math.hypot(
+      e.clientX - mouseStartPosRef.current.x,
+      e.clientY - mouseStartPosRef.current.y
+    );
+    if (totalDist > 6) {
+      hasMouseMovedRef.current = true;
+    }
+    userRotYRef.current += dx * 0.012;
+    userRotXRef.current = Math.max(-0.4, Math.min(0.6, userRotXRef.current + dy * 0.008));
+    applyTransform();
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleMouseUp = () => {
+    if (!isMouseDownRef.current) return;
+    isMouseDownRef.current = false;
+    const elapsed = Date.now() - mouseStartTimeRef.current;
+    if (!hasMouseMovedRef.current && elapsed < 350) {
+      triggerTapInteraction();
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    handleZoom(delta);
   };
 
   // Xử lý phát âm đa ngữ khi chạm vào 3 nút bấm
@@ -375,22 +593,6 @@ export function WebArCardView({
       nextAction.reset().fadeIn(0.3).play();
     }
     setCurrentAnimIndex(nextIndex);
-  };
-
-  // Hiệu ứng tương tác: Mô hình nhún nhảy / xoay nhẹ khi chạm nút
-  const triggerModelReaction = () => {
-    if (!modelRef.current) return;
-    const startY = modelRef.current.position.y;
-    let step = 0;
-    const interval = setInterval(() => {
-      step++;
-      modelRef.current.position.y = startY + Math.sin(step * 0.5) * 0.08;
-      modelRef.current.rotation.y += 0.05;
-      if (step >= 12) {
-        clearInterval(interval);
-        modelRef.current.position.y = startY;
-      }
-    }, 25);
   };
 
   // Chụp ảnh kỷ niệm AR
@@ -434,7 +636,20 @@ export function WebArCardView({
         className="absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none"
       />
 
-      {/* 2. Top Navigation Bar (Nút Đóng, Chế độ Ghim, Đồng hồ dùng thử, Trợ giúp) */}
+      {/* 2. Lớp bắt cử chỉ cảm ứng tương tác 3D (Vuốt 1 ngón xoay 360°, Chụm 2 ngón thu phóng, Chạm vào để chơi) */}
+      <div
+        className="absolute inset-0 z-10 touch-none cursor-grab active:cursor-grabbing"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onWheel={handleWheel}
+      />
+
+      {/* 3. Top Navigation Bar (Nút Đóng, Chế độ Ghim, Đồng hồ dùng thử, Trợ giúp) */}
       <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-3.5 pb-2 pointer-events-none">
         {/* Nút thoát AR */}
         <button
@@ -489,6 +704,63 @@ export function WebArCardView({
           title="Hướng dẫn sử dụng"
         >
           <HelpCircle className="h-5 w-5 text-amber-300" />
+        </button>
+      </div>
+
+      {/* 4. Dòng gợi ý thao tác tương tác AR */}
+      <div className="absolute top-16 inset-x-0 z-20 flex justify-center pointer-events-none px-4">
+        <div className="flex items-center gap-1.5 rounded-full bg-black/60 border border-white/20 px-3.5 py-1 backdrop-blur-md text-[11px] font-semibold text-amber-200/95 shadow-lg">
+          <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span>1 ngón xoay 360° • 2 ngón thu phóng • Chạm vào để chơi</span>
+        </div>
+      </div>
+
+      {/* 5. Toast phản hồi khi bé chạm tương tác vào con vật */}
+      {tapFeedback && (
+        <div className="absolute top-26 inset-x-0 z-30 flex justify-center pointer-events-none px-4 animate-in fade-in zoom-in duration-150">
+          <div className="flex items-center gap-2 rounded-2xl bg-amber-500 text-stone-950 font-black px-4 py-1.5 shadow-xl shadow-amber-500/30 text-xs">
+            <Sparkles className="h-4 w-4 shrink-0" />
+            <span>{tapFeedback}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Cụm nút công cụ thu phóng & đặt lại kích thước 3D nổi cạnh phải */}
+      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-black/65 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => handleZoom(0.15)}
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
+          title="Phóng to 3D (+15%)"
+          aria-label="Phóng to 3D"
+        >
+          <ZoomIn className="h-4 w-4 text-amber-300" />
+        </button>
+
+        <span className="text-[10px] font-black text-amber-200/90 py-0.5 select-none font-mono tracking-tighter">
+          {zoomPercent}%
+        </span>
+
+        <button
+          type="button"
+          onClick={() => handleZoom(-0.15)}
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
+          title="Thu nhỏ 3D (-15%)"
+          aria-label="Thu nhỏ 3D"
+        >
+          <ZoomOut className="h-4 w-4 text-amber-300" />
+        </button>
+
+        <div className="w-5 h-px bg-white/15 my-0.5" />
+
+        <button
+          type="button"
+          onClick={handleResetTransform}
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
+          title="Đặt lại kích thước và góc xoay chuẩn"
+          aria-label="Đặt lại góc nhìn 3D"
+        >
+          <RotateCcw className="h-3.5 w-3.5 text-stone-300" />
         </button>
       </div>
 
@@ -805,7 +1077,15 @@ export function WebArCardView({
                   3
                 </span>
                 <span>
-                  Chạm vào <strong>EN</strong>, <strong>VI</strong>, <strong>ZH</strong> để luyện phát âm và nghe tiếng kêu vui nhộn.
+                  <strong>Cử chỉ tương tác sống động:</strong> Dùng <strong>1 ngón tay vuốt</strong> để xoay 360°, <strong>2 ngón chụm/mở</strong> để thu phóng to nhỏ, và <strong>chạm vào màn hình</strong> để nghe tiếng kêu nhún nhảy!
+                </span>
+              </div>
+              <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500 font-bold text-stone-950 text-[10px]">
+                  4
+                </span>
+                <span>
+                  Chạm vào các nút <strong>EN</strong>, <strong>VI</strong>, <strong>ZH</strong> để luyện phát âm đa ngữ chuẩn quốc tế.
                 </span>
               </div>
             </div>
