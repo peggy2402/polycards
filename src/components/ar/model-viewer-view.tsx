@@ -16,16 +16,19 @@ import {
   Smartphone,
   CheckCircle2,
   Layers,
+  Camera,
 } from "lucide-react";
 
 interface ModelViewerViewProps {
   animal: Animal;
   selectedAnimation?: string;
+  onOpenWebAr?: () => void;
 }
 
 export function ModelViewerView({
   animal,
   selectedAnimation,
+  onOpenWebAr,
 }: ModelViewerViewProps) {
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -264,25 +267,37 @@ export function ModelViewerView({
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+          {onOpenWebAr && (
+            <button
+              type="button"
+              onClick={onOpenWebAr}
+              className="inline-flex min-h-[50px] w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-5 py-3 text-sm font-black text-stone-950 shadow-lg shadow-amber-500/25 transition-all hover:brightness-105 active:scale-95 cursor-pointer border border-amber-300"
+            >
+              <Camera className="h-5 w-5 text-stone-950" />
+              <span>Quét Thẻ AR Tương Tác</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleLaunchAr}
-            className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-600/30 transition-all hover:from-emerald-700 hover:to-teal-700 active:scale-95 cursor-pointer"
+            className="inline-flex min-h-[50px] w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-stone-900 px-5 py-3 text-sm font-extrabold text-white shadow-md transition-all hover:bg-stone-800 active:scale-95 cursor-pointer border border-stone-700"
+            title="Đưa mô hình 3D vào không gian phòng"
           >
-            <Box className="h-5 w-5" />
-            <span>Đưa {animal.nameEn} Vào Không Gian Thật</span>
+            <Box className="h-5 w-5 text-amber-400" />
+            <span>Đặt Trong Phòng (3D)</span>
           </button>
 
           {isAndroid && (
             <button
               type="button"
               onClick={() => setShowArGuide(true)}
-              className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs font-bold text-amber-900 transition-all hover:bg-amber-100 active:scale-95 cursor-pointer"
+              className="inline-flex min-h-[50px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50/80 px-3.5 py-3 text-xs font-bold text-amber-900 transition-all hover:bg-amber-100 active:scale-95 cursor-pointer"
               title="Hướng dẫn kích hoạt AR cho điện thoại Android"
             >
               <HelpCircle className="h-4 w-4 text-amber-600" />
-              <span>Trợ Giúp AR</span>
+              <span>Trợ Giúp</span>
             </button>
           )}
         </div>
