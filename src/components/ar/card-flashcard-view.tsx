@@ -47,8 +47,8 @@ export function CardFlashcardView({
 
   return (
     <div className="relative w-full flex flex-col items-center">
-      {/* Khung thẻ bài chính với tỷ lệ chuẩn Flashcard (Aspect ratio 3:4 hoặc 2:3) */}
-      <div className="w-full max-w-sm sm:max-w-md perspective-1000">
+      {/* Khung thẻ bài chính với tỷ lệ chuẩn Flashcard (Aspect ratio 3:4) - Co giãn an toàn trên màn hình 360px+ */}
+      <div className="w-full max-w-[340px] sm:max-w-md perspective-1000 mx-auto">
         <div
           onClick={() => setIsFlipped(!isFlipped)}
           className={`relative aspect-[3/4] w-full rounded-3xl border-4 border-amber-300 bg-white shadow-2xl transition-transform duration-700 transform-style-preserve-3d cursor-pointer select-none ${
@@ -60,20 +60,20 @@ export function CardFlashcardView({
           }}
         >
           {/* ================= MẶT TRƯỚC THẺ BÀI (FRONT) ================= */}
-          <div className="absolute inset-0 backface-hidden flex flex-col rounded-[22px] overflow-hidden bg-gradient-to-b from-amber-50/70 via-white to-amber-50/40 p-4">
+          <div className="absolute inset-0 backface-hidden flex flex-col rounded-[22px] overflow-hidden bg-gradient-to-b from-amber-50/70 via-white to-amber-50/40 p-3.5 sm:p-4">
             {/* Top header thẻ bài: Logo Poly Cards & Badge con vật */}
-            <div className="flex items-center justify-between pb-2 border-b border-amber-100">
-              <div className="flex items-center gap-1.5">
-                <div className="h-6 w-6 rounded-lg bg-amber-500 flex items-center justify-center text-stone-950 font-black text-xs shadow-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-amber-100 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="h-6 w-6 rounded-lg bg-amber-500 flex items-center justify-center text-stone-950 font-black text-xs shadow-xs shrink-0">
                   P
                 </div>
-                <span className="text-xs font-black tracking-wide text-amber-950 uppercase">
+                <span className="text-xs font-black tracking-wide text-amber-950 uppercase truncate">
                   Poly Cards
                 </span>
               </div>
 
               {animal.badge && (
-                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300 shrink-0">
                   {animal.badge}
                 </span>
               )}
@@ -229,36 +229,39 @@ export function CardFlashcardView({
         </div>
       </div>
 
-      {/* Thanh công cụ tương tác dưới thẻ bài */}
-      <div className="mt-4 flex flex-col sm:flex-row items-center gap-2.5 w-full max-w-md">
+      {/* Thanh công cụ tương tác dưới thẻ bài - Tối ưu Touch Target & chống tràn */}
+      <div className="mt-4 flex flex-col gap-2.5 w-full max-w-[340px] sm:max-w-md mx-auto">
         {onOpenWebAr && (
           <button
             type="button"
             onClick={onOpenWebAr}
-            className="flex-1 w-full min-h-[48px] inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-5 py-2.5 text-sm font-black text-stone-950 shadow-lg shadow-amber-500/25 active:scale-95 transition-all cursor-pointer border border-amber-300"
+            className="w-full min-h-[48px] inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-4 py-2.5 text-xs sm:text-sm font-black text-stone-950 shadow-lg shadow-amber-500/25 active:scale-95 transition-all cursor-pointer border border-amber-300"
           >
-            <Camera className="h-4 w-4 text-stone-950" />
+            <Camera className="h-4 w-4 text-stone-950 shrink-0" />
             <span>Quét Thẻ AR Tương Tác</span>
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setIsFlipped(!isFlipped)}
-          className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-white px-4 py-2.5 text-xs font-extrabold text-stone-800 hover:bg-amber-50 active:scale-95 transition-all shadow-xs cursor-pointer shrink-0"
-        >
-          <RotateCw className="h-3.5 w-3.5 text-amber-600" />
-          <span>{isFlipped ? "Xem Mặt Trước" : "Lật Xem Mã QR"}</span>
-        </button>
+        <div className="flex items-center gap-2 w-full">
+          <button
+            type="button"
+            onClick={() => setIsFlipped(!isFlipped)}
+            className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-white px-3 py-2 text-xs font-extrabold text-stone-800 hover:bg-amber-50 active:scale-95 transition-all shadow-xs cursor-pointer truncate"
+          >
+            <RotateCw className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            <span className="truncate">{isFlipped ? "Xem Mặt Trước" : "Lật Xem Mã QR"}</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setIsFullscreenCard(!isFullscreenCard)}
-          className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-200 bg-white text-stone-700 hover:bg-amber-50 active:scale-90 transition-all shadow-xs shrink-0"
-          title="Phóng to thẻ bài để quét từ máy khác"
-        >
-          <Maximize2 className="h-4 w-4 text-amber-700" />
-        </button>
+          <button
+            type="button"
+            onClick={() => setIsFullscreenCard(!isFullscreenCard)}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-amber-200 bg-white text-stone-700 hover:bg-amber-50 active:scale-90 transition-all shadow-xs shrink-0 cursor-pointer"
+            title="Phóng to thẻ bài để quét từ máy khác"
+            aria-label="Phóng to thẻ bài"
+          >
+            <Maximize2 className="h-4 w-4 text-amber-700" />
+          </button>
+        </div>
       </div>
 
       {/* Gợi ý cho phụ huynh / bé */}

@@ -63,78 +63,78 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
 
   return (
     <div className="space-y-6">
-      {/* 1. Interactive WebAR Hero Banner Card */}
-      <div className="relative overflow-hidden rounded-3xl border-2 border-amber-300/80 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 text-stone-950 shadow-xl shadow-amber-500/20">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5 w-full sm:w-auto">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-stone-950 text-amber-400 shadow-md">
-              <Camera className="h-6 w-6" />
+      {/* 1. Interactive WebAR Hero Banner Card - 100% Responsive trên Mobile */}
+      <div className="relative overflow-hidden rounded-3xl border-2 border-amber-300/80 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-4 sm:p-5 text-stone-950 shadow-xl shadow-amber-500/20 w-full max-w-full">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3.5 sm:gap-4">
+          <div className="flex items-center gap-3 w-full sm:w-auto min-w-0 flex-1">
+            <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-stone-950 text-amber-400 shadow-md">
+              <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-stone-950">
-                  Công Nghệ AR Quét Thẻ Trực Tiếp
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className="text-sm sm:text-base font-black text-stone-950 leading-tight">
+                  Công Nghệ AR Quét Thẻ
                 </h3>
                 {unlocked ? (
-                  <span className="flex items-center gap-1 rounded-full bg-emerald-950 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-300 shrink-0">
                     <ShieldCheck className="h-3 w-3" />
                     <span>Đã Kích Hoạt</span>
                   </span>
                 ) : (
-                  <span className="rounded-full bg-stone-950 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
+                  <span className="inline-flex items-center rounded-full bg-stone-950 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300 shrink-0">
                     Bản Quyền
                   </span>
                 )}
               </div>
-              <p className="text-xs font-semibold text-stone-900/90 mt-0.5">
-                Camera di chuyển quanh thẻ bài, con vật đồng hành trước camera, tương tác 3 nút phát âm EN/VI/ZH!
+              <p className="text-[11px] sm:text-xs font-semibold text-stone-900/90 leading-tight mt-1">
+                Camera di chuyển quanh thẻ, con vật 3D tương tác 3 nút phát âm EN/VI/ZH!
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <div className="w-full sm:w-auto shrink-0">
             <button
               type="button"
               onClick={handleRequestWebAr}
-              className="inline-flex min-h-[48px] w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-2xl bg-stone-950 px-6 py-2.5 text-sm font-black text-amber-300 shadow-lg hover:bg-stone-900 active:scale-95 transition-all cursor-pointer"
+              className="inline-flex min-h-[48px] w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-2xl bg-stone-950 px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-black text-amber-300 shadow-lg hover:bg-stone-900 active:scale-95 transition-all cursor-pointer"
             >
-              <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
-              <span>{unlocked ? "Bật Camera Quét Thẻ" : "Quét AR (Thử 30s / Mở Khóa)"}</span>
-              <ArrowRight className="h-4 w-4 text-amber-400" />
+              <Sparkles className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
+              <span className="truncate">{unlocked ? "Bật Camera Quét Thẻ" : "Quét AR (Thử 30s / Mở Khóa)"}</span>
+              <ArrowRight className="h-4 w-4 text-amber-400 shrink-0" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. Hai Chế Độ: Tab 1: Thẻ Bài AR & Tab 2: Models 3D */}
-      <div className="flex items-center justify-center">
-        <div className="inline-flex p-1.5 rounded-2xl bg-amber-100/90 border-2 border-amber-300 shadow-xs gap-1.5 w-full sm:w-auto">
+      {/* 2. Hai Chế Độ: Tab 1: Thẻ Bài AR & Tab 2: Models 3D - Grid 2 cột hoàn hảo trên màn hình 360px */}
+      <div className="w-full max-w-sm mx-auto">
+        <div className="grid grid-cols-2 p-1.5 rounded-2xl bg-amber-100/90 border-2 border-amber-300 shadow-xs gap-1.5 w-full">
           {/* TAB 1: THẺ BÀI */}
           <button
             type="button"
             onClick={() => setActiveTab("card")}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer active:scale-95 ${
+            className={`min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer active:scale-95 ${
               activeTab === "card"
                 ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/30 scale-102"
                 : "text-stone-700 hover:text-stone-900 hover:bg-amber-200/60"
             }`}
           >
-            <Layers className="h-4 w-4 text-stone-950" />
-            <span>Tab 1: Thẻ Bài</span>
+            <Layers className="h-4 w-4 text-stone-950 shrink-0" />
+            <span className="truncate">Tab 1: Thẻ Bài</span>
           </button>
 
           {/* TAB 2: MODELS 3D */}
           <button
             type="button"
             onClick={() => setActiveTab("model3d")}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer active:scale-95 ${
+            className={`min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer active:scale-95 ${
               activeTab === "model3d"
                 ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/30 scale-102"
                 : "text-stone-700 hover:text-stone-900 hover:bg-amber-200/60"
             }`}
           >
-            <Box className="h-4 w-4 text-stone-950" />
-            <span>Tab 2: Models 3D</span>
+            <Box className="h-4 w-4 text-stone-950 shrink-0" />
+            <span className="truncate">Tab 2: Models 3D</span>
           </button>
         </div>
       </div>
