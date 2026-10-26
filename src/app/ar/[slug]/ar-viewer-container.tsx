@@ -4,13 +4,21 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Animal } from "@/types/animal";
 import { isAnimalUnlocked } from "@/lib/activation";
+import { CardFlashcardView } from "@/components/ar/card-flashcard-view";
 import { ModelViewerView } from "@/components/ar/model-viewer-view";
 import { ArAudioPlayer } from "@/components/ar/ar-audio-player";
 import { AnimationControls } from "@/components/ar/animation-controls";
 import { ArInteractiveQuiz } from "@/components/ar/ar-interactive-quiz";
 import { WebArCardView } from "@/components/ar/webar-card-view";
 import { ArActivationModal } from "@/components/ar/ar-activation-modal";
-import { Camera, Sparkles, ArrowRight, ShieldCheck, KeyRound } from "lucide-react";
+import {
+  Camera,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  Layers,
+  Box,
+} from "lucide-react";
 
 interface ArViewerContainerProps {
   animal: Animal;
@@ -18,6 +26,10 @@ interface ArViewerContainerProps {
 
 export function ArViewerContainer({ animal }: ArViewerContainerProps) {
   const router = useRouter();
+
+  // Tab Switcher State: Tab 1: "card" (Thẻ Bài) | Tab 2: "model3d" (Models 3D)
+  const [activeTab, setActiveTab] = useState<"card" | "model3d">("card");
+
   const [selectedAnimation, setSelectedAnimation] = useState<string>(
     animal.animations && animal.animations.length > 0 ? animal.animations[0] : ""
   );
@@ -94,20 +106,66 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
         </div>
       </div>
 
-      {/* 2. 3D Model Viewer with Turntable + AR launch capabilities */}
-      <ModelViewerView
-        animal={animal}
-        selectedAnimation={selectedAnimation}
-        onOpenWebAr={handleRequestWebAr}
-      />
+      {/* 2. Hai Chế Độ: Tab 1: Thẻ Bài AR & Tab 2: Models 3D */}
+      <div className="flex items-center justify-center">
+        <div className="inline-flex p-1.5 rounded-2xl bg-amber-100/90 border-2 border-amber-300 shadow-xs gap-1.5 w-full sm:w-auto">
+          {/* TAB 1: THẺ BÀI */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("card")}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer active:scale-95 ${
+              activeTab === "card"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/30 scale-102"
+                : "text-stone-700 hover:text-stone-900 hover:bg-amber-200/60"
+            }`}
+          >
+            <Layers className="h-4 w-4 text-stone-950" />
+            <span>Tab 1: Thẻ Bài</span>
+          </button>
 
-      {/* 3. Animation Controls if available */}
-      {animal.animations && animal.animations.length > 0 && (
-        <AnimationControls
-          animations={animal.animations}
-          selectedAnimation={selectedAnimation}
-          onSelectAnimation={setSelectedAnimation}
-        />
+          {/* TAB 2: MODELS 3D */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("model3d")}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer active:scale-95 ${
+              activeTab === "model3d"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/30 scale-102"
+                : "text-stone-700 hover:text-stone-900 hover:bg-amber-200/60"
+            }`}
+          >
+            <Box className="h-4 w-4 text-stone-950" />
+            <span>Tab 2: Models 3D</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Vùng hiển thị nội dung theo Tab */}
+      {activeTab === "card" ? (
+        /* ================= NỘI DUNG TAB 1: THẺ BÀI ================= */
+        <div className="animate-in fade-in zoom-in-95 duration-200">
+          <CardFlashcardView
+            animal={animal}
+            onOpenWebAr={handleRequestWebAr}
+          />
+        </div>
+      ) : (
+        /* ================= NỘI DUNG TAB 2: MODELS 3D ================= */
+        <div className="animate-in fade-in zoom-in-95 duration-200 space-y-5">
+          <ModelViewerView
+            animal={animal}
+            selectedAnimation={selectedAnimation}
+            onOpenWebAr={handleRequestWebAr}
+          />
+
+          {/* Animation Controls cho mô hình 3D */}
+          {animal.animations && animal.animations.length > 0 && (
+            <AnimationControls
+              animations={animal.animations}
+              selectedAnimation={selectedAnimation}
+              onSelectAnimation={setSelectedAnimation}
+            />
+          )}
+        </div>
       )}
 
       {/* 4. Multilingual Audio Listen Panel (Tiếng Anh IPA - Tiếng Việt - Tiếng Trung Pinyin) */}
