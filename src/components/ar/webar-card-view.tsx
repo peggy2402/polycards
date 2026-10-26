@@ -65,9 +65,8 @@ export function WebArCardView({
   // Chế độ tương tác ngón tay: "move" (kéo thả di chuyển) hoặc "rotate" (xoay 360)
   const [interactionMode, setInteractionMode] = useState<"move" | "rotate">("move");
 
-  // Vị trí con vật trong không gian camera (khoảng cách an toàn Z = -28 tránh near clipping)
-  const COMPANION_Z = -28;
-  const companionPosRef = useRef<{ x: number; y: number }>({ x: 0, y: -2.2 });
+  // Vị trí dời tương đối do người dùng kéo thả trên thẻ bài / không gian AR
+  const userPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Nhóm điều khiển vị trí, tỉ lệ và xoay 3D
   const pivotGroupRef = useRef<any>(null);
@@ -79,6 +78,9 @@ export function WebArCardView({
   const [zoomPercent, setZoomPercent] = useState<number>(100);
   const [tapFeedback, setTapFeedback] = useState<string | null>(null);
   const tapFeedbackTimeoutRef = useRef<any>(null);
+
+  // Đã quét thẻ thành công ít nhất 1 lần (dùng để duy trì vật thể không bao giờ biến mất)
+  const hasScannedOnceRef = useRef<boolean>(false);
 
   // Refs bắt cử chỉ cảm ứng đa điểm (Touch Gestures)
   const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -99,9 +101,6 @@ export function WebArCardView({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isTargetFound, setIsTargetFound] = useState<boolean>(false);
   const [hasScannedOnce, setHasScannedOnce] = useState<boolean>(false);
-  // Chế độ: "companion" (đồng hành tự do trước camera) hoặc "card" (bám sát thẻ bài)
-  const trackingModeRef = useRef<"companion" | "card">("companion");
-  const [trackingMode, setTrackingMode] = useState<"companion" | "card">("companion");
 
   const [activeLang, setActiveLang] = useState<"en" | "vi" | "zh" | null>(null);
   const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
@@ -113,16 +112,6 @@ export function WebArCardView({
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 30 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
 
-  // Tính tỉ lệ chuẩn cho chế độ Đồng hành (Z = -28)
-  const getCompanionBaseScale = useCallback(() => {
-    return 7.2 / (maxDimRef.current || 1);
-  }, []);
-
-  // Tính tỉ lệ chuẩn cho chế độ Bám thẻ bài
-  const getCardBaseScale = useCallback(() => {
-    return 0.35 / (maxDimRef.current || 1);
-  }, []);
-
   // Cập nhật ma trận biến đổi (Scale + Rotation + Position) cho Pivot Group
   const applyTransform = useCallback(() => {
     const pivot = pivotGroupRef.current;
@@ -131,16 +120,12 @@ export function WebArCardView({
     pivot.rotation.y = userRotYRef.current;
     pivot.rotation.x = userRotXRef.current;
 
-    if (trackingModeRef.current === "companion") {
-      const s = getCompanionBaseScale() * userScaleRef.current;
-      pivot.scale.set(s, s, s);
-      pivot.position.set(companionPosRef.current.x, companionPosRef.current.y, COMPANION_Z);
-    } else {
-      const s = getCardBaseScale() * userScaleRef.current;
-      pivot.scale.set(s, s, s);
-      pivot.position.set(0, 0, 0);
-    }
-  }, [getCompanionBaseScale, getCardBaseScale]);
+    // Chiều rộng thẻ bài là 1.0 -> tỉ lệ chuẩn ~0.48 kích thước thẻ bài
+    const baseDim = 0.48;
+    const s = (baseDim / (maxDimRef.current || 1)) * userScaleRef.current;
+    pivot.scale.set(s, s, s);
+    pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
+  }, []);
 
   // Nút bấm tăng / giảm tỉ lệ mô hình 3D
   const handleZoom = useCallback((delta: number) => {
@@ -155,7 +140,7 @@ export function WebArCardView({
     userScaleRef.current = 1.0;
     userRotYRef.current = 0;
     userRotXRef.current = 0;
-    companionPosRef.current = { x: 0, y: -2.2 };
+    userPosRef.current = { x: 0, y: 0 };
     setZoomPercent(100);
     applyTransform();
   }, [applyTransform]);
@@ -229,26 +214,6 @@ export function WebArCardView({
     return () => clearInterval(timer);
   }, [isTrial, isLoading, isTrialExpired]);
 
-  // Điều phối vị trí mô hình giữa Anchor Thẻ Bài và Companion Trước Camera
-  const switchModelParent = useCallback((mode: "card" | "companion") => {
-    const pivot = pivotGroupRef.current;
-    const anchorGroup = anchorGroupRef.current;
-    const companionGroup = companionGroupRef.current;
-    if (!pivot || !anchorGroup || !companionGroup) return;
-
-    if (mode === "card") {
-      anchorGroup.add(pivot);
-      pivot.position.set(0, 0, 0);
-      const s = getCardBaseScale() * userScaleRef.current;
-      pivot.scale.set(s, s, s);
-    } else {
-      companionGroup.add(pivot);
-      pivot.position.set(companionPosRef.current.x, companionPosRef.current.y, COMPANION_Z);
-      const s = getCompanionBaseScale() * userScaleRef.current;
-      pivot.scale.set(s, s, s);
-    }
-  }, [getCardBaseScale, getCompanionBaseScale]);
-
   // Initialize MindAR and Three.js scene
   useEffect(() => {
     let isCancelled = false;
@@ -309,41 +274,20 @@ export function WebArCardView({
         const anchor = mindarThree.addAnchor(0);
         anchorGroupRef.current = anchor.group;
 
-        // B. Anchor Đồng Hành (Companion Group) gắn liền trước mắt Camera
-        const companion = new THREE.Group();
-        companion.position.set(0, 0, 0);
-        camera.add(companion);
-        scene.add(camera);
-        companionGroupRef.current = companion;
-
         // Bắt sự kiện nhận diện thẻ bài
         anchor.onTargetFound = () => {
           if (!isCancelled) {
             setIsTargetFound(true);
             setHasScannedOnce(true);
+            hasScannedOnceRef.current = true;
             playAnimalSoundEffect(animal.slug);
-
-            // Nếu người dùng chọn bám thẻ thì chuyển lên thẻ
-            if (pivotGroupRef.current && anchorGroupRef.current && trackingModeRef.current === "card") {
-              anchorGroupRef.current.add(pivotGroupRef.current);
-              pivotGroupRef.current.position.set(0, 0, 0);
-              const s = getCardBaseScale() * userScaleRef.current;
-              pivotGroupRef.current.scale.set(s, s, s);
-            }
           }
         };
 
         anchor.onTargetLost = () => {
           if (!isCancelled) {
             setIsTargetFound(false);
-            // Khi thẻ rời khung hình, vật thể KHÔNG BAO GIỜ BIẾN MẤT!
-            // Tự động chuyển sang chế độ Đồng Hành đứng trước camera
-            if (pivotGroupRef.current && companionGroupRef.current) {
-              companionGroupRef.current.add(pivotGroupRef.current);
-              pivotGroupRef.current.position.set(companionPosRef.current.x, companionPosRef.current.y, COMPANION_Z);
-              const s = getCompanionBaseScale() * userScaleRef.current;
-              pivotGroupRef.current.scale.set(s, s, s);
-            }
+            // KHÔNG ẩn con vật! Vẫn duy trì hiển thị tại tọa độ 3D trong không gian thực
           }
         };
 
@@ -372,18 +316,14 @@ export function WebArCardView({
             const pivot = new THREE.Group();
             pivot.add(rawModel);
 
-            // MẶC ĐỊNH KHỞI ĐỘNG: Gắn ngay vào companionGroup trước camera!
-            // VẬT THỂ XUẤT HIỆN NGAY LẬP TỨC TRƯỚC MẮT, KHÔNG CẦN QUÉT THẺ!
-            const comp = companionGroupRef.current;
-            if (comp) {
-              comp.add(pivot);
-            } else {
-              anchor.group.add(pivot);
-            }
+            // GẮN TRỰC TIẾP VÀO ANCHOR.GROUP:
+            // Khi người dùng hướng camera vào thẻ bài, con vật XUẤT HIỆN TỨC THÌ TRÊN THẺ!
+            anchor.group.add(pivot);
 
-            const initialScale = (7.2 / maxDim) * userScaleRef.current;
+            const baseDim = 0.48;
+            const initialScale = (baseDim / maxDim) * userScaleRef.current;
             pivot.scale.set(initialScale, initialScale, initialScale);
-            pivot.position.set(companionPosRef.current.x, companionPosRef.current.y, COMPANION_Z);
+            pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
             pivot.rotation.set(0, 0, 0);
 
             pivotGroupRef.current = pivot;
@@ -426,14 +366,11 @@ export function WebArCardView({
                     mixerRef.current.update(delta);
                   }
 
-                  // Hiệu ứng thở nhẹ khi ở chế độ đồng hành trước camera
-                  if (
-                    pivotGroupRef.current &&
-                    companionGroupRef.current &&
-                    companionGroupRef.current.children.includes(pivotGroupRef.current)
-                  ) {
-                    const elapsed = clockRef.current ? clockRef.current.getElapsedTime() : 0;
-                    pivotGroupRef.current.position.y = companionPosRef.current.y + Math.sin(elapsed * 2) * 0.12;
+                  // ĐẢM BẢO VẬT THỂ KHÔNG BAO GIỜ BIẾN MẤT:
+                  // Khi đã nhận diện thẻ bài ít nhất 1 lần, duy trì anchor.group luôn hiển thị
+                  // ngay cả khi người dùng di chuyển camera ra khỏi thẻ bài vào phòng!
+                  if (hasScannedOnceRef.current && anchorGroupRef.current) {
+                    anchorGroupRef.current.visible = true;
                   }
 
                   renderer.render(scene, camera);
@@ -483,15 +420,7 @@ export function WebArCardView({
         }
       }
     };
-  }, [animal, loadScript, applyTransform, getCompanionBaseScale, getCardBaseScale]);
-
-  // Xử lý chuyển đổi thủ công giữa Ghim trước mắt & Bám thẻ
-  const toggleTrackingMode = () => {
-    const nextMode = trackingMode === "companion" ? "card" : "companion";
-    trackingModeRef.current = nextMode;
-    setTrackingMode(nextMode);
-    switchModelParent(nextMode);
-  };
+  }, [animal, loadScript]);
 
   // 1. Cử chỉ chạm đa điểm (Touch Gestures: Di chuyển vị trí, Xoay 360, Thu phóng 2 ngón, Chạm để chơi)
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -527,10 +456,10 @@ export function WebArCardView({
 
       if (interactionMode === "move") {
         // VẤN ĐỀ 1: CHẠM VÀO VẬT THỂ ĐỂ DI CHUYỂN VỊ TRÍ
-        companionPosRef.current.x += dx * 0.045;
-        companionPosRef.current.y -= dy * 0.045;
-        companionPosRef.current.x = Math.max(-14, Math.min(14, companionPosRef.current.x));
-        companionPosRef.current.y = Math.max(-12, Math.min(10, companionPosRef.current.y));
+        userPosRef.current.x += dx * 0.003;
+        userPosRef.current.y -= dy * 0.003;
+        userPosRef.current.x = Math.max(-1.5, Math.min(1.5, userPosRef.current.x));
+        userPosRef.current.y = Math.max(-1.5, Math.min(1.5, userPosRef.current.y));
       } else {
         // Xoay 360 độ quanh trục Y
         userRotYRef.current += dx * 0.015;
@@ -588,10 +517,10 @@ export function WebArCardView({
     }
 
     if (interactionMode === "move") {
-      companionPosRef.current.x += dx * 0.045;
-      companionPosRef.current.y -= dy * 0.045;
-      companionPosRef.current.x = Math.max(-14, Math.min(14, companionPosRef.current.x));
-      companionPosRef.current.y = Math.max(-12, Math.min(10, companionPosRef.current.y));
+      userPosRef.current.x += dx * 0.003;
+      userPosRef.current.y -= dy * 0.003;
+      userPosRef.current.x = Math.max(-1.5, Math.min(1.5, userPosRef.current.x));
+      userPosRef.current.y = Math.max(-1.5, Math.min(1.5, userPosRef.current.y));
     } else {
       userRotYRef.current += dx * 0.015;
       userRotXRef.current = Math.max(-0.4, Math.min(0.6, userRotXRef.current + dy * 0.008));
@@ -722,31 +651,14 @@ export function WebArCardView({
           <X className="h-5 w-5" />
         </button>
 
-        {/* Cụm thông tin & Nút chuyển đổi chế độ Ghim / Bám thẻ */}
+        {/* Cụm thông tin huy hiệu Poly Cards AR */}
         <div className="pointer-events-auto flex flex-col items-center gap-1">
-          {/* Nút chuyển đổi chế độ Sticky Companion */}
-          <button
-            type="button"
-            onClick={toggleTrackingMode}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/65 border border-white/25 backdrop-blur-md shadow-lg active:scale-95 transition-all"
-            title="Bấm để đổi giữa bám thẻ và đồng hành trước camera"
-          >
-            {trackingMode === "companion" ? (
-              <>
-                <Pin className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-[11px] font-black text-amber-300">
-                  Đồng hành cùng bé
-                </span>
-              </>
-            ) : (
-              <>
-                <Compass className="h-3.5 w-3.5 text-sky-400" />
-                <span className="text-[11px] font-black text-sky-300">
-                  Bám sát thẻ bài
-                </span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/65 border border-white/25 backdrop-blur-md shadow-lg">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+            <span className="text-[11px] font-black text-amber-300">
+              Poly Cards 3D AR
+            </span>
+          </div>
 
           {/* Huy hiệu đếm ngược nếu là bản dùng thử 30s */}
           {isTrial && (
@@ -857,19 +769,19 @@ export function WebArCardView({
         </button>
       </div>
 
-      {/* 7. Khung ngắm định vị thẻ bài (Chỉ hiện khi người dùng chọn Bám sát thẻ bài) */}
-      {trackingMode === "card" && !isLoading && !loadError && !isTargetFound && (
+      {/* 7. Khung ngắm định vị thẻ bài (Hiện khi chưa nhận diện được thẻ) */}
+      {!isLoading && !loadError && !isTargetFound && !hasScannedOnce && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-6">
-          <div className="relative w-60 h-72 max-w-[65vw] max-h-[42vh] rounded-3xl border-2 border-dashed border-amber-300/80 shadow-[0_0_20px_rgba(251,191,36,0.3)] bg-black/10">
-            <div className="absolute -top-1.5 -left-1.5 h-5 w-5 border-t-4 border-l-4 border-amber-400 rounded-tl-xl" />
-            <div className="absolute -top-1.5 -right-1.5 h-5 w-5 border-t-4 border-r-4 border-amber-400 rounded-tr-xl" />
-            <div className="absolute -bottom-1.5 -left-1.5 h-5 w-5 border-b-4 border-l-4 border-amber-400 rounded-bl-xl" />
-            <div className="absolute -bottom-1.5 -right-1.5 h-5 w-5 border-b-4 border-r-4 border-amber-400 rounded-br-xl" />
+          <div className="relative w-64 h-80 max-w-[70vw] max-h-[45vh] rounded-3xl border-2 border-dashed border-amber-300/80 shadow-[0_0_25px_rgba(251,191,36,0.35)] bg-black/10">
+            <div className="absolute -top-1.5 -left-1.5 h-6 w-6 border-t-4 border-l-4 border-amber-400 rounded-tl-xl" />
+            <div className="absolute -top-1.5 -right-1.5 h-6 w-6 border-t-4 border-r-4 border-amber-400 rounded-tr-xl" />
+            <div className="absolute -bottom-1.5 -left-1.5 h-6 w-6 border-b-4 border-l-4 border-amber-400 rounded-bl-xl" />
+            <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 border-b-4 border-r-4 border-amber-400 rounded-br-xl" />
 
-            <div className="absolute -top-9 inset-x-0 flex justify-center">
-              <div className="flex items-center gap-1.5 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-stone-950 shadow-lg backdrop-blur-md">
-                <Scan className="h-3.5 w-3.5 animate-spin" />
-                <span>Hướng vào thẻ {animal.nameVi}</span>
+            <div className="absolute -top-10 inset-x-0 flex justify-center">
+              <div className="flex items-center gap-2 rounded-full bg-amber-500/95 px-4 py-1.5 text-xs font-black text-stone-950 shadow-xl backdrop-blur-md animate-pulse">
+                <Scan className="h-4 w-4 animate-spin" />
+                <span>Hướng camera vào ảnh {animal.nameVi}</span>
               </div>
             </div>
           </div>

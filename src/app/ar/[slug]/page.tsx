@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -115,7 +115,9 @@ export default async function ArDetailPage({ params }: ArPageProps) {
         </div>
 
         {/* Interactive AR & 3D Viewer Container */}
-        <ArViewerContainer animal={animal} />
+        <Suspense fallback={<div className="h-64 w-full animate-pulse rounded-3xl bg-amber-100/60" />}>
+          <ArViewerContainer animal={animal} />
+        </Suspense>
 
         {/* Bottom Animal Description & Purchasing Details */}
         <div className="w-full rounded-3xl border-2 border-amber-200/90 bg-white/95 p-4 sm:p-6 shadow-lg shadow-amber-900/5">

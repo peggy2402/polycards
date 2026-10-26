@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Animal } from "@/types/animal";
-import { isAnimalUnlocked } from "@/lib/activation";
+import { isAnimalUnlocked, activateWithCode } from "@/lib/activation";
 import { CardFlashcardView } from "@/components/ar/card-flashcard-view";
 import { ModelViewerView } from "@/components/ar/model-viewer-view";
 import { ArAudioPlayer } from "@/components/ar/ar-audio-player";
@@ -26,6 +26,7 @@ interface ArViewerContainerProps {
 
 export function ArViewerContainer({ animal }: ArViewerContainerProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Tab Switcher State: Tab 1: "card" (Thẻ Bài) | Tab 2: "model3d" (Models 3D)
   const [activeTab, setActiveTab] = useState<"card" | "model3d">("card");
@@ -38,6 +39,26 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
   const [isTrial, setIsTrial] = useState<boolean>(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
   const [unlocked, setUnlocked] = useState<boolean>(false);
+
+  // Tự động kích hoạt bản quyền & Mở thẳng WebAR khi khách hàng quét QR có ?ar=1 hoặc ?code=...
+  useEffect(() => {
+    const isDirectAr =
+      searchParams.get("ar") === "1" ||
+      searchParams.get("camera") === "1" ||
+      searchParams.get("scan") === "1" ||
+      searchParams.get("mode") === "webar";
+
+    const codeParam = searchParams.get("code") || searchParams.get("key");
+    if (codeParam) {
+      activateWithCode(codeParam);
+    }
+
+    if (isDirectAr) {
+      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug);
+      setIsTrial(!isAlreadyUnlocked);
+      setIsWebArOpen(true);
+    }
+  }, [searchParams, animal.slug]);
 
   // Kiểm tra trạng thái bản quyền (Đã kích hoạt hay chưa) và đồng bộ tức thì
   useEffect(() => {
