@@ -29,6 +29,9 @@ import {
   HelpCircle,
   Eye,
   RefreshCw,
+  Link as LinkIcon,
+  Palette,
+  FileCode,
 } from "lucide-react";
 
 interface CardPreset {
@@ -73,7 +76,23 @@ export default function ToolsPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // 2. Trạng thái Thẻ Mẫu (Card Template)
+  // 2. Chế độ tạo mã QR: "slug" (Theo thẻ WebAR) hoặc "custom" (Nhập link tùy ý)
+  const [qrMode, setQrMode] = useState<"slug" | "custom">("slug");
+  const [slug, setSlug] = useState<string>("jump");
+  const [customUrl, setCustomUrl] = useState<string>("https://polycards-one.vercel.app/ar/jump?ar=1");
+  const [directAr, setDirectAr] = useState<boolean>(true);
+  const [includeLicense, setIncludeLicense] = useState<boolean>(false);
+  const [licenseCode, setLicenseCode] = useState<string>("POLY-JUMP-2026");
+
+  // 3. Tùy chỉnh màu sắc & Logo mã QR
+  const [qrColor, setQrColor] = useState<string>("#0F172A");
+  const [includeLogo, setIncludeLogo] = useState<boolean>(true);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [qrSvgString, setQrSvgString] = useState<string>("");
+  const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
+  const [qrGeneratedCount, setQrGeneratedCount] = useState<number>(1);
+
+  // 4. Trạng thái Thẻ Mẫu (Card Template)
   const [selectedPresetId, setSelectedPresetId] = useState<string>("jump-action");
   const [cardImageSrc, setCardImageSrc] = useState<string>("/images/cards/jump-template.jpg");
   const [cardDimensions, setCardDimensions] = useState<{ width: number; height: number }>({
@@ -83,18 +102,6 @@ export default function ToolsPage() {
   const [cardFileName, setCardFileName] = useState<string>("jump-template.jpg");
   const [isDraggingOverFile, setIsDraggingOverFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // 3. Trạng thái cấu hình AR & URL Đích
-  const [slug, setSlug] = useState<string>("jump");
-  const [directAr, setDirectAr] = useState<boolean>(true);
-  const [includeLicense, setIncludeLicense] = useState<boolean>(false);
-  const [licenseCode, setLicenseCode] = useState<string>("POLY-JUMP-2026");
-
-  // 4. Trạng thái Mã QR (QR Style & Rendering)
-  const [qrColor, setQrColor] = useState<string>("#0F172A");
-  const [includeLogo, setIncludeLogo] = useState<boolean>(true);
-  const [qrDataUrl, setQrDataUrl] = useState<string>("");
-  const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
 
   // 5. Tọa độ & Kích thước QR trên Thẻ (Lưu theo % để chuẩn xác trên mọi kích thước ảnh)
   // X: % từ lề trái, Y: % từ lề trên, Size: % theo chiều rộng thẻ
@@ -162,6 +169,10 @@ export default function ToolsPage() {
 
   // Tính toán URL đích khi quét mã QR
   const computedTargetUrl = useCallback(() => {
+    if (qrMode === "custom") {
+      return customUrl.trim() || "https://polycards-one.vercel.app";
+    }
+
     const cleanSlug = slug.trim().toLowerCase() || "jump";
     let url = `https://polycards-one.vercel.app/ar/${cleanSlug}`;
     const params = new URLSearchParams();
@@ -173,15 +184,29 @@ export default function ToolsPage() {
     }
     const queryString = params.toString();
     return queryString ? `${url}?${queryString}` : url;
-  }, [slug, directAr, includeLicense, licenseCode]);
+  }, [qrMode, customUrl, slug, directAr, includeLicense, licenseCode]);
 
   const targetUrl = computedTargetUrl();
 
   // Tạo ảnh mã QR có độ phân giải cao kết hợp logo tròn thương hiệu Poly Cards
-  const generateQrImage = useCallback(async () => {
+  const handleGenerateQr = useCallback(async () => {
     if (!targetUrl) return;
     try {
       setIsGeneratingQr(true);
+
+      // 1. Sinh vector SVG
+      const svg = await QRCode.toString(targetUrl, {
+        type: "svg",
+        errorCorrectionLevel: "H",
+        margin: 1,
+        color: {
+          dark: qrColor,
+          light: "#FFFFFF",
+        },
+      });
+      setQrSvgString(svg);
+
+      // 2. Sinh raster PNG
       const rawDataUrl = await QRCode.toDataURL(targetUrl, {
         errorCorrectionLevel: "H",
         margin: 1,
@@ -232,10 +257,12 @@ export default function ToolsPage() {
               );
               setQrDataUrl(canvas.toDataURL("image/png"));
               setIsGeneratingQr(false);
+              setQrGeneratedCount((prev) => prev + 1);
             };
             logo.onerror = () => {
               setQrDataUrl(rawDataUrl);
               setIsGeneratingQr(false);
+              setQrGeneratedCount((prev) => prev + 1);
             };
             logo.src = "/images/icons/logo.png";
           };
@@ -245,6 +272,7 @@ export default function ToolsPage() {
       }
 
       setQrDataUrl(rawDataUrl);
+      setQrGeneratedCount((prev) => prev + 1);
     } catch (err) {
       console.error("QR Generation Error:", err);
     } finally {
@@ -252,10 +280,10 @@ export default function ToolsPage() {
     }
   }, [targetUrl, qrColor, includeLogo]);
 
-  // Sinh lại QR khi URL hoặc cấu hình logo/màu thay đổi
+  // Tự động sinh QR khi tải trang hoặc khi đổi URL
   useEffect(() => {
-    generateQrImage();
-  }, [generateQrImage]);
+    handleGenerateQr();
+  }, [handleGenerateQr]);
 
   // Xử lý nạp ảnh thẻ mẫu mới từ máy tính
   const handleLoadImageFile = (file: File) => {
@@ -380,7 +408,6 @@ export default function ToolsPage() {
 
     // 2. CHẾ ĐỘ CO GIÃN TỈ LỆ 1:1 (Aspect Ratio Lock 1:1 like Photoshop)
     if (resizingHandle) {
-      // Tính độ chênh lệch theo chiều ngang (% chiều rộng)
       let deltaPercent = (deltaPixelX / cardRenderWidth) * 100;
 
       if (resizingHandle === "nw" || resizingHandle === "sw") {
@@ -392,7 +419,7 @@ export default function ToolsPage() {
       const scaleMultiplier = isAlt ? 2 : 1;
 
       let nextSize = initialQrSize + deltaPercent * scaleMultiplier;
-      nextSize = Math.max(12, Math.min(55, nextSize)); // Giới hạn kích thước từ 12% đến 55%
+      nextSize = Math.max(12, Math.min(55, nextSize));
 
       const sizeDiff = nextSize - initialQrSize;
       const cardAspect = cardDimensions.height / cardDimensions.width;
@@ -401,11 +428,9 @@ export default function ToolsPage() {
       let nextY = initialQrY;
 
       if (isAlt) {
-        // Tâm QR giữ nguyên vị trí, dời x và y ngược lại một nửa độ chênh lệch
         nextX = initialQrX - sizeDiff / 2;
         nextY = initialQrY - (sizeDiff / 2) / cardAspect;
       } else {
-        // Cố định góc đối diện
         if (resizingHandle === "nw") {
           nextX = initialQrX - sizeDiff;
           nextY = initialQrY - sizeDiff / cardAspect;
@@ -490,13 +515,25 @@ export default function ToolsPage() {
     }
   };
 
-  // Tải riêng mã QR độ phân giải cao
-  const handleDownloadQrOnly = () => {
+  // Tải riêng mã QR độ phân giải cao PNG
+  const handleDownloadQrPng = () => {
     if (!qrDataUrl) return;
     const link = document.createElement("a");
     link.download = `polycards-qr-${slug || "target"}.png`;
     link.href = qrDataUrl;
     link.click();
+  };
+
+  // Tải riêng mã QR Vector SVG
+  const handleDownloadQrSvg = () => {
+    if (!qrSvgString) return;
+    const blob = new Blob([qrSvgString], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `polycards-qr-${slug || "target"}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   // Sao chép ảnh thẻ vào Clipboard (Dán ngay vào Photoshop, Zalo, Canva)
@@ -597,7 +634,7 @@ export default function ToolsPage() {
               Poly Cards Studio
             </h1>
             <p className="text-xs text-stone-400 mt-1 max-w-xs">
-              Hệ thống chế bản thẻ bài & ghép mã QR WebAR chuẩn xưởng in 30 thẻ
+              Hệ thống khởi tạo mã QR WebAR & Chế bản thẻ bài chuẩn xưởng in 30 thẻ
             </p>
           </div>
 
@@ -663,11 +700,11 @@ export default function ToolsPage() {
               <div className="text-sm font-black leading-tight flex items-center gap-1.5">
                 <span>Poly Cards Studio</span>
                 <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  PRO
+                  QR & CARD MAKER
                 </span>
               </div>
               <p className="text-[10px] text-stone-400">
-                Chế bản thẻ bài AR & Kéo thả QR 1:1 chuẩn in ấn
+                Tạo mã QR WebAR & Kéo thả vào thẻ 1:1 chuẩn in ấn xưởng
               </p>
             </div>
           </Link>
@@ -698,15 +735,207 @@ export default function ToolsPage() {
       {/* 2. Main Workspace (2 Cột: Cột điều khiển trái & Canvas tương tác phải) */}
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
         {/* ========================================================
-            CỘT TRÁI: BẢNG ĐIỀU KHIỂN & CẤU HÌNH (Width: 5/12 hoặc 4/12)
+            CỘT TRÁI: BẢNG TẠO MÃ QR & CẤU HÌNH (Width: 5/12 hoặc 4/12)
            ======================================================== */}
         <div className="lg:col-span-5 xl:col-span-4 border-b lg:border-b-0 lg:border-r border-white/10 bg-stone-900/60 p-4 sm:p-5 overflow-y-auto space-y-5 max-h-[calc(100vh-60px)]">
-          {/* KHỐI 1: NẠP THẺ BÀI MẪU */}
+          {/* KHỐI 1: BỘ KHỞI TẠO MÃ QR (QR GENERATOR STUDIO) - NỔI BẬT NHẤT */}
+          <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-4 shadow-xl shadow-amber-500/10">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <QrCode className="h-4 w-4 text-amber-400" />
+                <span>1. Khởi Tạo Mã QR (QR Generator)</span>
+              </label>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
+                Mã số #{qrGeneratedCount}
+              </span>
+            </div>
+
+            {/* Chọn Chế Độ Tạo QR: Theo Slug AR hay Link Tùy Biến */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/60 border border-white/10">
+              <button
+                type="button"
+                onClick={() => setQrMode("slug")}
+                className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  qrMode === "slug"
+                    ? "bg-amber-500 text-stone-950 font-black shadow-md"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                <span>Theo Thẻ AR (Slug)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQrMode("custom")}
+                className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  qrMode === "custom"
+                    ? "bg-amber-500 text-stone-950 font-black shadow-md"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                <LinkIcon className="h-3 w-3" />
+                <span>Link Tùy Biến</span>
+              </button>
+            </div>
+
+            {/* Form nhập liệu tương ứng */}
+            {qrMode === "slug" ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 mb-1">
+                    Slug Tên Thẻ / Hành Động / Con Vật:
+                  </label>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                    placeholder="Ví dụ: jump, lion, run, apple..."
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                  <p className="text-[10px] text-stone-400 mt-1">
+                    Áp dụng cho bộ 30 thẻ: mỗi thẻ 1 slug riêng biệt.
+                  </p>
+                </div>
+
+                {/* Các tùy chọn kích hoạt AR */}
+                <div className="space-y-2 pt-1 border-t border-white/10">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+                    <input
+                      type="checkbox"
+                      checked={directAr}
+                      onChange={(e) => setDirectAr(e.target.checked)}
+                      className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+                    />
+                    <span>Mở thẳng WebAR Camera khi quét QR (?ar=1)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+                    <input
+                      type="checkbox"
+                      checked={includeLicense}
+                      onChange={(e) => setIncludeLicense(e.target.checked)}
+                      className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+                    />
+                    <span>Nhúng mã bản quyền tự kích hoạt 1 chạm (&code=...)</span>
+                  </label>
+
+                  {includeLicense && (
+                    <div className="pl-6 pt-1">
+                      <input
+                        type="text"
+                        value={licenseCode}
+                        onChange={(e) => setLicenseCode(e.target.value.toUpperCase())}
+                        placeholder="Mã bản quyền: POLY-JUMP-2026..."
+                        className="w-full bg-black/80 border border-amber-400/40 rounded-xl px-3 py-1.5 text-xs font-mono text-emerald-400 placeholder-stone-600 focus:outline-hidden focus:border-amber-400"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-stone-300 mb-1">
+                  Đường Dẫn URL Tùy Biến:
+                </label>
+                <input
+                  type="url"
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  placeholder="https://polycards-one.vercel.app/ar/..."
+                  className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                />
+                <p className="text-[10px] text-stone-400 mt-1">
+                  Có thể nhập bất kỳ đường link website, video, hoặc trang đặt hàng.
+                </p>
+              </div>
+            )}
+
+            {/* NÚT TẠO MÃ QR NỔI BẬT */}
+            <button
+              type="button"
+              onClick={handleGenerateQr}
+              disabled={isGeneratingQr}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-98 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isGeneratingQr ? "animate-spin" : ""}`} />
+              <span>{isGeneratingQr ? "Đang Khởi Tạo QR..." : "Tạo / Cập Nhật Mã QR Ngay"}</span>
+            </button>
+
+            {/* KHUNG XEM TRƯỚC MÃ QR RIÊNG BIỆT (QR CODE PREVIEW BOX) */}
+            <div className="p-3.5 rounded-2xl bg-black/70 border border-amber-500/30 flex flex-col sm:flex-row items-center gap-3.5">
+              {/* Ảnh Mã QR To Rõ */}
+              <div className="relative h-28 w-28 shrink-0 rounded-xl bg-white p-1.5 shadow-xl flex items-center justify-center">
+                {qrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={qrDataUrl}
+                    alt="Mã QR Preview"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-stone-400 text-[10px]">
+                    Đang tạo...
+                  </div>
+                )}
+              </div>
+
+              {/* Thông tin quét thử & Tải riêng mã QR */}
+              <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left w-full">
+                <div>
+                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] font-black text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>Mã QR Đã Sẵn Sàng Quét Thử</span>
+                  </div>
+                  <div className="text-[10px] text-stone-400 truncate max-w-full font-mono mt-0.5" title={targetUrl}>
+                    {targetUrl}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center sm:justify-start gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleDownloadQrPng}
+                    className="py-1 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center gap-1 transition-colors"
+                    title="Tải riêng file PNG độ nét cao (1024px)"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span>Tải PNG</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadQrSvg}
+                    className="py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-[10px] flex items-center gap-1 transition-colors"
+                    title="Tải riêng file vector SVG vô hạn độ phân giải"
+                  >
+                    <FileCode className="h-3 w-3 text-sky-400" />
+                    <span>Tải SVG</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(targetUrl);
+                      setCopiedUrl(true);
+                      setTimeout(() => setCopiedUrl(false), 2000);
+                    }}
+                    className="py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 font-bold text-[10px] flex items-center gap-1 transition-colors"
+                    title="Sao chép liên kết"
+                  >
+                    {copiedUrl ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedUrl ? "Đã chép" : "Copy"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* KHỐI 2: NẠP THẺ BÀI MẪU (CARD TEMPLATE) */}
           <div className="rounded-2xl bg-black/40 border border-white/10 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
                 <ImageIcon className="h-4 w-4 text-amber-400" />
-                <span>1. Thẻ Bài Mẫu (Card Template)</span>
+                <span>2. Thẻ Bài Mẫu (Card Template)</span>
               </label>
               <span className="text-[10px] font-mono text-stone-400">
                 {cardDimensions.width} x {cardDimensions.height} px
@@ -781,108 +1010,12 @@ export default function ToolsPage() {
             </div>
           </div>
 
-          {/* KHỐI 2: CẤU HÌNH AR & TỰ ĐỘNG SINH LINK */}
-          <div className="rounded-2xl bg-black/40 border border-white/10 p-4 space-y-3">
-            <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-amber-400" />
-              <span>2. Cấu Hình AR & URL Đích</span>
-            </label>
-
-            <div>
-              <label className="block text-xs font-bold text-stone-300 mb-1">
-                Slug Định Danh Bài Học / Con Vật / Hành Động:
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-                  placeholder="Ví dụ: jump, lion, run, apple..."
-                  className="w-full bg-black/60 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                />
-              </div>
-              <p className="text-[10px] text-stone-400 mt-1">
-                Mỗi thẻ trong bộ 30 thẻ sẽ tương ứng với 1 slug riêng biệt.
-              </p>
-            </div>
-
-            {/* Các tùy chọn kích hoạt AR */}
-            <div className="space-y-2 pt-1 border-t border-white/10">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
-                <input
-                  type="checkbox"
-                  checked={directAr}
-                  onChange={(e) => setDirectAr(e.target.checked)}
-                  className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
-                />
-                <span>Mở thẳng WebAR Camera khi quét QR (?ar=1)</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
-                <input
-                  type="checkbox"
-                  checked={includeLicense}
-                  onChange={(e) => setIncludeLicense(e.target.checked)}
-                  className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
-                />
-                <span>Nhúng mã bản quyền tự kích hoạt 1 chạm (&code=...)</span>
-              </label>
-
-              {includeLicense && (
-                <div className="pl-6 pt-1">
-                  <input
-                    type="text"
-                    value={licenseCode}
-                    onChange={(e) => setLicenseCode(e.target.value.toUpperCase())}
-                    placeholder="Nhập mã bản quyền: POLY-JUMP-2026..."
-                    className="w-full bg-black/60 border border-amber-400/40 rounded-xl px-3 py-1.5 text-xs font-mono text-emerald-400 placeholder-stone-600 focus:outline-hidden focus:border-amber-400"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* URL Xem Trước & Nút Copy */}
-            <div className="p-2.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">
-                  Link nhúng trong mã QR:
-                </div>
-                <div className="text-xs font-mono text-amber-300 truncate">
-                  {targetUrl}
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(targetUrl);
-                    setCopiedUrl(true);
-                    setTimeout(() => setCopiedUrl(false), 2000);
-                  }}
-                  className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-                  title="Sao chép liên kết"
-                >
-                  {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                </button>
-                <a
-                  href={targetUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-                  title="Mở liên kết kiểm tra"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </div>
-          </div>
-
           {/* KHỐI 3: TINH CHỈNH VỊ TRÍ & KÍCH THƯỚC QR (1:1 RATIO) */}
           <div className="rounded-2xl bg-black/40 border border-white/10 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
                 <Sliders className="h-4 w-4 text-amber-400" />
-                <span>3. Tinh Chỉnh QR (Chuẩn 1:1)</span>
+                <span>3. Tinh Chỉnh QR Trên Thẻ (1:1)</span>
               </label>
               <button
                 type="button"
@@ -973,22 +1106,12 @@ export default function ToolsPage() {
               </div>
             )}
 
-            {/* Các nút phụ: Tải riêng QR, Sao chép, In */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={handleDownloadQrOnly}
-                className="py-2 px-1 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] flex flex-col items-center justify-center gap-1 transition-colors"
-                title="Tải riêng file ảnh mã QR kích thước 1024px"
-              >
-                <QrCode className="h-4 w-4 text-amber-400" />
-                <span>Tải Mã QR</span>
-              </button>
-
+            {/* Các nút phụ: Sao chép, In */}
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleCopyCardImage}
-                className="py-2 px-1 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] flex flex-col items-center justify-center gap-1 transition-colors"
+                className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
                 title="Sao chép ảnh thẻ đã ghép QR vào bộ nhớ đệm"
               >
                 {copiedImage ? (
@@ -996,17 +1119,17 @@ export default function ToolsPage() {
                 ) : (
                   <Copy className="h-4 w-4 text-sky-400" />
                 )}
-                <span>{copiedImage ? "Đã Chép" : "Chép Ảnh"}</span>
+                <span>{copiedImage ? "Đã Chép" : "Chép Vào Clipboard"}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handlePrint}
-                className="py-2 px-1 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] flex flex-col items-center justify-center gap-1 transition-colors"
+                className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
                 title="Mở giao diện in thẻ trực tiếp"
               >
                 <Printer className="h-4 w-4 text-purple-400" />
-                <span>In Thẻ</span>
+                <span>In Trực Tiếp</span>
               </button>
             </div>
           </div>
