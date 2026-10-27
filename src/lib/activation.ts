@@ -121,11 +121,14 @@ export function activateWithCode(code: string): ActivationResult {
     };
   }
 
-  // TRƯỜNG HỢP 2: Kích hoạt Combo 6 Thẻ Cơ Bản
+  // TRƯỜNG HỢP 2: Kích hoạt Combo 6 Thẻ Cơ Bản (Hoặc Mã Hóa Đơn Bán Hàng)
   const isCombo6Code =
     clean.startsWith("POLY-COMBO6") ||
     clean.startsWith("COMBO6") ||
-    clean.startsWith("POLY-6");
+    clean.startsWith("POLY-6") ||
+    clean.startsWith("HD-") ||
+    clean.startsWith("HOADON-") ||
+    clean.startsWith("ORDER-");
 
   if (isCombo6Code) {
     localStorage.setItem(STORAGE_KEY_CODE, clean);

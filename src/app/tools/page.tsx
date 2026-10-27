@@ -32,9 +32,16 @@ import {
   Link as LinkIcon,
   Palette,
   FileCode,
+  FileSpreadsheet,
+  Users,
+  Phone,
+  Plus,
+  Trash2,
+  Send,
+  Dices,
 } from "lucide-react";
 
-interface CardPreset {
+export interface CardPreset {
   id: string;
   name: string;
   slug: string;
@@ -43,6 +50,19 @@ interface CardPreset {
   width: number;
   height: number;
   defaultQr: { x: number; y: number; size: number };
+}
+
+export interface InvoiceRecord {
+  id: string;
+  code: string;
+  type: "direct" | "online";
+  customerName: string;
+  customerPhone?: string;
+  packType: "combo6" | "combo30" | "vip";
+  packTitle: string;
+  createdAt: string;
+  note?: string;
+  directUrl: string;
 }
 
 // Danh sách các thẻ mẫu chuẩn sẵn có của dự án
@@ -59,10 +79,60 @@ const CARD_PRESETS: CardPreset[] = [
   },
   {
     id: "lion-animal",
-    name: "Thẻ Lion - Sư Tử (Động Vật)",
+    name: "Thẻ Lion - Sư Tử (Combo 6)",
     slug: "lion",
     category: "Động Vật",
     imageSrc: "/images/cards/lion-template.jpg",
+    width: 709,
+    height: 1024,
+    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+  },
+  {
+    id: "cat-animal",
+    name: "Thẻ Cat - Con Mèo (Combo 6)",
+    slug: "cat",
+    category: "Động Vật",
+    imageSrc: "/images/animals/cat.jpg",
+    width: 709,
+    height: 1024,
+    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+  },
+  {
+    id: "dog-animal",
+    name: "Thẻ Dog - Con Chó (Combo 6)",
+    slug: "dog",
+    category: "Động Vật",
+    imageSrc: "/images/animals/dog.jpg",
+    width: 709,
+    height: 1024,
+    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+  },
+  {
+    id: "deer-animal",
+    name: "Thẻ Deer - Con Hươu (Combo 6)",
+    slug: "deer",
+    category: "Động Vật",
+    imageSrc: "/images/animals/deer.jpg",
+    width: 709,
+    height: 1024,
+    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+  },
+  {
+    id: "elephant-animal",
+    name: "Thẻ Elephant - Con Voi (Combo 6)",
+    slug: "elephant",
+    category: "Động Vật",
+    imageSrc: "/images/animals/elephant.jpg",
+    width: 709,
+    height: 1024,
+    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+  },
+  {
+    id: "panda-animal",
+    name: "Thẻ Panda - Gấu Trúc (Combo 6)",
+    slug: "panda",
+    category: "Động Vật",
+    imageSrc: "/images/animals/panda.jpg",
     width: 709,
     height: 1024,
     defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
@@ -140,6 +210,211 @@ export default function ToolsPage() {
   const [copiedImage, setCopiedImage] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+
+  // 8. Tab chính: "studio" (Chế bản thẻ & QR) | "invoices" (Quản lý hóa đơn & bộ thẻ)
+  const [activeMainTab, setActiveMainTab] = useState<"studio" | "invoices">("studio");
+
+  // 9. Chế độ xem trước thẻ FINAL (Ẩn hoàn toàn viền và núm kéo, hiển thị 100% sạch chuẩn in)
+  const [isPreviewFinal, setIsPreviewFinal] = useState<boolean>(false);
+
+  // 10. Quản lý danh sách Hóa Đơn Bán Hàng (Trực tiếp & Online)
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [copiedZaloMsgId, setCopiedZaloMsgId] = useState<string | null>(null);
+
+  // Form lên đơn cho khách online
+  const [onlineForm, setOnlineForm] = useState({
+    customerName: "",
+    customerPhone: "",
+    packType: "combo6" as "combo6" | "combo30" | "vip",
+    targetSlug: "lion",
+    note: "",
+  });
+
+  // Modal hiển thị kết quả hóa đơn vừa tạo
+  const [justCreatedInvoice, setJustCreatedInvoice] = useState<InvoiceRecord | null>(null);
+
+  // Nạp danh sách hóa đơn từ localStorage khi khởi động
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedInvoices = localStorage.getItem("polycards_invoices_db");
+      if (savedInvoices) {
+        try {
+          setInvoices(JSON.parse(savedInvoices));
+          return;
+        } catch {}
+      }
+      // Dữ liệu mẫu ban đầu để sẵn sàng dùng thử
+      const initialSeed: InvoiceRecord[] = [
+        {
+          id: "INV-DEMO-01",
+          code: "HD-DIR-8821",
+          type: "direct",
+          customerName: "Khách Mua Trực Tiếp Tại Quầy",
+          customerPhone: "0901234567",
+          packType: "combo6",
+          packTitle: "Bộ 6 Thẻ AR Cơ Bản (Động Vật)",
+          createdAt: "2026-10-27 15:30",
+          note: "Mã hóa đơn in trực tiếp trên hộp thẻ / tem cào mở khóa 6 thẻ",
+          directUrl: "https://polycards-one.vercel.app/ar/lion?ar=1&code=HD-DIR-8821",
+        },
+      ];
+      setInvoices(initialSeed);
+      localStorage.setItem("polycards_invoices_db", JSON.stringify(initialSeed));
+    }
+  }, []);
+
+  const saveInvoicesList = (newList: InvoiceRecord[]) => {
+    setInvoices(newList);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("polycards_invoices_db", JSON.stringify(newList));
+    }
+  };
+
+  // Hàm Random nhanh mã QR & Gắn vào ô trắng của thẻ
+  const handleRandomizeQr = (type: "combo" | "direct" = "combo") => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const prefix = type === "direct" ? "HD-DIR" : "HD-COMBO";
+    const newCode = `${prefix}-${randomNum}`;
+
+    // Chọn ngẫu nhiên con vật từ bộ thẻ nếu muốn
+    const comboSlugs = ["lion", "cat", "deer", "dog", "elephant", "panda", "jump"];
+    const randomSlug = comboSlugs[Math.floor(Math.random() * comboSlugs.length)];
+
+    setSlug(randomSlug);
+    setDirectAr(true);
+    setIncludeLicense(true);
+    setLicenseCode(newCode);
+
+    // Tự động gắn vào ô trắng góc dưới thẻ
+    setQrPos({
+      x: 6.2,
+      y: 70.8,
+      size: 25.8,
+    });
+
+    setExportSuccessMsg(`Đã tạo mã QR ngẫu nhiên mới: ${newCode} (Thẻ: ${randomSlug.toUpperCase()})`);
+    setTimeout(() => setExportSuccessMsg(null), 3000);
+  };
+
+  // Tạo nhanh mã hóa đơn bán trực tiếp
+  const handleCreateDirectInvoice = () => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const code = `HD-DIR-${randomNum}`;
+    const newInv: InvoiceRecord = {
+      id: `INV-${Date.now()}`,
+      code,
+      type: "direct",
+      customerName: "Khách Mua Trực Tiếp",
+      customerPhone: "",
+      packType: "combo6",
+      packTitle: "Bộ 6 Thẻ AR Cơ Bản (Động Vật)",
+      createdAt: new Date().toLocaleString("vi-VN"),
+      note: "Mã hóa đơn in trên hộp thẻ / tem cào mở khóa 6 thẻ",
+      directUrl: `https://polycards-one.vercel.app/ar/lion?ar=1&code=${code}`,
+    };
+
+    saveInvoicesList([newInv, ...invoices]);
+    setJustCreatedInvoice(newInv);
+    setLicenseCode(code);
+    setIncludeLicense(true);
+    setDirectAr(true);
+    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+  };
+
+  // Tạo hóa đơn cho khách online
+  const handleCreateOnlineInvoice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onlineForm.customerName.trim()) {
+      alert("Vui lòng nhập tên khách hàng.");
+      return;
+    }
+
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const code = `HD-ONL-2026-${randomNum}`;
+    const packTitle =
+      onlineForm.packType === "combo6"
+        ? "Bộ 6 Thẻ AR Cơ Bản (Động Vật)"
+        : onlineForm.packType === "combo30"
+        ? "Bộ 30 Thẻ AR Toàn Diện"
+        : "Trọn Bộ VIP Poly Cards";
+
+    const targetSlug = onlineForm.targetSlug || "lion";
+    const directUrl = `https://polycards-one.vercel.app/ar/${targetSlug}?ar=1&code=${code}`;
+
+    const newInv: InvoiceRecord = {
+      id: `INV-${Date.now()}`,
+      code,
+      type: "online",
+      customerName: onlineForm.customerName.trim(),
+      customerPhone: onlineForm.customerPhone.trim(),
+      packType: onlineForm.packType,
+      packTitle,
+      createdAt: new Date().toLocaleString("vi-VN"),
+      note: onlineForm.note.trim() || "Đơn hàng online",
+      directUrl,
+    };
+
+    saveInvoicesList([newInv, ...invoices]);
+    setJustCreatedInvoice(newInv);
+    // Reset form
+    setOnlineForm({
+      customerName: "",
+      customerPhone: "",
+      packType: "combo6",
+      targetSlug: "lion",
+      note: "",
+    });
+  };
+
+  // Soạn tin nhắn mẫu gửi Zalo/SMS cho khách
+  const formatZaloMessage = (inv: InvoiceRecord) => {
+    return `Kính chào quý khách ${inv.customerName || "quý khách"},
+Poly Cards trân trọng gửi quý khách thông tin đơn hàng và mã kích hoạt ${inv.packTitle}:
+- Mã Hóa Đơn: ${inv.code}
+- Link Kích Hoạt 1-Chạm: ${inv.directUrl}
+
+(Hướng dẫn: Quý khách chỉ cần bấm vào đường link trên, camera WebAR sẽ tự động mở lên và kích hoạt toàn bộ 6 thẻ bài AR vĩnh viễn trên điện thoại của quý khách mà không cần nhập thêm mã ạ!).
+Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ cùng Poly Cards!`;
+  };
+
+  // Sao chép tin nhắn Zalo
+  const handleCopyZaloMessage = (inv: InvoiceRecord) => {
+    const text = formatZaloMessage(inv);
+    navigator.clipboard.writeText(text);
+    setCopiedZaloMsgId(inv.id);
+    setTimeout(() => setCopiedZaloMsgId(null), 2500);
+  };
+
+  // Áp dụng mã hóa đơn này vào thẻ in ngay trong Studio
+  const handleApplyInvoiceToStudio = (inv: InvoiceRecord) => {
+    setLicenseCode(inv.code);
+    setIncludeLicense(true);
+    setDirectAr(true);
+    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+    setActiveMainTab("studio");
+    setExportSuccessMsg(`Đã nạp mã hóa đơn ${inv.code} vào thẻ bài để in.`);
+    setTimeout(() => setExportSuccessMsg(null), 3000);
+  };
+
+  // Xóa 1 hóa đơn
+  const handleDeleteInvoice = (id: string) => {
+    if (confirm("Bạn có chắc chắn muốn xóa hóa đơn này khỏi danh sách?")) {
+      saveInvoicesList(invoices.filter((item) => item.id !== id));
+    }
+  };
+
+  // Xuất file JSON danh sách hóa đơn
+  const handleExportInvoicesJson = () => {
+    const blob = new Blob([JSON.stringify(invoices, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `polycards-invoices-${Date.now()}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Tự động nhận diện session bảo mật
   useEffect(() => {
@@ -738,20 +1013,73 @@ export default function ToolsPage() {
             CỘT TRÁI: BẢNG TẠO MÃ QR & CẤU HÌNH (Width: 5/12 hoặc 4/12)
            ======================================================== */}
         <div className="lg:col-span-5 xl:col-span-4 border-b lg:border-b-0 lg:border-r border-white/10 bg-stone-900/60 p-4 sm:p-5 overflow-y-auto space-y-5 max-h-[calc(100vh-60px)]">
-          {/* KHỐI 1: BỘ KHỞI TẠO MÃ QR (QR GENERATOR STUDIO) - NỔI BẬT NHẤT */}
-          <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-4 shadow-xl shadow-amber-500/10">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <QrCode className="h-4 w-4 text-amber-400" />
-                <span>1. Khởi Tạo Mã QR (QR Generator)</span>
-              </label>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                Mã số #{qrGeneratedCount}
-              </span>
-            </div>
+          {/* TAB CHUYỂN ĐỔI: STUDIO CHẾ BẢN vs QUẢN LÝ HÓA ĐƠN & BỘ THẺ */}
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-black/80 border border-white/10 shadow-lg">
+            <button
+              type="button"
+              onClick={() => setActiveMainTab("studio")}
+              className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                activeMainTab === "studio"
+                  ? "bg-amber-500 text-stone-950 shadow-md"
+                  : "text-stone-300 hover:text-white"
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Chế Bản Thẻ & QR</span>
+            </button>
 
-            {/* Chọn Chế Độ Tạo QR: Theo Slug AR hay Link Tùy Biến */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/60 border border-white/10">
+            <button
+              type="button"
+              onClick={() => setActiveMainTab("invoices")}
+              className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                activeMainTab === "invoices"
+                  ? "bg-amber-500 text-stone-950 shadow-md"
+                  : "text-stone-300 hover:text-white"
+              }`}
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>Quản Lý Hóa Đơn ({invoices.length})</span>
+            </button>
+          </div>
+
+          {activeMainTab === "studio" ? (
+            <div className="space-y-5">
+              {/* KHỐI 1: BỘ KHỞI TẠO MÃ QR (QR GENERATOR STUDIO) - NỔI BẬT NHẤT */}
+              <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-4 shadow-xl shadow-amber-500/10">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <QrCode className="h-4 w-4 text-amber-400" />
+                    <span>1. Khởi Tạo Mã QR (QR Generator)</span>
+                  </label>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
+                    Mã số #{qrGeneratedCount}
+                  </span>
+                </div>
+
+                {/* NÚT RANDOM NHANH MÃ QR VÀ HÓA ĐƠN (1-Click Random & Auto-Snap) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleRandomizeQr("combo")}
+                    className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    title="Random mã QR mới cho Bộ Combo 6 Thẻ và tự động gắn vào ô trắng"
+                  >
+                    <Dices className="h-4 w-4" />
+                    <span>Random QR Combo 6</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateDirectInvoice}
+                    className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    title="Sinh mã hóa đơn bán trực tiếp HD-DIR-XXXX"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Mã Bán Trực Tiếp</span>
+                  </button>
+                </div>
+
+                {/* Chọn Chế Độ Tạo QR: Theo Slug AR hay Link Tùy Biến */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/60 border border-white/10">
               <button
                 type="button"
                 onClick={() => setQrMode("slug")}
@@ -1134,6 +1462,315 @@ export default function ToolsPage() {
             </div>
           </div>
         </div>
+      ) : (
+            /* PHÂN HỆ QUẢN LÝ HÓA ĐƠN & ĐƠN HÀNG BỘ THẺ */
+            <div className="space-y-5">
+              {/* 1. KHÁCH HÀNG TRỰC TIẾP (BÁN TẠI QUẦY / SỰ KIỆN / IN LÊN HỘP THẺ) */}
+              <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-3.5 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black uppercase text-amber-300">
+                        1. Khách Hàng Trực Tiếp (Bán Theo Bộ)
+                      </h3>
+                      <p className="text-[10px] text-stone-400">
+                        Mã hóa đơn in trên hộp / tem cào mở khóa 6 thẻ
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-black/60 border border-white/10 text-xs text-stone-300 space-y-2.5">
+                  <div className="text-[11px] leading-relaxed">
+                    Quy tắc hệ thống: <strong>1 Mã Hóa Đơn</strong> (ví dụ: <code className="text-amber-300 font-mono">HD-DIR-xxxx</code>) mở khóa vĩnh viễn <strong>Bộ 6 Thẻ</strong> (Mèo, Chó, Sư Tử, Hươu, Voi, Gấu Trúc). Khách quét hoặc nhập mã 1 lần duy nhất trên máy.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateDirectInvoice}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Sinh Mã Hóa Đơn Bán Trực Tiếp (In Hộp / Tem)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. KHÁCH HÀNG ONLINE (LÊN ĐƠN BÁN HÀNG & GỬI ZALO TỰ ĐỘNG) */}
+              <div className="rounded-2xl bg-gradient-to-b from-sky-500/15 via-black/50 to-black/60 border-2 border-sky-400/50 p-4 space-y-3.5 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-xl bg-sky-500 text-stone-950 flex items-center justify-center font-black">
+                      <Send className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black uppercase text-sky-300">
+                        2. Lên Đơn Khách Hàng Online (Zalo/SMS)
+                      </h3>
+                      <p className="text-[10px] text-stone-400">
+                        Tự sinh mã hóa đơn riêng và tạo tin nhắn gửi khách
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCreateOnlineInvoice} className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Họ và tên khách hàng *:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Chị Lan, Anh Tuấn..."
+                      value={onlineForm.customerName}
+                      onChange={(e) => setOnlineForm({ ...onlineForm, customerName: e.target.value })}
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-sky-400"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                        Số điện thoại / Zalo:
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="0912..."
+                        value={onlineForm.customerPhone}
+                        onChange={(e) => setOnlineForm({ ...onlineForm, customerPhone: e.target.value })}
+                        className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-sky-400 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                        Gói bộ thẻ:
+                      </label>
+                      <select
+                        value={onlineForm.packType}
+                        onChange={(e) => setOnlineForm({ ...onlineForm, packType: e.target.value as any })}
+                        className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:border-sky-400"
+                      >
+                        <option value="combo6">Bộ 6 Thẻ AR Cơ Bản</option>
+                        <option value="combo30">Bộ 30 Thẻ AR Toàn Diện</option>
+                        <option value="vip">Trọn Bộ VIP Poly Cards</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Thẻ WebAR mở trực tiếp khi khách bấm link:
+                    </label>
+                    <select
+                      value={onlineForm.targetSlug}
+                      onChange={(e) => setOnlineForm({ ...onlineForm, targetSlug: e.target.value })}
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-white font-mono focus:outline-hidden focus:border-sky-400"
+                    >
+                      <option value="lion">Thẻ Sư Tử (lion) - Khuyên dùng</option>
+                      <option value="cat">Thẻ Con Mèo (cat)</option>
+                      <option value="dog">Thẻ Con Chó (dog)</option>
+                      <option value="deer">Thẻ Con Hươu (deer)</option>
+                      <option value="elephant">Thẻ Con Voi (elephant)</option>
+                      <option value="panda">Thẻ Gấu Trúc (panda)</option>
+                      <option value="jump">Thẻ Nhảy (jump)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Ghi chú đơn hàng (nếu có):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Giao hàng COD / Đã thanh toán..."
+                      value={onlineForm.note}
+                      onChange={(e) => setOnlineForm({ ...onlineForm, note: e.target.value })}
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-300 placeholder-stone-500 focus:outline-hidden focus:border-sky-400"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    <span>Lên Đơn & Tự Sinh Mã Hóa Đơn Online</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* MODAL / BOX HIỂN THỊ KẾT QUẢ HÓA ĐƠN VỪA TẠO */}
+              {justCreatedInvoice && (
+                <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-500/20 to-black/80 border-2 border-emerald-400/60 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Đã Sinh Hóa Đơn & Mã Kích Hoạt Thành Công!</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setJustCreatedInvoice(null)}
+                      className="text-[11px] text-stone-400 hover:text-white"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-black/80 border border-white/10 font-mono text-xs text-amber-300 font-bold flex justify-between items-center">
+                    <span>Mã Hóa Đơn: {justCreatedInvoice.code}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 uppercase">
+                      {justCreatedInvoice.type === "online" ? "Online" : "Trực Tiếp"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-stone-300">
+                    <div>
+                      <strong>Khách hàng:</strong> {justCreatedInvoice.customerName} {justCreatedInvoice.customerPhone ? `(${justCreatedInvoice.customerPhone})` : ""}
+                    </div>
+                    <div>
+                      <strong>Link kích hoạt 1-chạm:</strong>
+                      <div className="text-[10px] font-mono text-stone-400 truncate bg-black/50 p-1.5 rounded-lg mt-0.5" title={justCreatedInvoice.directUrl}>
+                        {justCreatedInvoice.directUrl}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nút Copy Zalo & In Thẻ */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyZaloMessage(justCreatedInvoice)}
+                      className="py-2 px-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow"
+                    >
+                      {copiedZaloMsgId === justCreatedInvoice.id ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Đã Chép Tin Nhắn!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Chép Tin Zalo Gửi Khách</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyInvoiceToStudio(justCreatedInvoice)}
+                      className="py-2 px-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center gap-1 transition-all"
+                    >
+                      <Layers className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Áp Dụng In Thẻ Này</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. DANH SÁCH LỊCH SỬ HÓA ĐƠN TRÊN HỆ THỐNG */}
+              <div className="rounded-2xl bg-black/40 border border-white/10 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-black uppercase text-stone-200">
+                    <FileSpreadsheet className="h-4 w-4 text-amber-400" />
+                    <span>Lịch Sử Hóa Đơn ({invoices.length})</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleExportInvoicesJson}
+                    className="text-[10px] text-amber-300 hover:text-white font-bold flex items-center gap-1 py-1 px-2 rounded-lg bg-white/5 border border-white/10 transition-colors"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span>Xuất JSON</span>
+                  </button>
+                </div>
+
+                {invoices.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-stone-500">
+                    Chưa có hóa đơn nào được tạo.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                    {invoices.map((inv) => (
+                      <div
+                        key={inv.id}
+                        className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-2 text-xs hover:border-amber-400/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-amber-300">
+                            {inv.code}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                              inv.type === "online"
+                                ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                                : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            }`}
+                          >
+                            {inv.type === "online" ? "Online" : "Trực Tiếp"}
+                          </span>
+                        </div>
+
+                        <div className="text-stone-300">
+                          <strong>{inv.customerName}</strong>
+                          {inv.customerPhone && (
+                            <span className="text-stone-400 ml-1 font-mono">
+                              ({inv.customerPhone})
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[10px] text-stone-500 flex justify-between">
+                          <span>{inv.packTitle}</span>
+                          <span>{inv.createdAt}</span>
+                        </div>
+
+                        {/* Các nút thao tác nhanh trên từng hóa đơn */}
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-white/10">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyZaloMessage(inv)}
+                            className="flex-1 py-1 px-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[10px] flex items-center justify-center gap-1 transition-colors"
+                            title="Sao chép tin nhắn Zalo kèm link kích hoạt 1 chạm"
+                          >
+                            {copiedZaloMsgId === inv.id ? (
+                              <Check className="h-3 w-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            <span>{copiedZaloMsgId === inv.id ? "Đã Chép" : "Chép Zalo"}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleApplyInvoiceToStudio(inv)}
+                            className="py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[10px] flex items-center gap-1 transition-colors"
+                            title="Nạp vào Studio để in thẻ hoặc tem dán"
+                          >
+                            <Layers className="h-3 w-3 text-amber-400" />
+                            <span>In Thẻ</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInvoice(inv.id)}
+                            className="py-1 px-1.5 rounded-lg hover:bg-rose-500/20 text-stone-500 hover:text-rose-400 transition-colors"
+                            title="Xóa hóa đơn"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ========================================================
             CỘT PHẢI: KHÔNG GIAN CANVAS TƯƠNG TÁC (Interactive Workspace)
@@ -1144,23 +1781,63 @@ export default function ToolsPage() {
           onPointerUp={handleWorkspacePointerUp}
           className="lg:col-span-7 xl:col-span-8 bg-stone-950 p-4 sm:p-8 flex flex-col items-center justify-center relative select-none overflow-hidden min-h-[500px]"
         >
-          {/* Thanh HUD Hướng Dẫn Kéo Thả Trực Quan Trên Canvas */}
-          <div className="absolute top-4 inset-x-4 z-20 flex justify-center pointer-events-none">
-            <div className="flex items-center gap-2 rounded-full bg-stone-900/90 border border-white/20 px-4 py-1.5 backdrop-blur-md text-xs text-stone-200 shadow-2xl pointer-events-auto">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              <span>
-                Kéo ở giữa để <strong>di chuyển</strong> • Kéo 4 góc để <strong>đổi kích thước (1:1)</strong>
-              </span>
-              <span className="hidden sm:inline text-amber-300 font-mono text-[10px] pl-1 border-l border-white/20">
-                Giữ phím <strong>Alt</strong> để co giãn từ tâm
-              </span>
+          {/* Thanh HUD Điều Khiển Canvas & Chế Độ Xem (Chỉnh Sửa vs Xem Thẻ FINAL) */}
+          <div className="absolute top-4 inset-x-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+            {/* Nút Chuyển Đổi: Chỉnh Sửa vs Xem Thẻ FINAL */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-stone-900/90 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setIsPreviewFinal(false)}
+                className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  !isPreviewFinal
+                    ? "bg-amber-500 text-stone-950 font-black shadow-md"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                <Sliders className="h-3.5 w-3.5" />
+                <span>Chế Độ Chỉnh Sửa</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPreviewFinal(true)}
+                className={`py-1.5 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  isPreviewFinal
+                    ? "bg-emerald-500 text-white font-black shadow-md shadow-emerald-500/25"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span>Xem Thẻ FINAL (Chuẩn In)</span>
+              </button>
+            </div>
+
+            {/* Chỉ dẫn hoặc Badge trạng thái */}
+            <div className="flex items-center gap-2 rounded-full bg-stone-900/90 border border-white/20 px-3.5 py-1.5 backdrop-blur-md text-xs text-stone-200 shadow-2xl pointer-events-auto">
+              {isPreviewFinal ? (
+                <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Chế Độ Soát Thẻ FINAL: 100% Sạch Bụi, Không Viền, Chuẩn In Xưởng</span>
+                </span>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span>
+                    Kéo ở giữa để <strong>di chuyển</strong> • Kéo 4 góc để <strong>đổi cỡ (1:1)</strong>
+                  </span>
+                  <span className="hidden sm:inline text-amber-300 font-mono text-[10px] pl-1 border-l border-white/20">
+                    Giữ phím <strong>Alt</strong> để co giãn từ tâm
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* VÙNG CHẾ BẢN THẺ BÀI CHÍNH (Card Canvas Frame) */}
           <div
             ref={cardElementRef}
-            className="relative max-h-[82vh] w-auto aspect-[709/1024] rounded-3xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.85)] border-2 border-white/20 bg-stone-900 transition-all select-none"
+            className={`relative max-h-[82vh] w-auto aspect-[709/1024] rounded-3xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.85)] border-2 transition-all select-none ${
+              isPreviewFinal ? "border-emerald-500/60 ring-4 ring-emerald-500/20" : "border-white/20"
+            } bg-stone-900`}
             style={{
               aspectRatio: `${cardDimensions.width} / ${cardDimensions.height}`,
             }}
@@ -1176,8 +1853,10 @@ export default function ToolsPage() {
 
             {/* 2. Lớp Mã QR Nổi Bên Trên Có Thể Kéo Thả & Co Giãn 1:1 */}
             <div
-              onPointerDown={handleQrPointerDown}
-              className="absolute z-10 cursor-move group select-none touch-none"
+              onPointerDown={!isPreviewFinal ? handleQrPointerDown : undefined}
+              className={`absolute z-10 select-none touch-none ${
+                !isPreviewFinal ? "cursor-move group" : "pointer-events-none"
+              }`}
               style={{
                 left: `${qrPos.x}%`,
                 top: `${qrPos.y}%`,
@@ -1196,44 +1875,49 @@ export default function ToolsPage() {
                 />
               )}
 
-              {/* Khung Viền Chọn Tương Tác Photoshop Style (Selection Border) */}
-              <div className="absolute inset-0 rounded-xl border-2 border-dashed border-amber-400/90 pointer-events-none shadow-[0_0_15px_rgba(251,191,36,0.45)] group-hover:border-amber-300" />
+              {/* Chỉ hiển thị Bounding Box & 4 Núm Kéo khi KHÔNG ở chế độ xem Thẻ FINAL */}
+              {!isPreviewFinal && (
+                <>
+                  {/* Khung Viền Chọn Tương Tác Photoshop Style (Selection Border) */}
+                  <div className="absolute inset-0 rounded-xl border-2 border-dashed border-amber-400/90 pointer-events-none shadow-[0_0_15px_rgba(251,191,36,0.45)] group-hover:border-amber-300" />
 
-              {/* 4 Núm Kéo Góc Giữ Tỉ Lệ 1:1 (Handles) */}
-              {/* Núm Top-Left */}
-              <div
-                onPointerDown={(e) => handleResizePointerDown("nw", e)}
-                className="absolute -top-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
-                title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-              />
+                  {/* 4 Núm Kéo Góc Giữ Tỉ Lệ 1:1 (Handles) */}
+                  {/* Núm Top-Left */}
+                  <div
+                    onPointerDown={(e) => handleResizePointerDown("nw", e)}
+                    className="absolute -top-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
+                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                  />
 
-              {/* Núm Top-Right */}
-              <div
-                onPointerDown={(e) => handleResizePointerDown("ne", e)}
-                className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
-                title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-              />
+                  {/* Núm Top-Right */}
+                  <div
+                    onPointerDown={(e) => handleResizePointerDown("ne", e)}
+                    className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
+                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                  />
 
-              {/* Núm Bottom-Right */}
-              <div
-                onPointerDown={(e) => handleResizePointerDown("se", e)}
-                className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
-                title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-              />
+                  {/* Núm Bottom-Right */}
+                  <div
+                    onPointerDown={(e) => handleResizePointerDown("se", e)}
+                    className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
+                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                  />
 
-              {/* Núm Bottom-Left */}
-              <div
-                onPointerDown={(e) => handleResizePointerDown("sw", e)}
-                className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
-                title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-              />
+                  {/* Núm Bottom-Left */}
+                  <div
+                    onPointerDown={(e) => handleResizePointerDown("sw", e)}
+                    className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
+                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                  />
 
-              {/* Huy hiệu hiển thị kích thước trực tiếp khi rê chuột */}
-              <div className="absolute -bottom-7 inset-x-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="px-2 py-0.5 rounded-md bg-stone-900/95 text-amber-300 font-mono text-[9px] shadow-lg border border-amber-400/40 whitespace-nowrap">
-                  QR 1:1 • {qrPos.size}%
-                </span>
-              </div>
+                  {/* Huy hiệu hiển thị kích thước trực tiếp khi rê chuột */}
+                  <div className="absolute -bottom-7 inset-x-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="px-2 py-0.5 rounded-md bg-stone-900/95 text-amber-300 font-mono text-[9px] shadow-lg border border-amber-400/40 whitespace-nowrap">
+                      QR 1:1 • {qrPos.size}%
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

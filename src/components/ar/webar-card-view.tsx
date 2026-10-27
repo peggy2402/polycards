@@ -104,6 +104,18 @@ export function WebArCardView({
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
+  // Phân hệ 2 Luồng Song Ngữ: EN-VI (Anh - Việt) hoặc ZH-VI (Trung - Việt)
+  const [languageTrack, setLanguageTrack] = useState<"en-vi" | "zh-vi">("en-vi");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("polycards_lang_track");
+      if (saved === "zh-vi" || saved === "en-vi") {
+        setLanguageTrack(saved);
+      }
+    }
+  }, []);
+
   // Bộ đếm thời gian dùng thử (30s trial)
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 30 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
@@ -974,74 +986,138 @@ export function WebArCardView({
       {/* 11. Floating Control Island (Trong suốt, chuẩn công thái học) */}
       <div className="absolute bottom-0 inset-x-0 z-30 flex flex-col items-center px-3.5 pb-5 pt-2 pointer-events-none">
         <div className="pointer-events-auto w-full max-w-md rounded-3xl bg-stone-950/70 border border-white/20 p-3 backdrop-blur-md shadow-2xl flex flex-col items-center gap-2.5">
-          {/* Hàng 3 Nút Phát Âm Ngôn Ngữ Trọng Tâm (EN / VI / ZH) */}
-          <div className="grid grid-cols-3 gap-2 w-full">
-            {/* NÚT TIẾNG ANH (EN) */}
+          {/* Nút Chuyển Đổi Gói Học Song Ngữ Chuyên Biệt (Anh - Việt vs Trung - Việt) */}
+          <div className="flex items-center p-1 rounded-full bg-black/60 border border-white/20 backdrop-blur-md">
             <button
               type="button"
-              onClick={() => handleSpeak("en")}
-              className={`relative flex flex-col items-center justify-center py-2 px-1.5 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                activeLang === "en"
-                  ? "bg-amber-500 border-amber-300 text-stone-950 scale-105 shadow-amber-500/40"
-                  : "bg-black/50 border-amber-400/40 text-white hover:border-amber-400"
+              onClick={() => {
+                setLanguageTrack("en-vi");
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("polycards_lang_track", "en-vi");
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                languageTrack === "en-vi"
+                  ? "bg-amber-400 text-stone-950 font-black shadow-md"
+                  : "text-stone-300 hover:text-white"
               }`}
             >
-              <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-300">
-                <Languages className="h-3 w-3" />
-                <span>EN</span>
-              </div>
-              <span className="text-xs font-black truncate max-w-full">
-                {animal.nameEn}
-              </span>
-              <span className="text-[9px] font-mono text-amber-200/80">
-                {animal.ipa}
-              </span>
+              <Languages className="h-3 w-3" />
+              <span>Song Ngữ Anh - Việt</span>
             </button>
-
-            {/* NÚT TIẾNG VIỆT (VI) */}
             <button
               type="button"
-              onClick={() => handleSpeak("vi")}
-              className={`relative flex flex-col items-center justify-center py-2 px-1.5 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                activeLang === "vi"
-                  ? "bg-emerald-500 border-emerald-300 text-white scale-105 shadow-emerald-500/40"
-                  : "bg-black/50 border-emerald-400/40 text-white hover:border-emerald-400"
+              onClick={() => {
+                setLanguageTrack("zh-vi");
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("polycards_lang_track", "zh-vi");
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                languageTrack === "zh-vi"
+                  ? "bg-rose-500 text-white font-black shadow-md"
+                  : "text-stone-300 hover:text-white"
               }`}
             >
-              <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                <Languages className="h-3 w-3" />
-                <span>VI</span>
-              </div>
-              <span className="text-xs font-black truncate max-w-full">
-                {animal.nameVi}
-              </span>
-              <span className="text-[9px] text-emerald-200/80">
-                Tiếng Việt
-              </span>
-            </button>
-
-            {/* NÚT TIẾNG TRUNG (ZH) */}
-            <button
-              type="button"
-              onClick={() => handleSpeak("zh")}
-              className={`relative flex flex-col items-center justify-center py-2 px-1.5 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                activeLang === "zh"
-                  ? "bg-rose-500 border-rose-300 text-white scale-105 shadow-rose-500/40"
-                  : "bg-black/50 border-rose-400/40 text-white hover:border-rose-400"
-              }`}
-            >
-              <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-rose-300">
-                <Languages className="h-3 w-3" />
-                <span>ZH</span>
-              </div>
-              <span className="text-xs font-black truncate max-w-full">
-                {animal.nameZh || animal.nameEn}
-              </span>
-              <span className="text-[9px] font-mono text-rose-200/80">
-                {animal.pinyinZh || "zhōngwén"}
-              </span>
+              <Languages className="h-3 w-3" />
+              <span>Song Ngữ Trung - Việt</span>
             </button>
           </div>
+
+          {/* Hàng 2 Nút Phát Âm To Rõ Công Thái Học Chuẩn Bé Học (EN-VI hoặc ZH-VI) */}
+          {languageTrack === "en-vi" ? (
+            <div className="grid grid-cols-2 gap-2.5 w-full">
+              {/* NÚT TIẾNG ANH (EN) */}
+              <button
+                type="button"
+                onClick={() => handleSpeak("en")}
+                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
+                  activeLang === "en"
+                    ? "bg-amber-500 border-amber-300 text-stone-950 scale-105 shadow-amber-500/40"
+                    : "bg-black/50 border-amber-400/50 text-white hover:border-amber-400"
+                }`}
+              >
+                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-300">
+                  <Languages className="h-3.5 w-3.5" />
+                  <span>TIẾNG ANH (EN)</span>
+                </div>
+                <span className="text-sm font-black truncate max-w-full">
+                  {animal.nameEn}
+                </span>
+                <span className="text-[10px] font-mono text-amber-200/90 font-bold">
+                  {animal.ipa}
+                </span>
+              </button>
+
+              {/* NÚT TIẾNG VIỆT (VI) */}
+              <button
+                type="button"
+                onClick={() => handleSpeak("vi")}
+                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
+                  activeLang === "vi"
+                    ? "bg-emerald-500 border-emerald-300 text-white scale-105 shadow-emerald-500/40"
+                    : "bg-black/50 border-emerald-400/50 text-white hover:border-emerald-400"
+                }`}
+              >
+                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                  <Languages className="h-3.5 w-3.5" />
+                  <span>TIẾNG VIỆT (VI)</span>
+                </div>
+                <span className="text-sm font-black truncate max-w-full">
+                  {animal.nameVi}
+                </span>
+                <span className="text-[10px] text-emerald-200/90 font-bold">
+                  Tiếng Mẹ Đẻ
+                </span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5 w-full">
+              {/* NÚT TIẾNG TRUNG (ZH) */}
+              <button
+                type="button"
+                onClick={() => handleSpeak("zh")}
+                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
+                  activeLang === "zh"
+                    ? "bg-rose-500 border-rose-300 text-white scale-105 shadow-rose-500/40"
+                    : "bg-black/50 border-rose-400/50 text-white hover:border-rose-400"
+                }`}
+              >
+                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-rose-300">
+                  <Languages className="h-3.5 w-3.5" />
+                  <span>TIẾNG TRUNG (ZH)</span>
+                </div>
+                <span className="text-sm font-black truncate max-w-full">
+                  {animal.nameZh || animal.nameEn}
+                </span>
+                <span className="text-[10px] font-mono text-rose-200/90 font-bold">
+                  {animal.pinyinZh || "zhōngwén"}
+                </span>
+              </button>
+
+              {/* NÚT TIẾNG VIỆT (VI) */}
+              <button
+                type="button"
+                onClick={() => handleSpeak("vi")}
+                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
+                  activeLang === "vi"
+                    ? "bg-emerald-500 border-emerald-300 text-white scale-105 shadow-emerald-500/40"
+                    : "bg-black/50 border-emerald-400/50 text-white hover:border-emerald-400"
+                }`}
+              >
+                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                  <Languages className="h-3.5 w-3.5" />
+                  <span>TIẾNG VIỆT (VI)</span>
+                </div>
+                <span className="text-sm font-black truncate max-w-full">
+                  {animal.nameVi}
+                </span>
+                <span className="text-[10px] text-emerald-200/90 font-bold">
+                  Tiếng Mẹ Đẻ
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* Hàng Tiếng Kêu & Chụp Ảnh (Loại bỏ nút Động Tác thừa thãi) */}
           <div className="flex items-center justify-between gap-2 w-full">
