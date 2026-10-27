@@ -15,15 +15,14 @@ import {
   Download,
   AlertCircle,
   HelpCircle,
-  Play,
-  Pin,
-  Compass,
   ShoppingBag,
   KeyRound,
   Clock,
   ZoomIn,
   ZoomOut,
-  Move,
+  Wrench,
+  Check,
+  Radio,
 } from "lucide-react";
 
 declare global {
@@ -58,12 +57,8 @@ export function WebArCardView({
   const mixerRef = useRef<any>(null);
   const modelRef = useRef<any>(null);
   const anchorGroupRef = useRef<any>(null);
-  const companionGroupRef = useRef<any>(null);
   const actionsRef = useRef<{ [name: string]: any }>({});
   const clockRef = useRef<any>(null);
-
-  // Chế độ tương tác ngón tay: "move" (kéo thả di chuyển) hoặc "rotate" (xoay 360)
-  const [interactionMode, setInteractionMode] = useState<"move" | "rotate">("move");
 
   // Vị trí dời tương đối do người dùng kéo thả trên thẻ bài / không gian AR
   const userPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -79,38 +74,68 @@ export function WebArCardView({
   const [tapFeedback, setTapFeedback] = useState<string | null>(null);
   const tapFeedbackTimeoutRef = useRef<any>(null);
 
-  // Đã quét thẻ thành công ít nhất 1 lần (dùng để duy trì vật thể không bao giờ biến mất)
+  // Đã quét thẻ thành công ít nhất 1 lần
   const hasScannedOnceRef = useRef<boolean>(false);
 
-  // Refs bắt cử chỉ cảm ứng đa điểm (Touch Gestures)
-  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const touchStartTimeRef = useRef<number>(0);
-  const lastTouchPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const hasTouchMovedRef = useRef<boolean>(false);
-  const initialPinchDistRef = useRef<number>(0);
-  const initialPinchScaleRef = useRef<number>(1.0);
-
-  // Refs bắt cử chỉ chuột máy tính (Desktop Gestures)
-  const isMouseDownRef = useRef<boolean>(false);
-  const mouseStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const mouseStartTimeRef = useRef<number>(0);
-  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const hasMouseMovedRef = useRef<boolean>(false);
-
+  // Loading & Download Progress
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [downloadStats, setDownloadStats] = useState<{ loadedMb: string; totalMb: string }>({
+    loadedMb: "0",
+    totalMb: "0",
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Tracking States
   const [isTargetFound, setIsTargetFound] = useState<boolean>(false);
   const [hasScannedOnce, setHasScannedOnce] = useState<boolean>(false);
+  const [targetHitCount, setTargetHitCount] = useState<number>(0);
+  const [playingClipName, setPlayingClipName] = useState<string | null>(null);
 
+  // Debug HUD State
+  const [isDebugOpen, setIsDebugOpen] = useState<boolean>(false);
+  const [fps, setFps] = useState<number>(60);
+  const lastFpsTimeRef = useRef<number>(Date.now());
+  const frameCountRef = useRef<number>(0);
+
+  // Audio / Speech / Photo States
   const [activeLang, setActiveLang] = useState<"en" | "vi" | "zh" | null>(null);
   const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
-  const [currentAnimIndex, setCurrentAnimIndex] = useState<number>(0);
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
   // Bộ đếm thời gian dùng thử (30s trial)
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 30 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
+
+  // Refs bắt cử chỉ cảm ứng đa điểm Apple AR (1-finger pan, 2-finger rotate & pinch)
+  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const touchStartTimeRef = useRef<number>(0);
+  const lastTouchPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasTouchMovedRef = useRef<boolean>(false);
+
+  const initialTouchDistRef = useRef<number>(0);
+  const initialTouchAngleRef = useRef<number>(0);
+  const initialUserScaleRef = useRef<number>(1.0);
+  const initialUserRotYRef = useRef<number>(0);
+
+  // Refs bắt cử chỉ chuột máy tính (Desktop Gestures)
+  const isMouseDownRef = useRef<boolean>(false);
+  const mouseButtonRef = useRef<number>(0);
+  const mouseStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const mouseStartTimeRef = useRef<number>(0);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasMouseMovedRef = useRef<boolean>(false);
+
+  // Kiểm tra tham số ?debug=1 trên URL khi khởi động
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("debug") === "1" || sp.get("debug") === "true") {
+        setIsDebugOpen(true);
+      }
+    }
+  }, []);
 
   // Cập nhật ma trận biến đổi (Scale + Rotation + Position) cho Pivot Group
   const applyTransform = useCallback(() => {
@@ -120,8 +145,8 @@ export function WebArCardView({
     pivot.rotation.y = userRotYRef.current;
     pivot.rotation.x = userRotXRef.current;
 
-    // Chiều rộng thẻ bài là 1.0 -> tỉ lệ chuẩn ~0.48 kích thước thẻ bài
-    const baseDim = 0.48;
+    // Chiều rộng thẻ bài là 1.0 -> tỉ lệ chuẩn ~0.50 kích thước thẻ bài
+    const baseDim = 0.5;
     const s = (baseDim / (maxDimRef.current || 1)) * userScaleRef.current;
     pivot.scale.set(s, s, s);
     pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
@@ -129,7 +154,7 @@ export function WebArCardView({
 
   // Nút bấm tăng / giảm tỉ lệ mô hình 3D
   const handleZoom = useCallback((delta: number) => {
-    const next = Math.max(0.35, Math.min(2.5, Math.round((userScaleRef.current + delta) * 100) / 100));
+    const next = Math.max(0.35, Math.min(2.8, Math.round((userScaleRef.current + delta) * 100) / 100));
     userScaleRef.current = next;
     setZoomPercent(Math.round(next * 100));
     applyTransform();
@@ -153,7 +178,7 @@ export function WebArCardView({
     let step = 0;
     const interval = setInterval(() => {
       step++;
-      pivot.position.y = baseY + Math.sin(step * 0.5) * 0.25;
+      pivot.position.y = baseY + Math.sin(step * 0.5) * 0.22;
       if (step >= 12) {
         clearInterval(interval);
         pivot.position.y = baseY;
@@ -221,6 +246,7 @@ export function WebArCardView({
     async function startAR() {
       try {
         setIsLoading(true);
+        setDownloadProgress(5);
         setLoadError(null);
 
         // 1. Nạp bộ thư viện MindAR Three UMD nếu chưa có
@@ -229,6 +255,7 @@ export function WebArCardView({
         }
 
         if (isCancelled) return;
+        setDownloadProgress(15);
 
         // Gán Three.js toàn cục để tương thích GLTFLoader
         if (!window.THREE && window.MINDAR && window.MINDAR.IMAGE.THREE) {
@@ -241,6 +268,7 @@ export function WebArCardView({
         }
 
         if (isCancelled || !containerRef.current) return;
+        setDownloadProgress(25);
 
         const THREE = window.THREE;
         const { MindARThree } = window.MINDAR!.IMAGE;
@@ -280,6 +308,7 @@ export function WebArCardView({
             setIsTargetFound(true);
             setHasScannedOnce(true);
             hasScannedOnceRef.current = true;
+            setTargetHitCount((prev) => prev + 1);
             playAnimalSoundEffect(animal.slug);
           }
         };
@@ -287,40 +316,41 @@ export function WebArCardView({
         anchor.onTargetLost = () => {
           if (!isCancelled) {
             setIsTargetFound(false);
-            // KHÔNG ẩn con vật! Vẫn duy trì hiển thị tại tọa độ 3D trong không gian thực
+            // KHÔNG ẩn con vật! Vẫn duy trì hiển thị tại tọa độ 3D trong không gian phòng
           }
         };
 
-        // 4. Nạp mô hình 3D GLTF/GLB
+        // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker thời gian thực
         const loader = new THREE.GLTFLoader();
         loader.load(
           animal.modelUrl,
           (gltf: any) => {
             if (isCancelled) return;
+            setDownloadProgress(100);
 
             const rawModel = gltf.scene;
 
-            // BẢO VỆ MÔ HÌNH: Tuyệt đối giữ nguyên rawModel gốc tại (0,0,0)
-            // để bảo toàn cấu trúc SkinnedMesh, tránh kéo giãn/biến dạng vật thể!
-            rawModel.position.set(0, 0, 0);
-            rawModel.rotation.set(0, 0, 0);
-            rawModel.scale.set(1, 1, 1);
-
-            // Tính kích thước bounding box để chuẩn hóa scale
+            // Tính Bounding Box để lấy kích thước và căn tâm (Center)
             const bbox = new THREE.Box3().setFromObject(rawModel);
+            const center = bbox.getCenter(new THREE.Vector3());
             const size = bbox.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z) || 1;
             maxDimRef.current = maxDim;
 
-            // Tạo Pivot Group làm tâm điều phối
-            const pivot = new THREE.Group();
-            pivot.add(rawModel);
+            // CĂN TÂM CHUẨN XÁC: Tạo modelHolder để đưa tâm về (0,0,0)
+            // Tuyệt đối giữ nguyên rawModel gốc tại (0,0,0) để bảo toàn SkinnedMesh
+            const modelHolder = new THREE.Group();
+            modelHolder.position.set(-center.x, -center.y, -center.z);
+            modelHolder.add(rawModel);
 
-            // GẮN TRỰC TIẾP VÀO ANCHOR.GROUP:
-            // Khi người dùng hướng camera vào thẻ bài, con vật XUẤT HIỆN TỨC THÌ TRÊN THẺ!
+            // Tạo Pivot Group làm tâm điều phối xoay 360 và di chuyển
+            const pivot = new THREE.Group();
+            pivot.add(modelHolder);
+
+            // Gắn vào anchor.group
             anchor.group.add(pivot);
 
-            const baseDim = 0.48;
+            const baseDim = 0.5;
             const initialScale = (baseDim / maxDim) * userScaleRef.current;
             pivot.scale.set(initialScale, initialScale, initialScale);
             pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
@@ -329,24 +359,36 @@ export function WebArCardView({
             pivotGroupRef.current = pivot;
             modelRef.current = rawModel;
 
-            // Xử lý Animations: CHỈ PHÁT nếu animation khớp với danh sách hợp lệ!
-            // TUYỆT ĐỐI KHÔNG auto-play action bị lỗi như ArmatureAction làm biến dạng vật thể!
+            // ĐẶC BIỆT: HIỂN THỊ TỨC THÌ (Instant AR)
+            // Ngay khi mô hình tải xong, cho hiển thị luôn trước mắt bé
+            // Bé không bao giờ phải chịu cảnh màn hình trống trơn đợi tìm thẻ!
+            hasScannedOnceRef.current = true;
+            setHasScannedOnce(true);
+            anchor.group.visible = true;
+
+            // Xử lý Animations: Khôi phục cử động sống động
             if (gltf.animations && gltf.animations.length > 0) {
               const mixer = new THREE.AnimationMixer(rawModel);
               mixerRef.current = mixer;
               actionsRef.current = {};
 
               gltf.animations.forEach((clip: any) => {
-                const action = mixer.clipAction(clip);
-                actionsRef.current[clip.name] = action;
+                actionsRef.current[clip.name] = mixer.clipAction(clip);
               });
 
-              // Chỉ phát nếu tên animation khớp với cấu hình hợp lệ
-              const validClipName = animal.animations?.find((animName) =>
-                gltf.animations.some((clip: any) => clip.name.toLowerCase() === animName.toLowerCase())
-              );
-              if (validClipName && actionsRef.current[validClipName]) {
-                actionsRef.current[validClipName].play();
+              // Đối với cat: Morph action gây vặn vẹo nên không tự động phát
+              // Đối với lion và các con vật khác: phát clip khớp hoặc clip đầu tiên
+              if (animal.slug !== "cat") {
+                let matchedClip = gltf.animations.find((clip: any) =>
+                  animal.animations?.some((a) => a.toLowerCase() === clip.name.toLowerCase())
+                );
+                if (!matchedClip) {
+                  matchedClip = gltf.animations[0];
+                }
+                if (matchedClip && actionsRef.current[matchedClip.name]) {
+                  actionsRef.current[matchedClip.name].play();
+                  setPlayingClipName(matchedClip.name);
+                }
               }
             }
 
@@ -359,16 +401,24 @@ export function WebArCardView({
                 if (isCancelled) return;
                 setIsLoading(false);
 
-                // Khởi chạy vòng lặp render
+                // Khởi chạy vòng lặp render và tính FPS
                 renderer.setAnimationLoop(() => {
+                  // Đo FPS
+                  frameCountRef.current++;
+                  const now = Date.now();
+                  if (now - lastFpsTimeRef.current >= 1000) {
+                    setFps(frameCountRef.current);
+                    frameCountRef.current = 0;
+                    lastFpsTimeRef.current = now;
+                  }
+
                   if (clockRef.current && mixerRef.current) {
                     const delta = clockRef.current.getDelta();
                     mixerRef.current.update(delta);
                   }
 
                   // ĐẢM BẢO VẬT THỂ KHÔNG BAO GIỜ BIẾN MẤT:
-                  // Khi đã nhận diện thẻ bài ít nhất 1 lần, duy trì anchor.group luôn hiển thị
-                  // ngay cả khi người dùng di chuyển camera ra khỏi thẻ bài vào phòng!
+                  // Sau khi nạp xong, duy trì con vật luôn hiển thị trong không gian phòng
                   if (hasScannedOnceRef.current && anchorGroupRef.current) {
                     anchorGroupRef.current.visible = true;
                   }
@@ -384,7 +434,16 @@ export function WebArCardView({
                 }
               });
           },
-          undefined,
+          (xhr: any) => {
+            if (xhr.lengthComputable && xhr.total > 0) {
+              const percent = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
+              setDownloadProgress(25 + Math.round(percent * 0.7));
+              setDownloadStats({
+                loadedMb: (xhr.loaded / (1024 * 1024)).toFixed(1),
+                totalMb: (xhr.total / (1024 * 1024)).toFixed(1),
+              });
+            }
+          },
           (err: any) => {
             console.error("[GLTF Loader Error]:", err);
             if (!isCancelled) {
@@ -422,7 +481,11 @@ export function WebArCardView({
     };
   }, [animal, loadScript]);
 
-  // 1. Cử chỉ chạm đa điểm (Touch Gestures: Di chuyển vị trí, Xoay 360, Thu phóng 2 ngón, Chạm để chơi)
+  // CỬ CHỈ CẢM ỨNG ĐA ĐIỂM TỰ NHIÊN CHUẨN APPLE AR (Simultaneous Multi-touch Gestures)
+  // - 1 ngón tay kéo: Di chuyển vị trí (Pan)
+  // - 2 ngón tay xoay: Xoay 360 độ (Two-finger twist)
+  // - 2 ngón tay chụm/mở: Thu phóng to nhỏ (Pinch zoom)
+  // - Chạm 1 ngón tay: Tương tác âm thanh & nhún nhảy
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 1) {
       touchStartPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -430,12 +493,17 @@ export function WebArCardView({
       touchStartTimeRef.current = Date.now();
       hasTouchMovedRef.current = false;
     } else if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      initialPinchDistRef.current = dist;
-      initialPinchScaleRef.current = userScaleRef.current;
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+
+      // Khoảng cách và góc ban đầu giữa 2 ngón tay
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const angle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
+
+      initialTouchDistRef.current = dist;
+      initialTouchAngleRef.current = angle;
+      initialUserScaleRef.current = userScaleRef.current;
+      initialUserRotYRef.current = userRotYRef.current;
       hasTouchMovedRef.current = true;
     }
   };
@@ -454,30 +522,32 @@ export function WebArCardView({
         hasTouchMovedRef.current = true;
       }
 
-      if (interactionMode === "move") {
-        // VẤN ĐỀ 1: CHẠM VÀO VẬT THỂ ĐỂ DI CHUYỂN VỊ TRÍ
-        userPosRef.current.x += dx * 0.003;
-        userPosRef.current.y -= dy * 0.003;
-        userPosRef.current.x = Math.max(-1.5, Math.min(1.5, userPosRef.current.x));
-        userPosRef.current.y = Math.max(-1.5, Math.min(1.5, userPosRef.current.y));
-      } else {
-        // Xoay 360 độ quanh trục Y
-        userRotYRef.current += dx * 0.015;
-        userRotXRef.current = Math.max(-0.4, Math.min(0.6, userRotXRef.current + dy * 0.008));
-      }
+      // 1 ngón tay kéo: Luôn di chuyển vị trí mượt mà
+      userPosRef.current.x += dx * 0.003;
+      userPosRef.current.y -= dy * 0.003;
+      userPosRef.current.x = Math.max(-1.8, Math.min(1.8, userPosRef.current.x));
+      userPosRef.current.y = Math.max(-1.8, Math.min(1.8, userPosRef.current.y));
 
       applyTransform();
       lastTouchPosRef.current = { x: clientX, y: clientY };
-    } else if (e.touches.length === 2 && initialPinchDistRef.current > 0) {
+    } else if (e.touches.length === 2 && initialTouchDistRef.current > 0) {
       hasTouchMovedRef.current = true;
-      const currentDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const factor = currentDist / initialPinchDistRef.current;
-      const nextScale = Math.max(0.35, Math.min(2.5, Math.round(initialPinchScaleRef.current * factor * 100) / 100));
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+
+      const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const currentAngle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
+
+      // 1. Pinch to Zoom
+      const factor = currentDist / initialTouchDistRef.current;
+      const nextScale = Math.max(0.35, Math.min(2.8, Math.round(initialUserScaleRef.current * factor * 100) / 100));
       userScaleRef.current = nextScale;
       setZoomPercent(Math.round(nextScale * 100));
+
+      // 2. Two-finger Twist to Rotate 360°
+      const angleDelta = currentAngle - initialTouchAngleRef.current;
+      userRotYRef.current = initialUserRotYRef.current + angleDelta * 1.5;
+
       applyTransform();
     }
   };
@@ -488,16 +558,17 @@ export function WebArCardView({
       if (!hasTouchMovedRef.current && elapsed < 350) {
         triggerTapInteraction();
       }
-      initialPinchDistRef.current = 0;
+      initialTouchDistRef.current = 0;
     } else if (e.touches.length === 1) {
       lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      initialPinchDistRef.current = 0;
+      initialTouchDistRef.current = 0;
     }
   };
 
-  // 2. Cử chỉ chuột dự phòng (Desktop / Chuột máy tính)
+  // Cử chỉ chuột dự phòng (Desktop Mouse Controls)
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     isMouseDownRef.current = true;
+    mouseButtonRef.current = e.button;
     mouseStartPosRef.current = { x: e.clientX, y: e.clientY };
     lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     mouseStartTimeRef.current = Date.now();
@@ -516,14 +587,16 @@ export function WebArCardView({
       hasMouseMovedRef.current = true;
     }
 
-    if (interactionMode === "move") {
-      userPosRef.current.x += dx * 0.003;
-      userPosRef.current.y -= dy * 0.003;
-      userPosRef.current.x = Math.max(-1.5, Math.min(1.5, userPosRef.current.x));
-      userPosRef.current.y = Math.max(-1.5, Math.min(1.5, userPosRef.current.y));
-    } else {
+    if (mouseButtonRef.current === 2 || e.shiftKey) {
+      // Chuột phải hoặc Shift: Xoay 360 độ
       userRotYRef.current += dx * 0.015;
       userRotXRef.current = Math.max(-0.4, Math.min(0.6, userRotXRef.current + dy * 0.008));
+    } else {
+      // Chuột trái: Di chuyển vị trí
+      userPosRef.current.x += dx * 0.003;
+      userPosRef.current.y -= dy * 0.003;
+      userPosRef.current.x = Math.max(-1.8, Math.min(1.8, userPosRef.current.x));
+      userPosRef.current.y = Math.max(-1.8, Math.min(1.8, userPosRef.current.y));
     }
 
     applyTransform();
@@ -541,7 +614,7 @@ export function WebArCardView({
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    const delta = e.deltaY < 0 ? 0.12 : -0.12;
     handleZoom(delta);
   };
 
@@ -568,23 +641,6 @@ export function WebArCardView({
     });
   };
 
-  // Đổi hoạt ảnh của con vật
-  const handleToggleAnimation = () => {
-    if (!animal.animations || animal.animations.length <= 1 || !mixerRef.current) return;
-    const nextIndex = (currentAnimIndex + 1) % animal.animations.length;
-    const currentName = animal.animations[currentAnimIndex];
-    const nextName = animal.animations[nextIndex];
-
-    const currentAction = actionsRef.current[currentName];
-    const nextAction = actionsRef.current[nextName];
-
-    if (currentAction && nextAction) {
-      currentAction.fadeOut(0.3);
-      nextAction.reset().fadeIn(0.3).play();
-    }
-    setCurrentAnimIndex(nextIndex);
-  };
-
   // Chụp ảnh kỷ niệm AR
   const handleCapturePhoto = () => {
     if (!mindarRef.current || !containerRef.current) return;
@@ -603,22 +659,18 @@ export function WebArCardView({
       ctx.drawImage(videoEl, 0, 0, captureCanvas.width, captureCanvas.height);
       ctx.drawImage(canvasEl, 0, 0, captureCanvas.width, captureCanvas.height);
 
-      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-      ctx.roundRect(16, captureCanvas.height - 48, 200, 36, 8);
-      ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 14px sans-serif";
-      ctx.fillText(`Poly Cards AR • ${animal.nameEn}`, 28, captureCanvas.height - 25);
-
       const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.92);
       setCapturedPhotoUrl(dataUrl);
-    } catch (err) {
-      console.warn("Lỗi khi chụp ảnh AR:", err);
+    } catch (e) {
+      console.error("[Capture Photo Error]:", e);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 w-full h-[100dvh] bg-black select-none overflow-hidden touch-none">
+    <div
+      className="fixed inset-0 z-50 w-full h-[100dvh] bg-black select-none overflow-hidden touch-none"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {/* 1. Camera Viewport: Ép full màn hình 100dvh loại bỏ hoàn toàn khoảng đen */}
       <div
         ref={containerRef}
@@ -626,7 +678,7 @@ export function WebArCardView({
         className="absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none"
       />
 
-      {/* 2. Lớp bắt cử chỉ cảm ứng tương tác 3D (Vuốt 1 ngón xoay 360°, Chụm 2 ngón thu phóng, Chạm vào để chơi) */}
+      {/* 2. Lớp bắt cử chỉ cảm ứng tương tác Apple AR (Kéo 1 ngón, Xoay 2 ngón, Thu phóng 2 ngón, Chạm để chơi) */}
       <div
         className="absolute inset-0 z-10 touch-none cursor-grab active:cursor-grabbing"
         onTouchStart={handleTouchStart}
@@ -639,7 +691,7 @@ export function WebArCardView({
         onWheel={handleWheel}
       />
 
-      {/* 3. Top Navigation Bar (Nút Đóng, Chế độ Ghim, Đồng hồ dùng thử, Trợ giúp) */}
+      {/* 3. Top Navigation Bar (Nút Đóng, Cụm huy hiệu, Nút Debug HUD, Trợ giúp) */}
       <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-3.5 pb-2 pointer-events-none">
         {/* Nút thoát AR */}
         <button
@@ -669,60 +721,124 @@ export function WebArCardView({
           )}
         </div>
 
-        {/* Nút trợ giúp / hướng dẫn */}
-        <button
-          type="button"
-          onClick={() => setShowGuideModal(true)}
-          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg"
-          title="Hướng dẫn sử dụng"
-        >
-          <HelpCircle className="h-5 w-5 text-amber-300" />
-        </button>
-      </div>
-
-      {/* 4. Bộ điều khiển chế độ tương tác: Di chuyển vị trí <-> Xoay 360° */}
-      <div className="absolute top-15 inset-x-0 z-30 flex flex-col items-center gap-1.5 pointer-events-none px-4">
-        <div className="pointer-events-auto flex items-center p-1 rounded-full bg-stone-950/80 border border-white/25 backdrop-blur-md shadow-xl">
+        {/* Cụm nút Debug HUD và Nút Hướng Dẫn */}
+        <div className="pointer-events-auto flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setInteractionMode("move")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-              interactionMode === "move"
-                ? "bg-amber-400 text-stone-950 shadow-md font-black"
-                : "text-stone-300 hover:text-white"
+            onClick={() => setIsDebugOpen((prev) => !prev)}
+            className={`flex h-10 w-10 items-center justify-center rounded-2xl border backdrop-blur-md active:scale-90 transition-all shadow-lg ${
+              isDebugOpen
+                ? "bg-amber-500 border-amber-300 text-stone-950 font-black shadow-amber-500/40"
+                : "bg-black/60 text-stone-300 border-white/20 hover:text-white"
             }`}
+            title="Bật/Tắt AR Debug HUD"
+            aria-label="AR Debug HUD"
           >
-            <Move className="h-3.5 w-3.5" />
-            <span>Di chuyển vị trí</span>
+            <Wrench className="h-4 w-4" />
           </button>
+
           <button
             type="button"
-            onClick={() => setInteractionMode("rotate")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-              interactionMode === "rotate"
-                ? "bg-amber-400 text-stone-950 shadow-md font-black"
-                : "text-stone-300 hover:text-white"
-            }`}
+            onClick={() => setShowGuideModal(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg"
+            title="Hướng dẫn sử dụng"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span>Xoay 360°</span>
+            <HelpCircle className="h-5 w-5 text-amber-300" />
           </button>
-        </div>
-
-        {/* Gợi ý thao tác theo chế độ đang chọn */}
-        <div className="flex items-center gap-1.5 rounded-full bg-black/60 border border-white/15 px-3 py-0.5 backdrop-blur-md text-[10.5px] font-medium text-amber-200/90 shadow">
-          <Sparkles className="h-3 w-3 text-amber-400 shrink-0" />
-          <span>
-            {interactionMode === "move"
-              ? "Chạm kéo 1 ngón di chuyển vị trí • 2 ngón thu phóng"
-              : "Vuốt 1 ngón xoay 360° • 2 ngón thu phóng • Chạm để chơi"}
-          </span>
         </div>
       </div>
 
-      {/* 5. Toast phản hồi khi bé chạm tương tác vào con vật */}
+      {/* 4. Thanh Gợi Ý Cử Chỉ Tự Nhiên Chuẩn Apple AR (Không có nút bấm gây rối mắt) */}
+      <div className="absolute top-15 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+        <div className="flex items-center gap-2 rounded-full bg-stone-950/75 border border-white/20 px-3.5 py-1 backdrop-blur-md text-[11px] font-medium text-amber-200/95 shadow-xl">
+          <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span>Kéo 1 ngón di chuyển • Xoay 2 ngón 360° • Chụm 2 ngón thu phóng</span>
+        </div>
+      </div>
+
+      {/* 5. AR Diagnostic Debug HUD Modal (Trực quan hóa nhận diện thẻ, FPS, tọa độ) */}
+      {isDebugOpen && (
+        <div className="absolute top-26 left-3.5 z-35 max-w-xs w-[calc(100vw-28px)] rounded-2xl bg-stone-950/90 border border-amber-400/50 p-3 backdrop-blur-lg shadow-2xl text-white font-mono text-[11px] space-y-2 pointer-events-auto animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-1 border-b border-white/10">
+            <div className="flex items-center gap-1.5 font-sans font-black text-amber-400">
+              <Radio className="h-3.5 w-3.5 animate-pulse text-emerald-400" />
+              <span>AR Inspector HUD</span>
+            </div>
+            <span className="text-[10px] text-stone-400 font-sans">FPS: {fps}</span>
+          </div>
+
+          <div className="space-y-1 text-stone-300 text-[10px]">
+            <div className="flex justify-between items-center">
+              <span>Target:</span>
+              <span className="font-bold text-amber-300">{animal.slug}.mind</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Trạng thái quét:</span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] font-black font-sans uppercase ${
+                  isTargetFound
+                    ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/50"
+                    : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                }`}
+              >
+                {isTargetFound ? "Đã Bắt Dính Thẻ" : "Đang Tìm Thẻ"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Số lần nhận diện:</span>
+              <span className="font-bold text-white">{targetHitCount} lần</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Animation:</span>
+              <span className="font-bold text-sky-300 truncate max-w-[140px]">
+                {playingClipName || (animal.slug === "cat" ? "Static (Protected)" : "Default")}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Vị trí (X, Y):</span>
+              <span className="text-stone-300">
+                {userPosRef.current.x.toFixed(2)}, {userPosRef.current.y.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Tỉ lệ (Scale):</span>
+              <span className="text-amber-300">{zoomPercent}%</span>
+            </div>
+          </div>
+
+          <div className="pt-1 flex gap-1.5 border-t border-white/10 font-sans">
+            <button
+              type="button"
+              onClick={() => {
+                hasScannedOnceRef.current = true;
+                setHasScannedOnce(true);
+                if (anchorGroupRef.current) anchorGroupRef.current.visible = true;
+              }}
+              className="flex-1 py-1 px-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-[10px] font-bold text-white text-center"
+            >
+              Ép Hiện 3D
+            </button>
+            <button
+              type="button"
+              onClick={handleResetTransform}
+              className="py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-stone-200"
+            >
+              Về Tâm
+            </button>
+            <button
+              type="button"
+              onClick={triggerTapInteraction}
+              className="py-1 px-2 rounded-lg bg-amber-500/80 hover:bg-amber-500 text-[10px] font-bold text-stone-950"
+            >
+              Test Kêu
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Toast phản hồi khi bé chạm tương tác vào con vật */}
       {tapFeedback && (
-        <div className="absolute top-28 inset-x-0 z-30 flex justify-center pointer-events-none px-4 animate-in fade-in zoom-in duration-150">
+        <div className="absolute top-24 inset-x-0 z-30 flex justify-center pointer-events-none px-4 animate-in fade-in zoom-in duration-150">
           <div className="flex items-center gap-2 rounded-2xl bg-amber-500 text-stone-950 font-black px-4 py-1.5 shadow-xl shadow-amber-500/30 text-xs">
             <Sparkles className="h-4 w-4 shrink-0" />
             <span>{tapFeedback}</span>
@@ -730,7 +846,7 @@ export function WebArCardView({
         </div>
       )}
 
-      {/* 6. Cụm nút công cụ thu phóng & đặt lại kích thước 3D nổi cạnh phải */}
+      {/* 7. Cụm nút công cụ thu phóng & đặt lại kích thước 3D nổi cạnh phải */}
       <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-black/65 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
         <button
           type="button"
@@ -769,7 +885,7 @@ export function WebArCardView({
         </button>
       </div>
 
-      {/* 7. Khung ngắm định vị thẻ bài (Hiện khi chưa nhận diện được thẻ) */}
+      {/* 8. Khung ngắm định vị thẻ bài (Chỉ hiện khi chưa từng nhận diện được thẻ) */}
       {!isLoading && !loadError && !isTargetFound && !hasScannedOnce && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-6">
           <div className="relative w-64 h-80 max-w-[70vw] max-h-[45vh] rounded-3xl border-2 border-dashed border-amber-300/80 shadow-[0_0_25px_rgba(251,191,36,0.35)] bg-black/10">
@@ -781,30 +897,51 @@ export function WebArCardView({
             <div className="absolute -top-10 inset-x-0 flex justify-center">
               <div className="flex items-center gap-2 rounded-full bg-amber-500/95 px-4 py-1.5 text-xs font-black text-stone-950 shadow-xl backdrop-blur-md animate-pulse">
                 <Scan className="h-4 w-4 animate-spin" />
-                <span>Hướng camera vào ảnh {animal.nameVi}</span>
+                <span>Hướng camera vào thẻ {animal.nameVi}</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 4. Loading State Skeleton */}
+      {/* 9. Loading State Skeleton Với Thanh % Tiến Độ Tải Trực Quan */}
       {isLoading && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-stone-950/85 backdrop-blur-md px-6 text-center">
-          <div className="relative flex h-16 w-16 items-center justify-center">
-            <div className="absolute inset-0 rounded-full border-4 border-amber-500/30 border-t-amber-400 animate-spin" />
-            <Sparkles className="h-7 w-7 text-amber-400 animate-pulse" />
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-stone-950/90 backdrop-blur-md px-6 text-center">
+          <div className="relative flex h-18 w-18 items-center justify-center mb-2">
+            <div className="absolute inset-0 rounded-full border-4 border-amber-500/20 border-t-amber-400 animate-spin" />
+            <Sparkles className="h-8 w-8 text-amber-400 animate-pulse" />
           </div>
-          <h3 className="mt-4 text-base font-black text-white">
+
+          <h3 className="text-base font-black text-white">
             Đang Khởi Động AR Poly Cards...
           </h3>
+
           <p className="mt-1 text-xs text-amber-200/80 max-w-xs leading-relaxed">
-            Đang đồng bộ thị giác và kết nối máy ảnh
+            Đang kết nối camera và nạp mô hình 3D {animal.nameVi}
           </p>
+
+          {/* Progress Bar & Percentage */}
+          <div className="mt-5 w-full max-w-xs space-y-1.5">
+            <div className="flex justify-between text-[11px] font-bold text-amber-300">
+              <span>Tiến độ tải AR:</span>
+              <span className="font-mono">{downloadProgress}%</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-stone-800 overflow-hidden p-0.5 border border-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-200 shadow-[0_0_12px_rgba(251,191,36,0.5)]"
+                style={{ width: `${Math.max(5, downloadProgress)}%` }}
+              />
+            </div>
+            {downloadStats.totalMb !== "0" && (
+              <div className="text-[10px] text-stone-400 font-mono">
+                {downloadStats.loadedMb} MB / {downloadStats.totalMb} MB
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* 5. Error State */}
+      {/* 10. Error State */}
       {loadError && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-stone-950/90 backdrop-blur-md px-6 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 mb-3">
@@ -834,7 +971,7 @@ export function WebArCardView({
         </div>
       )}
 
-      {/* 6. Floating Control Island (Trong suốt, không che khuất màn hình camera) */}
+      {/* 11. Floating Control Island (Trong suốt, chuẩn công thái học) */}
       <div className="absolute bottom-0 inset-x-0 z-30 flex flex-col items-center px-3.5 pb-5 pt-2 pointer-events-none">
         <div className="pointer-events-auto w-full max-w-md rounded-3xl bg-stone-950/70 border border-white/20 p-3 backdrop-blur-md shadow-2xl flex flex-col items-center gap-2.5">
           {/* Hàng 3 Nút Phát Âm Ngôn Ngữ Trọng Tâm (EN / VI / ZH) */}
@@ -906,36 +1043,25 @@ export function WebArCardView({
             </button>
           </div>
 
-          {/* Hàng các nút phụ trợ: Tiếng kêu, Đổi hoạt ảnh, Chụp ảnh */}
-          <div className="flex items-center justify-center gap-2 w-full">
+          {/* Hàng Tiếng Kêu & Chụp Ảnh (Loại bỏ nút Động Tác thừa thãi) */}
+          <div className="flex items-center justify-between gap-2 w-full">
             <button
               type="button"
               onClick={handleAnimalSound}
-              className={`flex flex-1 min-h-[40px] items-center justify-center gap-1.5 rounded-2xl px-2.5 text-xs font-bold border transition-all active:scale-95 shadow-xs ${
+              className={`flex flex-1 min-h-[42px] items-center justify-center gap-2 rounded-2xl px-3 text-xs font-bold border transition-all active:scale-95 shadow-md ${
                 isPlayingSound
                   ? "bg-amber-400 text-stone-950 border-amber-300"
                   : "bg-stone-900/80 text-amber-300 border-amber-500/30 hover:bg-stone-800"
               }`}
             >
-              <Volume2 className="h-3.5 w-3.5" />
-              <span>Tiếng Kêu</span>
+              <Volume2 className="h-4 w-4" />
+              <span>Phát Tiếng Kêu {animal.nameVi}</span>
             </button>
-
-            {animal.animations && animal.animations.length > 1 && (
-              <button
-                type="button"
-                onClick={handleToggleAnimation}
-                className="flex flex-1 min-h-[40px] items-center justify-center gap-1.5 rounded-2xl bg-stone-900/80 px-2.5 text-xs font-bold text-sky-300 border border-sky-500/30 hover:bg-stone-800 transition-all active:scale-95 shadow-xs"
-              >
-                <Play className="h-3.5 w-3.5" />
-                <span>Động Tác ({currentAnimIndex + 1})</span>
-              </button>
-            )}
 
             <button
               type="button"
               onClick={handleCapturePhoto}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 font-black shadow-lg shadow-amber-500/30 active:scale-90 transition-transform shrink-0"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 font-black shadow-lg shadow-amber-500/30 active:scale-90 transition-transform shrink-0"
               title="Chụp ảnh AR"
             >
               <Camera className="h-4 w-4" />
@@ -944,7 +1070,7 @@ export function WebArCardView({
         </div>
       </div>
 
-      {/* 7. Modal Hết Giờ Dùng Thử (Trial Expired Paywall) */}
+      {/* 12. Modal Hết Giờ Dùng Thử (Trial Expired Paywall) */}
       {isTrialExpired && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-400/80 p-5 shadow-2xl text-center text-white">
@@ -996,7 +1122,7 @@ export function WebArCardView({
         </div>
       )}
 
-      {/* 8. Modal Xem & Tải Ảnh Đã Chụp */}
+      {/* 13. Modal Xem & Tải Ảnh Đã Chụp */}
       {capturedPhotoUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-400/60 p-4 shadow-2xl flex flex-col items-center">
@@ -1043,7 +1169,7 @@ export function WebArCardView({
         </div>
       )}
 
-      {/* 9. Modal Hướng Dẫn Sử Dụng AR */}
+      {/* 14. Modal Hướng Dẫn Sử Dụng AR */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-300/60 p-5 shadow-2xl text-white">
@@ -1066,7 +1192,7 @@ export function WebArCardView({
                   1
                 </span>
                 <span>
-                  Đặt tấm thẻ bài <strong>{animal.nameVi}</strong> ở nơi đủ sáng. Hướng camera vào hình con vật để kích hoạt.
+                  <strong>Xuất hiện tức thì:</strong> Mô hình 3D sẽ xuất hiện ngay trước mắt bạn. Nếu có thẻ bài <strong>{animal.nameVi}</strong>, hãy hướng camera vào ảnh để con vật tự động bắt dính lên thẻ!
                 </span>
               </div>
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
@@ -1074,7 +1200,7 @@ export function WebArCardView({
                   2
                 </span>
                 <span>
-                  <strong>Không cần dí camera liên tục:</strong> Sau khi nhận diện, con vật sẽ tự động <strong>đồng hành trước mắt bé</strong> ngay cả khi thẻ di chuyển!
+                  <strong>Cử chỉ chuẩn Apple AR:</strong> Dùng <strong>1 ngón tay kéo</strong> để di chuyển vị trí, <strong>2 ngón tay xoay</strong> để quay 360 độ, <strong>2 ngón chụm/mở</strong> để phóng to/thu nhỏ!
                 </span>
               </div>
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
@@ -1082,7 +1208,7 @@ export function WebArCardView({
                   3
                 </span>
                 <span>
-                  <strong>Cử chỉ tương tác sống động:</strong> Dùng <strong>1 ngón tay vuốt</strong> để xoay 360°, <strong>2 ngón chụm/mở</strong> để thu phóng to nhỏ, và <strong>chạm vào màn hình</strong> để nghe tiếng kêu nhún nhảy!
+                  <strong>Chạm tương tác sống động:</strong> Chạm trực tiếp vào con vật để nghe tiếng kêu đặc trưng và xem con vật nhún nhảy vui mừng!
                 </span>
               </div>
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
@@ -1100,7 +1226,7 @@ export function WebArCardView({
               onClick={() => setShowGuideModal(false)}
               className="mt-4 w-full min-h-[42px] rounded-2xl bg-amber-500 text-xs font-black text-stone-950 active:scale-95 transition-transform"
             >
-              Đã Hiểu, Bắt Đầu Chơi
+              Đã Hiểu, Bắt Đầu Khám Phá
             </button>
           </div>
         </div>

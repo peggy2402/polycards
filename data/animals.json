@@ -134,7 +134,7 @@
     "modelUrl": "/models/lion.glb",
     "iosModelUrl": "/models/lion.usdz",
     "posterUrl": "/images/posters/lion-poster.jpg",
-    "animations": ["Roar", "Idle"],
+    "animations": ["Object_0", "Roar", "Idle"],
     "arEnabled": true,
     "buyUrl": "/order?animal=lion",
     "badge": "Dũng mãnh"
