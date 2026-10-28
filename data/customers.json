@@ -38,5 +38,17 @@
     ],
     "totalSpent": 1992000,
     "createdAt": "09:53:26 28/10/2026"
+  },
+  {
+    "id": "CUST-5131",
+    "name": "Khách Mua Trực Tiếp (Hành Động)",
+    "phone": "",
+    "type": "TRUCTIEP",
+    "orders": [
+      "INV-1793156265114",
+      "INV-1793156299580"
+    ],
+    "totalSpent": 498000,
+    "createdAt": "09:57:45 28/10/2026"
   }
 ]
