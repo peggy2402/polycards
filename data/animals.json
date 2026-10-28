@@ -21,7 +21,7 @@
     "audioUrl": "/audio/deer.mp3",
     "audios": {
       "en": "/audio/en/deer.mp3",
-      "vi": "/audio/vi/deer.mp3",
+      "vi": "/audio/vi/deer.mp3",                                                                                                                                                                                 
       "zh": "/audio/zh/deer.mp3"
     },
     "modelUrl": "/models/deer.glb",
