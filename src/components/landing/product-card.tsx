@@ -102,189 +102,175 @@ export function ProductCard({ animal }: ProductCardProps) {
           />
         )}
 
-        {/* Top Badges */}
-        <div className="relative z-10 flex items-center justify-between gap-2 pb-3">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {animal.category && (
-              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-950 border border-amber-400/50 shadow-2xs">
-                {animal.category}
+        {/* 3D Animal Poster Image with Floating Badges */}
+        <div className="relative">
+          <Link
+            href={`/ar/${animal.slug}`}
+            className="group/img relative block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 border border-amber-200/80 shadow-inner cursor-pointer"
+          >
+            <div
+              style={{
+                transform: tilt.active ? "translateZ(30px)" : "translateZ(0)",
+                transition: "transform 0.2s ease-out",
+              }}
+              className="relative h-full w-full"
+            >
+              <Image
+                src={animal.images[0] || "/images/animals/lion.jpg"}
+                alt={`Mô hình đồ chơi 3D ${animal.nameVi} (${animal.nameEn})`}
+                fill
+                className="object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-108"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              />
+            </div>
+
+            {/* Floating Top-Left Badges */}
+            <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 flex-wrap pointer-events-none">
+              {animal.category && (
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/70 text-white backdrop-blur-md border border-white/20 shadow-xs">
+                  {animal.category}
+                </span>
+              )}
+              {animal.arEnabled && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600/90 text-white backdrop-blur-md shadow-xs border border-white/20">
+                  <Sparkles className="h-3 w-3" />
+                  <span>AR 3D</span>
+                </span>
+              )}
+            </div>
+
+            {/* Floating Top-Right Badge */}
+            {animal.badge && (
+              <span className="absolute top-2.5 right-2.5 z-10 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-stone-950 shadow-md border border-amber-300 pointer-events-none">
+                {animal.badge}
               </span>
             )}
-            {animal.arEnabled && (
-              <Badge
-                variant="secondary"
-                icon="sparkles"
-                className="border-emerald-300 bg-emerald-50 text-emerald-800 font-bold text-[10px]"
-              >
-                AR Live 3D
-              </Badge>
-            )}
-          </div>
 
-          {animal.badge && (
-            <Badge
-              variant="primary"
-              icon="flame"
-              className="border-amber-300 bg-amber-100 text-amber-900 font-bold text-[10px]"
-            >
-              {animal.badge}
-            </Badge>
-          )}
+            {/* Floating Bottom-Right Hint */}
+            <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[10px] font-black text-amber-300 shadow-sm border border-white/20 backdrop-blur-md">
+              <Sparkles className="h-2.5 w-2.5 text-amber-400" />
+              <span>Xem 3D</span>
+            </div>
+          </Link>
         </div>
 
-        {/* 3D Animal Poster Image - Bấm vào chuyển thẳng sang trang chi tiết AR */}
-        <Link
-          href={`/ar/${animal.slug}`}
-          className="group/img relative block aspect-square w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 p-2 border border-amber-100 shadow-inner cursor-pointer"
-        >
-          <div
-            style={{
-              transform: tilt.active ? "translateZ(30px)" : "translateZ(0)",
-              transition: "transform 0.2s ease-out",
-            }}
-            className="relative h-full w-full"
-          >
-            <Image
-              src={animal.images[0] || "/images/animals/lion.jpg"}
-              alt={`Mô hình đồ chơi 3D ${animal.nameVi} (${animal.nameEn})`}
-              fill
-              className="object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-108"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            />
-          </div>
-
-          {/* Quick AR Badge */}
-          <div className="absolute bottom-2.5 right-2.5 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-black text-amber-950 shadow-sm border border-amber-200 backdrop-blur-xs">
-            <Sparkles className="h-3 w-3 text-amber-500 animate-spin" style={{ animationDuration: "6s" }} />
-            <span>Xem Chi Tiết 3D</span>
-          </div>
-        </Link>
-
-        {/* Info Area */}
-        <div className="relative z-10 flex flex-1 flex-col pt-4 pb-2">
+        {/* Info Area: Compact & Proportional */}
+        <div className="relative z-10 flex flex-1 flex-col pt-3 pb-1 space-y-2">
           {/* Multilingual Animal Name Header */}
-          <div className="flex items-baseline justify-between gap-2">
-            <Link href={`/ar/${animal.slug}`} className="flex items-center gap-2 group/title">
-              <h3 className="text-2xl font-black tracking-tight text-slate-900 group-hover/title:text-emerald-700 transition-colors">
-                {animal.nameEn}
-              </h3>
-              <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                {animal.ipa}
-              </span>
+          <div className="flex items-start justify-between gap-2">
+            <Link href={`/ar/${animal.slug}`} className="group/title block min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-lg font-black tracking-tight text-slate-900 group-hover/title:text-emerald-700 transition-colors truncate">
+                  {animal.nameEn}
+                </h3>
+                <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 shrink-0">
+                  {animal.ipa}
+                </span>
+              </div>
+              <div className="text-xs font-bold text-amber-700 mt-0.5">
+                {animal.nameVi}
+              </div>
             </Link>
 
             {animal.nameZh && (
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span className="text-sm font-bold text-slate-800">{animal.nameZh}</span>
                 <span className="block text-[10px] text-slate-500 font-medium">{animal.pinyinZh}</span>
               </div>
             )}
           </div>
 
-          <div className="mt-1 text-sm font-bold text-emerald-700">
-            {animal.nameVi}
-          </div>
-
-          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-stone-600">
-            {animal.description}
-          </p>
-
-          {/* Multilingual Audio Listen Buttons */}
-          <div className="mt-3.5 flex items-center gap-2 rounded-xl bg-amber-50/80 p-2 border border-amber-200/70">
-            <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
-              <Volume2 className="h-3.5 w-3.5 text-amber-600" />
+          {/* Multilingual Audio Listen Buttons - Compact Bar */}
+          <div className="flex items-center justify-between gap-1.5 py-1 px-2.5 rounded-xl bg-amber-50/90 border border-amber-200/70 text-xs">
+            <span className="text-[10px] font-bold text-amber-950 flex items-center gap-1 shrink-0">
+              <Volume2 className="h-3 w-3 text-amber-600" />
               <span>Nghe:</span>
             </span>
 
-            <div className="flex items-center gap-1.5 flex-1">
-              {/* EN Audio */}
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => playAudio("en")}
-                className={`flex-1 min-h-[34px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
                   playingLang === "en"
                     ? "bg-amber-500 text-white shadow-xs animate-pulse"
                     : "bg-white text-stone-700 hover:bg-amber-200/60 border border-amber-200"
                 }`}
                 title="Nghe phát âm tiếng Anh"
               >
-                <span>EN</span>
+                EN
               </button>
-
-              {/* VI Audio */}
               <button
                 type="button"
                 onClick={() => playAudio("vi")}
-                className={`flex-1 min-h-[34px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
                   playingLang === "vi"
                     ? "bg-emerald-600 text-white shadow-xs animate-pulse"
                     : "bg-white text-stone-700 hover:bg-emerald-100 border border-emerald-200"
                 }`}
                 title="Nghe phát âm tiếng Việt"
               >
-                <span>VI</span>
+                VI
               </button>
-
-              {/* ZH Audio */}
               {animal.nameZh && (
                 <button
                   type="button"
                   onClick={() => playAudio("zh")}
-                  className={`flex-1 min-h-[34px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
                     playingLang === "zh"
-                      ? "bg-red-500 text-white shadow-xs animate-pulse"
-                      : "bg-white text-stone-700 hover:bg-red-100 border border-red-200"
+                      ? "bg-rose-500 text-white shadow-xs animate-pulse"
+                      : "bg-white text-stone-700 hover:bg-rose-100 border border-rose-200"
                   }`}
                   title="Nghe phát âm tiếng Trung"
                 >
-                  <span>ZH</span>
+                  ZH
                 </button>
               )}
             </div>
           </div>
 
           {/* Price Tag with Original Price and Discount */}
-          <div className="mt-3 pt-3 border-t border-amber-100 flex items-center justify-between">
+          <div className="pt-1 flex items-center justify-between border-t border-amber-100/80">
             <div>
-              <span className="text-[11px] font-medium text-stone-500 block">Giá ưu đãi:</span>
+              <span className="text-[10px] font-medium text-stone-500 block leading-tight">Giá thẻ lẻ:</span>
               {animal.originalPrice && animal.originalPrice > animal.price ? (
-                <span className="text-xs text-stone-400 line-through font-mono">
+                <span className="text-[10px] text-stone-400 line-through font-mono">
                   {formatVndCurrency(animal.originalPrice)}
                 </span>
               ) : null}
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xl font-black text-amber-950">
+              <span className="text-base font-black text-amber-950">
                 {formatVndCurrency(animal.price)}
               </span>
               {animal.originalPrice && animal.originalPrice > animal.price ? (
-                <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200">
+                <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200">
                   -{Math.round(((animal.originalPrice - animal.price) / animal.originalPrice) * 100)}%
                 </span>
               ) : null}
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons: Touch Target >= 44px */}
-        <div className="relative z-10 mt-3 grid grid-cols-2 gap-2.5 pt-1">
-          <Link
-            href={`/ar/${animal.slug}`}
-            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 px-3 py-2 text-xs font-black text-slate-950 shadow-md transition-all hover:scale-102 active:scale-95"
-            aria-label={`Trải nghiệm 3D và AR cho ${animal.nameEn}`}
-          >
-            <Smartphone className="h-4 w-4" />
-            <span>Thử AR 3D</span>
-          </Link>
+          {/* Action Buttons: Touch Target >= 44px */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Link
+              href={`/ar/${animal.slug}`}
+              className="btn-toy-3d inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 px-2 py-2 text-xs font-black text-slate-950 shadow-sm transition-all hover:scale-102 active:scale-95"
+              aria-label={`Trải nghiệm 3D và AR cho ${animal.nameEn}`}
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              <span>Thử AR 3D</span>
+            </Link>
 
-          <Link
-            href={`/order?animal=${animal.slug}`}
-            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/25 transition-all hover:scale-102 active:scale-95"
-            aria-label={`Đặt mua bộ thẻ ${animal.nameEn}`}
-          >
-            <ShoppingBag className="h-4 w-4" />
-            <span>Mua Thẻ</span>
-          </Link>
+            <Link
+              href={`/order?animal=${animal.slug}`}
+              className="btn-toy-3d inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-2 py-2 text-xs font-black text-white shadow-sm shadow-emerald-600/25 transition-all hover:scale-102 active:scale-95"
+              aria-label={`Đặt mua bộ thẻ ${animal.nameEn}`}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>Mua Thẻ</span>
+            </Link>
+          </div>
         </div>
       </article>
     </div>

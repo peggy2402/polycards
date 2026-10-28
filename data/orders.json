@@ -1,5 +1,101 @@
 [
   {
+    "id": "ORD-313479",
+    "code": "POLY30-DONGVAT-1155",
+    "customerType": "TRUCTIEP",
+    "customerName": "Bộ Thẻ POLY30-DONGVAT (In Xưởng)",
+    "customerPhone": "",
+    "customerAddress": "",
+    "packId": "cat-animals",
+    "packCode": "POLY30-DONGVAT",
+    "packTitle": "Bộ 30 Thẻ AR POLY30-DONGVAT",
+    "allowedCategorySlug": "dongvat",
+    "items": [
+      {
+        "id": "cat-animals",
+        "name": "Bộ 30 Thẻ AR POLY30-DONGVAT",
+        "packCode": "POLY30-DONGVAT",
+        "categorySlug": "dongvat",
+        "quantity": 1,
+        "unitPrice": 249000,
+        "totalPrice": 249000
+      }
+    ],
+    "creditAmount": 249000,
+    "debitAmount": 249000,
+    "remainingAmount": 0,
+    "paymentMethod": "TIEN_MAT",
+    "totalPrice": 249000,
+    "status": "PAID",
+    "createdAt": "11:05:13 28/10/2026",
+    "note": "Mã bản quyền sinh tự động trong Studio Chế Bản Thẻ & QR",
+    "directUrl": "https://polycards-one.vercel.app/ar/lion?ar=1&code=POLY30-DONGVAT-1155"
+  },
+  {
+    "id": "ORD-312511",
+    "code": "POLY30-DONGVAT-4432",
+    "customerType": "TRUCTIEP",
+    "customerName": "Bộ Thẻ POLY30-DONGVAT (In Xưởng)",
+    "customerPhone": "",
+    "customerAddress": "",
+    "packId": "cat-animals",
+    "packCode": "POLY30-DONGVAT",
+    "packTitle": "Bộ 30 Thẻ AR POLY30-DONGVAT",
+    "allowedCategorySlug": "dongvat",
+    "items": [
+      {
+        "id": "cat-animals",
+        "name": "Bộ 30 Thẻ AR POLY30-DONGVAT",
+        "packCode": "POLY30-DONGVAT",
+        "categorySlug": "dongvat",
+        "quantity": 1,
+        "unitPrice": 249000,
+        "totalPrice": 249000
+      }
+    ],
+    "creditAmount": 249000,
+    "debitAmount": 249000,
+    "remainingAmount": 0,
+    "paymentMethod": "TIEN_MAT",
+    "totalPrice": 249000,
+    "status": "PAID",
+    "createdAt": "11:05:12 28/10/2026",
+    "note": "Mã bản quyền sinh tự động trong Studio Chế Bản Thẻ & QR",
+    "directUrl": "https://polycards-one.vercel.app/ar/lion?ar=1&code=POLY30-DONGVAT-4432"
+  },
+  {
+    "id": "ORD-298646",
+    "code": "POLY30-DONGVAT-6042",
+    "customerType": "TRUCTIEP",
+    "customerName": "Bộ Thẻ POLY30-DONGVAT (In Xưởng)",
+    "customerPhone": "",
+    "customerAddress": "",
+    "packId": "cat-animals",
+    "packCode": "POLY30-DONGVAT",
+    "packTitle": "Bộ 30 Thẻ AR POLY30-DONGVAT",
+    "allowedCategorySlug": "dongvat",
+    "items": [
+      {
+        "id": "cat-animals",
+        "name": "Bộ 30 Thẻ AR POLY30-DONGVAT",
+        "packCode": "POLY30-DONGVAT",
+        "categorySlug": "dongvat",
+        "quantity": 1,
+        "unitPrice": 249000,
+        "totalPrice": 249000
+      }
+    ],
+    "creditAmount": 249000,
+    "debitAmount": 249000,
+    "remainingAmount": 0,
+    "paymentMethod": "TIEN_MAT",
+    "totalPrice": 249000,
+    "status": "PAID",
+    "createdAt": "11:04:58 28/10/2026",
+    "note": "Mã bản quyền sinh tự động trong Studio Chế Bản Thẻ & QR",
+    "directUrl": "https://polycards-one.vercel.app/ar/lion?ar=1&code=POLY30-DONGVAT-6042"
+  },
+  {
     "id": "INV-1793156299580",
     "code": "POLY30-HANHDONG-6277",
     "customerType": "TRUCTIEP",

@@ -52,7 +52,7 @@ export function Footer() {
             <ul className="space-y-2.5 text-sm font-medium">
               <li>
                 <a
-                  href="#why-choose-us"
+                  href="/#why-choose-us"
                   className="transition-colors hover:text-emerald-600"
                 >
                   Vì sao chọn Poly Cards
@@ -60,7 +60,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="#how-it-works"
+                  href="/#how-it-works"
                   className="transition-colors hover:text-emerald-600"
                 >
                   4 Bước trải nghiệm AR
@@ -68,15 +68,23 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="#products"
+                  href="/#products"
                   className="transition-colors hover:text-emerald-600"
                 >
-                  Bộ sưu tập thẻ bài
+                  Các bộ combo có sẵn
                 </a>
               </li>
               <li>
+                <Link
+                  href="/products"
+                  className="transition-colors hover:text-emerald-600 text-amber-700 font-bold"
+                >
+                  Toàn bộ kho thẻ bài AR &rarr;
+                </Link>
+              </li>
+              <li>
                 <a
-                  href="#ar-demo"
+                  href="/#ar-demo"
                   className="transition-colors hover:text-emerald-600"
                 >
                   Thử nghiệm tương tác 3D
@@ -84,7 +92,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="#faq"
+                  href="/#faq"
                   className="transition-colors hover:text-emerald-600"
                 >
                   Câu hỏi thường gặp

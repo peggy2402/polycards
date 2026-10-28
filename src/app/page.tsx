@@ -33,8 +33,8 @@ export default function HomePage() {
         {/* 4. How It Works Section */}
         <HowItWorksSection />
 
-        {/* 5. Products Grid Section */}
-        <ProductsGrid animals={animals} />
+        {/* 5. Products Grid Section (Curated Combo Packs) */}
+        <ProductsGrid />
 
         {/* 6. AR Demo Section */}
         <ArDemoSection />

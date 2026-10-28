@@ -50,5 +50,18 @@
     ],
     "totalSpent": 498000,
     "createdAt": "09:57:45 28/10/2026"
+  },
+  {
+    "id": "CUST-8651",
+    "name": "Bộ Thẻ POLY30-DONGVAT (In Xưởng)",
+    "phone": "",
+    "type": "TRUCTIEP",
+    "orders": [
+      "ORD-298646",
+      "ORD-312511",
+      "ORD-313479"
+    ],
+    "totalSpent": 747000,
+    "createdAt": "11:04:58 28/10/2026"
   }
 ]
