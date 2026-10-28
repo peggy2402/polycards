@@ -136,16 +136,16 @@ export function HeroSection() {
           {/* Right Column: Premium 3D Physical Card Showcase (Không đè mất chữ trên thẻ bài) */}
           <div className="lg:col-span-5">
             <div className="relative mx-auto flex max-w-sm flex-col items-center">
-              {/* Floating 360 Rotating Badge (Top Right) */}
-              <div className="absolute -top-5 right-2 z-20 animate-bounce">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-xs font-black text-white shadow-xl shadow-emerald-500/40 ring-4 ring-white">
-                  <RotateCw className="h-3.5 w-3.5 animate-spin text-amber-200" style={{ animationDuration: "6s" }} />
-                  <span>3D Xoay 360° Sống Động</span>
-                </div>
-              </div>
-
               {/* Realistic Physical Card Frame (Tỷ lệ dọc 3:4 thẻ thật, KHÔNG che chữ) */}
               <div className="relative w-full overflow-hidden rounded-[2.5rem] border-4 border-white bg-white shadow-[0_25px_60px_-15px_rgba(217,119,6,0.3)] ring-4 ring-amber-200/70 transition-transform duration-300 hover:scale-[1.02]">
+                {/* Floating 360 Rotating Badge (Top Right of Card) */}
+                <div className="absolute top-3.5 right-3.5 z-20">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3.5 py-1.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30 ring-2 ring-white/90 backdrop-blur-md">
+                    <RotateCw className="h-3.5 w-3.5 animate-spin text-amber-200" style={{ animationDuration: "6s" }} />
+                    <span>3D Xoay 360° Sống Động</span>
+                  </div>
+                </div>
+
                 <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[2.2rem] bg-amber-50">
                   <Image
                     src="/images/cards/lion-card.jpg"

@@ -19,9 +19,9 @@ export const siteConfig: SiteConfig = {
 
 export const navItems = [
   { label: "Giới thiệu", href: "/#why-choose-us" },
-  { label: "Cách hoạt động", href: "/#how-it-works" },
-  { label: "Bộ Combo Thẻ", href: "/#products" },
-  { label: "Kho Thẻ Bài", href: "/products" },
-  { label: "Trải nghiệm AR", href: "/#ar-demo" },
-  { label: "Hỏi đáp (FAQ)", href: "/#faq" },
+  { label: "Hướng dẫn", href: "/#how-it-works" },
+  { label: "Bộ Combo", href: "/#products" },
+  { label: "Kho Thẻ AR", href: "/products" },
+  { label: "Thử 3D AR", href: "/#ar-demo" },
+  { label: "Hỏi đáp", href: "/#faq" },
 ];
