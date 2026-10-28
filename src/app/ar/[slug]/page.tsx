@@ -50,11 +50,40 @@ export async function generateMetadata({ params }: ArPageProps): Promise<Metadat
 
 export default async function ArDetailPage({ params }: ArPageProps) {
   const { slug } = await params;
-  const animal = getAnimalBySlug(slug) || (await dbGetProductBySlug(slug));
+  const cleanSlug = slug.toLowerCase().trim();
+  const dbAnimal = getAnimalBySlug(cleanSlug) || (await dbGetProductBySlug(cleanSlug));
 
-  if (!animal) {
-    notFound();
-  }
+  // Nếu là thẻ mới tạo từ Studio /tools (hoặc đang lưu ở Client Store), tạo khung fallback động để không bao giờ bị lỗi 404 khi quét QR
+  const animal = dbAnimal || {
+    id: `custom-${cleanSlug}`,
+    slug: cleanSlug,
+    qrCode: `AR-${cleanSlug.toUpperCase()}-001`,
+    nameEn: cleanSlug.charAt(0).toUpperCase() + cleanSlug.slice(1),
+    nameVi: cleanSlug.charAt(0).toUpperCase() + cleanSlug.slice(1),
+    nameZh: "",
+    ipa: `/${cleanSlug}/`,
+    pinyinZh: "",
+    category: "Động Vật",
+    categorySlug: "dong-vat",
+    description: `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${cleanSlug}.`,
+    price: 219000,
+    originalPrice: 299000,
+    images: ["/images/cards/jump-template.jpg"],
+    posterUrl: "/images/cards/jump-template.jpg",
+    audioUrl: `/audio/${cleanSlug}.mp3`,
+    audios: {
+      en: `/audio/en/${cleanSlug}.mp3`,
+      vi: `/audio/vi/${cleanSlug}.mp3`,
+      zh: `/audio/zh/${cleanSlug}.mp3`,
+    },
+    modelUrl: "/models/lion.glb",
+    iosModelUrl: "/models/lion.usdz",
+    targetUrl: `/targets/${cleanSlug}.mind`,
+    animations: ["Idle", "Walk"],
+    arEnabled: true,
+    buyUrl: `/order?animal=${cleanSlug}`,
+    isCustom: true,
+  };
 
   const buyUrl =
     animal.buyUrl && animal.buyUrl.trim() !== ""

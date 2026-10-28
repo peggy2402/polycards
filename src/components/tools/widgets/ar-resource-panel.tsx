@@ -39,48 +39,88 @@ export function ArResourcePanel({
   onShowToast,
 }: ArResourcePanelProps) {
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
-  // Helper upload tệp qua API /api/tools/upload
+  // Helper upload tệp qua API /api/tools/upload (Hỗ trợ Chunked Upload 2MB/mảnh để vượt giới hạn 4.5MB của Vercel)
   const handleUploadFile = async (
     file: File,
     type: "model" | "target" | "audio"
   ) => {
     try {
       setIsUploading(true);
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("type", type);
-      fd.append("name", slug || "asset");
+      setUploadProgress(5);
 
-      const res = await fetch("/api/tools/upload", {
-        method: "POST",
-        body: fd,
-      });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.message || "Tải lên thất bại");
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB / mảnh (an toàn tuyệt đối dưới ngưỡng 4.5MB của Vercel)
+      const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+      const uploadId = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      let finalUrl = "";
+
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const chunkBlob = file.slice(start, end, file.type || "application/octet-stream");
+
+        const fd = new FormData();
+        fd.append("file", chunkBlob, file.name);
+        fd.append("originalFileName", file.name);
+        fd.append("type", type);
+        fd.append("name", slug || "asset");
+        fd.append("uploadId", uploadId);
+        fd.append("chunkIndex", String(chunkIndex));
+        fd.append("totalChunks", String(totalChunks));
+        fd.append("totalSize", String(file.size));
+
+        const res = await fetch("/api/tools/upload", {
+          method: "POST",
+          body: fd,
+        });
+
+        if (!res.ok) {
+          let errText = `HTTP ${res.status}`;
+          try {
+            const errJson = await res.json();
+            if (errJson?.message) errText = errJson.message;
+          } catch {}
+          throw new Error(errText);
+        }
+
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.message || "Tải lên thất bại");
+        }
+
+        setUploadProgress(Math.round(((chunkIndex + 1) / totalChunks) * 100));
+
+        if (data.url) {
+          finalUrl = data.url;
+        }
       }
 
-      const uploadedUrl = data.url;
       const isUsdz = file.name.toLowerCase().endsWith(".usdz");
 
       if (type === "model") {
         if (isUsdz) {
-          onChangeIosModelUrl(uploadedUrl);
+          onChangeIosModelUrl(finalUrl);
         } else {
-          onChangeModelUrl(uploadedUrl);
+          onChangeModelUrl(finalUrl);
         }
       } else if (type === "target") {
-        onChangeTargetUrl(uploadedUrl);
+        onChangeTargetUrl(finalUrl);
       } else if (type === "audio") {
-        onChangeAudioUrl(uploadedUrl);
+        onChangeAudioUrl(finalUrl);
       }
 
-      onShowToast(`Đã tải lên tệp "${file.name}" thành công!`, "success");
-    } catch (err: any) {
-      onShowToast(`Lỗi tải tệp: ${err.message}`, "error");
+      onShowToast(
+        `Đã tải lên tệp "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB) lên MongoDB GridFS thành công!`,
+        "success"
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi không xác định";
+      onShowToast(`Lỗi tải tệp: ${msg}`, "error");
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -176,7 +216,11 @@ export function ArResourcePanel({
 
           <label className="cursor-pointer inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-amber-400 text-stone-950 font-black text-[10px] hover:bg-amber-300 active:scale-95 transition-all shrink-0 shadow-md">
             <Upload className="h-3 w-3 shrink-0" />
-            <span>{isUploading ? "Đang Tải..." : "Chọn Cả 2 File (.glb & .usdz)"}</span>
+            <span>
+              {isUploading
+                ? `Đang Tải (${uploadProgress}%)...`
+                : "Chọn Cả 2 File (.glb & .usdz)"}
+            </span>
             <input
               type="file"
               multiple

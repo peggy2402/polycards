@@ -1,30 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GridFSBucket } from "mongodb";
+import { Binary, GridFSBucket } from "mongodb";
 import { getMongoDb } from "@/lib/mongodb";
 
-const STATIC_MODELS = new Set([
-  "cat.glb",
-  "cat.usdz",
-  "deer.glb",
-  "deer.usdz",
-  "dog.glb",
-  "dog.usdz",
-  "elephant.glb",
-  "elephant.usdz",
-  "lion.glb",
-  "lion.usdz",
-  "panda.glb",
-  "panda.usdz",
-]);
-
-const STATIC_TARGETS = new Set([
-  "cat.mind",
-  "deer.mind",
-  "dog.mind",
-  "elephant.mind",
-  "lion.mind",
-  "panda.mind",
-]);
+interface UploadTempChunkDoc {
+  uploadId: string;
+  fileName: string;
+  chunkIndex: number;
+  totalChunks: number;
+  data: Binary;
+  createdAt: Date;
+}
 
 function getMimeTypeByExt(ext: string, fallback: string): string {
   switch (ext) {
@@ -56,7 +41,8 @@ function getMimeTypeByExt(ext: string, fallback: string): string {
 
 /**
  * GET /api/tools/upload?file=<fileName>
- * Stream trực tiếp tệp .glb, .usdz, .mind, .mp3, ảnh từ MongoDB Atlas GridFS
+ * Stream trực tiếp tệp .glb, .usdz, .mind, .mp3 từ MongoDB Atlas GridFS bằng Web ReadableStream
+ * (Không giới hạn 4.5MB nhờ cơ chế HTTP Streaming của Next.js App Router)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -79,7 +65,11 @@ export async function GET(req: NextRequest) {
     }
 
     const bucket = new GridFSBucket(db, { bucketName: "assets" });
-    const files = await bucket.find({ filename: fileName }).sort({ uploadDate: -1 }).limit(1).toArray();
+    const files = await bucket
+      .find({ filename: fileName })
+      .sort({ uploadDate: -1 })
+      .limit(1)
+      .toArray();
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -95,20 +85,30 @@ export async function GET(req: NextRequest) {
       (fileDoc.metadata?.contentType as string) ||
       getMimeTypeByExt(ext, "application/octet-stream");
 
-    const downloadStream = bucket.openDownloadStreamByName(fileName);
-    const chunks: Buffer[] = [];
+    const downloadStream = bucket.openDownloadStream(fileDoc._id);
 
-    for await (const chunk of downloadStream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
+    const webStream = new ReadableStream({
+      start(controller) {
+        downloadStream.on("data", (chunk: Buffer) => {
+          controller.enqueue(new Uint8Array(chunk));
+        });
+        downloadStream.on("end", () => {
+          controller.close();
+        });
+        downloadStream.on("error", (err) => {
+          controller.error(err);
+        });
+      },
+      cancel() {
+        downloadStream.destroy();
+      },
+    });
 
-    const fileBuffer = Buffer.concat(chunks);
-
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(webStream, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Content-Length": String(fileBuffer.length),
+        "Content-Length": String(fileDoc.length),
         "Content-Disposition": `inline; filename="${fileName}"`,
         "Cache-Control": "public, max-age=31536000, immutable",
       },
@@ -121,8 +121,8 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/tools/upload
- * Lưu trữ tệp 3D (.glb, .usdz), Target (.mind), Audio (.mp3) lên MongoDB Atlas GridFS
- * (Không giới hạn 16MB nhờ cơ chế chia chunk tự động của GridFS)
+ * Hỗ trợ Chunked Upload (2MB / mảnh) để vượt giới hạn 4.5MB Payload của Vercel Serverless!
+ * Khi nhận đủ các mảnh, tự động ghép vào MongoDB Atlas GridFSBucket("assets").
  */
 export async function POST(req: NextRequest) {
   try {
@@ -130,17 +130,21 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const fileType = (formData.get("type") as string) || "model";
     const customName = formData.get("name") as string | null;
+    const originalFileNameParam = (formData.get("originalFileName") as string) || file?.name || "asset.glb";
+    const uploadId = (formData.get("uploadId") as string) || `up-${Date.now()}`;
+    const chunkIndex = Number(formData.get("chunkIndex") ?? 0);
+    const totalChunks = Number(formData.get("totalChunks") ?? 1);
+    const totalSize = Number(formData.get("totalSize") ?? file?.size ?? 0);
 
     if (!file) {
       return NextResponse.json(
-        { success: false, message: "Không tìm thấy tệp tải lên." },
+        { success: false, message: "Không tìm thấy dữ liệu tệp tải lên." },
         { status: 400 }
       );
     }
 
-    const originalName = file.name;
-    const dotIndex = originalName.lastIndexOf(".");
-    const ext = dotIndex >= 0 ? originalName.slice(dotIndex).toLowerCase() : "";
+    const dotIndex = originalFileNameParam.lastIndexOf(".");
+    const ext = dotIndex >= 0 ? originalFileNameParam.slice(dotIndex).toLowerCase() : "";
 
     let subFolder = "models";
     if (fileType === "target" || ext === ".mind") {
@@ -151,7 +155,7 @@ export async function POST(req: NextRequest) {
       subFolder = "images/cards";
     }
 
-    let finalFileName = originalName;
+    let finalFileName = originalFileNameParam;
     if (customName && customName.trim()) {
       const cleanCustom = customName
         .trim()
@@ -161,61 +165,133 @@ export async function POST(req: NextRequest) {
     }
 
     const mimeType = getMimeTypeByExt(ext, file.type);
+    const chunkBuffer = Buffer.from(await file.arrayBuffer());
     const db = await getMongoDb();
 
-    if (db) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const bucket = new GridFSBucket(db, { bucketName: "assets" });
+    if (!db) {
+      return NextResponse.json({
+        success: true,
+        storage: "static-fallback",
+        message: `Đã nhận tệp "${finalFileName}".`,
+        fileName: finalFileName,
+        size: totalSize,
+        url: `/${subFolder}/${finalFileName}`,
+        fileType,
+      });
+    }
 
-      // Xóa các bản ghi GridFS cũ trùng tên để tránh rác dung lượng
+    const bucket = new GridFSBucket(db, { bucketName: "assets" });
+
+    // TRƯỜNG HỢP 1: Tệp nhỏ chỉ có 1 mảnh duy nhất (totalChunks <= 1) -> Ghi thẳng vào GridFS
+    if (totalChunks <= 1) {
       const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
       for (const oldFile of existingFiles) {
         await bucket.delete(oldFile._id);
       }
 
-      // Ghi luồng dữ liệu mới vào GridFSBucket (tự động chia thành các chunk 255KB)
       await new Promise<void>((resolve, reject) => {
         const uploadStream = bucket.openUploadStream(finalFileName, {
           metadata: {
             fileType,
             contentType: mimeType,
-            originalName,
-            size: buffer.length,
+            originalName: originalFileNameParam,
+            size: chunkBuffer.length,
             updatedAt: new Date().toISOString(),
           },
         });
-
         uploadStream.on("error", (err) => reject(err));
         uploadStream.on("finish", () => resolve());
-        uploadStream.end(buffer);
+        uploadStream.end(chunkBuffer);
       });
 
       const gridFsUrl = `/api/tools/upload?file=${encodeURIComponent(finalFileName)}`;
-
       return NextResponse.json({
         success: true,
+        completed: true,
         storage: "mongodb-gridfs",
         message: `Đã lưu tệp "${finalFileName}" lên MongoDB Atlas GridFS thành công!`,
         fileName: finalFileName,
-        size: file.size,
+        size: chunkBuffer.length,
         url: gridFsUrl,
         fileType,
       });
     }
 
-    // Fallback nếu chưa cấu hình MongoDB: Trả về đường dẫn tĩnh nếu trùng với 6 mẫu có sẵn
-    const fallbackUrl =
-      STATIC_MODELS.has(finalFileName) || STATIC_TARGETS.has(finalFileName)
-        ? `/${subFolder}/${finalFileName}`
-        : `/${subFolder}/${finalFileName}`;
+    // TRƯỜNG HỢP 2: Tệp lớn (>= 2MB, ví dụ 5MB - 50MB) được cắt thành nhiều mảnh 2MB
+    const chunksCol = db.collection<UploadTempChunkDoc>("upload_temp_chunks");
+
+    await chunksCol.updateOne(
+      { uploadId, chunkIndex },
+      {
+        $set: {
+          uploadId,
+          fileName: finalFileName,
+          chunkIndex,
+          totalChunks,
+          data: new Binary(chunkBuffer),
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+
+    // Nếu chưa phải mảnh cuối cùng -> Trả về trạng thái tiến độ cho Client gửi tiếp mảnh sau
+    if (chunkIndex < totalChunks - 1) {
+      return NextResponse.json({
+        success: true,
+        completed: false,
+        chunkIndex,
+        totalChunks,
+        message: `Đã nhận mảnh ${chunkIndex + 1}/${totalChunks}`,
+      });
+    }
+
+    // Khi đã nhận mảnh cuối cùng -> Đọc toàn bộ các mảnh theo thứ tự và ghép vào GridFSBucket
+    const allChunks = await chunksCol
+      .find({ uploadId })
+      .sort({ chunkIndex: 1 })
+      .toArray();
+
+    // Xóa các bản ghi GridFS cũ trùng tên
+    const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
+    for (const oldFile of existingFiles) {
+      await bucket.delete(oldFile._id);
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const uploadStream = bucket.openUploadStream(finalFileName, {
+        metadata: {
+          fileType,
+          contentType: mimeType,
+          originalName: originalFileNameParam,
+          size: totalSize,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+
+      uploadStream.on("error", (err) => reject(err));
+      uploadStream.on("finish", () => resolve());
+
+      for (const c of allChunks) {
+        const rawBuf = Buffer.from(c.data.buffer);
+        uploadStream.write(rawBuf);
+      }
+      uploadStream.end();
+    });
+
+    // Dọn dẹp các mảnh tạm sau khi đã ghép thành công vào GridFS
+    await chunksCol.deleteMany({ uploadId });
+
+    const gridFsUrl = `/api/tools/upload?file=${encodeURIComponent(finalFileName)}`;
 
     return NextResponse.json({
       success: true,
-      storage: "static-fallback",
-      message: `Đã nhận tệp "${finalFileName}".`,
+      completed: true,
+      storage: "mongodb-gridfs",
+      message: `Đã tải lên và ghép tệp "${finalFileName}" (${(totalSize / (1024 * 1024)).toFixed(1)} MB) vào MongoDB GridFS thành công!`,
       fileName: finalFileName,
-      size: file.size,
-      url: fallbackUrl,
+      size: totalSize,
+      url: gridFsUrl,
       fileType,
     });
   } catch (error: unknown) {

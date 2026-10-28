@@ -8,6 +8,7 @@ import {
   activateWithCodeAsync,
   normalizeCategorySlug,
 } from "@/lib/activation";
+import { getMergedProducts } from "@/lib/products-store";
 import { CardFlashcardView } from "@/components/ar/card-flashcard-view";
 import { ModelViewerView } from "@/components/ar/model-viewer-view";
 import { ArAudioPlayer } from "@/components/ar/ar-audio-player";
@@ -28,9 +29,35 @@ interface ArViewerContainerProps {
   animal: Animal;
 }
 
-export function ArViewerContainer({ animal }: ArViewerContainerProps) {
+export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [animal, setAnimal] = useState<Animal>(initialAnimal);
+
+  // Đồng bộ dữ liệu thẻ mới nhất từ MongoDB API hoặc Local Store (hỗ trợ thẻ mới tạo từ /tools tức thì)
+  useEffect(() => {
+    const cleanSlug = initialAnimal.slug.toLowerCase().trim();
+    const localMatched = getMergedProducts().find(
+      (p) => p.slug.toLowerCase() === cleanSlug
+    );
+    if (localMatched) {
+      setAnimal(localMatched);
+    }
+
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          const serverMatched = json.data.find(
+            (p: Animal) => p.slug.toLowerCase() === cleanSlug
+          );
+          if (serverMatched) {
+            setAnimal(serverMatched);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [initialAnimal.slug]);
 
   // Tab Switcher State: Mặc định hiển thị Models 3D ngay khi vào trang
   const [activeTab, setActiveTab] = useState<"card" | "model3d">("model3d");
