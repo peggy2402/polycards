@@ -4,6 +4,15 @@ export interface AnimalAudio {
   zh?: string;
 }
 
+export interface ProductCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  iconName?: string;
+  createdAt?: string;
+}
+
 export interface Animal {
   id: string;
   slug: string;
@@ -16,6 +25,9 @@ export interface Animal {
   pinyinZh?: string;
   description: string;
   price: number;
+  originalPrice?: number;
+  category?: string;
+  categorySlug?: string;
   images: string[];
   audioUrl: string;
   audios?: AnimalAudio;
@@ -26,6 +38,8 @@ export interface Animal {
   arEnabled: boolean;
   buyUrl?: string;
   badge?: string;
+  isCustom?: boolean;
+  updatedAt?: string;
 }
 
 export interface SiteConfig {

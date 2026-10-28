@@ -39,7 +39,23 @@ import {
   Trash2,
   Send,
   Dices,
+  ShoppingBag,
+  Search,
+  Edit3,
+  X,
+  Tag,
+  ArrowRight,
 } from "lucide-react";
+import {
+  getProductCategories,
+  addProductCategory,
+  updateProductCategory,
+  deleteProductCategory,
+  saveProductToLanding,
+  CATEGORIES_UPDATED_EVENT,
+} from "@/lib/products-store";
+import { ProductCategory } from "@/types/animal";
+import { formatVndCurrency } from "@/lib/formatters";
 
 export interface CardPreset {
   id: string;
@@ -232,6 +248,54 @@ export default function ToolsPage() {
 
   // Modal hiển thị kết quả hóa đơn vừa tạo
   const [justCreatedInvoice, setJustCreatedInvoice] = useState<InvoiceRecord | null>(null);
+
+  // 11. Quản lý Danh Mục Sản Phẩm (Categories)
+  const [categoriesList, setCategoriesList] = useState<ProductCategory[]>([]);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState<string>("" );
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState<string>("");
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
+    description: "",
+    iconName: "Layers",
+  });
+
+  // 12. Modal "Lưu / Cập Nhật Thẻ Vào #products Trang Chủ"
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
+  const [productForm, setProductForm] = useState({
+    nameEn: "Jump",
+    nameVi: "Nhảy Vui Nhộn",
+    nameZh: "跳",
+    ipa: "/dʒʌmp/",
+    pinyinZh: "tiào",
+    category: "Hành Động",
+    price: 219000,
+    originalPrice: 299000,
+    badge: "Mới ra mắt",
+    description: "Thẻ học thông minh phát triển kỹ năng vận động và phản xạ thể chất cho trẻ.",
+    useCompositeCardImage: true,
+  });
+
+  // Thông báo xuất bản thành công
+  const [publishedSuccessInfo, setPublishedSuccessInfo] = useState<{
+    productName: string;
+    categoryName: string;
+    slug: string;
+  } | null>(null);
+  const [isPublishingProduct, setIsPublishingProduct] = useState<boolean>(false);
+
+  // Tải danh mục sản phẩm từ store khi khởi động
+  useEffect(() => {
+    const loadCategories = () => {
+      setCategoriesList(getProductCategories());
+    };
+    loadCategories();
+    window.addEventListener(CATEGORIES_UPDATED_EVENT, loadCategories);
+    return () => {
+      window.removeEventListener(CATEGORIES_UPDATED_EVENT, loadCategories);
+    };
+  }, []);
 
   // Nạp danh sách hóa đơn từ localStorage khi khởi động
   useEffect(() => {
@@ -860,6 +924,184 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
     }
   };
 
+  // Mở popup xuất bản thẻ ra Landing Page #products
+  const handleOpenPublishModal = () => {
+    const cleanSlug = slug.trim().toLowerCase() || "jump";
+    let defaultCat = "Động Vật";
+    let defaultEn = cleanSlug.charAt(0).toUpperCase() + cleanSlug.slice(1);
+    let defaultVi = defaultEn;
+    let defaultZh = "";
+    let defaultPinyin = "";
+
+    if (cleanSlug === "jump") {
+      defaultCat = "Hành Động";
+      defaultVi = "Nhảy (Vui Nhộn)";
+      defaultZh = "跳";
+      defaultPinyin = "tiào";
+    } else if (cleanSlug === "lion") {
+      defaultCat = "Động Vật";
+      defaultVi = "Sư Tử Vàng";
+      defaultZh = "狮子";
+      defaultPinyin = "shīzi";
+    } else if (cleanSlug === "cat") {
+      defaultCat = "Động Vật";
+      defaultVi = "Con Mèo Nhỏ";
+      defaultZh = "小猫";
+      defaultPinyin = "xiǎomāo";
+    } else if (cleanSlug === "dog") {
+      defaultCat = "Động Vật";
+      defaultVi = "Con Chó Con";
+      defaultZh = "小狗";
+      defaultPinyin = "xiǎogǒu";
+    } else if (cleanSlug === "deer") {
+      defaultCat = "Động Vật";
+      defaultVi = "Hươu Cổ Tích";
+      defaultZh = "小鹿";
+      defaultPinyin = "xiǎolù";
+    } else if (cleanSlug === "elephant") {
+      defaultCat = "Động Vật";
+      defaultVi = "Chú Voi Con";
+      defaultZh = "大象";
+      defaultPinyin = "dàxiàng";
+    } else if (cleanSlug === "panda") {
+      defaultCat = "Động Vật";
+      defaultVi = "Gấu Trúc Đáng Yêu";
+      defaultZh = "熊猫";
+      defaultPinyin = "xióngmāo";
+    }
+
+    // Đảm bảo danh mục tồn tại trong danh sách
+    const availableCategories = getProductCategories();
+    const hasCat = availableCategories.some((c) => c.name.toLowerCase() === defaultCat.toLowerCase());
+    if (!hasCat && availableCategories.length > 0) {
+      defaultCat = availableCategories[0].name;
+    }
+
+    setProductForm({
+      nameEn: defaultEn,
+      nameVi: defaultVi,
+      nameZh: defaultZh,
+      ipa: `/${cleanSlug}/`,
+      pinyinZh: defaultPinyin,
+      category: defaultCat,
+      price: 219000,
+      originalPrice: 299000,
+      badge: "Mới ra mắt",
+      description: `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${defaultVi} (${defaultEn}).`,
+      useCompositeCardImage: true,
+    });
+
+    setCategoriesList(availableCategories);
+    setIsPublishModalOpen(true);
+  };
+
+  // Lưu sản phẩm ra #products trang chủ
+  const handleSaveProductToLanding = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!productForm.nameEn.trim() || !productForm.nameVi.trim()) {
+      alert("Vui lòng nhập tên tiếng Anh và tên tiếng Việt cho thẻ bài.");
+      return;
+    }
+    if (!productForm.category.trim()) {
+      alert("Vui lòng chọn danh mục cho thẻ bài.");
+      return;
+    }
+
+    try {
+      setIsPublishingProduct(true);
+
+      // 1. Chuẩn bị ảnh: Dùng canvas thành phẩm (đã ghép QR) hoặc ảnh mẫu gốc
+      let imageToSave = cardImageSrc;
+      if (productForm.useCompositeCardImage) {
+        try {
+          const canvas = await generateCompositeCanvas();
+          imageToSave = canvas.toDataURL("image/png", 0.92);
+        } catch (err) {
+          console.warn("Không thể chụp canvas thẻ, dùng ảnh mẫu gốc:", err);
+        }
+      }
+
+      // 2. Lưu vào local store hệ thống
+      const saved = saveProductToLanding({
+        slug,
+        nameEn: productForm.nameEn,
+        nameVi: productForm.nameVi,
+        nameZh: productForm.nameZh,
+        ipa: productForm.ipa,
+        pinyinZh: productForm.pinyinZh,
+        category: productForm.category,
+        price: productForm.price,
+        originalPrice: productForm.originalPrice,
+        badge: productForm.badge,
+        description: productForm.description,
+        images: [imageToSave],
+        posterUrl: imageToSave,
+      });
+
+      // 3. Gửi đồng bộ lên API endpoint (nếu có server hỗ trợ)
+      try {
+        await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(saved),
+        });
+      } catch {}
+
+      setIsPublishModalOpen(false);
+      setPublishedSuccessInfo({
+        productName: `${saved.nameVi} (${saved.nameEn})`,
+        categoryName: saved.category || "Chung",
+        slug: saved.slug,
+      });
+
+      setExportSuccessMsg(`Đã cập nhật thẻ "${saved.nameEn}" vào #products trang chủ thành công!`);
+      setTimeout(() => setExportSuccessMsg(null), 4000);
+    } catch (err: any) {
+      alert(`Lỗi xuất bản sản phẩm: ${err.message}`);
+    } finally {
+      setIsPublishingProduct(false);
+    }
+  };
+
+  // Thêm mới danh mục
+  const handleAddCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryForm.name.trim()) return;
+    try {
+      const newCat = addProductCategory({
+        name: categoryForm.name,
+        description: categoryForm.description,
+        iconName: categoryForm.iconName,
+      });
+      setCategoryForm({ name: "", description: "", iconName: "Layers" });
+      setCategoriesList(getProductCategories());
+      setProductForm((prev) => ({ ...prev, category: newCat.name }));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Cập nhật danh mục
+  const handleUpdateCategory = (id: string, name: string) => {
+    if (!name.trim()) return;
+    try {
+      updateProductCategory(id, { name });
+      setEditingCategoryId(null);
+      setEditingCategoryName("");
+      setCategoriesList(getProductCategories());
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Xóa danh mục
+  const handleDeleteCategory = (id: string, name: string) => {
+    if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${name}"?`)) {
+      deleteProductCategory(id);
+      setCategoriesList(getProductCategories());
+    }
+  };
+
   // Xử lý đăng nhập bảo mật
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -986,6 +1228,16 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/#products"
+            target="_blank"
+            className="flex items-center gap-1 text-xs font-bold text-emerald-300 hover:text-white px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 transition-all hover:bg-emerald-500/25"
+            title="Mở xem trang sản phẩm #products"
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            <span>Xem #products</span>
+          </Link>
+
           <Link
             href="/ar/cat?ar=1"
             target="_blank"
@@ -1461,6 +1713,32 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
               </button>
             </div>
           </div>
+
+          {/* KHỐI 5: LƯU / CẬP NHẬT THẺ VÀO #products TRANG CHỦ */}
+          <div className="rounded-2xl bg-gradient-to-b from-emerald-500/20 via-black/60 to-black/80 border-2 border-emerald-400/70 p-4 space-y-3.5 shadow-2xl shadow-emerald-500/15">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                <ShoppingBag className="h-4 w-4 text-emerald-400" />
+                <span>5. Đưa Thẻ Ra #products Trang Chủ</span>
+              </label>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                Xuất Bản Landing
+              </span>
+            </div>
+
+            <p className="text-[11px] text-stone-300 leading-relaxed">
+              Cập nhật thẻ bài vừa tạo vào danh mục sản phẩm trên trang chủ (có hoặc không có mã QR), bắt buộc chọn danh mục và quản lý giá bán để khách hàng xem được ngay tại <strong className="text-amber-300">#products</strong>.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleOpenPublishModal}
+              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:to-teal-300 text-stone-950 font-black text-xs sm:text-sm active:scale-98 transition-all shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2"
+            >
+              <Layers className="h-4 w-4 text-stone-950" />
+              <span>Cập Nhật / Đưa Thẻ Vào #products</span>
+            </button>
+          </div>
         </div>
       ) : (
             /* PHÂN HỆ QUẢN LÝ HÓA ĐƠN & ĐƠN HÀNG BỘ THẺ */
@@ -1932,6 +2210,483 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
           </div>
         </div>
       </main>
+
+      {/* ========================================================
+          MODAL 1: CẬP NHẬT SẢN PHẨM RA LANDING PAGE (#products)
+         ======================================================== */}
+      {isPublishModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto animate-in fade-in">
+          <div className="max-w-xl w-full bg-stone-900 border-2 border-amber-400/60 rounded-3xl p-5 sm:p-6 text-white shadow-2xl space-y-4 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black shadow-md">
+                  <ShoppingBag className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-amber-300">
+                    Cập Nhật Thẻ Vào #products Trang Chủ
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    Bắt buộc chọn danh mục để thẻ bài hiển thị đúng vị trí
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPublishModalOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProductToLanding} className="space-y-4">
+              {/* 1. BẮT BUỘC CHỌN DANH MỤC */}
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border-2 border-amber-400/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <Tag className="h-4 w-4 text-amber-400" />
+                    <span>Danh Mục Sản Phẩm (Bắt buộc) *</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 transition-colors"
+                  >
+                    <Sliders className="h-3 w-3" />
+                    <span>Quản Lý Danh Mục (Thêm/Sửa/Xóa)</span>
+                  </button>
+                </div>
+
+                <select
+                  required
+                  value={productForm.category}
+                  onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                  className="w-full bg-black/80 border border-amber-400/60 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-bold text-amber-300 focus:outline-hidden focus:border-amber-300 cursor-pointer"
+                >
+                  {categoriesList.map((cat) => (
+                    <option key={cat.id} value={cat.name} className="bg-stone-900 text-white">
+                      Danh mục: {cat.name} ({cat.slug})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-stone-400">
+                  Thẻ bài sẽ được đưa vào Tab danh mục này trên giao diện trang chủ <code className="text-amber-300">#products</code>.
+                </p>
+              </div>
+
+              {/* 2. THÔNG TIN ĐA NGỮ (EN - VI - ZH) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Tên tiếng Anh (EN) *:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Jump, Lion, Cat..."
+                    value={productForm.nameEn}
+                    onChange={(e) => setProductForm({ ...productForm, nameEn: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Tên tiếng Việt (VI) *:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Nhảy, Sư Tử, Con Mèo..."
+                    value={productForm.nameVi}
+                    onChange={(e) => setProductForm({ ...productForm, nameVi: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Tên tiếng Trung (ZH) - Tùy chọn:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: 跳, 狮子, 小猫..."
+                    value={productForm.nameZh}
+                    onChange={(e) => setProductForm({ ...productForm, nameZh: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Phiên âm IPA - Tùy chọn:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: /dʒʌmp/, /ˈlaɪ.ən/..."
+                    value={productForm.ipa}
+                    onChange={(e) => setProductForm({ ...productForm, ipa: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              {/* 3. GIÁ TIỀN & HUY HIỆU */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Giá bán ưu đãi (VNĐ) *:
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="1000"
+                    min="0"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-hidden focus:border-amber-400"
+                  />
+                  <span className="text-[10px] text-stone-400 mt-0.5 block">
+                    Định dạng: {formatVndCurrency(productForm.price)}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Giá gốc niêm yết (Gạch ngang):
+                  </label>
+                  <input
+                    type="number"
+                    step="1000"
+                    min="0"
+                    value={productForm.originalPrice}
+                    onChange={(e) => setProductForm({ ...productForm, originalPrice: Number(e.target.value) })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-400 line-through focus:outline-hidden focus:border-amber-400 font-mono"
+                  />
+                  <span className="text-[10px] text-stone-400 mt-0.5 block">
+                    Định dạng: {formatVndCurrency(productForm.originalPrice)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Huy hiệu nổi bật (Badge):
+                  </label>
+                  <select
+                    value={productForm.badge}
+                    onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                  >
+                    <option value="Mới ra mắt">Mới ra mắt</option>
+                    <option value="Bán chạy">Bán chạy</option>
+                    <option value="Yêu thích nhất">Yêu thích nhất</option>
+                    <option value="Hot">Hot</option>
+                    <option value="Thân thiện">Thân thiện</option>
+                    <option value="Combo tiết kiệm">Combo tiết kiệm</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Slug AR (Trang mở 3D):
+                  </label>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              {/* 4. MÔ TẢ & CHỌN HÌNH ẢNH */}
+              <div>
+                <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                  Mô tả thẻ học:
+                </label>
+                <textarea
+                  rows={2}
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-200 placeholder-stone-500 focus:outline-hidden focus:border-amber-400 resize-none"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+                  <input
+                    type="checkbox"
+                    checked={productForm.useCompositeCardImage}
+                    onChange={(e) => setProductForm({ ...productForm, useCompositeCardImage: e.target.checked })}
+                    className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+                  />
+                  <span>Sử dụng ảnh thẻ thành phẩm từ Canvas (Đã gắn QR chuẩn in)</span>
+                </label>
+                <p className="text-[10px] text-stone-400 pl-6">
+                  Nếu bỏ tích, hệ thống sẽ sử dụng ảnh thẻ mẫu gốc (chưa ghép QR).
+                </p>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsPublishModalOpen(false)}
+                  className="py-2.5 px-4 rounded-xl hover:bg-white/10 text-stone-400 hover:text-white font-bold text-xs transition-colors"
+                >
+                  Hủy Bỏ
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isPublishingProduct}
+                  className="py-3 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2"
+                >
+                  <Check className="h-4 w-4 text-stone-950" />
+                  <span>
+                    {isPublishingProduct ? "Đang Xuất Bản..." : "Xác Nhận Lưu Vào #products"}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 2: QUẢN LÝ DANH MỤC (THÊM / SỬA / XÓA / TÌM KIẾM)
+         ======================================================== */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-lg overflow-y-auto animate-in fade-in">
+          <div className="max-w-lg w-full bg-stone-900 border-2 border-amber-500/50 rounded-3xl p-5 sm:p-6 text-white shadow-2xl space-y-4 my-8 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
+                  <Tag className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-amber-300">
+                    Quản Lý Danh Mục Thẻ Bài
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    Thêm, sửa, xóa và tìm kiếm danh mục sản phẩm
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* FORM THÊM DANH MỤC MỚI */}
+            <form onSubmit={handleAddCategory} className="p-3.5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
+              <div className="text-xs font-black uppercase text-amber-300 flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                <span>Thêm Danh Mục Mới</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Tên danh mục (Khủng Long, Côn Trùng...)"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <select
+                    value={categoryForm.iconName}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, iconName: e.target.value })}
+                    className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-amber-300 focus:outline-hidden focus:border-amber-400"
+                  >
+                    <option value="Layers">Icon: Chung</option>
+                    <option value="PawPrint">Icon: Động Vật</option>
+                    <option value="Activity">Icon: Vận Động</option>
+                    <option value="Car">Icon: Xe Cộ</option>
+                    <option value="Apple">Icon: Hoa Quả</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs transition-all shadow flex items-center justify-center gap-1.5 active:scale-98"
+              >
+                <Plus className="h-3.5 w-3.5 text-stone-950" />
+                <span>Thêm Danh Mục Ngay</span>
+              </button>
+            </form>
+
+            {/* TÌM KIẾM DANH MỤC */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+              <input
+                type="text"
+                placeholder="Tìm danh mục..."
+                value={categorySearchQuery}
+                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+              />
+            </div>
+
+            {/* DANH SÁCH DANH MỤC HIỆN TẠI */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[280px]">
+              {categoriesList
+                .filter((c) =>
+                  categorySearchQuery.trim()
+                    ? c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+                    : true
+                )
+                .map((cat) => (
+                  <div
+                    key={cat.id}
+                    className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between gap-2 text-xs"
+                  >
+                    {editingCategoryId === cat.id ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          type="text"
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          className="flex-1 bg-black border border-amber-400 rounded-lg px-2 py-1 text-xs text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateCategory(cat.id, editingCategoryName)}
+                          className="px-2 py-1 rounded-lg bg-emerald-500 text-stone-950 font-black text-[10px]"
+                        >
+                          Lưu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategoryId(null)}
+                          className="px-2 py-1 rounded-lg bg-white/10 text-stone-400 hover:text-white text-[10px]"
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-6 w-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+                            {cat.name.charAt(0)}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="font-bold text-stone-200 block truncate">
+                              {cat.name}
+                            </span>
+                            <span className="text-[10px] text-stone-500 font-mono">
+                              slug: {cat.slug}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCategoryId(cat.id);
+                              setEditingCategoryName(cat.name);
+                            }}
+                            className="p-1 rounded-lg hover:bg-white/10 text-stone-400 hover:text-amber-300 transition-colors"
+                            title="Chỉnh sửa danh mục"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                            className="p-1 rounded-lg hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 transition-colors"
+                            title="Xóa danh mục"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            <div className="pt-2 border-t border-white/10 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="py-2 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors"
+              >
+                Hoàn Tất & Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          POPUP THÔNG BÁO XUẤT BẢN THÀNH CÔNG VÀ LINK MỞ #products
+         ======================================================== */}
+      {publishedSuccessInfo && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-gradient-to-r from-emerald-600 to-teal-600 rounded-3xl p-4 text-white shadow-2xl border-2 border-emerald-300 animate-in slide-in-from-bottom-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-200 shrink-0" />
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-100">
+                  Đã Đưa Thẻ Ra Trang Chủ!
+                </h4>
+                <p className="text-xs text-white font-bold mt-0.5">
+                  {publishedSuccessInfo.productName}
+                </p>
+                <span className="text-[10px] text-emerald-200 block">
+                  Danh mục: {publishedSuccessInfo.categoryName}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPublishedSuccessInfo(null)}
+              className="text-emerald-200 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <Link
+              href="/#products"
+              target="_blank"
+              onClick={() => setPublishedSuccessInfo(null)}
+              className="flex-1 py-2 px-3 rounded-xl bg-white text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md hover:bg-emerald-50 active:scale-95 transition-all"
+            >
+              <span>Xem Tại #products Trang Chủ</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setPublishedSuccessInfo(null)}
+              className="py-2 px-2.5 rounded-xl bg-black/20 hover:bg-black/30 text-white text-xs font-bold transition-colors"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

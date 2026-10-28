@@ -104,23 +104,28 @@ export function ProductCard({ animal }: ProductCardProps) {
 
         {/* Top Badges */}
         <div className="relative z-10 flex items-center justify-between gap-2 pb-3">
-          {animal.arEnabled ? (
-            <Badge
-              variant="secondary"
-              icon="sparkles"
-              className="border-emerald-300 bg-emerald-50 text-emerald-800 font-bold"
-            >
-              AR Live 3D
-            </Badge>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {animal.category && (
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-950 border border-amber-400/50 shadow-2xs">
+                {animal.category}
+              </span>
+            )}
+            {animal.arEnabled && (
+              <Badge
+                variant="secondary"
+                icon="sparkles"
+                className="border-emerald-300 bg-emerald-50 text-emerald-800 font-bold text-[10px]"
+              >
+                AR Live 3D
+              </Badge>
+            )}
+          </div>
 
           {animal.badge && (
             <Badge
               variant="primary"
               icon="flame"
-              className="border-amber-300 bg-amber-100 text-amber-900 font-bold"
+              className="border-amber-300 bg-amber-100 text-amber-900 font-bold text-[10px]"
             >
               {animal.badge}
             </Badge>
@@ -238,12 +243,26 @@ export function ProductCard({ animal }: ProductCardProps) {
             </div>
           </div>
 
-          {/* Price Tag */}
+          {/* Price Tag with Original Price and Discount */}
           <div className="mt-3 pt-3 border-t border-amber-100 flex items-center justify-between">
-            <span className="text-xs font-medium text-stone-500">Giá ưu đãi:</span>
-            <span className="text-xl font-extrabold text-amber-950">
-              {formatVndCurrency(animal.price)}
-            </span>
+            <div>
+              <span className="text-[11px] font-medium text-stone-500 block">Giá ưu đãi:</span>
+              {animal.originalPrice && animal.originalPrice > animal.price ? (
+                <span className="text-xs text-stone-400 line-through font-mono">
+                  {formatVndCurrency(animal.originalPrice)}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl font-black text-amber-950">
+                {formatVndCurrency(animal.price)}
+              </span>
+              {animal.originalPrice && animal.originalPrice > animal.price ? (
+                <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200">
+                  -{Math.round(((animal.originalPrice - animal.price) / animal.originalPrice) * 100)}%
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 
