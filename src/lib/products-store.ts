@@ -202,7 +202,55 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
 }
 
 /**
- * Thêm hoặc Cập nhật Thẻ Sản Phẩm vào #products
+ * Dọn dẹp các ảnh Data URL Base64 khổng lồ trong localStorage để giải phóng bộ nhớ Quota (5MB limit)
+ */
+export function cleanStorageQuota(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(STORAGE_PRODUCTS_KEY);
+    if (!raw) return;
+    const list: Animal[] = JSON.parse(raw);
+    if (!Array.isArray(list)) return;
+
+    let modified = false;
+    const sanitized = list.map((item) => {
+      let changed = false;
+      let newImages = item.images;
+      let newPoster = item.posterUrl;
+
+      if (Array.isArray(newImages)) {
+        newImages = newImages.map((img) => {
+          if (typeof img === "string" && img.startsWith("data:image/") && img.length > 500) {
+            changed = true;
+            return `/images/cards/${item.slug}-card.jpg`;
+          }
+          return img;
+        });
+      }
+
+      if (typeof newPoster === "string" && newPoster.startsWith("data:image/") && newPoster.length > 500) {
+        changed = true;
+        newPoster = `/images/cards/${item.slug}-card.jpg`;
+      }
+
+      if (changed) {
+        modified = true;
+        return { ...item, images: newImages, posterUrl: newPoster };
+      }
+      return item;
+    });
+
+    if (modified) {
+      localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(sanitized));
+      console.log("Đã giải phóng dung lượng localStorage polycards_custom_products thành công.");
+    }
+  } catch (e) {
+    console.warn("Không thể dọn dẹp localStorage:", e);
+  }
+}
+
+/**
+ * Thêm hoặc Cập nhật Thẻ Sản Phẩm vào #products (Có cơ chế chống tràn Quota 5MB)
  */
 export function saveProductToLanding(productData: Partial<Animal> & {
   nameEn: string;
@@ -213,6 +261,9 @@ export function saveProductToLanding(productData: Partial<Animal> & {
   if (typeof window === "undefined") {
     throw new Error("Môi trường không hợp lệ.");
   }
+
+  // Tự động dọn dẹp rác base64 cũ nếu có
+  cleanStorageQuota();
 
   const raw = localStorage.getItem(STORAGE_PRODUCTS_KEY);
   let customList: Animal[] = [];
@@ -229,6 +280,17 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     (item) => item.id === productData.id || item.slug.toLowerCase() === cleanSlug
   );
 
+  // Bảo vệ dung lượng: Tuyệt đối không lưu chuỗi Base64 khổng lồ vào localStorage
+  let safeImages = productData.images && productData.images.length > 0 ? productData.images : ["/images/cards/jump-template.jpg"];
+  let safePoster = productData.posterUrl || safeImages[0] || "/images/cards/jump-template.jpg";
+
+  if (typeof safeImages[0] === "string" && safeImages[0].startsWith("data:image/") && safeImages[0].length > 500) {
+    safeImages = [`/images/cards/${cleanSlug}-card.jpg`];
+  }
+  if (typeof safePoster === "string" && safePoster.startsWith("data:image/") && safePoster.length > 500) {
+    safePoster = `/images/cards/${cleanSlug}-card.jpg`;
+  }
+
   const finalProduct: Animal = {
     id: productData.id || `card-${Date.now()}`,
     slug: cleanSlug,
@@ -243,7 +305,7 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     originalPrice: Number(productData.originalPrice) || Math.round((Number(productData.price) || 219000) * 1.3),
     category: productData.category.trim(),
     categorySlug,
-    images: productData.images && productData.images.length > 0 ? productData.images : ["/images/cards/jump-template.jpg"],
+    images: safeImages,
     audioUrl: productData.audioUrl || `/audio/${cleanSlug}.mp3`,
     audios: productData.audios || {
       en: `/audio/en/${cleanSlug}.mp3`,
@@ -252,7 +314,7 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     },
     modelUrl: productData.modelUrl || `/models/${cleanSlug}.glb`,
     iosModelUrl: productData.iosModelUrl || `/models/${cleanSlug}.usdz`,
-    posterUrl: productData.posterUrl || productData.images?.[0] || "/images/cards/jump-template.jpg",
+    posterUrl: safePoster,
     animations: productData.animations || ["Idle"],
     arEnabled: productData.arEnabled !== undefined ? productData.arEnabled : true,
     buyUrl: productData.buyUrl || `/order?animal=${cleanSlug}`,
@@ -267,11 +329,31 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     customList.unshift(finalProduct);
   }
 
-  localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(customList));
-  window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: finalProduct }));
+  // Ghi an toàn vào localStorage với cơ chế tự phục hồi nếu quota đầy
+  try {
+    localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(customList));
+  } catch (quotaErr) {
+    console.warn("localStorage quota bị đầy, tiến hành dọn dẹp và giới hạn danh sách:", quotaErr);
+    try {
+      const reducedList = customList.slice(0, 5).map((item) => ({
+        ...item,
+        images: Array.isArray(item.images)
+          ? item.images.map((img) => (typeof img === "string" && img.length > 200 ? `/images/cards/${item.slug}-card.jpg` : img))
+          : ["/images/cards/jump-template.jpg"],
+        posterUrl: typeof item.posterUrl === "string" && item.posterUrl.length > 200
+          ? `/images/cards/${item.slug}-card.jpg`
+          : item.posterUrl,
+      }));
+      localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(reducedList));
+    } catch (fallbackErr) {
+      console.error("Không thể ghi localStorage sau fallback:", fallbackErr);
+    }
+  }
 
+  window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: finalProduct }));
   return finalProduct;
 }
+
 
 /**
  * Xóa một sản phẩm do người dùng thêm

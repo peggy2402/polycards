@@ -95,6 +95,28 @@ export async function POST(request: NextRequest) {
     const defaultModelGlb = hasGlb ? `/models/${cleanSlug}.glb` : "/models/lion.glb";
     const defaultModelUsdz = hasUsdz ? `/models/${cleanSlug}.usdz` : "/models/lion.usdz";
 
+    // Xử lý ảnh: Nếu là chuỗi Base64 (từ canvas hoặc upload), lưu thành file tĩnh trong public/images/cards
+    let finalImageUrl = body.posterUrl || (Array.isArray(body.images) && body.images.length > 0 ? body.images[0] : "");
+    if (finalImageUrl && finalImageUrl.startsWith("data:image/")) {
+      try {
+        const match = finalImageUrl.match(/^data:image\/(\w+);base64,/);
+        const ext = match ? (match[1] === "jpeg" ? "jpg" : match[1]) : "jpg";
+        const fileName = `${cleanSlug}-card.${ext}`;
+        const cardsDir = path.join(process.cwd(), "public", "images", "cards");
+        await fs.mkdir(cardsDir, { recursive: true });
+        const base64Data = finalImageUrl.replace(/^data:image\/\w+;base64,/, "");
+        await fs.writeFile(path.join(cardsDir, fileName), Buffer.from(base64Data, "base64"));
+        finalImageUrl = `/images/cards/${fileName}`;
+      } catch (imgErr) {
+        console.warn("Lỗi lưu file ảnh card ra ổ đĩa, fallback ảnh mẫu:", imgErr);
+        finalImageUrl = "/images/cards/jump-template.jpg";
+      }
+    }
+
+    const defaultImages = finalImageUrl
+      ? [finalImageUrl]
+      : (existingIndex >= 0 ? currentList[existingIndex].images : ["/images/cards/jump-template.jpg"]);
+
     const updatedItem: Animal = {
       id: body.id || (existingIndex >= 0 ? currentList[existingIndex].id : `${cleanSlug}-00${currentList.length + 1}`),
       slug: cleanSlug,
@@ -112,10 +134,8 @@ export async function POST(request: NextRequest) {
       price: Number(body.price) || (existingIndex >= 0 ? currentList[existingIndex].price : 219000),
       originalPrice: Number(body.originalPrice) || (existingIndex >= 0 ? currentList[existingIndex].originalPrice : 299000),
       description: body.description || (existingIndex >= 0 ? currentList[existingIndex].description : `Thẻ học thông minh AR Poly Cards: ${body.nameVi} (${body.nameEn}).`),
-      images: Array.isArray(body.images) && body.images.length > 0
-        ? body.images
-        : (existingIndex >= 0 ? currentList[existingIndex].images : [body.posterUrl || "/images/animals/lion.jpg"]),
-      posterUrl: body.posterUrl || (existingIndex >= 0 ? currentList[existingIndex].posterUrl : "/images/posters/lion-poster.jpg"),
+      images: defaultImages,
+      posterUrl: finalImageUrl || (existingIndex >= 0 ? currentList[existingIndex].posterUrl : "/images/cards/jump-template.jpg"),
       audioUrl: existingIndex >= 0 ? currentList[existingIndex].audioUrl : `/audio/${cleanSlug}.mp3`,
       audios: existingIndex >= 0 && currentList[existingIndex].audios ? currentList[existingIndex].audios : {
         en: `/audio/en/${cleanSlug}.mp3`,
@@ -129,6 +149,7 @@ export async function POST(request: NextRequest) {
       buyUrl: body.buyUrl || `/order?animal=${cleanSlug}`,
       updatedAt: new Date().toISOString(),
     };
+
 
     let newList: Animal[];
     if (existingIndex >= 0) {

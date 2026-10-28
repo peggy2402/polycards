@@ -1,5 +1,37 @@
 [
   {
+    "id": "ORD-505718",
+    "code": "POLY30-HANHDONG-8537",
+    "customerType": "TRUCTIEP",
+    "customerName": "Bộ Thẻ POLY30-HANHDONG (In Xưởng)",
+    "customerPhone": "",
+    "customerAddress": "",
+    "packId": "cat-animals",
+    "packCode": "POLY30-HANHDONG",
+    "packTitle": "Bộ 30 Thẻ AR POLY30-HANHDONG",
+    "allowedCategorySlug": "hanhdong",
+    "items": [
+      {
+        "id": "cat-animals",
+        "name": "Bộ 30 Thẻ AR POLY30-HANHDONG",
+        "packCode": "POLY30-HANHDONG",
+        "categorySlug": "hanhdong",
+        "quantity": 1,
+        "unitPrice": 249000,
+        "totalPrice": 249000
+      }
+    ],
+    "creditAmount": 249000,
+    "debitAmount": 249000,
+    "remainingAmount": 0,
+    "paymentMethod": "TIEN_MAT",
+    "totalPrice": 249000,
+    "status": "PAID",
+    "createdAt": "11:41:45 28/10/2026",
+    "note": "Mã bản quyền sinh tự động trong Studio Chế Bản Thẻ & QR",
+    "directUrl": "https://polycards-one.vercel.app/ar/jump?ar=1&code=POLY30-HANHDONG-8537"
+  },
+  {
     "id": "ORD-313479",
     "code": "POLY30-DONGVAT-1155",
     "customerType": "TRUCTIEP",

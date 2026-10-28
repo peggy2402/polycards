@@ -951,13 +951,50 @@ export default function ToolsPage() {
       if (productForm.useCompositeCardImage) {
         try {
           const canvas = await generateCompositeCanvas();
-          imageToSave = canvas.toDataURL("image/png", 0.92);
+          // Dùng định dạng jpeg 0.85 để tối ưu hóa truyền tải mạng và nhẹ hơn 80% so với png thô
+          imageToSave = canvas.toDataURL("image/jpeg", 0.85);
         } catch (err) {
           console.warn("Không thể chụp canvas thẻ, dùng ảnh mẫu gốc:", err);
         }
       }
 
-      // 2. Lưu vào local store hệ thống
+      // 2. Gửi đồng bộ lên API endpoint trước để Server lưu file vật lý vào public/images/cards/
+      let savedProductData: any = null;
+      try {
+        const apiRes = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug,
+            nameEn: productForm.nameEn,
+            nameVi: productForm.nameVi,
+            nameZh: productForm.nameZh,
+            ipa: productForm.ipa,
+            pinyinZh: productForm.pinyinZh,
+            category: productForm.category,
+            price: productForm.price,
+            originalPrice: productForm.originalPrice,
+            badge: productForm.badge,
+            description: productForm.description,
+            images: [imageToSave],
+            posterUrl: imageToSave,
+          }),
+        });
+        const apiJson = await apiRes.json();
+        if (apiJson.success && apiJson.data) {
+          savedProductData = apiJson.data;
+          console.log("Đã cập nhật file data/products.json & data/animals.json:", apiJson.data);
+        }
+      } catch (err) {
+        console.warn("Lỗi khi ghi data/products.json qua API:", err);
+      }
+
+      // 3. Lấy URL ảnh tĩnh sạch (VD: /images/cards/lion-card.jpg, chỉ ~30 bytes, KHÔNG lưu chuỗi base64 khổng lồ)
+      const cleanImageUrl =
+        savedProductData?.images?.[0] ||
+        (imageToSave.startsWith("data:") ? `/images/cards/${slug}-card.jpg` : imageToSave);
+
+      // 4. Lưu an toàn vào local store hệ thống với dung lượng tối ưu
       const saved = saveProductToLanding({
         slug,
         nameEn: productForm.nameEn,
@@ -970,24 +1007,9 @@ export default function ToolsPage() {
         originalPrice: productForm.originalPrice,
         badge: productForm.badge,
         description: productForm.description,
-        images: [imageToSave],
-        posterUrl: imageToSave,
+        images: [cleanImageUrl],
+        posterUrl: cleanImageUrl,
       });
-
-      // 3. Gửi đồng bộ lên API endpoint (ghi trực tiếp vào file data/products.json & data/animals.json trên server)
-      try {
-        const apiRes = await fetch("/api/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(saved),
-        });
-        const apiJson = await apiRes.json();
-        if (apiJson.success) {
-          console.log("Đã cập nhật file data/products.json & data/animals.json:", apiJson.data);
-        }
-      } catch (err) {
-        console.warn("Lỗi khi ghi data/products.json qua API:", err);
-      }
 
       setIsPublishModalOpen(false);
       setPublishedSuccessInfo({
@@ -996,13 +1018,15 @@ export default function ToolsPage() {
         slug: saved.slug,
       });
 
-      showToast(`Đã xuất bản thẻ "${saved.nameEn}" ra #products thành công!`, "success");
+      showToast(`Đã xuất bản thẻ "${saved.nameVi} (${saved.nameEn})" ra #products thành công!`, "success");
     } catch (err: any) {
+      console.error("Lỗi xuất bản sản phẩm:", err);
       showToast(`Lỗi xuất bản sản phẩm: ${err.message}`, "error");
     } finally {
       setIsPublishingProduct(false);
     }
   };
+
 
   // Thêm mới danh mục
   const handleAddCategory = async (e: React.FormEvent) => {

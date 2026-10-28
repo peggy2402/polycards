@@ -63,5 +63,16 @@
     ],
     "totalSpent": 747000,
     "createdAt": "11:04:58 28/10/2026"
+  },
+  {
+    "id": "CUST-5757",
+    "name": "Bộ Thẻ POLY30-HANHDONG (In Xưởng)",
+    "phone": "",
+    "type": "TRUCTIEP",
+    "orders": [
+      "ORD-505718"
+    ],
+    "totalSpent": 249000,
+    "createdAt": "11:41:45 28/10/2026"
   }
 ]
