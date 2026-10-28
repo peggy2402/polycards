@@ -166,11 +166,12 @@ export default function ToolsPage() {
 
   // 2. Chế độ tạo mã QR: "slug" (Theo thẻ WebAR) hoặc "custom" (Nhập link tùy ý)
   const [qrMode, setQrMode] = useState<"slug" | "custom">("slug");
-  const [slug, setSlug] = useState<string>("jump");
-  const [customUrl, setCustomUrl] = useState<string>("https://polycards-one.vercel.app/ar/jump?ar=1");
+  const [qrTargetEnv, setQrTargetEnv] = useState<"production" | "local">("production");
+  const [slug, setSlug] = useState<string>("lion");
+  const [customUrl, setCustomUrl] = useState<string>("https://polycards-one.vercel.app/ar/lion?ar=1");
   const [directAr, setDirectAr] = useState<boolean>(true);
   const [includeLicense, setIncludeLicense] = useState<boolean>(false);
-  const [licenseCode, setLicenseCode] = useState<string>("POLY-JUMP-2026");
+  const [licenseCode, setLicenseCode] = useState<string>("POLY-LION-2026");
 
   // 3. Tùy chỉnh màu sắc & Logo mã QR
   const [qrColor, setQrColor] = useState<string>("#0F172A");
@@ -515,8 +516,11 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
       return customUrl.trim() || "https://polycards-one.vercel.app";
     }
 
-    const cleanSlug = slug.trim().toLowerCase() || "jump";
-    let url = `https://polycards-one.vercel.app/ar/${cleanSlug}`;
+    const cleanSlug = slug.trim().toLowerCase() || "lion";
+    const baseUrl = qrTargetEnv === "local" && typeof window !== "undefined"
+      ? window.location.origin
+      : "https://polycards-one.vercel.app";
+    let url = `${baseUrl}/ar/${cleanSlug}`;
     const params = new URLSearchParams();
     if (directAr) {
       params.set("ar", "1");
@@ -526,7 +530,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
     }
     const queryString = params.toString();
     return queryString ? `${url}?${queryString}` : url;
-  }, [qrMode, customUrl, slug, directAr, includeLicense, licenseCode]);
+  }, [qrMode, qrTargetEnv, customUrl, slug, directAr, includeLicense, licenseCode]);
 
   const targetUrl = computedTargetUrl();
 
@@ -1042,14 +1046,20 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         posterUrl: imageToSave,
       });
 
-      // 3. Gửi đồng bộ lên API endpoint (nếu có server hỗ trợ)
+      // 3. Gửi đồng bộ lên API endpoint (ghi trực tiếp vào file data/animals.json trên server)
       try {
-        await fetch("/api/products", {
+        const apiRes = await fetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(saved),
         });
-      } catch {}
+        const apiJson = await apiRes.json();
+        if (apiJson.success) {
+          console.log("Đã cập nhật file data/animals.json:", apiJson.data);
+        }
+      } catch (err) {
+        console.warn("Lỗi khi ghi data/animals.json qua API:", err);
+      }
 
       setIsPublishModalOpen(false);
       setPublishedSuccessInfo({
@@ -1058,7 +1068,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         slug: saved.slug,
       });
 
-      setExportSuccessMsg(`Đã cập nhật thẻ "${saved.nameEn}" vào #products trang chủ thành công!`);
+      setExportSuccessMsg(`Đã cập nhật thẻ "${saved.nameEn}" vào #products & đồng bộ data/animals.json thành công!`);
       setTimeout(() => setExportSuccessMsg(null), 4000);
     } catch (err: any) {
       alert(`Lỗi xuất bản sản phẩm: ${err.message}`);
@@ -1365,6 +1375,37 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
             {/* Form nhập liệu tương ứng */}
             {qrMode === "slug" ? (
               <div className="space-y-3">
+                {/* Chọn môi trường đích (Online Vercel vs Localhost) */}
+                <div className="flex items-center justify-between text-xs font-bold text-stone-300 pb-1">
+                  <span>Máy chủ đích QR:</span>
+                  <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setQrTargetEnv("production")}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                        qrTargetEnv === "production"
+                          ? "bg-amber-500 text-stone-950 shadow"
+                          : "text-stone-400 hover:text-white"
+                      }`}
+                      title="Quét bằng camera điện thoại ngoài đời (trang web Vercel đã deploy)"
+                    >
+                      Online Vercel (Chuẩn in)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrTargetEnv("local")}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                        qrTargetEnv === "local"
+                          ? "bg-emerald-500 text-stone-950 shadow"
+                          : "text-stone-400 hover:text-white"
+                      }`}
+                      title="Quét test trực tiếp trên máy tính localhost:3000"
+                    >
+                      Localhost
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-stone-300 mb-1">
                     Slug Tên Thẻ / Hành Động / Con Vật:
@@ -1373,12 +1414,38 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
                     type="text"
                     value={slug}
                     onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-                    placeholder="Ví dụ: jump, lion, run, apple..."
+                    placeholder="Ví dụ: lion, cat, jump, apple..."
                     className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
                   />
-                  <p className="text-[10px] text-stone-400 mt-1">
-                    Áp dụng cho bộ 30 thẻ: mỗi thẻ 1 slug riêng biệt.
-                  </p>
+                  
+                  {/* Preset Buttons nhanh */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[10px] text-stone-400">Chọn nhanh:</span>
+                    {[
+                      { slugKey: "lion", label: "Sư Tử" },
+                      { slugKey: "cat", label: "Con Mèo" },
+                      { slugKey: "dog", label: "Con Chó" },
+                      { slugKey: "deer", label: "Hươu" },
+                      { slugKey: "elephant", label: "Voi" },
+                      { slugKey: "panda", label: "Gấu Trúc" },
+                      { slugKey: "jump", label: "Nhảy" },
+                    ].map((item) => (
+                      <button
+                        key={item.slugKey}
+                        type="button"
+                        onClick={() => {
+                          setSlug(item.slugKey);
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
+                          slug === item.slugKey
+                            ? "bg-amber-400 text-stone-950 border-amber-300"
+                            : "bg-white/5 text-stone-300 border-white/10 hover:bg-white/20"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Các tùy chọn kích hoạt AR */}
@@ -2714,14 +2781,23 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
             </button>
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link
+              href={`/ar/${publishedSuccessInfo.slug}?ar=1`}
+              target="_blank"
+              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all"
+            >
+              <span>Xem Thử AR Web</span>
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+
             <Link
               href="/#products"
               target="_blank"
               onClick={() => setPublishedSuccessInfo(null)}
-              className="flex-1 py-2 px-3 rounded-xl bg-white text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md hover:bg-emerald-50 active:scale-95 transition-all"
+              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-white text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md hover:bg-emerald-50 active:scale-95 transition-all"
             >
-              <span>Xem Tại #products Trang Chủ</span>
+              <span>Xem Tại #products</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
 

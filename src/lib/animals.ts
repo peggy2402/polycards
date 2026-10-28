@@ -1,22 +1,40 @@
 import animalsData from "../../data/animals.json";
 import { Animal } from "@/types/animal";
 
-const animals: Animal[] = animalsData as Animal[];
+/**
+ * Đọc danh sách con vật mới nhất từ filesystem (nếu ở server) hoặc từ JSON import tĩnh
+ */
+function getLiveAnimals(): Animal[] {
+  if (typeof window === "undefined") {
+    try {
+      const fs = eval("require")("fs");
+      const path = eval("require")("path");
+      const filePath = path.join(process.cwd(), "data", "animals.json");
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, "utf8");
+        return JSON.parse(content) as Animal[];
+      }
+    } catch {
+      // fallback sang static import
+    }
+  }
+  return animalsData as Animal[];
+}
 
 /**
  * Lấy toàn bộ danh sách con vật
  */
 export function getAllAnimals(): Animal[] {
-  return animals;
+  return getLiveAnimals();
 }
 
 /**
- * Lấy con vật theo slug (ví dụ: 'deer', 'cat')
+ * Lấy con vật theo slug (ví dụ: 'deer', 'cat', 'lion', 'jump')
  */
 export function getAnimalBySlug(slug: string): Animal | undefined {
   if (!slug) return undefined;
   const cleanSlug = slug.toLowerCase().trim();
-  return animals.find((animal) => animal.slug.toLowerCase() === cleanSlug);
+  return getLiveAnimals().find((animal) => animal.slug.toLowerCase() === cleanSlug);
 }
 
 /**
@@ -25,12 +43,13 @@ export function getAnimalBySlug(slug: string): Animal | undefined {
 export function getAnimalByQrCode(qrCode: string): Animal | undefined {
   if (!qrCode) return undefined;
   const cleanCode = qrCode.toUpperCase().trim();
-  return animals.find((animal) => animal.qrCode.toUpperCase() === cleanCode);
+  return getLiveAnimals().find((animal) => animal.qrCode.toUpperCase() === cleanCode);
 }
 
 /**
  * Lấy danh sách slug phục vụ generateStaticParams
  */
 export function getAnimalSlugs(): string[] {
-  return animals.map((animal) => animal.slug);
+  return getLiveAnimals().map((animal) => animal.slug);
 }
+

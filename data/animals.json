@@ -22,7 +22,10 @@
     "modelUrl": "/models/deer.glb",
     "iosModelUrl": "/models/deer.usdz",
     "posterUrl": "/images/posters/deer-poster.jpg",
-    "animations": ["Idle", "Walk"],
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
     "arEnabled": true,
     "buyUrl": "/order?animal=deer",
     "badge": "Yêu thích nhất"
@@ -50,7 +53,10 @@
     "modelUrl": "/models/cat.glb",
     "iosModelUrl": "/models/cat.usdz",
     "posterUrl": "/images/posters/cat-poster.jpg",
-    "animations": ["Walk", "Idle"],
+    "animations": [
+      "Walk",
+      "Idle"
+    ],
     "arEnabled": true,
     "buyUrl": "/order?animal=cat",
     "badge": "Thân thiện"
@@ -78,7 +84,10 @@
     "modelUrl": "/models/dog.glb",
     "iosModelUrl": "/models/dog.usdz",
     "posterUrl": "/images/posters/dog-poster.jpg",
-    "animations": ["Idle", "Run"],
+    "animations": [
+      "Idle",
+      "Run"
+    ],
     "arEnabled": true,
     "buyUrl": "/order?animal=dog",
     "badge": "Bán chạy"
@@ -134,7 +143,11 @@
     "modelUrl": "/models/lion.glb",
     "iosModelUrl": "/models/lion.usdz",
     "posterUrl": "/images/posters/lion-poster.jpg",
-    "animations": ["Object_0", "Roar", "Idle"],
+    "animations": [
+      "Object_0",
+      "Roar",
+      "Idle"
+    ],
     "arEnabled": true,
     "buyUrl": "/order?animal=lion",
     "badge": "Dũng mãnh"
@@ -162,9 +175,47 @@
     "modelUrl": "/models/panda.glb",
     "iosModelUrl": "/models/panda.usdz",
     "posterUrl": "/images/posters/panda-poster.jpg",
-    "animations": ["Idle"],
+    "animations": [
+      "Idle"
+    ],
     "arEnabled": true,
     "buyUrl": "/order?animal=panda",
-    "badge": "Dễ thương"
+    "badge": "Dễ thương",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat"
+  },
+  {
+    "id": "jump-007",
+    "slug": "jump",
+    "qrCode": "AR-JUMP-007",
+    "nameEn": "Jump",
+    "nameVi": "Nhảy vui nhộn",
+    "nameZh": "跳",
+    "ipa": "/dʒʌmp/",
+    "pinyinZh": "tiào",
+    "description": "Thẻ học thông minh AR Poly Cards: Bé tập nhảy và vận động vui tươi phát triển thể chất.",
+    "price": 219000,
+    "originalPrice": 299000,
+    "images": [
+      "/images/animals/lion.jpg"
+    ],
+    "audioUrl": "/audio/en/jump.mp3",
+    "audios": {
+      "en": "/audio/en/jump.mp3",
+      "vi": "/audio/vi/jump.mp3",
+      "zh": "/audio/zh/jump.mp3"
+    },
+    "modelUrl": "/models/lion.glb",
+    "iosModelUrl": "/models/lion.usdz",
+    "posterUrl": "/images/posters/lion-poster.jpg",
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=jump",
+    "badge": "Mới ra mắt",
+    "category": "Hành Động",
+    "categorySlug": "hanh-dong"
   }
 ]
