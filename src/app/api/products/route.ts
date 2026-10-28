@@ -197,3 +197,52 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const idOrSlug = searchParams.get("id") || searchParams.get("slug");
+
+    if (!idOrSlug) {
+      return NextResponse.json(
+        { success: false, message: "Cần cung cấp id hoặc slug để xóa thẻ bài." },
+        { status: 400 }
+      );
+    }
+
+    const currentList = await readProductsData();
+    const clean = idOrSlug.toLowerCase().trim();
+    const targetItem = currentList.find(
+      (a) => a.id === idOrSlug || a.slug.toLowerCase() === clean
+    );
+
+    if (!targetItem) {
+      return NextResponse.json(
+        { success: false, message: "Không tìm thấy thẻ bài để xóa." },
+        { status: 404 }
+      );
+    }
+
+    const filtered = currentList.filter(
+      (a) => a.id !== idOrSlug && a.slug.toLowerCase() !== clean
+    );
+
+    await fs.writeFile(PRODUCTS_FILE_PATH, JSON.stringify(filtered, null, 2), "utf8");
+    await fs.writeFile(ANIMALS_FILE_PATH, JSON.stringify(filtered, null, 2), "utf8");
+
+    return NextResponse.json({
+      success: true,
+      message: `Đã xóa thẻ bài "${targetItem.nameVi} (${targetItem.nameEn})" thành công khỏi hệ thống!`,
+      deletedItem: targetItem,
+      remainingCount: filtered.length,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export { POST as PUT };
+

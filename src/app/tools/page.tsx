@@ -49,17 +49,27 @@ import {
   ChevronUp,
   Receipt,
   ArrowUpRight,
+  ListPlus,
+  Archive,
+  FolderArchive,
+  Filter,
+  ArrowUpDown,
+  FileArchive,
 } from "lucide-react";
+import JSZip from "jszip";
 import {
   getProductCategories,
   addProductCategory,
   updateProductCategory,
   deleteProductCategory,
   saveProductToLanding,
+  deleteCustomProduct,
+  getMergedProducts,
   slugify,
   CATEGORIES_UPDATED_EVENT,
+  PRODUCTS_UPDATED_EVENT,
 } from "@/lib/products-store";
-import { ProductCategory } from "@/types/animal";
+import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 
 export interface CardPreset {
@@ -358,6 +368,99 @@ export default function ToolsPage() {
       window.removeEventListener(CATEGORIES_UPDATED_EVENT, loadCategories);
     };
   }, []);
+
+  // 13. Tabs phân hệ Studio: "editor" (Chế Bản & In Ấn) | "products" (Kho Thẻ CRUD) | "categories" (Danh Mục CRUD)
+  const [activeStudioTab, setActiveStudioTab] = useState<"editor" | "products" | "categories">("editor");
+
+  // 14. Hàng Đợi Xuất File In Ấn (Print Queue) & Đóng gói ZIP
+  interface PrintQueueItem {
+    id: string;
+    orderNumber: number; // 1, 2, 3...
+    name: string;
+    slug: string;
+    category: string;
+    previewUrl: string;
+    blob: Blob;
+    addedAt: string;
+  }
+  const [printQueue, setPrintQueue] = useState<PrintQueueItem[]>([]);
+  const [zipFileName, setZipFileName] = useState<string>("bo-the-polycards-in-an");
+  const [isAddingToQueue, setIsAddingToQueue] = useState<boolean>(false);
+  const [isGeneratingZip, setIsGeneratingZip] = useState<boolean>(false);
+  const [isQueueExpanded, setIsQueueExpanded] = useState<boolean>(true);
+
+  // 15. Quản lý Thẻ Bài Sản Phẩm (CRUD Products Studio)
+  const [productsList, setProductsList] = useState<Animal[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(false);
+  const [searchCardQuery, setSearchCardQuery] = useState<string>("");
+  const [filterCardCategory, setFilterCardCategory] = useState<string>("all");
+
+  // 16. Modal Chỉnh Sửa Thông Tin Thẻ Bài
+  const [editingProduct, setEditingProduct] = useState<Animal | null>(null);
+  const [isEditProductModalOpen, setIsEditProductModalOpen] = useState<boolean>(false);
+  const [editProductForm, setEditProductForm] = useState({
+    nameVi: "",
+    nameEn: "",
+    nameZh: "",
+    ipa: "",
+    pinyinZh: "",
+    category: "Động Vật",
+    price: 219000,
+    originalPrice: 299000,
+    badge: "Mới ra mắt",
+    description: "",
+    imageUrl: "",
+  });
+  const [isSavingEditProduct, setIsSavingEditProduct] = useState<boolean>(false);
+
+  // Tải danh sách sản phẩm từ API (hoặc fallback store)
+  const loadStudioProducts = useCallback(async () => {
+    try {
+      setIsLoadingProducts(true);
+      const res = await fetch("/api/products");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setProductsList(json.data);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Fallback getMergedProducts:", e);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+    setProductsList(getMergedProducts());
+  }, []);
+
+  // Lắng nghe sự kiện cập nhật sản phẩm
+  useEffect(() => {
+    loadStudioProducts();
+    const handleUpdate = () => loadStudioProducts();
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
+    };
+  }, [loadStudioProducts]);
+
+  // Danh sách sản phẩm được lọc theo từ khóa & danh mục trong Tab 2
+  const filteredProducts = productsList.filter((item) => {
+    const matchCategory =
+      filterCardCategory === "all" ||
+      item.categorySlug === filterCardCategory ||
+      item.category === filterCardCategory;
+
+    if (!matchCategory) return false;
+
+    if (!searchCardQuery.trim()) return true;
+    const q = searchCardQuery.toLowerCase().trim();
+    return (
+      item.nameVi.toLowerCase().includes(q) ||
+      item.nameEn.toLowerCase().includes(q) ||
+      item.slug.toLowerCase().includes(q) ||
+      (item.nameZh && item.nameZh.includes(q))
+    );
+  });
 
   // Sinh mã bản quyền tự động theo bộ và gắn trực tiếp vào mã QR trên thẻ mẫu để in
   const handleGeneratePackCodeForCard = async () => {
@@ -862,6 +965,234 @@ export default function ToolsPage() {
     }
   };
 
+  // Thêm thẻ bài hiện tại trên Bàn Chế Bản vào Hàng Đợi In (Print Queue)
+  const handleAddToPrintQueue = async () => {
+    try {
+      setIsAddingToQueue(true);
+      const canvas = await generateCompositeCanvas();
+      const previewUrl = canvas.toDataURL("image/png", 0.4);
+
+      const blob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error("Không thể chuyển đổi canvas thành tệp ảnh"));
+        }, "image/png");
+      });
+
+      const nextOrder = printQueue.length + 1;
+      const cardTitle = productForm.nameVi || slug || "Thẻ Poly Cards";
+
+      const newItem: PrintQueueItem = {
+        id: `queue-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        orderNumber: nextOrder,
+        name: cardTitle,
+        slug: slug || "card",
+        category: productForm.category || "Động Vật",
+        previewUrl,
+        blob,
+        addedAt: new Date().toLocaleTimeString("vi-VN"),
+      };
+
+      setPrintQueue((prev) => [...prev, newItem]);
+      setIsQueueExpanded(true);
+      showToast(`Đã thêm "${cardTitle}" vào Hàng Đợi In (Sẽ xuất thành: ${nextOrder}.png)`, "success");
+    } catch (err: any) {
+      showToast(`Lỗi thêm vào hàng đợi: ${err.message}`, "error");
+    } finally {
+      setIsAddingToQueue(false);
+    }
+  };
+
+  // Xóa một thẻ khỏi hàng đợi in
+  const handleRemoveQueueItem = (id: string) => {
+    setPrintQueue((prev) => {
+      const filtered = prev.filter((item) => item.id !== id);
+      return filtered.map((item, idx) => ({ ...item, orderNumber: idx + 1 }));
+    });
+    showToast("Đã xóa thẻ khỏi hàng đợi in", "info");
+  };
+
+  // Làm rỗng toàn bộ hàng đợi in
+  const handleClearQueue = () => {
+    if (printQueue.length === 0) return;
+    requestConfirm({
+      title: "Làm Rỗng Hàng Đợi In",
+      message: `Bạn có chắc muốn xóa toàn bộ ${printQueue.length} thẻ đang chờ trong hàng đợi không?`,
+      confirmText: "Xóa Hàng Đợi",
+      danger: true,
+      onConfirm: () => {
+        setPrintQueue([]);
+        showToast("Đã xóa toàn bộ thẻ trong hàng đợi in", "info");
+      },
+    });
+  };
+
+  // Nén toàn bộ thẻ trong hàng đợi thành tệp .ZIP (1.png, 2.png, 3.png... theo thứ tự)
+  const handleDownloadZip = async () => {
+    if (printQueue.length === 0) {
+      showToast("Hàng đợi in đang trống! Hãy thêm thẻ vào trước khi tải file .ZIP.", "warning");
+      return;
+    }
+
+    try {
+      setIsGeneratingZip(true);
+      const zip = new JSZip();
+
+      const manifestLines: string[] = [
+        `============================================================`,
+        `POLY CARDS - DANH MỤC THẺ IN ẤN XƯỞNG CHUẨN ĐỘ NÉT CAO (PNG 1:1)`,
+        `Tổng số thẻ: ${printQueue.length} thẻ`,
+        `Thời gian xuất file: ${new Date().toLocaleString("vi-VN")}`,
+        `Quy ước: Thứ tự file 1.png, 2.png, 3.png... tương ứng vị trí trong hàng đợi`,
+        `============================================================\n`,
+      ];
+
+      printQueue.forEach((item, index) => {
+        const orderNumber = index + 1;
+        const fileName = `${orderNumber}.png`;
+        zip.file(fileName, item.blob);
+        manifestLines.push(
+          `[${fileName}] ${item.name} | Slug: ${item.slug} | Phân loại: ${item.category} | Thêm lúc: ${item.addedAt}`
+        );
+      });
+
+      manifestLines.push(`\n------------------------------------------------------------`);
+      manifestLines.push(`Poly Cards Studio - Chế bản & In ấn thẻ học thông minh AR 3D.`);
+      zip.file("danh-sach-the-in.txt", manifestLines.join("\n"));
+
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+
+      let rawName = zipFileName.trim() || "bo-the-polycards-in-an";
+      if (!rawName.toLowerCase().endsWith(".zip")) {
+        rawName += ".zip";
+      }
+
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = rawName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      showToast(`Đã xuất và tải xuống tệp ZIP "${rawName}" (${printQueue.length} thẻ) thành công!`, "success");
+    } catch (err: any) {
+      showToast(`Lỗi xuất file ZIP: ${err.message}`, "error");
+    } finally {
+      setIsGeneratingZip(false);
+    }
+  };
+
+  // Xóa thẻ bài sản phẩm khỏi hệ thống
+  const handleDeleteProduct = (product: Animal) => {
+    requestConfirm({
+      title: "Xác Nhận Xóa Thẻ Bài",
+      message: `Bạn có chắc muốn xóa thẻ "${product.nameVi} (${product.nameEn})"? Thao tác này sẽ gỡ thẻ khỏi danh mục #products và /products.`,
+      confirmText: "Xóa Thẻ Bài",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/products?id=${encodeURIComponent(product.id)}&slug=${encodeURIComponent(product.slug)}`, {
+            method: "DELETE",
+          });
+          deleteCustomProduct(product.id);
+          deleteCustomProduct(product.slug);
+          await loadStudioProducts();
+          showToast(`Đã xóa thẻ bài "${product.nameVi}" thành công!`, "success");
+        } catch (err: any) {
+          showToast(`Lỗi xóa thẻ bài: ${err.message}`, "error");
+        }
+      },
+    });
+  };
+
+  // Mở modal sửa thông tin thẻ bài
+  const handleOpenEditProduct = (product: Animal) => {
+    setEditingProduct(product);
+    setEditProductForm({
+      nameVi: product.nameVi,
+      nameEn: product.nameEn,
+      nameZh: product.nameZh || "",
+      ipa: product.ipa || `/${product.slug}/`,
+      pinyinZh: product.pinyinZh || "",
+      category: product.category || "Động Vật",
+      price: product.price || 219000,
+      originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
+      badge: product.badge || "Mới ra mắt",
+      description: product.description || "",
+      imageUrl: product.posterUrl || (Array.isArray(product.images) && product.images[0]) || "",
+    });
+    setIsEditProductModalOpen(true);
+  };
+
+  // Lưu thông tin sửa thẻ bài
+  const handleSaveEditProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    try {
+      setIsSavingEditProduct(true);
+      const updatedData: Partial<Animal> & { nameEn: string; nameVi: string; category: string; price: number } = {
+        ...editingProduct,
+        nameVi: editProductForm.nameVi.trim(),
+        nameEn: editProductForm.nameEn.trim(),
+        nameZh: editProductForm.nameZh.trim(),
+        ipa: editProductForm.ipa.trim(),
+        pinyinZh: editProductForm.pinyinZh.trim(),
+        category: editProductForm.category.trim(),
+        categorySlug: slugify(editProductForm.category),
+        price: Number(editProductForm.price) || 219000,
+        originalPrice: Number(editProductForm.originalPrice) || 299000,
+        badge: editProductForm.badge.trim(),
+        description: editProductForm.description.trim(),
+        posterUrl: editProductForm.imageUrl.trim() || editingProduct.posterUrl,
+        images: editProductForm.imageUrl.trim() ? [editProductForm.imageUrl.trim()] : editingProduct.images,
+      };
+
+      await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData),
+      });
+
+      saveProductToLanding(updatedData);
+      setIsEditProductModalOpen(false);
+      setEditingProduct(null);
+      await loadStudioProducts();
+      showToast(`Đã cập nhật thông tin thẻ "${updatedData.nameVi}" thành công!`, "success");
+    } catch (err: any) {
+      showToast(`Lỗi lưu thông tin thẻ: ${err.message}`, "error");
+    } finally {
+      setIsSavingEditProduct(false);
+    }
+  };
+
+  // Nạp thẻ lên Bàn Chế Bản (Load to Canvas)
+  const handleLoadCardToCanvas = (product: Animal) => {
+    const cardImg = product.posterUrl || (Array.isArray(product.images) && product.images[0]) || `/images/cards/${product.slug}-template.jpg`;
+    setCardImageSrc(cardImg);
+    setSlug(product.slug);
+    setProductForm({
+      nameEn: product.nameEn,
+      nameVi: product.nameVi,
+      nameZh: product.nameZh || "",
+      ipa: product.ipa || `/${product.slug}/`,
+      pinyinZh: product.pinyinZh || "",
+      category: product.category || "Động Vật",
+      price: product.price || 219000,
+      originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
+      badge: product.badge || "Mới ra mắt",
+      description: product.description || "",
+      useCompositeCardImage: true,
+    });
+    setActiveStudioTab("editor");
+    showToast(`Đã nạp thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
+  };
+
   // Mở popup xuất bản thẻ ra Landing Page #products
   const handleOpenPublishModal = () => {
     const cleanSlug = slug.trim().toLowerCase() || "jump";
@@ -1276,8 +1607,86 @@ export default function ToolsPage() {
         </div>
       </header>
 
+      {/* THANH ĐIỀU HƯỚNG PHÂN HỆ STUDIO (Tabs: Chế Bản & QR | Kho Thẻ Bài CRUD | Quản Lý Danh Mục CRUD) */}
+      <div className="bg-stone-900/90 border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 overflow-x-auto shrink-0 z-30">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveStudioTab("editor")}
+            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
+              activeStudioTab === "editor"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                : "text-stone-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <QrCode className="h-4 w-4" />
+            <span>Chế Bản & QR Studio</span>
+            {printQueue.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-stone-950 text-amber-300 font-black">
+                {printQueue.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveStudioTab("products");
+              loadStudioProducts();
+            }}
+            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
+              activeStudioTab === "products"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                : "text-stone-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Kho Thẻ Bài Sản Phẩm</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeStudioTab === "products" ? "bg-stone-950 text-amber-300" : "bg-white/10 text-stone-300"}`}>
+              {productsList.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveStudioTab("categories")}
+            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
+              activeStudioTab === "categories"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                : "text-stone-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Tag className="h-4 w-4" />
+            <span>Quản Lý Danh Mục</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeStudioTab === "categories" ? "bg-stone-950 text-amber-300" : "bg-white/10 text-stone-300"}`}>
+              {categoriesList.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Thanh trạng thái hàng đợi in nhanh */}
+        {printQueue.length > 0 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1.5 rounded-xl">
+              <FolderArchive className="h-3.5 w-3.5 text-amber-400" />
+              <span>Hàng đợi: <strong>{printQueue.length}</strong> thẻ</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleDownloadZip}
+              disabled={isGeneratingZip}
+              className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md hover:from-amber-300 hover:to-amber-400 active:scale-95 transition-all"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span>{isGeneratingZip ? "Đang Nén..." : "Tải ZIP Hàng Đợi"}</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* 2. Main Workspace (2 Cột: Cột điều khiển trái & Canvas tương tác phải) */}
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
+      {activeStudioTab === "editor" && (
+        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
         {/* ========================================================
             CỘT TRÁI: BẢNG TẠO MÃ QR & CẤU HÌNH (Width: 5/12 hoặc 4/12)
            ======================================================== */}
@@ -1762,25 +2171,45 @@ export default function ToolsPage() {
             </div>
           </div>
 
-          {/* KHỐI 4: XUẤT BẢN & IN ẤN */}
-          <div className="rounded-2xl bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/30 p-4 space-y-3">
-            <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <FileDown className="h-4 w-4 text-amber-400" />
-              <span>4. Xuất File In Ấn (Print Export)</span>
-            </label>
+          {/* KHỐI 4: XUẤT BẢN & IN ẤN + HÀNG ĐỢI XUẤT .ZIP */}
+          <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/60 to-black/80 border-2 border-amber-500/40 p-4 space-y-3.5 shadow-xl shadow-amber-500/10">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <FileDown className="h-4 w-4 text-amber-400" />
+                <span>4. Xuất File In Ấn (Print Export)</span>
+              </label>
+              {printQueue.length > 0 && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <Archive className="h-3 w-3" />
+                  <span>{printQueue.length} thẻ trong hàng đợi</span>
+                </span>
+              )}
+            </div>
 
-            {/* Nút Xuất File Thẻ Toàn Diện */}
-            <button
-              type="button"
-              onClick={handleExportFullCard}
-              disabled={isExporting}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-98 transition-all shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>
-                {isExporting ? "Đang Xuất File Cao Cấp..." : "Tải Thẻ Hoàn Thiện (PNG Chuẩn In)"}
-              </span>
-            </button>
+            {/* Hàng 2 Nút Chính: Tải Trực Tiếp Thẻ Này Hoặc Thêm Vào Hàng Đợi In */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleExportFullCard}
+                disabled={isExporting}
+                className="py-3 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs active:scale-98 transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                title="Tải ngay 1 thẻ này dưới định dạng PNG chuẩn in ấn xưởng"
+              >
+                <Download className="h-4 w-4 text-amber-400" />
+                <span>{isExporting ? "Đang Xuất..." : "Tải Thẻ Này (PNG)"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddToPrintQueue}
+                disabled={isAddingToQueue}
+                className="py-3 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs active:scale-98 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-1.5"
+                title="Thêm thẻ này vào hàng đợi để nén thành tệp .ZIP nhiều thẻ"
+              >
+                <ListPlus className="h-4 w-4" />
+                <span>{isAddingToQueue ? "Đang Thêm..." : "Thêm Vào Hàng Đợi In"}</span>
+              </button>
+            </div>
 
             {exportSuccessMsg && (
               <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-1.5 animate-in fade-in">
@@ -1789,31 +2218,163 @@ export default function ToolsPage() {
               </div>
             )}
 
-            {/* Các nút phụ: Sao chép, In */}
+            {/* Các nút phụ: Sao chép Clipboard & In Trực Tiếp */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleCopyCardImage}
-                className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                title="Sao chép ảnh thẻ đã ghép QR vào bộ nhớ đệm"
+                className="py-2 px-2 rounded-xl bg-black/40 hover:bg-black/60 text-stone-300 hover:text-white font-semibold text-[11px] flex items-center justify-center gap-1.5 border border-white/5 transition-colors"
+                title="Sao chép ảnh thẻ đã ghép QR vào bộ nhớ đệm (Clipboard)"
               >
                 {copiedImage ? (
-                  <Check className="h-4 w-4 text-emerald-400" />
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
                 ) : (
-                  <Copy className="h-4 w-4 text-sky-400" />
+                  <Copy className="h-3.5 w-3.5 text-sky-400" />
                 )}
-                <span>{copiedImage ? "Đã Chép" : "Chép Vào Clipboard"}</span>
+                <span>{copiedImage ? "Đã Chép" : "Chép Clipboard"}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handlePrint}
-                className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                title="Mở giao diện in thẻ trực tiếp"
+                className="py-2 px-2 rounded-xl bg-black/40 hover:bg-black/60 text-stone-300 hover:text-white font-semibold text-[11px] flex items-center justify-center gap-1.5 border border-white/5 transition-colors"
+                title="Mở giao diện in thẻ trực tiếp từ trình duyệt"
               >
-                <Printer className="h-4 w-4 text-purple-400" />
+                <Printer className="h-3.5 w-3.5 text-purple-400" />
                 <span>In Trực Tiếp</span>
               </button>
+            </div>
+
+            {/* GIAO DIỆN HÀNG ĐỢI IN ẤN (PRINT QUEUE & TẢI ZIP NHIỀU THẺ) */}
+            <div className="pt-2 border-t border-white/10 space-y-2.5">
+              <div
+                onClick={() => setIsQueueExpanded(!isQueueExpanded)}
+                className="flex items-center justify-between cursor-pointer select-none text-xs font-black text-amber-300 hover:text-amber-200"
+              >
+                <div className="flex items-center gap-1.5">
+                  <FolderArchive className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Hàng Đợi Xuất File .ZIP ({printQueue.length})</span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-stone-400">
+                  <span>{isQueueExpanded ? "Thu gọn" : "Xem chi tiết"}</span>
+                  {isQueueExpanded ? (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
+                </div>
+              </div>
+
+              {isQueueExpanded && (
+                <div className="space-y-2.5 animate-in fade-in">
+                  {printQueue.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-black/40 border border-dashed border-white/15 text-center space-y-1">
+                      <p className="text-[11px] text-stone-400">
+                        Chưa có thẻ nào trong hàng đợi in.
+                      </p>
+                      <p className="text-[10px] text-stone-500 leading-snug">
+                        Bấm nút <strong className="text-amber-300">"Thêm Vào Hàng Đợi In"</strong> ở trên sau khi căn chỉnh thẻ để gom nhiều thẻ và tải 1 lần thành tệp <strong className="text-amber-300">.ZIP</strong> (tên ảnh tự động: <code className="text-sky-300">1.png</code>, <code className="text-sky-300">2.png</code>...).
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {/* Ô Người Dùng Tự Đặt Tên Tệp .ZIP */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-300 flex items-center justify-between">
+                          <span>Tên tệp .ZIP khi tải xuống:</span>
+                          <span className="text-[9px] text-amber-400 font-mono">Tự đặt tên tùy ý</span>
+                        </label>
+                        <div className="flex items-center rounded-xl bg-black/70 border border-white/20 overflow-hidden focus-within:border-amber-400">
+                          <input
+                            type="text"
+                            value={zipFileName}
+                            onChange={(e) => setZipFileName(e.target.value)}
+                            placeholder="Ví dụ: bo-dong-vat-30-the"
+                            className="flex-1 bg-transparent px-2.5 py-1.5 text-xs text-white placeholder-stone-500 focus:outline-hidden"
+                          />
+                          <span className="px-2.5 py-1.5 text-xs font-mono font-bold text-amber-400 bg-white/5 border-l border-white/10">
+                            .zip
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Danh sách các thẻ trong hàng đợi theo thứ tự 1, 2, 3... */}
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-stone-700">
+                        {printQueue.map((item, idx) => (
+                          <div
+                            key={item.id}
+                            className="p-2 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between gap-2 text-xs hover:border-amber-500/40 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {/* Số thứ tự file: 1.png, 2.png... */}
+                              <div className="h-6 px-1.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                                {idx + 1}.png
+                              </div>
+
+                              {/* Thumbnail preview */}
+                              {item.previewUrl && (
+                                <img
+                                  src={item.previewUrl}
+                                  alt={item.name}
+                                  className="h-8 w-6 object-cover rounded border border-white/20 shrink-0 bg-stone-800"
+                                />
+                              )}
+
+                              <div className="min-w-0">
+                                <div className="font-bold text-white text-[11px] truncate">
+                                  {item.name}
+                                </div>
+                                <div className="text-[9px] text-stone-400 flex items-center gap-1.5 font-mono">
+                                  <span>slug: {item.slug}</span>
+                                  <span>•</span>
+                                  <span className="text-amber-400/80">{item.category}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveQueueItem(item.id)}
+                              className="h-6 w-6 rounded-lg text-stone-400 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center shrink-0 transition-colors"
+                              title="Xóa thẻ này khỏi hàng đợi"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Các nút thao tác hàng đợi: Tải ZIP & Làm Rỗng */}
+                      <div className="grid grid-cols-12 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleDownloadZip}
+                          disabled={isGeneratingZip || printQueue.length === 0}
+                          className="col-span-8 sm:col-span-9 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 active:scale-98 transition-all shadow-md shadow-amber-500/20"
+                        >
+                          <Archive className="h-4 w-4" />
+                          <span>
+                            {isGeneratingZip
+                              ? "Đang Đóng Gói .ZIP..."
+                              : `Tải Tệp .ZIP (${printQueue.length} Thẻ)`}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleClearQueue}
+                          disabled={isGeneratingZip || printQueue.length === 0}
+                          className="col-span-4 sm:col-span-3 py-2.5 px-2 rounded-xl bg-white/10 hover:bg-rose-500/20 hover:border-rose-500/40 text-stone-300 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 transition-colors"
+                          title="Xóa toàn bộ thẻ trong hàng đợi"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>Xóa Hết</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2005,6 +2566,657 @@ export default function ToolsPage() {
           </div>
         </div>
       </main>
+      )}
+
+      {/* ========================================================
+          TAB 2: KHO QUẢN LÝ THẺ BÀI SẢN PHẨM (CRUD SẢN PHẨM)
+         ======================================================== */}
+      {activeStudioTab === "products" && (
+        <div className="flex-1 overflow-y-auto bg-stone-950 p-4 sm:p-6 lg:p-8 space-y-6">
+          {/* Header Kho Thẻ Bài */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <h2 className="text-lg sm:text-xl font-black text-white">
+                  Kho Thẻ Bài Sản Phẩm Poly Cards
+                </h2>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                  {productsList.length} Thẻ
+                </span>
+              </div>
+              <p className="text-xs text-stone-400 mt-1 max-w-2xl">
+                Quản lý toàn bộ thẻ bài xuất hiện tại Landing <strong className="text-amber-300">#products</strong> và Bộ lọc <strong className="text-amber-300">/products</strong>. Bạn có thể tìm kiếm, sửa thông tin giá bán, xóa thẻ, nạp thẻ lên Bàn Chế Bản để in ấn hoặc kiểm tra WebAR 3D.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveStudioTab("editor")}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Chế Bản Thẻ Mới</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Thanh Công Cụ: Tìm Kiếm, Lọc Danh Mục */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+              <input
+                type="text"
+                value={searchCardQuery}
+                onChange={(e) => setSearchCardQuery(e.target.value)}
+                placeholder="Tìm thẻ theo tên tiếng Việt, tiếng Anh, tiếng Trung hoặc slug..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+              />
+              {searchCardQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchCardQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+                <Filter className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <select
+                  value={filterCardCategory}
+                  onChange={(e) => setFilterCardCategory(e.target.value)}
+                  className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all" className="bg-stone-900 text-white">Tất Cả Danh Mục ({productsList.length})</option>
+                  {categoriesList.map((cat) => (
+                    <option key={cat.id} value={cat.slug} className="bg-stone-900 text-white">
+                      {cat.name} ({productsList.filter((p) => p.categorySlug === cat.slug || p.category === cat.name).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Lưới Thẻ Bài Sản Phẩm */}
+          {isLoadingProducts ? (
+            <div className="py-20 text-center space-y-3">
+              <RefreshCw className="h-8 w-8 text-amber-400 animate-spin mx-auto" />
+              <p className="text-xs text-stone-400 font-bold">Đang tải danh sách thẻ bài...</p>
+            </div>
+          ) : (
+            <>
+              {filteredProducts.length === 0 ? (
+                <div className="py-16 text-center rounded-3xl bg-stone-900/40 border border-dashed border-white/10 p-8 space-y-3">
+                  <Layers className="h-10 w-10 text-stone-600 mx-auto" />
+                  <h4 className="text-sm font-bold text-stone-300">Không tìm thấy thẻ bài nào phù hợp</h4>
+                  <p className="text-xs text-stone-500 max-w-md mx-auto">
+                    Thử tìm kiếm với từ khóa khác hoặc bấm nút "Chế Bản Thẻ Mới" để xuất bản thêm thẻ bài vào hệ thống.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchCardQuery("");
+                      setFilterCardCategory("all");
+                    }}
+                    className="py-2 px-4 rounded-xl bg-white/10 text-xs font-bold text-white hover:bg-white/15 transition-colors"
+                  >
+                    Xóa Bộ Lọc Tìm Kiếm
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredProducts.map((card) => {
+                    const cardImg = card.posterUrl || (Array.isArray(card.images) && card.images[0]) || `/images/cards/${card.slug}-template.jpg`;
+                    return (
+                      <div
+                        key={card.id || card.slug}
+                        className="rounded-2xl bg-stone-900/90 border border-white/10 hover:border-amber-500/40 p-3.5 space-y-3 transition-all hover:shadow-xl hover:shadow-black/50 flex flex-col justify-between group"
+                      >
+                        {/* Ảnh & Badges */}
+                        <div className="space-y-2.5">
+                          <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-stone-950 border border-white/10 group-hover:border-amber-500/30 transition-colors">
+                            <img
+                              src={cardImg}
+                              alt={card.nameVi}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+
+                            {/* Badges trên ảnh */}
+                            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-stone-950 shadow-md">
+                                {card.badge || "Mới"}
+                              </span>
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-black/70 text-stone-300 backdrop-blur-md border border-white/20">
+                                {card.category || "Động Vật"}
+                              </span>
+                            </div>
+
+                            <div className="absolute bottom-2 right-2">
+                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/80 text-amber-300 border border-amber-500/30">
+                                {card.slug}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Thông Tin Tên & Giá */}
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <h3 className="font-black text-sm text-white truncate" title={card.nameVi}>
+                                {card.nameVi}
+                              </h3>
+                              <span className="text-xs font-black text-amber-400 shrink-0 font-mono">
+                                {formatVndCurrency(card.price || 219000)}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-stone-400 truncate">
+                              <span className="text-stone-300 font-bold">{card.nameEn}</span>
+                              {card.nameZh && <span className="ml-1 text-stone-400">({card.nameZh})</span>}
+                              {card.ipa && <span className="ml-1 font-mono text-stone-500">{card.ipa}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Các Nút Hành Động Cho Thẻ */}
+                        <div className="pt-2 border-t border-white/10 space-y-1.5">
+                          {/* Nút Nạp Vào Bàn Chế Bản */}
+                          <button
+                            type="button"
+                            onClick={() => handleLoadCardToCanvas(card)}
+                            className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 border border-amber-500/30 transition-all active:scale-95"
+                            title="Nạp thẻ này lên Canvas Bàn Chế Bản để chỉnh sửa QR hoặc thêm vào hàng đợi in ấn"
+                          >
+                            <Sliders className="h-3.5 w-3.5" />
+                            <span>Chế Bản & In Thẻ Này</span>
+                          </button>
+
+                          {/* 3 Nút Nhỏ: Sửa, Xóa, Thử AR */}
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditProduct(card)}
+                              className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                              title="Chỉnh sửa thông tin thẻ bài (giá, tên, mô tả)"
+                            >
+                              <Edit3 className="h-3.5 w-3.5 text-sky-400" />
+                              <span>Sửa</span>
+                            </button>
+
+                            <Link
+                              href={`/ar/${card.slug}?ar=1`}
+                              target="_blank"
+                              className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                              title="Mở xem trải nghiệm AR 3D thực tế"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-purple-400" />
+                              <span>AR 3D</span>
+                            </Link>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProduct(card)}
+                              className="py-1.5 px-2 rounded-lg bg-white/5 hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                              title="Xóa thẻ này khỏi hệ thống"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Xóa</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================
+          TAB 3: QUẢN LÝ DANH MỤC THẺ BÀI (CRUD DANH MỤC)
+         ======================================================== */}
+      {activeStudioTab === "categories" && (
+        <div className="flex-1 overflow-y-auto bg-stone-950 p-4 sm:p-6 lg:p-8 space-y-6">
+          {/* Header Quản Lý Danh Mục */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black">
+                  <Tag className="h-5 w-5" />
+                </div>
+                <h2 className="text-lg sm:text-xl font-black text-white">
+                  Quản Lý Danh Mục Thẻ Bài Poly Cards
+                </h2>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                  {categoriesList.length} Danh Mục
+                </span>
+              </div>
+              <p className="text-xs text-stone-400 mt-1 max-w-2xl">
+                Tạo mới, chỉnh sửa và phân loại danh mục sản phẩm. Mỗi thẻ bài thuộc về một danh mục sẽ tự động được gom nhóm hiển thị trên trang chủ <strong className="text-amber-300">#products</strong> và bộ lọc <strong className="text-amber-300">/products</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* CỘT TRÁI: FORM THÊM MỚI DANH MỤC */}
+            <div className="lg:col-span-5 xl:col-span-4">
+              <form
+                onSubmit={handleAddCategory}
+                className="rounded-2xl bg-stone-900/90 border border-amber-500/30 p-5 space-y-4 shadow-xl shadow-amber-500/5 sticky top-4"
+              >
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                  <div className="h-8 w-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
+                    <Plus className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-amber-300">Thêm Danh Mục Mới</h3>
+                    <p className="text-[10px] text-stone-400">Tạo phân loại mới cho các bộ thẻ tiếp theo</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Tên danh mục <span className="text-rose-400">*</span>:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Khủng Long, Côn Trùng, Nghề Nghiệp..."
+                      value={categoryForm.name}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Mô tả ngắn danh mục:
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Mô tả tóm tắt nội dung học tập của danh mục này..."
+                      value={categoryForm.description}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Biểu tượng đại diện:
+                    </label>
+                    <select
+                      value={categoryForm.iconName}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, iconName: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                    >
+                      <option value="Layers">Icon: Chung (Layers)</option>
+                      <option value="PawPrint">Icon: Động Vật (PawPrint)</option>
+                      <option value="Activity">Icon: Vận Động (Activity)</option>
+                      <option value="Car">Icon: Phương Tiện (Car)</option>
+                      <option value="Apple">Icon: Hoa Quả (Apple)</option>
+                      <option value="Sparkles">Icon: Kỳ Ảo (Sparkles)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Tạo Danh Mục Mới</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* CỘT PHẢI: DANH SÁCH CÁC DANH MỤC HIỆN TẠI */}
+            <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-black text-stone-300 flex items-center gap-1.5">
+                  <Tag className="h-4 w-4 text-amber-400" />
+                  <span>Danh Sách Danh Mục ({categoriesList.length})</span>
+                </div>
+                <div className="relative w-48 sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-500" />
+                  <input
+                    type="text"
+                    value={categorySearchQuery}
+                    onChange={(e) => setCategorySearchQuery(e.target.value)}
+                    placeholder="Tìm danh mục..."
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {categoriesList
+                  .filter((cat) => cat.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
+                  .map((cat) => {
+                    const cardCount = productsList.filter(
+                      (p) => p.categorySlug === cat.slug || p.category === cat.name
+                    ).length;
+                    const isEditing = editingCategoryId === cat.id;
+
+                    return (
+                      <div
+                        key={cat.id}
+                        className="rounded-2xl bg-stone-900/80 border border-white/10 hover:border-amber-500/30 p-4 space-y-2.5 transition-colors flex flex-col justify-between"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center font-bold">
+                                <Tag className="h-4 w-4" />
+                              </div>
+                              <div>
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editingCategoryName}
+                                    onChange={(e) => setEditingCategoryName(e.target.value)}
+                                    className="bg-black border border-amber-400 rounded-lg px-2 py-0.5 text-xs text-white font-bold"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <h4 className="font-black text-sm text-white">{cat.name}</h4>
+                                )}
+                                <span className="text-[10px] text-stone-400 font-mono">slug: {cat.slug}</span>
+                              </div>
+                            </div>
+
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-stone-300 font-mono">
+                              {cardCount} Thẻ
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-stone-400 leading-relaxed line-clamp-2">
+                            {cat.description || "Danh mục thẻ học tương tác Poly Cards"}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                          {isEditing ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCategory(cat.id, editingCategoryName)}
+                                className="py-1 px-2.5 rounded-lg bg-emerald-500 text-stone-950 font-black text-xs flex items-center gap-1"
+                              >
+                                <Check className="h-3 w-3" />
+                                <span>Lưu</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingCategoryId(null)}
+                                className="py-1 px-2 rounded-lg bg-white/10 text-stone-300 font-bold text-xs"
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCategoryId(cat.id);
+                                  setEditingCategoryName(cat.name);
+                                }}
+                                className="py-1 px-2 rounded-lg bg-white/5 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-xs flex items-center gap-1 transition-colors"
+                              >
+                                <Edit3 className="h-3 w-3 text-sky-400" />
+                                <span>Sửa</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                                className="py-1 px-2 rounded-lg bg-white/5 hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 font-bold text-xs flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                <span>Xóa</span>
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterCardCategory(cat.slug);
+                              setActiveStudioTab("products");
+                            }}
+                            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                          >
+                            <span>Xem thẻ ({cardCount})</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL: CHỈNH SỬA THÔNG TIN THẺ BÀI (CRUD EDIT MODAL)
+         ======================================================== */}
+      {isEditProductModalOpen && editingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="max-w-xl w-full max-h-[92dvh] bg-stone-900 border-2 border-amber-400/60 rounded-3xl text-white shadow-2xl flex flex-col overflow-hidden">
+            {/* Header Modal */}
+            <div className="px-5 py-3.5 border-b border-white/10 bg-stone-900/95 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
+                  <Edit3 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-amber-300">
+                    Chỉnh Sửa Thông Tin Thẻ Bài
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    Cập nhật chi tiết thẻ: {editingProduct.nameVi} ({editingProduct.slug})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsEditProductModalOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleSaveEditProduct} className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Tên Tiếng Việt <span className="text-rose-400">*</span>:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editProductForm.nameVi}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, nameVi: e.target.value })}
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Tên Tiếng Anh <span className="text-rose-400">*</span>:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editProductForm.nameEn}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, nameEn: e.target.value })}
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Tên Tiếng Trung (Kèm Pinyin):
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Chữ Hán: 跳"
+                      value={editProductForm.nameZh}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, nameZh: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Pinyin: tiào"
+                      value={editProductForm.pinyinZh}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, pinyinZh: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Phiên Âm Quốc Tế (IPA):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="/dʒʌmp/"
+                    value={editProductForm.ipa}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, ipa: e.target.value })}
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Danh Mục Sản Phẩm <span className="text-rose-400">*</span>:
+                  </label>
+                  <select
+                    value={editProductForm.category}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, category: e.target.value })}
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                  >
+                    {categoriesList.map((c) => (
+                      <option key={c.id} value={c.name} className="bg-stone-900 text-white">
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Huy Hiệu (Badge):
+                  </label>
+                  <input
+                    type="text"
+                    value={editProductForm.badge}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, badge: e.target.value })}
+                    placeholder="Mới ra mắt, Bán chạy..."
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Giá Bán Ưu Đãi (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    value={editProductForm.price}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, price: Number(e.target.value) })}
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Giá Gốc Niêm Yết (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    value={editProductForm.originalPrice}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, originalPrice: Number(e.target.value) })}
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-400 font-mono focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                  Đường Dẫn Ảnh Thẻ (Poster URL):
+                </label>
+                <input
+                  type="text"
+                  value={editProductForm.imageUrl}
+                  onChange={(e) => setEditProductForm({ ...editProductForm, imageUrl: e.target.value })}
+                  placeholder="/images/cards/... hoặc URL ảnh tĩnh"
+                  className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                  Mô Tả Sản Phẩm:
+                </label>
+                <textarea
+                  rows={3}
+                  value={editProductForm.description}
+                  onChange={(e) => setEditProductForm({ ...editProductForm, description: e.target.value })}
+                  placeholder="Mô tả nội dung thẻ học..."
+                  className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400 resize-none"
+                />
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsEditProductModalOpen(false)}
+                  className="py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-xs transition-colors"
+                >
+                  Hủy Bỏ
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSavingEditProduct}
+                  className="py-2.5 px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  {isSavingEditProduct ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Đang Lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      <span>Lưu Thay Đổi Thẻ Bài</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================
           MODAL 1: CẬP NHẬT SẢN PHẨM RA LANDING PAGE (#products)
