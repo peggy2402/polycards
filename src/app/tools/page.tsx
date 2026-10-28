@@ -45,6 +45,8 @@ import {
   X,
   Tag,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   getProductCategories,
@@ -263,6 +265,7 @@ export default function ToolsPage() {
 
   // 12. Modal "Lưu / Cập Nhật Thẻ Vào #products Trang Chủ"
   const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
+  const [showAdvancedFields, setShowAdvancedFields] = useState<boolean>(false);
   const [productForm, setProductForm] = useState({
     nameEn: "Jump",
     nameVi: "Nhảy Vui Nhộn",
@@ -992,6 +995,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
     });
 
     setCategoriesList(availableCategories);
+    setShowAdvancedFields(false);
     setIsPublishModalOpen(true);
   };
 
@@ -2215,18 +2219,19 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
           MODAL 1: CẬP NHẬT SẢN PHẨM RA LANDING PAGE (#products)
          ======================================================== */}
       {isPublishModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto animate-in fade-in">
-          <div className="max-w-xl w-full bg-stone-900 border-2 border-amber-400/60 rounded-3xl p-5 sm:p-6 text-white shadow-2xl space-y-4 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black shadow-md">
-                  <ShoppingBag className="h-5 w-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="max-w-xl w-full max-h-[92dvh] sm:max-h-[86vh] bg-stone-900 border-2 border-amber-400/60 rounded-2xl sm:rounded-3xl text-white shadow-2xl flex flex-col overflow-hidden ring-1 ring-amber-400/20">
+            {/* STICKY HEADER */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-white/10 shrink-0 bg-stone-900/95 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black shadow-md shrink-0">
+                  <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-amber-300">
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm md:text-base font-black text-amber-300 truncate">
                     Cập Nhật Thẻ Vào #products Trang Chủ
                   </h3>
-                  <p className="text-[11px] text-stone-400">
+                  <p className="text-[10px] sm:text-[11px] text-stone-400 truncate">
                     Bắt buộc chọn danh mục để thẻ bài hiển thị đúng vị trí
                   </p>
                 </div>
@@ -2235,211 +2240,248 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
               <button
                 type="button"
                 onClick={() => setIsPublishModalOpen(false)}
-                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors"
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors shrink-0 ml-2"
+                title="Đóng modal"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProductToLanding} className="space-y-4">
-              {/* 1. BẮT BUỘC CHỌN DANH MỤC */}
-              <div className="p-3.5 rounded-2xl bg-amber-500/10 border-2 border-amber-400/40 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <Tag className="h-4 w-4 text-amber-400" />
-                    <span>Danh Mục Sản Phẩm (Bắt buộc) *</span>
-                  </label>
+            {/* FORM CONTAINER WITH FLEX LAYOUT */}
+            <form onSubmit={handleSaveProductToLanding} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* SCROLLABLE BODY */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 scrollbar-thin scrollbar-thumb-stone-700">
+                {/* 1. BẮT BUỘC CHỌN DANH MỤC */}
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                      <span>Danh Mục Sản Phẩm (Bắt buộc) *</span>
+                    </label>
 
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(true)}
+                      className="text-[10px] sm:text-[11px] font-bold text-amber-300 hover:text-white flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 transition-colors shrink-0"
+                    >
+                      <Sliders className="h-3 w-3" />
+                      <span>Quản Lý Danh Mục</span>
+                    </button>
+                  </div>
+
+                  <select
+                    required
+                    value={productForm.category}
+                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                    className="w-full bg-black/80 border border-amber-400/60 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-amber-300 focus:outline-hidden focus:border-amber-300 cursor-pointer"
+                  >
+                    {categoriesList.map((cat) => (
+                      <option key={cat.id} value={cat.name} className="bg-stone-900 text-white">
+                        Danh mục: {cat.name} ({cat.slug})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-stone-400">
+                    Thẻ bài sẽ được đưa vào Tab danh mục này trên giao diện trang chủ <code className="text-amber-300">#products</code>.
+                  </p>
+                </div>
+
+                {/* 2. THÔNG TIN CỐT LÕI (EN & VI) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Tên tiếng Anh (EN) *:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Lion, Cat, Jump..."
+                      value={productForm.nameEn}
+                      onChange={(e) => setProductForm({ ...productForm, nameEn: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Tên tiếng Việt (VI) *:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Sư Tử Vàng, Con Mèo..."
+                      value={productForm.nameVi}
+                      onChange={(e) => setProductForm({ ...productForm, nameVi: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. GIÁ TIỀN ƯU ĐÃI & GIÁ GỐC */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-stone-300">
+                        Giá bán ưu đãi (VNĐ) *:
+                      </label>
+                      <span className="text-[10px] font-bold text-emerald-400">
+                        {formatVndCurrency(productForm.price)}
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      required
+                      step="1000"
+                      min="0"
+                      value={productForm.price}
+                      onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-hidden focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-stone-300">
+                        Giá gốc niêm yết:
+                      </label>
+                      <span className="text-[10px] text-stone-400 line-through">
+                        {formatVndCurrency(productForm.originalPrice)}
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      step="1000"
+                      min="0"
+                      value={productForm.originalPrice}
+                      onChange={(e) => setProductForm({ ...productForm, originalPrice: Number(e.target.value) })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-300 line-through focus:outline-hidden focus:border-amber-400 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. HUY HIỆU & SLUG AR */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Huy hiệu nổi bật (Badge):
+                    </label>
+                    <select
+                      value={productForm.badge}
+                      onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                    >
+                      <option value="Mới ra mắt">Mới ra mắt</option>
+                      <option value="Bán chạy">Bán chạy</option>
+                      <option value="Yêu thích nhất">Yêu thích nhất</option>
+                      <option value="Hot">Hot</option>
+                      <option value="Thân thiện">Thân thiện</option>
+                      <option value="Combo tiết kiệm">Combo tiết kiệm</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Slug AR (Trang mở 3D):
+                    </label>
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* 5. TÙY CHỌN ẢNH THẺ TỪ CANVAS */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+                    <input
+                      type="checkbox"
+                      checked={productForm.useCompositeCardImage}
+                      onChange={(e) => setProductForm({ ...productForm, useCompositeCardImage: e.target.checked })}
+                      className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+                    />
+                    <span>Sử dụng ảnh thẻ thành phẩm từ Canvas (Đã gắn QR chuẩn in)</span>
+                  </label>
+                  <p className="text-[10px] text-stone-400 pl-6">
+                    Nếu bỏ tích, hệ thống sẽ sử dụng ảnh thẻ mẫu gốc (chưa ghép QR).
+                  </p>
+                </div>
+
+                {/* 6. THÔNG TIN NÂNG CAO (ACCORDION THU GỌN / MỞ RỘNG) */}
+                <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/30">
                   <button
                     type="button"
-                    onClick={() => setIsCategoryModalOpen(true)}
-                    className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 transition-colors"
+                    onClick={() => setShowAdvancedFields(!showAdvancedFields)}
+                    className="w-full flex items-center justify-between p-3 bg-stone-800/40 hover:bg-stone-800/70 transition-colors text-left"
                   >
-                    <Sliders className="h-3 w-3" />
-                    <span>Quản Lý Danh Mục (Thêm/Sửa/Xóa)</span>
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                      <span>Thông Tin Nâng Cao (Tiếng Trung, IPA & Mô Tả)</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] text-stone-400 font-medium">
+                      <span>{showAdvancedFields ? "Thu gọn" : "Mở rộng"}</span>
+                      {showAdvancedFields ? (
+                        <ChevronUp className="h-3.5 w-3.5 text-stone-400" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5 text-stone-400" />
+                      )}
+                    </div>
                   </button>
-                </div>
 
-                <select
-                  required
-                  value={productForm.category}
-                  onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                  className="w-full bg-black/80 border border-amber-400/60 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-bold text-amber-300 focus:outline-hidden focus:border-amber-300 cursor-pointer"
-                >
-                  {categoriesList.map((cat) => (
-                    <option key={cat.id} value={cat.name} className="bg-stone-900 text-white">
-                      Danh mục: {cat.name} ({cat.slug})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-stone-400">
-                  Thẻ bài sẽ được đưa vào Tab danh mục này trên giao diện trang chủ <code className="text-amber-300">#products</code>.
-                </p>
-              </div>
+                  {showAdvancedFields && (
+                    <div className="p-3 border-t border-white/10 space-y-3 animate-in fade-in duration-150">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                            Tên tiếng Trung (ZH) - Tùy chọn:
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ví dụ: 狮子, 小猫, 跳..."
+                            value={productForm.nameZh}
+                            onChange={(e) => setProductForm({ ...productForm, nameZh: e.target.value })}
+                            className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                          />
+                        </div>
 
-              {/* 2. THÔNG TIN ĐA NGỮ (EN - VI - ZH) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Tên tiếng Anh (EN) *:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ví dụ: Jump, Lion, Cat..."
-                    value={productForm.nameEn}
-                    onChange={(e) => setProductForm({ ...productForm, nameEn: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
-                  />
-                </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                            Phiên âm IPA - Tùy chọn:
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ví dụ: /ˈlaɪ.ən/, /kæt/..."
+                            value={productForm.ipa}
+                            onChange={(e) => setProductForm({ ...productForm, ipa: e.target.value })}
+                            className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Tên tiếng Việt (VI) *:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ví dụ: Nhảy, Sư Tử, Con Mèo..."
-                    value={productForm.nameVi}
-                    onChange={(e) => setProductForm({ ...productForm, nameVi: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
-                  />
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                          Mô tả chi tiết thẻ học:
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="Mô tả công dụng hoặc kiến thức trên thẻ..."
+                          value={productForm.description}
+                          onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                          className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-200 placeholder-stone-500 focus:outline-hidden focus:border-amber-400 resize-none"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Tên tiếng Trung (ZH) - Tùy chọn:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ví dụ: 跳, 狮子, 小猫..."
-                    value={productForm.nameZh}
-                    onChange={(e) => setProductForm({ ...productForm, nameZh: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Phiên âm IPA - Tùy chọn:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ví dụ: /dʒʌmp/, /ˈlaɪ.ən/..."
-                    value={productForm.ipa}
-                    onChange={(e) => setProductForm({ ...productForm, ipa: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                  />
-                </div>
-              </div>
-
-              {/* 3. GIÁ TIỀN & HUY HIỆU */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Giá bán ưu đãi (VNĐ) *:
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    step="1000"
-                    min="0"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-hidden focus:border-amber-400"
-                  />
-                  <span className="text-[10px] text-stone-400 mt-0.5 block">
-                    Định dạng: {formatVndCurrency(productForm.price)}
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Giá gốc niêm yết (Gạch ngang):
-                  </label>
-                  <input
-                    type="number"
-                    step="1000"
-                    min="0"
-                    value={productForm.originalPrice}
-                    onChange={(e) => setProductForm({ ...productForm, originalPrice: Number(e.target.value) })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-400 line-through focus:outline-hidden focus:border-amber-400 font-mono"
-                  />
-                  <span className="text-[10px] text-stone-400 mt-0.5 block">
-                    Định dạng: {formatVndCurrency(productForm.originalPrice)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Huy hiệu nổi bật (Badge):
-                  </label>
-                  <select
-                    value={productForm.badge}
-                    onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
-                  >
-                    <option value="Mới ra mắt">Mới ra mắt</option>
-                    <option value="Bán chạy">Bán chạy</option>
-                    <option value="Yêu thích nhất">Yêu thích nhất</option>
-                    <option value="Hot">Hot</option>
-                    <option value="Thân thiện">Thân thiện</option>
-                    <option value="Combo tiết kiệm">Combo tiết kiệm</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Slug AR (Trang mở 3D):
-                  </label>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
-                  />
-                </div>
-              </div>
-
-              {/* 4. MÔ TẢ & CHỌN HÌNH ẢNH */}
-              <div>
-                <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                  Mô tả thẻ học:
-                </label>
-                <textarea
-                  rows={2}
-                  value={productForm.description}
-                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                  className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-200 placeholder-stone-500 focus:outline-hidden focus:border-amber-400 resize-none"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-1.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
-                  <input
-                    type="checkbox"
-                    checked={productForm.useCompositeCardImage}
-                    onChange={(e) => setProductForm({ ...productForm, useCompositeCardImage: e.target.checked })}
-                    className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
-                  />
-                  <span>Sử dụng ảnh thẻ thành phẩm từ Canvas (Đã gắn QR chuẩn in)</span>
-                </label>
-                <p className="text-[10px] text-stone-400 pl-6">
-                  Nếu bỏ tích, hệ thống sẽ sử dụng ảnh thẻ mẫu gốc (chưa ghép QR).
-                </p>
-              </div>
-
-              {/* ACTION BUTTONS */}
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+              {/* STICKY FOOTER ACTION BUTTONS */}
+              <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-t border-white/10 shrink-0 bg-stone-900/95 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsPublishModalOpen(false)}
-                  className="py-2.5 px-4 rounded-xl hover:bg-white/10 text-stone-400 hover:text-white font-bold text-xs transition-colors"
+                  className="h-10 sm:h-11 px-4 rounded-xl hover:bg-white/10 text-stone-400 hover:text-white font-bold text-xs sm:text-sm transition-colors"
                 >
                   Hủy Bỏ
                 </button>
@@ -2447,11 +2489,11 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
                 <button
                   type="submit"
                   disabled={isPublishingProduct}
-                  className="py-3 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2"
+                  className="h-10 sm:h-11 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2 cursor-pointer"
                 >
-                  <Check className="h-4 w-4 text-stone-950" />
+                  <Check className="h-4 w-4 text-stone-950 shrink-0" />
                   <span>
-                    {isPublishingProduct ? "Đang Xuất Bản..." : "Xác Nhận Lưu Vào #products"}
+                    {isPublishingProduct ? "Đang Lưu..." : "Xác Nhận Lưu Vào #products"}
                   </span>
                 </button>
               </div>
@@ -2464,18 +2506,19 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
           MODAL 2: QUẢN LÝ DANH MỤC (THÊM / SỬA / XÓA / TÌM KIẾM)
          ======================================================== */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-lg overflow-y-auto animate-in fade-in">
-          <div className="max-w-lg w-full bg-stone-900 border-2 border-amber-500/50 rounded-3xl p-5 sm:p-6 text-white shadow-2xl space-y-4 my-8 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-lg animate-in fade-in">
+          <div className="max-w-lg w-full bg-stone-900 border-2 border-amber-500/50 rounded-2xl sm:rounded-3xl text-white shadow-2xl max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden">
+            {/* STICKY HEADER */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-white/10 shrink-0 bg-stone-900/95 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="h-8 w-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black shrink-0">
                   <Tag className="h-4 w-4" />
                 </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-amber-300">
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm md:text-base font-black text-amber-300 truncate">
                     Quản Lý Danh Mục Thẻ Bài
                   </h3>
-                  <p className="text-[11px] text-stone-400">
+                  <p className="text-[10px] sm:text-[11px] text-stone-400 truncate">
                     Thêm, sửa, xóa và tìm kiếm danh mục sản phẩm
                   </p>
                 </div>
@@ -2484,150 +2527,155 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
               <button
                 type="button"
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors"
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors shrink-0 ml-2"
+                title="Đóng modal"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* FORM THÊM DANH MỤC MỚI */}
-            <form onSubmit={handleAddCategory} className="p-3.5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
-              <div className="text-xs font-black uppercase text-amber-300 flex items-center gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                <span>Thêm Danh Mục Mới</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="sm:col-span-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Tên danh mục (Khủng Long, Côn Trùng...)"
-                    value={categoryForm.name}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                  />
+            {/* SCROLLABLE BODY */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 scrollbar-thin scrollbar-thumb-stone-700">
+              {/* FORM THÊM DANH MỤC MỚI */}
+              <form onSubmit={handleAddCategory} className="p-3.5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
+                <div className="text-xs font-black uppercase text-amber-300 flex items-center gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Thêm Danh Mục Mới</span>
                 </div>
-                <div>
-                  <select
-                    value={categoryForm.iconName}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, iconName: e.target.value })}
-                    className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-amber-300 focus:outline-hidden focus:border-amber-400"
-                  >
-                    <option value="Layers">Icon: Chung</option>
-                    <option value="PawPrint">Icon: Động Vật</option>
-                    <option value="Activity">Icon: Vận Động</option>
-                    <option value="Car">Icon: Xe Cộ</option>
-                    <option value="Apple">Icon: Hoa Quả</option>
-                  </select>
-                </div>
-              </div>
 
-              <button
-                type="submit"
-                className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs transition-all shadow flex items-center justify-center gap-1.5 active:scale-98"
-              >
-                <Plus className="h-3.5 w-3.5 text-stone-950" />
-                <span>Thêm Danh Mục Ngay</span>
-              </button>
-            </form>
-
-            {/* TÌM KIẾM DANH MỤC */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
-              <input
-                type="text"
-                placeholder="Tìm danh mục..."
-                value={categorySearchQuery}
-                onChange={(e) => setCategorySearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-              />
-            </div>
-
-            {/* DANH SÁCH DANH MỤC HIỆN TẠI */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[280px]">
-              {categoriesList
-                .filter((c) =>
-                  categorySearchQuery.trim()
-                    ? c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
-                    : true
-                )
-                .map((cat) => (
-                  <div
-                    key={cat.id}
-                    className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between gap-2 text-xs"
-                  >
-                    {editingCategoryId === cat.id ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <input
-                          type="text"
-                          value={editingCategoryName}
-                          onChange={(e) => setEditingCategoryName(e.target.value)}
-                          className="flex-1 bg-black border border-amber-400 rounded-lg px-2 py-1 text-xs text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateCategory(cat.id, editingCategoryName)}
-                          className="px-2 py-1 rounded-lg bg-emerald-500 text-stone-950 font-black text-[10px]"
-                        >
-                          Lưu
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingCategoryId(null)}
-                          className="px-2 py-1 rounded-lg bg-white/10 text-stone-400 hover:text-white text-[10px]"
-                        >
-                          Hủy
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="h-6 w-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
-                            {cat.name.charAt(0)}
-                          </span>
-                          <div className="min-w-0">
-                            <span className="font-bold text-stone-200 block truncate">
-                              {cat.name}
-                            </span>
-                            <span className="text-[10px] text-stone-500 font-mono">
-                              slug: {cat.slug}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingCategoryId(cat.id);
-                              setEditingCategoryName(cat.name);
-                            }}
-                            className="p-1 rounded-lg hover:bg-white/10 text-stone-400 hover:text-amber-300 transition-colors"
-                            title="Chỉnh sửa danh mục"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                            className="p-1 rounded-lg hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 transition-colors"
-                            title="Xóa danh mục"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="sm:col-span-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Tên danh mục (Khủng Long, Côn Trùng...)"
+                      value={categoryForm.name}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                    />
                   </div>
-                ))}
+                  <div>
+                    <select
+                      value={categoryForm.iconName}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, iconName: e.target.value })}
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-amber-300 focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                    >
+                      <option value="Layers">Icon: Chung</option>
+                      <option value="PawPrint">Icon: Động Vật</option>
+                      <option value="Activity">Icon: Vận Động</option>
+                      <option value="Car">Icon: Xe Cộ</option>
+                      <option value="Apple">Icon: Hoa Quả</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs transition-all shadow flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 text-stone-950" />
+                  <span>Thêm Danh Mục Ngay</span>
+                </button>
+              </form>
+
+              {/* TÌM KIẾM DANH MỤC */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm danh mục..."
+                  value={categorySearchQuery}
+                  onChange={(e) => setCategorySearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                />
+              </div>
+
+              {/* DANH SÁCH DANH MỤC HIỆN TẠI */}
+              <div className="space-y-2">
+                {categoriesList
+                  .filter((c) =>
+                    categorySearchQuery.trim()
+                      ? c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+                      : true
+                  )
+                  .map((cat) => (
+                    <div
+                      key={cat.id}
+                      className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between gap-2 text-xs"
+                    >
+                      {editingCategoryId === cat.id ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="text"
+                            value={editingCategoryName}
+                            onChange={(e) => setEditingCategoryName(e.target.value)}
+                            className="flex-1 bg-black border border-amber-400 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCategory(cat.id, editingCategoryName)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500 text-stone-950 font-black text-[10px]"
+                          >
+                            Lưu
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCategoryId(null)}
+                            className="px-2 py-1 rounded-lg bg-white/10 text-stone-400 hover:text-white text-[10px]"
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="h-6 w-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+                              {cat.name.charAt(0)}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-stone-200 block truncate">
+                                {cat.name}
+                              </span>
+                              <span className="text-[10px] text-stone-500 font-mono">
+                                slug: {cat.slug}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCategoryId(cat.id);
+                                setEditingCategoryName(cat.name);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-white/10 text-stone-400 hover:text-amber-300 transition-colors"
+                              title="Chỉnh sửa danh mục"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                              className="p-1.5 rounded-lg hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 transition-colors"
+                              title="Xóa danh mục"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+              </div>
             </div>
 
-            <div className="pt-2 border-t border-white/10 flex justify-end">
+            {/* STICKY FOOTER */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3 border-t border-white/10 shrink-0 bg-stone-900/95 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="py-2 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors"
+                className="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 Hoàn Tất & Đóng
               </button>
