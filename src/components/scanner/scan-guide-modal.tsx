@@ -259,7 +259,7 @@ export function ScanGuideModal({
                   {allAnimals.map((animal) => (
                     <Link
                       key={animal.id}
-                      href={`/ar/${animal.slug}`}
+                      href={`/ar/${animal.slug}?ar=1`}
                       className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1 text-xs font-bold text-amber-950 transition-all hover:bg-amber-100 hover:scale-105 active:scale-95 shadow-2xs"
                     >
                       <div className="relative h-4 w-4 shrink-0 rounded-full overflow-hidden border border-amber-300">

@@ -18,7 +18,7 @@ async function generateQrCodes() {
   );
 
   for (const animal of INITIAL_PRODUCTS) {
-    const targetUrl = `${siteUrl}/ar/${animal.slug}`;
+    const targetUrl = `${siteUrl}/ar/${animal.slug}?ar=1`;
 
     const qrOptions: QRCode.QRCodeToFileOptions = {
       type: "png",

@@ -1,9 +1,11 @@
 import { getAnimalByQrCode, getAnimalBySlug } from "./animals";
+import { getMergedProducts } from "./products-store";
 import { siteConfig } from "@/config/site";
 
 export interface QrParseResult {
   valid: boolean;
   slug?: string;
+  code?: string;
   animalNameEn?: string;
   animalNameVi?: string;
   errorMessage?: string;
@@ -12,9 +14,9 @@ export interface QrParseResult {
 
 /**
  * Phân tích và kiểm định nội dung quét được từ QR code:
- * 1. Chấp nhận URL thuộc domain website (ví dụ https://domain/ar/deer hoặc /ar/deer)
+ * 1. Chấp nhận URL thuộc domain website (ví dụ https://domain/ar/deer?ar=1&code=...)
  * 2. Chấp nhận mã định danh theo chuẩn (ví dụ: AR-DEER-001)
- * 3. Nếu có tham số expectSlug, kiểm tra xem có khớp con vật mong đợi không
+ * 3. Giữ nguyên mã hóa đơn (?code=...) nếu được đính kèm trong QR
  * 4. Từ chối mọi URL lạ hoặc dữ liệu không thuộc hệ thống
  */
 export function parseAndValidateQr(
@@ -30,10 +32,13 @@ export function parseAndValidateQr(
 
   const content = rawContent.trim();
   let detectedSlug: string | null = null;
+  let detectedCode: string | undefined = undefined;
 
   // 1. Kiểm tra trường hợp định danh mã sản phẩm (ví dụ: AR-DEER-001)
-  if (/^AR-[A-Z0-9]+-[0-9]{3}$/i.test(content)) {
-    const animal = getAnimalByQrCode(content);
+  if (/^AR-[A-Z0-9-]+-[0-9]{3}$/i.test(content)) {
+    const animal =
+      getAnimalByQrCode(content) ||
+      getMergedProducts().find((p) => p.qrCode.toUpperCase() === content.toUpperCase());
     if (animal) {
       detectedSlug = animal.slug;
     }
@@ -44,7 +49,10 @@ export function parseAndValidateQr(
     try {
       let pathname = "";
       if (content.startsWith("/")) {
-        pathname = content;
+        const fakeUrl = new URL(content, "https://polycards-one.vercel.app");
+        pathname = fakeUrl.pathname;
+        detectedCode =
+          fakeUrl.searchParams.get("code") || fakeUrl.searchParams.get("key") || undefined;
       } else if (content.startsWith("http://") || content.startsWith("https://")) {
         const parsedUrl = new URL(content);
         const configuredHost = new URL(siteConfig.url).host.toLowerCase();
@@ -53,12 +61,12 @@ export function parseAndValidateQr(
             ? window.location.host.toLowerCase()
             : configuredHost;
 
-        // Cho phép URL thuộc configured domain, window.location.host, hoặc localhost/127.0.0.1
         const isAllowedDomain =
           parsedUrl.host.toLowerCase() === configuredHost ||
           parsedUrl.host.toLowerCase() === currentHost ||
           parsedUrl.hostname === "polycards-one.vercel.app" ||
-          (parsedUrl.hostname.endsWith(".vercel.app") && parsedUrl.hostname.includes("polycards")) ||
+          (parsedUrl.hostname.endsWith(".vercel.app") &&
+            parsedUrl.hostname.includes("polycards")) ||
           parsedUrl.hostname === "localhost" ||
           parsedUrl.hostname === "127.0.0.1" ||
           parsedUrl.hostname.endsWith(".ngrok-free.app") ||
@@ -66,6 +74,10 @@ export function parseAndValidateQr(
 
         if (isAllowedDomain) {
           pathname = parsedUrl.pathname;
+          detectedCode =
+            parsedUrl.searchParams.get("code") ||
+            parsedUrl.searchParams.get("key") ||
+            undefined;
         } else {
           return {
             valid: false,
@@ -82,7 +94,7 @@ export function parseAndValidateQr(
         }
       }
     } catch {
-      // URL parsing failed, fall through
+      // URL parsing failed
     }
   }
 
@@ -93,16 +105,15 @@ export function parseAndValidateQr(
     };
   }
 
-  const animal = getAnimalBySlug(detectedSlug);
-  if (!animal) {
-    return {
-      valid: false,
-      errorMessage: `Không tìm thấy thông tin sản phẩm tương ứng với mã "${detectedSlug}".`,
-    };
-  }
+  const animal =
+    getAnimalBySlug(detectedSlug) ||
+    getMergedProducts().find((p) => p.slug.toLowerCase() === detectedSlug.toLowerCase());
+
+  const resolvedNameEn = animal?.nameEn || detectedSlug.toUpperCase();
+  const resolvedNameVi = animal?.nameVi || detectedSlug;
 
   // 3. Nếu ở chế độ quét theo sản phẩm cụ thể (?expect=slug)
-  if (expectSlug && expectSlug.trim().toLowerCase() !== animal.slug.toLowerCase()) {
+  if (expectSlug && expectSlug.trim().toLowerCase() !== detectedSlug.toLowerCase()) {
     const expectedAnimal = getAnimalBySlug(expectSlug);
     const expectedName = expectedAnimal
       ? `${expectedAnimal.nameEn} (${expectedAnimal.nameVi})`
@@ -110,17 +121,19 @@ export function parseAndValidateQr(
     return {
       valid: false,
       isMismatched: true,
-      slug: animal.slug,
-      animalNameEn: animal.nameEn,
-      animalNameVi: animal.nameVi,
-      errorMessage: `QR này thuộc về ${animal.nameEn} (${animal.nameVi}). Bạn đang trải nghiệm ${expectedName}, vui lòng quét đúng QR của sản phẩm này.`,
+      slug: detectedSlug,
+      code: detectedCode,
+      animalNameEn: resolvedNameEn,
+      animalNameVi: resolvedNameVi,
+      errorMessage: `QR này thuộc về ${resolvedNameEn} (${resolvedNameVi}). Bạn đang trải nghiệm ${expectedName}, vui lòng quét đúng QR của sản phẩm này.`,
     };
   }
 
   return {
     valid: true,
-    slug: animal.slug,
-    animalNameEn: animal.nameEn,
-    animalNameVi: animal.nameVi,
+    slug: detectedSlug,
+    code: detectedCode,
+    animalNameEn: resolvedNameEn,
+    animalNameVi: resolvedNameVi,
   };
 }

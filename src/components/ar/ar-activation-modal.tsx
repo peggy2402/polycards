@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
-import { activateWithCode } from "@/lib/activation";
+import { activateWithCodeAsync, normalizeCategorySlug } from "@/lib/activation";
 import {
   X,
   Sparkles,
@@ -36,6 +36,7 @@ export function ArActivationModal({
   const [code, setCode] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [isActivating, setIsActivating] = useState(false);
 
   // Khóa cuộn trang khi modal mở - Chuẩn iOS Safari không bị nhảy background
   useEffect(() => {
@@ -63,23 +64,30 @@ export function ArActivationModal({
 
   if (!isOpen) return null;
 
-  const handleActivate = (e: React.FormEvent) => {
+  const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim()) {
-      setErrorMsg("Vui lòng nhập mã kích hoạt trên thẻ bản quyền.");
+      setErrorMsg("Vui lòng nhập mã hóa đơn / mã bộ trên hộp thẻ Poly Cards.");
       return;
     }
 
-    const result = activateWithCode(code);
-    if (result.success) {
-      setSuccessMsg(result.message);
+    try {
+      setIsActivating(true);
       setErrorMsg(null);
-      setTimeout(() => {
-        onActivated();
-        onClose();
-      }, 1500);
-    } else {
-      setErrorMsg(result.message);
+      const currentCatSlug = normalizeCategorySlug(animal.categorySlug || animal.category);
+      const result = await activateWithCodeAsync(code, currentCatSlug);
+      if (result.success) {
+        setSuccessMsg(result.message);
+        setErrorMsg(null);
+        setTimeout(() => {
+          onActivated();
+          onClose();
+        }, 1200);
+      } else {
+        setErrorMsg(result.message);
+      }
+    } finally {
+      setIsActivating(false);
     }
   };
 
@@ -262,9 +270,10 @@ export function ArActivationModal({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[48px] rounded-2xl bg-amber-500 text-xs font-black text-stone-950 hover:bg-amber-600 active:scale-95 transition-all shadow-md shadow-amber-500/25 cursor-pointer"
+                  disabled={isActivating}
+                  className="flex-1 min-h-[48px] rounded-2xl bg-amber-500 text-xs font-black text-stone-950 hover:bg-amber-600 disabled:opacity-60 active:scale-95 transition-all shadow-md shadow-amber-500/25 cursor-pointer"
                 >
-                  Kích Hoạt Ngay
+                  {isActivating ? "Đang Kiểm Tra Mã..." : "Kích Hoạt Ngay"}
                 </button>
               </div>
             </form>

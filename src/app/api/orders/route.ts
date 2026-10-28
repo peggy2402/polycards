@@ -8,9 +8,31 @@ import {
   isMongoConfigured,
 } from "@/lib/mongodb";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const codeParam = searchParams.get("code")?.trim().toUpperCase();
+
     const orders = await dbGetOrders();
+
+    if (codeParam) {
+      const matched = orders.find((o) => o.code.trim().toUpperCase() === codeParam);
+      if (!matched) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Mã hóa đơn không tồn tại trên hệ thống.",
+          },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+        data: matched,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",

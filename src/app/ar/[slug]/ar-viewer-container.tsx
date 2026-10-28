@@ -3,7 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Animal } from "@/types/animal";
-import { isAnimalUnlocked, activateWithCode } from "@/lib/activation";
+import {
+  isAnimalUnlocked,
+  activateWithCodeAsync,
+  normalizeCategorySlug,
+} from "@/lib/activation";
 import { CardFlashcardView } from "@/components/ar/card-flashcard-view";
 import { ModelViewerView } from "@/components/ar/model-viewer-view";
 import { ArAudioPlayer } from "@/components/ar/ar-audio-player";
@@ -28,8 +32,8 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Tab Switcher State: Tab 1: "card" (Thẻ Bài) | Tab 2: "model3d" (Models 3D)
-  const [activeTab, setActiveTab] = useState<"card" | "model3d">("card");
+  // Tab Switcher State: Mặc định hiển thị Models 3D ngay khi vào trang
+  const [activeTab, setActiveTab] = useState<"card" | "model3d">("model3d");
 
   const [selectedAnimation, setSelectedAnimation] = useState<string>(
     animal.animations && animal.animations.length > 0 ? animal.animations[0] : ""
@@ -40,8 +44,9 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
   const [unlocked, setUnlocked] = useState<boolean>(false);
 
-  // Tự động kích hoạt bản quyền & Mở thẳng WebAR khi khách hàng quét QR có ?ar=1 hoặc ?code=...
+  // Tự động kích hoạt bản quyền (check MongoDB Atlas) & Mở thẳng WebAR 3D khi khách hàng quét QR
   useEffect(() => {
+    let isMounted = true;
     const isDirectAr =
       searchParams.get("ar") === "1" ||
       searchParams.get("camera") === "1" ||
@@ -49,21 +54,32 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
       searchParams.get("mode") === "webar";
 
     const codeParam = searchParams.get("code") || searchParams.get("key");
-    const catSlug = animal.categorySlug || (animal.category === "Động Vật" ? "dong-vat" : animal.category === "Hành Động" ? "hanh-dong" : undefined);
-    if (codeParam) {
-      activateWithCode(codeParam, catSlug);
+    const catSlug = normalizeCategorySlug(animal.categorySlug || animal.category);
+
+    async function handleDirectScan() {
+      if (codeParam) {
+        await activateWithCodeAsync(codeParam, catSlug);
+      }
+
+      if (!isMounted) return;
+      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug, catSlug);
+      setUnlocked(isAlreadyUnlocked);
+
+      if (isDirectAr || codeParam) {
+        setIsTrial(!isAlreadyUnlocked);
+        setIsWebArOpen(true);
+      }
     }
 
-    if (isDirectAr) {
-      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug, catSlug);
-      setIsTrial(!isAlreadyUnlocked);
-      setIsWebArOpen(true);
-    }
+    handleDirectScan();
+    return () => {
+      isMounted = false;
+    };
   }, [searchParams, animal.slug, animal.categorySlug, animal.category]);
 
-  // Kiểm tra trạng thái bản quyền (Đã kích hoạt hay chưa) và đồng bộ tức thì
+  // Kiểm tra trạng thái bản quyền (Đã kích hoạt đúng Bộ Danh Mục hay chưa) và đồng bộ tức thì
   useEffect(() => {
-    const catSlug = animal.categorySlug || (animal.category === "Động Vật" ? "dong-vat" : animal.category === "Hành Động" ? "hanh-dong" : undefined);
+    const catSlug = normalizeCategorySlug(animal.categorySlug || animal.category);
     const updateUnlockStatus = () => {
       setUnlocked(isAnimalUnlocked(animal.slug, catSlug));
     };

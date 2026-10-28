@@ -160,8 +160,11 @@ export function QrCameraScanner({
       }
 
       setTimeout(() => {
-        router.push(`/ar/${parseResult.slug}`);
-      }, 1000);
+        const query = parseResult.code
+          ? `?ar=1&code=${encodeURIComponent(parseResult.code)}`
+          : `?ar=1`;
+        router.push(`/ar/${parseResult.slug}${query}`);
+      }, 800);
     } else if (parseResult.isMismatched) {
       setScanStatus("warning");
       setFeedbackMessage(parseResult.errorMessage || "Mã QR không khớp với thẻ bài đang yêu cầu.");
@@ -203,8 +206,8 @@ export function QrCameraScanner({
     }
 
     setTimeout(() => {
-      router.push(`/ar/${animal.slug}`);
-    }, 800);
+      router.push(`/ar/${animal.slug}?ar=1`);
+    }, 600);
   };
 
   // Quét mã QR từ file ảnh người dùng tải lên
