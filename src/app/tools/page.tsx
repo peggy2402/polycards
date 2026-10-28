@@ -217,6 +217,9 @@ export default function ToolsPage() {
     size: 25.8,
   });
 
+  // 5.1 Bật / Tắt lớp ghép mã QR nổi trên thẻ (Tránh trùng lặp khi thẻ bài đã có sẵn mã QR in chết trên ảnh)
+  const [isQrOverlayEnabled, setIsQrOverlayEnabled] = useState<boolean>(true);
+
   // 6. Tương tác Canvas (Kéo thả di chuyển, Kéo góc đổi kích thước 1:1, Phím Alt)
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const cardElementRef = useRef<HTMLDivElement>(null);
@@ -855,6 +858,12 @@ export default function ToolsPage() {
         // 1. Vẽ ảnh thẻ gốc full-res
         ctx.drawImage(cardImg, 0, 0, cardDimensions.width, cardDimensions.height);
 
+        // Nếu tắt lớp ghép mã QR (ví dụ ảnh thẻ đã có sẵn mã QR in chết), xuất ngay ảnh gốc không vẽ đè
+        if (!isQrOverlayEnabled || !qrDataUrl) {
+          resolve(canvas);
+          return;
+        }
+
         // 2. Tính tọa độ pixel thực tế của QR trên thẻ gốc
         const realQrX = (qrPos.x / 100) * cardDimensions.width;
         const realQrY = (qrPos.y / 100) * cardDimensions.height;
@@ -873,7 +882,7 @@ export default function ToolsPage() {
       cardImg.onerror = () => reject(new Error("Lỗi nạp ảnh thẻ bài"));
       cardImg.src = cardImageSrc;
     });
-  }, [cardDimensions, cardImageSrc, qrPos, qrDataUrl]);
+  }, [cardDimensions, cardImageSrc, qrPos, qrDataUrl, isQrOverlayEnabled]);
 
   // Tải xuống ảnh thẻ hoàn thiện chuẩn In Ấn
   const handleExportFullCard = async () => {
@@ -1176,6 +1185,25 @@ export default function ToolsPage() {
     const cardImg = product.posterUrl || (Array.isArray(product.images) && product.images[0]) || `/images/cards/${product.slug}-template.jpg`;
     setCardImageSrc(cardImg);
     setSlug(product.slug);
+    setCardFileName(`${product.slug}-card.jpg`);
+
+    // Luôn đưa tọa độ QR về khớp chuẩn xác 100% vào ô góc dưới bên trái (x: 6.2%, y: 70.8%, size: 25.8%)
+    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+
+    // Kiểm tra xem ảnh này có phải là ảnh đã có sẵn mã QR in chết trên thẻ không
+    const isAlreadyHasQr = cardImg.includes("-card.") || !cardImg.includes("-template.");
+    if (isAlreadyHasQr) {
+      // Tự động tắt lớp QR ghép thêm để trên thẻ chỉ hiển thị đúng 1 mã QR nguyên bản!
+      setIsQrOverlayEnabled(false);
+      showToast(
+        `Đã nạp thẻ "${product.nameVi}". Thẻ này đã có sẵn mã QR (Đã tự động ẩn lớp QR ghép thêm để không bị lặp 2 mã). Bạn có thể bấm bật lại trên Canvas nếu muốn thay mã mới!`,
+        "info"
+      );
+    } else {
+      setIsQrOverlayEnabled(true);
+      showToast(`Đã nạp phôi thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
+    }
+
     setProductForm({
       nameEn: product.nameEn,
       nameVi: product.nameVi,
@@ -1190,7 +1218,6 @@ export default function ToolsPage() {
       useCompositeCardImage: true,
     });
     setActiveStudioTab("editor");
-    showToast(`Đã nạp thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
   };
 
   // Mở popup xuất bản thẻ ra Landing Page #products
@@ -2094,8 +2121,54 @@ export default function ToolsPage() {
               </button>
             </div>
 
+            {/* Công tắc Bật/Tắt Lớp Ghép Mã QR (Tránh lặp 2 mã QR khi thẻ bài đã có sẵn QR) */}
+            <div className="p-3 rounded-xl bg-stone-900/90 border border-white/10 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div
+                  className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    isQrOverlayEnabled
+                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  }`}
+                >
+                  <QrCode className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white truncate">
+                    {isQrOverlayEnabled ? "Đang Bật Lớp Ghép QR Mới" : "Đang Dùng QR Có Sẵn Trên Thẻ"}
+                  </div>
+                  <div className="text-[10px] text-stone-400 truncate">
+                    {isQrOverlayEnabled
+                      ? "Mã QR mới được ghép đè lên phôi thẻ"
+                      : "Đã ẩn QR ghép thêm để tránh bị trùng 2 mã"}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !isQrOverlayEnabled;
+                  setIsQrOverlayEnabled(nextState);
+                  if (nextState) {
+                    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+                    showToast("Đã bật lớp mã QR mới (Đè khít ô góc dưới thẻ)", "success");
+                  } else {
+                    showToast("Đã ẩn lớp mã QR ghép thêm (Dùng ảnh thẻ nguyên bản)", "info");
+                  }
+                }}
+                className={`py-1.5 px-3 rounded-lg text-xs font-black shrink-0 transition-all active:scale-95 ${
+                  isQrOverlayEnabled
+                    ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                    : "bg-white/10 text-stone-300 hover:text-white hover:bg-white/15"
+                }`}
+              >
+                {isQrOverlayEnabled ? "Bật" : "Tắt"}
+              </button>
+            </div>
+
             {/* Thanh trượt kích thước QR (Luôn khóa 1:1) */}
-            <div className="space-y-1">
+            <div className={`space-y-1 ${!isQrOverlayEnabled ? "opacity-50 pointer-events-none" : ""}`}>
               <div className="flex justify-between text-xs font-bold text-stone-300">
                 <span>Kích Thước Mã QR:</span>
                 <span className="font-mono text-amber-300">{qrPos.size}%</span>
@@ -2391,8 +2464,8 @@ export default function ToolsPage() {
         >
           {/* Thanh HUD Điều Khiển Canvas & Chế Độ Xem (Chỉnh Sửa vs Xem Thẻ FINAL) */}
           <div className="absolute top-4 inset-x-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-            {/* Nút Chuyển Đổi: Chỉnh Sửa vs Xem Thẻ FINAL */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-stone-900/90 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
+            {/* Nhóm Nút Điều Khiển: Chế độ sửa, Xem Thẻ Final, Bật/Tắt Lớp QR Ghép */}
+            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-stone-900/90 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
               <button
                 type="button"
                 onClick={() => setIsPreviewFinal(false)}
@@ -2415,13 +2488,44 @@ export default function ToolsPage() {
                 }`}
               >
                 <Eye className="h-3.5 w-3.5" />
-                <span>Xem Thẻ FINAL (Chuẩn In)</span>
+                <span>Xem Thẻ FINAL</span>
+              </button>
+
+              {/* Nút Toggle Bật/Tắt Lớp Ghép Mã QR */}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isQrOverlayEnabled;
+                  setIsQrOverlayEnabled(next);
+                  if (next) {
+                    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+                    showToast("Đã bật lớp mã QR mới (Đè khít ô góc dưới thẻ)", "success");
+                  } else {
+                    showToast("Đã ẩn lớp mã QR ghép thêm (Dùng ảnh thẻ nguyên bản)", "info");
+                  }
+                }}
+                className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                  isQrOverlayEnabled
+                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                    : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                }`}
+                title="Bật/Tắt lớp mã QR ghép thêm nếu ảnh thẻ đã có sẵn mã QR để tránh bị lặp 2 mã"
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                <span>
+                  {isQrOverlayEnabled ? "Mã QR Ghép: BẬT" : "DÙNG QR CÓ SẴN (Ẩn QR Ghép)"}
+                </span>
               </button>
             </div>
 
             {/* Chỉ dẫn hoặc Badge trạng thái */}
             <div className="flex items-center gap-2 rounded-full bg-stone-900/90 border border-white/20 px-3.5 py-1.5 backdrop-blur-md text-xs text-stone-200 shadow-2xl pointer-events-auto">
-              {isPreviewFinal ? (
+              {!isQrOverlayEnabled ? (
+                <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Đang hiển thị thẻ nguyên bản (Dùng mã QR đã có sẵn trên thẻ)</span>
+                </span>
+              ) : isPreviewFinal ? (
                 <span className="text-emerald-400 font-bold flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" />
                   <span>Chế Độ Soát Thẻ FINAL: 100% Sạch Bụi, Không Viền, Chuẩn In Xưởng</span>
@@ -2459,80 +2563,91 @@ export default function ToolsPage() {
               className="w-full h-full object-cover pointer-events-none select-none block"
             />
 
-            {/* 2. Lớp Mã QR Nổi Bên Trên Có Thể Kéo Thả & Co Giãn 1:1 */}
-            <div
-              onPointerDown={!isPreviewFinal ? handleQrPointerDown : undefined}
-              className={`absolute z-10 select-none touch-none ${
-                !isPreviewFinal ? "cursor-move group" : "pointer-events-none"
-              }`}
-              style={{
-                left: `${qrPos.x}%`,
-                top: `${qrPos.y}%`,
-                width: `${qrPos.size}%`,
-                height: `${(qrPos.size * cardDimensions.width) / cardDimensions.height}%`,
-              }}
-            >
-              {/* Ảnh Mã QR Thực Tế */}
-              {qrDataUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={qrDataUrl}
-                  alt="QR Code"
-                  draggable={false}
-                  className="w-full h-full object-contain pointer-events-none select-none rounded-xl bg-white shadow-md p-1"
-                />
-              )}
-
-              {/* Chỉ hiển thị Bounding Box & 4 Núm Kéo khi KHÔNG ở chế độ xem Thẻ FINAL */}
-              {!isPreviewFinal && (
-                <>
-                  {/* Khung Viền Chọn Tương Tác Photoshop Style (Selection Border) */}
-                  <div className="absolute inset-0 rounded-xl border-2 border-dashed border-amber-400/90 pointer-events-none shadow-[0_0_15px_rgba(251,191,36,0.45)] group-hover:border-amber-300" />
-
-                  {/* 4 Núm Kéo Góc Giữ Tỉ Lệ 1:1 (Handles) */}
-                  {/* Núm Top-Left */}
-                  <div
-                    onPointerDown={(e) => handleResizePointerDown("nw", e)}
-                    className="absolute -top-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
-                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+            {/* 2. Lớp Mã QR Nổi Bên Trên Có Thể Kéo Thả & Co Giãn 1:1 (Chỉ hiển thị khi bật ghép QR) */}
+            {isQrOverlayEnabled && (
+              <div
+                onPointerDown={!isPreviewFinal ? handleQrPointerDown : undefined}
+                className={`absolute z-10 select-none touch-none ${
+                  !isPreviewFinal ? "cursor-move group" : "pointer-events-none"
+                }`}
+                style={{
+                  left: `${qrPos.x}%`,
+                  top: `${qrPos.y}%`,
+                  width: `${qrPos.size}%`,
+                  height: `${(qrPos.size * cardDimensions.width) / cardDimensions.height}%`,
+                }}
+              >
+                {/* Ảnh Mã QR Thực Tế */}
+                {qrDataUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={qrDataUrl}
+                    alt="QR Code"
+                    draggable={false}
+                    className="w-full h-full object-contain pointer-events-none select-none rounded-xl bg-white shadow-md p-1"
                   />
+                )}
 
-                  {/* Núm Top-Right */}
-                  <div
-                    onPointerDown={(e) => handleResizePointerDown("ne", e)}
-                    className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
-                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-                  />
+                {/* Chỉ hiển thị Bounding Box & 4 Núm Kéo khi KHÔNG ở chế độ xem Thẻ FINAL */}
+                {!isPreviewFinal && (
+                  <>
+                    {/* Khung Viền Chọn Tương Tác Photoshop Style (Selection Border) */}
+                    <div className="absolute inset-0 rounded-xl border-2 border-dashed border-amber-400/90 pointer-events-none shadow-[0_0_15px_rgba(251,191,36,0.45)] group-hover:border-amber-300" />
 
-                  {/* Núm Bottom-Right */}
-                  <div
-                    onPointerDown={(e) => handleResizePointerDown("se", e)}
-                    className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
-                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-                  />
+                    {/* 4 Núm Kéo Góc Giữ Tỉ Lệ 1:1 (Handles) */}
+                    {/* Núm Top-Left */}
+                    <div
+                      onPointerDown={(e) => handleResizePointerDown("nw", e)}
+                      className="absolute -top-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
+                      title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                    />
 
-                  {/* Núm Bottom-Left */}
-                  <div
-                    onPointerDown={(e) => handleResizePointerDown("sw", e)}
-                    className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
-                    title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
-                  />
+                    {/* Núm Top-Right */}
+                    <div
+                      onPointerDown={(e) => handleResizePointerDown("ne", e)}
+                      className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
+                      title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                    />
 
-                  {/* Huy hiệu hiển thị kích thước trực tiếp khi rê chuột */}
-                  <div className="absolute -bottom-7 inset-x-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="px-2 py-0.5 rounded-md bg-stone-900/95 text-amber-300 font-mono text-[9px] shadow-lg border border-amber-400/40 whitespace-nowrap">
-                      QR 1:1 • {qrPos.size}%
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
+                    {/* Núm Bottom-Right */}
+                    <div
+                      onPointerDown={(e) => handleResizePointerDown("se", e)}
+                      className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 transition-transform"
+                      title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                    />
+
+                    {/* Núm Bottom-Left */}
+                    <div
+                      onPointerDown={(e) => handleResizePointerDown("sw", e)}
+                      className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 transition-transform"
+                      title="Kéo để đổi kích thước 1:1 (Giữ Alt để co giãn từ tâm)"
+                    />
+
+                    {/* Huy hiệu hiển thị kích thước trực tiếp khi rê chuột */}
+                    <div className="absolute -bottom-7 inset-x-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="px-2 py-0.5 rounded-md bg-stone-900/95 text-amber-300 font-mono text-[9px] shadow-lg border border-amber-400/40 whitespace-nowrap">
+                        QR 1:1 • {qrPos.size}%
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Thanh Thông Tin Chân Canvas */}
           <div className="absolute bottom-4 inset-x-4 z-20 flex items-center justify-between pointer-events-none text-[11px] text-stone-400">
             <div className="bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 pointer-events-auto">
-              Tọa độ: <span className="font-mono text-amber-300">X: {qrPos.x}%, Y: {qrPos.y}%</span>
+              {isQrOverlayEnabled ? (
+                <>
+                  Tọa độ: <span className="font-mono text-amber-300">X: {qrPos.x}%, Y: {qrPos.y}%</span>
+                </>
+              ) : (
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  <span>Dùng mã QR gốc trên thẻ bài</span>
+                </span>
+              )}
             </div>
             <div className="bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 pointer-events-auto">
               Độ phân giải xuất: <span className="font-mono text-emerald-400">{cardDimensions.width} x {cardDimensions.height} px</span>
