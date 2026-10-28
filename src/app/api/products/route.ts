@@ -117,6 +117,24 @@ export async function POST(request: NextRequest) {
       ? [finalImageUrl]
       : (existingIndex >= 0 ? currentList[existingIndex].images : ["/images/cards/jump-template.jpg"]);
 
+    // Chuẩn hóa categorySlug và categoryId chính xác theo tên danh mục
+    const rawCategory = (body.category || "Động Vật").trim();
+    let computedCategorySlug = body.categorySlug;
+    if (!computedCategorySlug || computedCategorySlug === cleanSlug) {
+      const catLower = rawCategory.toLowerCase();
+      if (catLower.includes("hành động") || catLower.includes("hanh-dong")) {
+        computedCategorySlug = "hanh-dong";
+      } else if (catLower.includes("phương tiện") || catLower.includes("xe cộ") || catLower.includes("phuong-tien")) {
+        computedCategorySlug = "phuong-tien";
+      } else if (catLower.includes("trái cây") || catLower.includes("hoa quả") || catLower.includes("trai-cay")) {
+        computedCategorySlug = "trai-cay";
+      } else {
+        computedCategorySlug = "dong-vat";
+      }
+    }
+    const computedCategoryId = body.categoryId || `cat-${computedCategorySlug}`;
+    const computedPackCode = body.packCode || `POLY30-${computedCategorySlug.replace(/-/g, "").toUpperCase()}`;
+
     const updatedItem: Animal = {
       id: body.id || (existingIndex >= 0 ? currentList[existingIndex].id : `${cleanSlug}-00${currentList.length + 1}`),
       slug: cleanSlug,
@@ -126,10 +144,10 @@ export async function POST(request: NextRequest) {
       nameZh: body.nameZh || (existingIndex >= 0 ? currentList[existingIndex].nameZh : ""),
       ipa: body.ipa || (existingIndex >= 0 ? currentList[existingIndex].ipa : `/${cleanSlug}/`),
       pinyinZh: body.pinyinZh || (existingIndex >= 0 ? currentList[existingIndex].pinyinZh : ""),
-      categoryId: body.categoryId || (existingIndex >= 0 ? currentList[existingIndex].categoryId : `cat-${body.categorySlug || "animals"}`),
-      category: body.category,
-      categorySlug: body.categorySlug || cleanSlug,
-      packCode: body.packCode || (existingIndex >= 0 ? currentList[existingIndex].packCode : `POLY30-${(body.categorySlug || "DONGVAT").toUpperCase()}`),
+      categoryId: computedCategoryId,
+      category: rawCategory,
+      categorySlug: computedCategorySlug,
+      packCode: computedPackCode,
       badge: body.badge || (existingIndex >= 0 ? currentList[existingIndex].badge : "Mới ra mắt"),
       price: Number(body.price) || (existingIndex >= 0 ? currentList[existingIndex].price : 219000),
       originalPrice: Number(body.originalPrice) || (existingIndex >= 0 ? currentList[existingIndex].originalPrice : 299000),

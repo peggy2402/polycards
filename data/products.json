@@ -250,5 +250,42 @@
     "arEnabled": true,
     "buyUrl": "/order?animal=jump",
     "badge": "Mới ra mắt"
+  },
+  {
+    "id": "walk-008",
+    "slug": "walk",
+    "qrCode": "AR-WALK-008",
+    "nameEn": "Walk",
+    "nameVi": "Đi bộ (Walk)",
+    "nameZh": "走",
+    "ipa": "/wɔːk/",
+    "pinyinZh": "zǒu",
+    "categoryId": "cat-hanh-dong",
+    "category": "Hành Động",
+    "categorySlug": "hanh-dong",
+    "packCode": "POLY30-HANHDONG",
+    "badge": "Mới ra mắt",
+    "price": 219000,
+    "originalPrice": 299000,
+    "description": "Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: Đi bộ (Walk).",
+    "images": [
+      "/images/cards/walk-card.jpg"
+    ],
+    "posterUrl": "/images/cards/walk-card.jpg",
+    "audioUrl": "/audio/walk.mp3",
+    "audios": {
+      "en": "/audio/en/walk.mp3",
+      "vi": "/audio/vi/walk.mp3",
+      "zh": "/audio/zh/walk.mp3"
+    },
+    "modelUrl": "/models/lion.glb",
+    "iosModelUrl": "/models/lion.usdz",
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=walk",
+    "updatedAt": "2026-10-28T05:41:11.724Z"
   }
 ]

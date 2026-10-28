@@ -48,6 +48,7 @@ import {
   ChevronDown,
   ChevronUp,
   Receipt,
+  ArrowUpRight,
 } from "lucide-react";
 import {
   getProductCategories,
@@ -55,6 +56,7 @@ import {
   updateProductCategory,
   deleteProductCategory,
   saveProductToLanding,
+  slugify,
   CATEGORIES_UPDATED_EVENT,
 } from "@/lib/products-store";
 import { ProductCategory } from "@/types/animal";
@@ -340,6 +342,7 @@ export default function ToolsPage() {
   const [publishedSuccessInfo, setPublishedSuccessInfo] = useState<{
     productName: string;
     categoryName: string;
+    categorySlug?: string;
     slug: string;
   } | null>(null);
   const [isPublishingProduct, setIsPublishingProduct] = useState<boolean>(false);
@@ -958,7 +961,12 @@ export default function ToolsPage() {
         }
       }
 
-      // 2. Gửi đồng bộ lên API endpoint trước để Server lưu file vật lý vào public/images/cards/
+      // 2. Tìm danh mục chuẩn từ danh sách danh mục
+      const selectedCatObj = categoriesList.find((c) => c.name === productForm.category);
+      const catSlug = selectedCatObj?.slug || slugify(productForm.category);
+      const catId = selectedCatObj?.id || `cat-${catSlug}`;
+
+      // 3. Gửi đồng bộ lên API endpoint trước để Server lưu file vật lý vào public/images/cards/
       let savedProductData: any = null;
       try {
         const apiRes = await fetch("/api/products", {
@@ -972,6 +980,8 @@ export default function ToolsPage() {
             ipa: productForm.ipa,
             pinyinZh: productForm.pinyinZh,
             category: productForm.category,
+            categorySlug: catSlug,
+            categoryId: catId,
             price: productForm.price,
             originalPrice: productForm.originalPrice,
             badge: productForm.badge,
@@ -989,12 +999,12 @@ export default function ToolsPage() {
         console.warn("Lỗi khi ghi data/products.json qua API:", err);
       }
 
-      // 3. Lấy URL ảnh tĩnh sạch (VD: /images/cards/lion-card.jpg, chỉ ~30 bytes, KHÔNG lưu chuỗi base64 khổng lồ)
+      // 4. Lấy URL ảnh tĩnh sạch (VD: /images/cards/lion-card.jpg, chỉ ~30 bytes, KHÔNG lưu chuỗi base64 khổng lồ)
       const cleanImageUrl =
         savedProductData?.images?.[0] ||
         (imageToSave.startsWith("data:") ? `/images/cards/${slug}-card.jpg` : imageToSave);
 
-      // 4. Lưu an toàn vào local store hệ thống với dung lượng tối ưu
+      // 5. Lưu an toàn vào local store hệ thống với dung lượng tối ưu và danh mục chuẩn
       const saved = saveProductToLanding({
         slug,
         nameEn: productForm.nameEn,
@@ -1003,6 +1013,8 @@ export default function ToolsPage() {
         ipa: productForm.ipa,
         pinyinZh: productForm.pinyinZh,
         category: productForm.category,
+        categorySlug: catSlug,
+        categoryId: catId,
         price: productForm.price,
         originalPrice: productForm.originalPrice,
         badge: productForm.badge,
@@ -1015,10 +1027,11 @@ export default function ToolsPage() {
       setPublishedSuccessInfo({
         productName: `${saved.nameVi} (${saved.nameEn})`,
         categoryName: saved.category || "Chung",
+        categorySlug: saved.categorySlug || catSlug,
         slug: saved.slug,
       });
 
-      showToast(`Đã xuất bản thẻ "${saved.nameVi} (${saved.nameEn})" ra #products thành công!`, "success");
+      showToast(`Đã xuất bản thẻ "${saved.nameVi} (${saved.nameEn})" lên Hệ Thống (#products & /products) thành công!`, "success");
     } catch (err: any) {
       console.error("Lỗi xuất bản sản phẩm:", err);
       showToast(`Lỗi xuất bản sản phẩm: ${err.message}`, "error");
@@ -2060,7 +2073,7 @@ export default function ToolsPage() {
                     ))}
                   </select>
                   <p className="text-[10px] text-stone-400">
-                    Thẻ bài sẽ được đưa vào Tab danh mục này trên giao diện trang chủ <code className="text-amber-300">#products</code>.
+                    Thẻ bài sẽ được xuất bản đồng thời lên Trang chủ <code className="text-amber-300">#products</code> và Kho Thẻ Bài <code className="text-amber-300">/products</code>.
                   </p>
                 </div>
 
@@ -2271,7 +2284,7 @@ export default function ToolsPage() {
                 >
                   <Check className="h-4 w-4 text-stone-950 shrink-0" />
                   <span>
-                    {isPublishingProduct ? "Đang Lưu..." : "Xác Nhận Lưu Vào #products"}
+                    {isPublishingProduct ? "Đang Xuất Bản..." : "Xác Nhận Xuất Bản Thẻ Bài"}
                   </span>
                 </button>
               </div>
@@ -2496,9 +2509,9 @@ export default function ToolsPage() {
             <Link
               href={`/ar/${publishedSuccessInfo.slug}?ar=1`}
               target="_blank"
-              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all"
+              className="flex-1 min-w-[120px] py-2 px-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all"
             >
-              <span>Xem Thử AR Web</span>
+              <span>Xem Thử AR</span>
               <ExternalLink className="h-3 w-3" />
             </Link>
 
@@ -2506,16 +2519,26 @@ export default function ToolsPage() {
               href="/#products"
               target="_blank"
               onClick={() => setPublishedSuccessInfo(null)}
-              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-white text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md hover:bg-emerald-50 active:scale-95 transition-all"
+              className="flex-1 min-w-[120px] py-2 px-2.5 rounded-xl bg-white text-stone-950 font-black text-xs text-center flex items-center justify-center gap-1 shadow-md hover:bg-emerald-50 active:scale-95 transition-all"
             >
               <span>Xem Tại #products</span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+
+            <Link
+              href={`/products?category=${publishedSuccessInfo.categorySlug || ""}`}
+              target="_blank"
+              onClick={() => setPublishedSuccessInfo(null)}
+              className="flex-1 min-w-[120px] py-2 px-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-black text-xs text-center flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all border border-emerald-400/50"
+            >
+              <span>Mở Kho Thẻ (/products)</span>
+              <ArrowUpRight className="h-3 w-3" />
             </Link>
 
             <button
               type="button"
               onClick={() => setPublishedSuccessInfo(null)}
-              className="py-2 px-2.5 rounded-xl bg-black/20 hover:bg-black/30 text-white text-xs font-bold transition-colors"
+              className="py-2 px-2 rounded-xl bg-black/20 hover:bg-black/30 text-white text-xs font-bold transition-colors"
             >
               Đóng
             </button>

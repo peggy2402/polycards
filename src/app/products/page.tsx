@@ -66,7 +66,22 @@ export default function ProductsPage() {
       }
     }
 
+    const fetchServerProducts = async () => {
+      try {
+        const res = await fetch("/api/products");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setProducts(getMergedProducts(json.data));
+        }
+      } catch (err) {
+        console.warn("Lỗi tải sản phẩm từ API server, dùng dữ liệu local:", err);
+      }
+    };
+
+    fetchServerProducts();
+
     const handleProductsUpdated = () => {
+      fetchServerProducts();
       setProducts(getMergedProducts(initialAnimals));
     };
 

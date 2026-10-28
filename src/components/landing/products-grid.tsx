@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { Animal } from "@/types/animal";
+import { getAllAnimals } from "@/lib/animals";
+import { getMergedProducts, PRODUCTS_UPDATED_EVENT } from "@/lib/products-store";
 import { COMBO_PACKS } from "@/data/combos";
 import { ComboPackCard } from "./combo-pack-card";
+import { ProductCard } from "./product-card";
 import {
   Sparkles,
   Layers,
@@ -24,7 +28,43 @@ import {
 
 export function ProductsGrid() {
   const [quickSearch, setQuickSearch] = useState("");
+  const [recentCards, setRecentCards] = useState<Animal[]>([]);
   const router = useRouter();
+
+  // Tải danh sách thẻ bài mới nhất (đồng bộ từ Server API và Local Store)
+  useEffect(() => {
+    const initialAnimals = getAllAnimals();
+    const merged = getMergedProducts(initialAnimals);
+    setRecentCards(merged.slice(0, 4));
+
+    const fetchServerCards = async () => {
+      try {
+        const res = await fetch("/api/products");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const liveMerged = getMergedProducts(json.data);
+          setRecentCards(liveMerged.slice(0, 4));
+        }
+      } catch (err) {
+        console.warn("Lỗi tải thẻ mới từ server:", err);
+      }
+    };
+
+    fetchServerCards();
+
+    const handleUpdate = () => {
+      fetchServerCards();
+      const updated = getMergedProducts(initialAnimals);
+      setRecentCards(updated.slice(0, 4));
+    };
+
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, []);
 
   const handleQuickSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +182,40 @@ export function ProductsGrid() {
             <ComboPackCard key={pack.id} pack={pack} />
           ))}
         </div>
+
+        {/* PHÂN KHU THẺ BÀI AR MỚI XUẤT BẢN THỰC TẾ (Hiển thị các thẻ được tạo từ Studio) */}
+        {recentCards.length > 0 && (
+          <div className="mt-14 pt-10 border-t border-amber-200/80">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-950 border border-emerald-300">
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Vừa Xuất Bản Từ Studio</span>
+                </div>
+                <h3 className="mt-2 text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
+                  Kho Thẻ Bài AR Mới Cập Nhật
+                </h3>
+                <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-2xl leading-relaxed">
+                  Các thẻ bài thông minh được chế bản trực tiếp, tích hợp mã QR kích hoạt AR 3D và phát âm bản xứ chuẩn quốc tế.
+                </p>
+              </div>
+
+              <Link
+                href="/products"
+                className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-black text-amber-950 hover:bg-amber-100 transition-all shrink-0 shadow-xs"
+              >
+                <span>Xem Toàn Bộ Thẻ Bài (/products)</span>
+                <ArrowRight className="h-3.5 w-3.5 text-amber-600" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {recentCards.map((card) => (
+                <ProductCard key={card.id} animal={card} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* KHỐI GATEWAY PORTAL CARD: DẪN SANG TRANG /products ĐẦY ĐỦ BỘ LỌC & TỪNG THẺ LẺ */}
         <div className="mt-14 overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/15 border-2 border-amber-300/80 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
