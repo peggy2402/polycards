@@ -141,6 +141,44 @@ export function deleteProductCategory(id: string): void {
   }
 }
 
+const KNOWN_STATIC_CARD_IMAGES = new Set([
+  "/images/cards/lion-card.jpg",
+  "/images/cards/walk-card.jpg",
+  "/images/cards/jump-template.jpg",
+]);
+
+/**
+ * Kiểm tra đường dẫn ảnh thẻ có phải là đường dẫn giả định bị lỗi 404 hay không
+ */
+export function isBrokenCardImageUrl(url?: string): boolean {
+  if (!url || typeof url !== "string") return true;
+  if (
+    url.startsWith("/images/cards/") &&
+    url.endsWith("-card.jpg") &&
+    !KNOWN_STATIC_CARD_IMAGES.has(url)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Chuẩn hóa URL ảnh sản phẩm để không bao giờ trả về đường dẫn 404
+ */
+export function resolveValidProductImage(
+  primaryUrl?: string,
+  secondaryUrl?: string,
+  fallback = "/images/cards/jump-template.jpg"
+): string {
+  if (primaryUrl && !isBrokenCardImageUrl(primaryUrl)) {
+    return primaryUrl;
+  }
+  if (secondaryUrl && !isBrokenCardImageUrl(secondaryUrl)) {
+    return secondaryUrl;
+  }
+  return fallback;
+}
+
 /**
  * Lấy danh sách sản phẩm hợp nhất (Seed/MongoDB products + Custom products từ Tools)
  */
@@ -154,12 +192,20 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
         !deletedKeys.has(item.id.toLowerCase()) &&
         !deletedKeys.has(item.slug.toLowerCase())
     )
-    .map((item) => ({
-      ...item,
-      category: item.category || "Động Vật",
-      categorySlug: item.categorySlug || "dong-vat",
-      originalPrice: item.originalPrice || Math.round((item.price || 249000) * 1.3),
-    }));
+    .map((item) => {
+      const validImg = resolveValidProductImage(
+        item.images?.[0],
+        item.posterUrl
+      );
+      return {
+        ...item,
+        images: [validImg],
+        posterUrl: validImg,
+        category: item.category || "Động Vật",
+        categorySlug: item.categorySlug || "dong-vat",
+        originalPrice: item.originalPrice || Math.round((item.price || 249000) * 1.3),
+      };
+    });
 
   if (typeof window === "undefined") {
     return defaultList;
@@ -174,10 +220,35 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
       return defaultList;
     }
 
-    // Merge: custom items override default items by ID or SLUG, and new custom items are prepended
-    const validCustomList = customList.filter(
-      (c) => !deletedKeys.has(c.id.toLowerCase()) && !deletedKeys.has(c.slug.toLowerCase())
-    );
+    // Map các sản phẩm từ server/seed theo slug để ưu tiên ảnh hợp lệ từ MongoDB
+    const serverBySlug = new Map<string, Animal>();
+    defaultList.forEach((item) => {
+      serverBySlug.set(item.slug.toLowerCase(), item);
+    });
+
+    const validCustomList = customList
+      .filter(
+        (c) =>
+          !deletedKeys.has(c.id.toLowerCase()) &&
+          !deletedKeys.has(c.slug.toLowerCase())
+      )
+      .map((localItem) => {
+        const serverMatch = serverBySlug.get(localItem.slug.toLowerCase());
+        const bestImage = resolveValidProductImage(
+          serverMatch?.images?.[0],
+          resolveValidProductImage(localItem.images?.[0], localItem.posterUrl)
+        );
+        return {
+          ...(serverMatch || {}),
+          ...localItem,
+          images: [bestImage],
+          posterUrl: bestImage,
+          modelUrl: serverMatch?.modelUrl || localItem.modelUrl || `/models/lion.glb`,
+          iosModelUrl: serverMatch?.iosModelUrl || localItem.iosModelUrl || `/models/lion.usdz`,
+          targetUrl: serverMatch?.targetUrl || localItem.targetUrl || `/targets/lion.mind`,
+        };
+      });
+
     const result: Animal[] = [...validCustomList];
     const customSlugs = new Set(validCustomList.map((c) => c.slug.toLowerCase()));
     const customIds = new Set(validCustomList.map((c) => c.id));
@@ -196,7 +267,7 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
 }
 
 /**
- * Dọn dẹp các ảnh Data URL Base64 khổng lồ trong localStorage để giải phóng bộ nhớ Quota (5MB limit)
+ * Dọn dẹp các ảnh Data URL Base64 quá lớn (>450KB) hoặc URL giả định bị lỗi trong localStorage
  */
 export function cleanStorageQuota(): void {
   if (typeof window === "undefined") return;
@@ -214,17 +285,25 @@ export function cleanStorageQuota(): void {
 
       if (Array.isArray(newImages)) {
         newImages = newImages.map((img) => {
-          if (typeof img === "string" && img.startsWith("data:image/") && img.length > 500) {
+          if (
+            typeof img === "string" &&
+            ((img.startsWith("data:image/") && img.length > 450000) ||
+              isBrokenCardImageUrl(img))
+          ) {
             changed = true;
-            return `/images/cards/${item.slug}-card.jpg`;
+            return "/images/cards/jump-template.jpg";
           }
           return img;
         });
       }
 
-      if (typeof newPoster === "string" && newPoster.startsWith("data:image/") && newPoster.length > 500) {
+      if (
+        typeof newPoster === "string" &&
+        ((newPoster.startsWith("data:image/") && newPoster.length > 450000) ||
+          isBrokenCardImageUrl(newPoster))
+      ) {
         changed = true;
-        newPoster = `/images/cards/${item.slug}-card.jpg`;
+        newPoster = newImages?.[0] || "/images/cards/jump-template.jpg";
       }
 
       if (changed) {
@@ -236,7 +315,6 @@ export function cleanStorageQuota(): void {
 
     if (modified) {
       localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(sanitized));
-      console.log("Đã giải phóng dung lượng localStorage polycards_custom_products thành công.");
     }
   } catch (e) {
     console.warn("Không thể dọn dẹp localStorage:", e);
@@ -256,7 +334,6 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     throw new Error("Môi trường không hợp lệ.");
   }
 
-  // Tự động dọn dẹp rác base64 cũ nếu có
   cleanStorageQuota();
 
   const raw = localStorage.getItem(STORAGE_PRODUCTS_KEY);
@@ -274,16 +351,24 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     (item) => item.id === productData.id || item.slug.toLowerCase() === cleanSlug
   );
 
-  // Bảo vệ dung lượng: Tuyệt đối không lưu chuỗi Base64 khổng lồ vào localStorage
-  let safeImages = productData.images && productData.images.length > 0 ? productData.images : ["/images/cards/jump-template.jpg"];
-  let safePoster = productData.posterUrl || safeImages[0] || "/images/cards/jump-template.jpg";
+  const primaryInputImg =
+    productData.images && productData.images.length > 0
+      ? productData.images[0]
+      : productData.posterUrl;
 
-  if (typeof safeImages[0] === "string" && safeImages[0].startsWith("data:image/") && safeImages[0].length > 500) {
-    safeImages = [`/images/cards/${cleanSlug}-card.jpg`];
+  let safeImage = resolveValidProductImage(
+    primaryInputImg,
+    productData.posterUrl,
+    "/images/cards/jump-template.jpg"
+  );
+
+  // Chỉ cắt bỏ nếu chuỗi base64 vượt quá 450KB để tránh tràn localStorage
+  if (safeImage.startsWith("data:image/") && safeImage.length > 450000) {
+    safeImage = "/images/cards/jump-template.jpg";
   }
-  if (typeof safePoster === "string" && safePoster.startsWith("data:image/") && safePoster.length > 500) {
-    safePoster = `/images/cards/${cleanSlug}-card.jpg`;
-  }
+
+  const safeImages = [safeImage];
+  const safePoster = safeImage;
 
   const finalProduct: Animal = {
     id: productData.id || `card-${Date.now()}`,
@@ -329,14 +414,21 @@ export function saveProductToLanding(productData: Partial<Animal> & {
   } catch (quotaErr) {
     console.warn("localStorage quota bị đầy, tiến hành dọn dẹp và giới hạn danh sách:", quotaErr);
     try {
-      const reducedList = customList.slice(0, 5).map((item) => ({
+      const reducedList = customList.slice(0, 8).map((item) => ({
         ...item,
         images: Array.isArray(item.images)
-          ? item.images.map((img) => (typeof img === "string" && img.length > 200 ? `/images/cards/${item.slug}-card.jpg` : img))
+          ? item.images.map((img) =>
+              typeof img === "string" && img.startsWith("data:image/") && img.length > 150000
+                ? "/images/cards/jump-template.jpg"
+                : img
+            )
           : ["/images/cards/jump-template.jpg"],
-        posterUrl: typeof item.posterUrl === "string" && item.posterUrl.length > 200
-          ? `/images/cards/${item.slug}-card.jpg`
-          : item.posterUrl,
+        posterUrl:
+          typeof item.posterUrl === "string" &&
+          item.posterUrl.startsWith("data:image/") &&
+          item.posterUrl.length > 150000
+            ? "/images/cards/jump-template.jpg"
+            : item.posterUrl,
       }));
       localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(reducedList));
     } catch (fallbackErr) {

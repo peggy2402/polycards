@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import QRCode from "qrcode";
 import { Animal } from "@/types/animal";
+import { siteConfig } from "@/config/site";
+import { resolveValidProductImage } from "@/lib/products-store";
 import {
   Camera,
   RotateCw,
@@ -30,8 +33,55 @@ export function CardFlashcardView({
   const [isFullscreenCard, setIsFullscreenCard] = useState<boolean>(false);
   const [activeVoice, setActiveVoice] = useState<string | null>(null);
 
-  const cardFrontImage = animal.images[0] || `/images/animals/${animal.slug}.jpg`;
-  const qrImage = `/qr-output/${animal.slug}-qr.png`;
+  const initialFrontImg = resolveValidProductImage(
+    animal.images?.[0],
+    animal.posterUrl,
+    "/images/cards/jump-template.jpg"
+  );
+  const [frontImageSrc, setFrontImageSrc] = useState<string>(initialFrontImg);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("/qr-output/lion-qr.png");
+
+  useEffect(() => {
+    setFrontImageSrc(
+      resolveValidProductImage(
+        animal.images?.[0],
+        animal.posterUrl,
+        "/images/cards/jump-template.jpg"
+      )
+    );
+  }, [animal.images, animal.posterUrl]);
+
+  // Tự động sinh mã QR chuẩn xác cho mọi thẻ (kể cả các thẻ mới tạo từ Studio)
+  useEffect(() => {
+    let isActive = true;
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : siteConfig.url.replace(/\/$/, "");
+    const targetArUrl = `${origin}/ar/${animal.slug}?ar=1`;
+
+    QRCode.toDataURL(targetArUrl, {
+      width: 360,
+      margin: 1,
+      errorCorrectionLevel: "H",
+      color: {
+        dark: "#1c1917",
+        light: "#ffffff",
+      },
+    })
+      .then((url) => {
+        if (isActive && url) {
+          setQrDataUrl(url);
+        }
+      })
+      .catch((err) => {
+        console.warn("Không thể sinh QR động, dùng QR mặc định:", err);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [animal.slug]);
 
   const handleQuickSpeak = (e: React.MouseEvent, lang: "en" | "vi" | "zh") => {
     e.stopPropagation();
@@ -82,10 +132,16 @@ export function CardFlashcardView({
             {/* Khung minh họa con vật thực tế */}
             <div className="relative flex-1 w-full my-3 rounded-2xl overflow-hidden border-2 border-amber-200 bg-stone-100 shadow-inner group">
               <Image
-                src={cardFrontImage}
+                src={frontImageSrc || "/images/cards/jump-template.jpg"}
                 alt={`Thẻ bài ${animal.nameEn}`}
                 fill
                 priority
+                unoptimized
+                onError={() => {
+                  if (frontImageSrc !== "/images/cards/jump-template.jpg") {
+                    setFrontImageSrc("/images/cards/jump-template.jpg");
+                  }
+                }}
                 sizes="(max-width: 640px) 100vw, 420px"
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
               />
@@ -188,10 +244,16 @@ export function CardFlashcardView({
             <div className="flex flex-col items-center justify-center my-auto py-2">
               <div className="relative h-44 w-44 rounded-2xl bg-white p-3 shadow-xl border-2 border-amber-400/80 flex items-center justify-center">
                 <Image
-                  src={qrImage}
+                  src={qrDataUrl}
                   alt={`Mã QR thẻ ${animal.nameEn}`}
                   width={150}
                   height={150}
+                  unoptimized
+                  onError={() => {
+                    if (qrDataUrl !== "/qr-output/lion-qr.png") {
+                      setQrDataUrl("/qr-output/lion-qr.png");
+                    }
+                  }}
                   className="object-contain"
                 />
               </div>
@@ -293,10 +355,11 @@ export function CardFlashcardView({
 
             <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-stone-200">
               <Image
-                src={cardFrontImage}
+                src={frontImageSrc || "/images/cards/jump-template.jpg"}
                 alt={animal.nameEn}
                 fill
                 priority
+                unoptimized
                 sizes="(max-width: 640px) 100vw, 420px"
                 className="object-cover"
               />

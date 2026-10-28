@@ -1087,9 +1087,31 @@ export default function ToolsPage() {
       if (productForm.useCompositeCardImage) {
         try {
           const canvas = await generateCompositeCanvas();
-          imageToSave = canvas.toDataURL("image/jpeg", 0.85);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+          imageToSave = dataUrl;
+
+          // Tải ảnh thẻ đã gộp lên MongoDB GridFS để có URL ngắn gọn, bền vững trên mọi thiết bị
+          const blob: Blob | null = await new Promise((resolve) =>
+            canvas.toBlob((b) => resolve(b), "image/jpeg", 0.82)
+          );
+          if (blob) {
+            const formData = new FormData();
+            formData.append("file", blob, `${slug}-card.jpg`);
+            formData.append("type", "image");
+            formData.append("name", `${slug}-card`);
+            const uploadRes = await fetch("/api/tools/upload", {
+              method: "POST",
+              body: formData,
+            });
+            if (uploadRes.ok) {
+              const uploadJson = await uploadRes.json();
+              if (uploadJson.success && uploadJson.url) {
+                imageToSave = uploadJson.url;
+              }
+            }
+          }
         } catch (err) {
-          console.warn("Không thể chụp canvas thẻ, dùng ảnh mẫu gốc:", err);
+          console.warn("Không thể chụp hoặc tải canvas thẻ, dùng ảnh mẫu gốc:", err);
         }
       }
 
@@ -1132,9 +1154,7 @@ export default function ToolsPage() {
         console.warn("Lỗi khi lưu sản phẩm vào MongoDB qua API:", err);
       }
 
-      const cleanImageUrl =
-        savedProductData?.images?.[0] ||
-        (imageToSave.startsWith("data:") ? `/images/cards/${slug}-card.jpg` : imageToSave);
+      const cleanImageUrl = savedProductData?.images?.[0] || imageToSave;
 
       const saved = saveProductToLanding({
         slug,

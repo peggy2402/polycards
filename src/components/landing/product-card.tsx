@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
 import { siteConfig } from "@/config/site";
 import { formatVndCurrency, buildTargetScanUrl } from "@/lib/formatters";
+import { resolveValidProductImage } from "@/lib/products-store";
 import { Badge } from "@/components/common/badge";
 import {
   Sparkles,
@@ -23,6 +24,23 @@ export function ProductCard({ animal }: ProductCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
   const [playingLang, setPlayingLang] = useState<"en" | "vi" | "zh" | null>(null);
+
+  const resolvedImg = resolveValidProductImage(
+    animal.images?.[0],
+    animal.posterUrl,
+    "/images/cards/jump-template.jpg"
+  );
+  const [imgSrc, setImgSrc] = useState<string>(resolvedImg);
+
+  useEffect(() => {
+    setImgSrc(
+      resolveValidProductImage(
+        animal.images?.[0],
+        animal.posterUrl,
+        "/images/cards/jump-template.jpg"
+      )
+    );
+  }, [animal.images, animal.posterUrl]);
 
   const targetScanUrl = buildTargetScanUrl(animal.slug);
   const buyUrl =
@@ -116,9 +134,15 @@ export function ProductCard({ animal }: ProductCardProps) {
               className="relative h-full w-full"
             >
               <Image
-                src={animal.images[0] || "/images/animals/lion.jpg"}
+                src={imgSrc || "/images/cards/jump-template.jpg"}
                 alt={`Mô hình đồ chơi 3D ${animal.nameVi} (${animal.nameEn})`}
                 fill
+                unoptimized
+                onError={() => {
+                  if (imgSrc !== "/images/cards/jump-template.jpg") {
+                    setImgSrc("/images/cards/jump-template.jpg");
+                  }
+                }}
                 className="object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-108"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
