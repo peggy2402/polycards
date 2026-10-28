@@ -20,3 +20,6 @@
    - Tách các hàm định dạng vào `src/lib/formatters.ts`.
    - Tách logic stateful phức tạp thành Custom Hooks trong `src/hooks/`.
    - Tách các thành phần UI dùng chung thành atomic components.
+
+6. **Quy Chuẩn Git Commit (Conventional Commits)**:
+   - Mọi commit bắt buộc phải tuân theo chuẩn Conventional Commits với tiền tố rõ ràng: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `style:`, `test:` (ví dụ: `feat(db): ...`, `fix(ar): ...`, `chore(clean): ...`, `docs(memories): ...`).

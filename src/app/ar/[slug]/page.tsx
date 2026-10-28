@@ -29,7 +29,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ArPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const animal = (await dbGetProductBySlug(slug)) || getAnimalBySlug(slug);
+  const animal = getAnimalBySlug(slug) || (await dbGetProductBySlug(slug));
 
   if (!animal) {
     return {
@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: ArPageProps): Promise<Metadat
 
 export default async function ArDetailPage({ params }: ArPageProps) {
   const { slug } = await params;
-  const animal = (await dbGetProductBySlug(slug)) || getAnimalBySlug(slug);
+  const animal = getAnimalBySlug(slug) || (await dbGetProductBySlug(slug));
 
   if (!animal) {
     notFound();
