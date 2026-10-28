@@ -42,6 +42,7 @@ export function QrCameraScanner({
   const [isProcessingFile, setIsProcessingFile] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isNavigatingRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerContainerId = "qr-reader-container";
 
@@ -130,13 +131,16 @@ export function QrCameraScanner({
     };
   }, []);
 
-  const handleQrDecoded = (decodedText: string) => {
+  const handleQrDecoded = async (decodedText: string) => {
+    if (isNavigatingRef.current) return;
+
     const parseResult: QrParseResult = parseAndValidateQr(
       decodedText,
       expectedAnimal ? expectedAnimal.slug : null
     );
 
     if (parseResult.valid && parseResult.slug) {
+      isNavigatingRef.current = true;
       setScanStatus("success");
       setFeedbackMessage(`Đã khóa mục tiêu: ${parseResult.animalNameEn || parseResult.slug}!`);
       
@@ -149,12 +153,16 @@ export function QrCameraScanner({
         navigator.vibrate?.([80, 50, 80]);
       } catch {}
 
-      // Stop scanner safely and navigate
+      // Giải phóng triệt để Camera trên iPhone Safari trước khi chuyển sang WebAR 3D
       if (scannerRef.current) {
         try {
+          const stream = (scannerRef.current as any).localMediaStream as MediaStream | undefined;
+          if (stream) {
+            stream.getTracks().forEach((t) => t.stop());
+          }
           const state = typeof scannerRef.current.getState === "function" ? scannerRef.current.getState() : 0;
           if (state === 2 || state === 3) {
-            scannerRef.current.stop().catch(() => {});
+            await scannerRef.current.stop();
           }
         } catch {}
       }
@@ -164,7 +172,7 @@ export function QrCameraScanner({
           ? `?ar=1&code=${encodeURIComponent(parseResult.code)}`
           : `?ar=1`;
         router.push(`/ar/${parseResult.slug}${query}`);
-      }, 800);
+      }, 400);
     } else if (parseResult.isMismatched) {
       setScanStatus("warning");
       setFeedbackMessage(parseResult.errorMessage || "Mã QR không khớp với thẻ bài đang yêu cầu.");

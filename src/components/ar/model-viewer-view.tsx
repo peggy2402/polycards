@@ -33,11 +33,19 @@ export function ModelViewerView({
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [activeModelSrc, setActiveModelSrc] = useState<string>(
+    animal.modelUrl || "/models/lion.glb"
+  );
   const [arSupported, setArSupported] = useState<boolean | null>(null);
   const [isAndroid, setIsAndroid] = useState(false);
   const [showArGuide, setShowArGuide] = useState(false);
   const [arModePreference, setArModePreference] = useState<"scene-viewer" | "webxr">("scene-viewer");
   const modelViewerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setLoadError(false);
+    setActiveModelSrc(animal.modelUrl || "/models/lion.glb");
+  }, [animal.modelUrl]);
 
   useEffect(() => {
     setMounted(true);
@@ -99,6 +107,10 @@ export function ModelViewerView({
     };
 
     const handleError = () => {
+      if (activeModelSrc !== "/models/lion.glb") {
+        setActiveModelSrc("/models/lion.glb");
+        return;
+      }
       setLoadError(true);
     };
 
@@ -111,7 +123,7 @@ export function ModelViewerView({
       viewer.removeEventListener("error", handleError);
       viewer.removeEventListener("load", handleModelLoad);
     };
-  }, [isLoaded, selectedAnimation]);
+  }, [isLoaded, selectedAnimation, activeModelSrc]);
 
   useEffect(() => {
     const viewer = modelViewerRef.current as any;
@@ -182,9 +194,13 @@ export function ModelViewerView({
         ) : isLoaded ? (
           <model-viewer
             ref={modelViewerRef as any}
-            src={animal.modelUrl}
-            ios-src={animal.iosModelUrl}
-            poster={animal.posterUrl}
+            src={activeModelSrc}
+            ios-src={
+              activeModelSrc.startsWith("/api/tools/upload") &&
+              animal.iosModelUrl === "/models/lion.usdz"
+                ? undefined
+                : animal.iosModelUrl
+            }
             alt={`Mô hình 3D AR ${animal.nameEn}`}
             ar={true}
             ar-modes={

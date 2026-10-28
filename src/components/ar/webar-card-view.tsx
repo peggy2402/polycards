@@ -74,8 +74,9 @@ export function WebArCardView({
   const [tapFeedback, setTapFeedback] = useState<string | null>(null);
   const tapFeedbackTimeoutRef = useRef<any>(null);
 
-  // Đã quét thẻ thành công ít nhất 1 lần
+  // Đã quét thẻ thành công ít nhất 1 lần & trạng thái bắt dính thẻ thời gian thực
   const hasScannedOnceRef = useRef<boolean>(false);
+  const isTargetFoundRef = useRef<boolean>(false);
 
   // Loading & Download Progress
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -318,6 +319,11 @@ export function WebArCardView({
           setIsFreeArMode(true);
         }
 
+        // Dọn sạch container trước khi khởi tạo MindAR để tránh chồng lặp canvas/video trên iPhone Safari
+        if (containerRef.current) {
+          containerRef.current.innerHTML = "";
+        }
+
         // Khởi tạo MindAR Three instance
         const mindarThree = new MindARThree({
           container: containerRef.current,
@@ -350,6 +356,7 @@ export function WebArCardView({
         // Bắt sự kiện nhận diện thẻ bài
         anchor.onTargetFound = () => {
           if (!isCancelled) {
+            isTargetFoundRef.current = true;
             setIsTargetFound(true);
             setHasScannedOnce(true);
             hasScannedOnceRef.current = true;
@@ -360,6 +367,7 @@ export function WebArCardView({
 
         anchor.onTargetLost = () => {
           if (!isCancelled) {
+            isTargetFoundRef.current = false;
             setIsTargetFound(false);
             // KHÔNG ẩn con vật! Vẫn duy trì hiển thị tại tọa độ 3D trong không gian phòng
           }
@@ -450,6 +458,11 @@ export function WebArCardView({
                   if (isCancelled) return;
                   setIsLoading(false);
 
+                  // Vector tạm tái sử dụng trong vòng lặp render để tối ưu 60FPS trên iPhone
+                  const fallbackPos = new THREE.Vector3();
+                  const fallbackQuat = new THREE.Quaternion();
+                  const fallbackScale = new THREE.Vector3();
+
                   // Khởi chạy vòng lặp render và tính FPS
                   renderer.setAnimationLoop(() => {
                     // Đo FPS
@@ -466,10 +479,32 @@ export function WebArCardView({
                       mixerRef.current.update(delta);
                     }
 
-                    // ĐẢM BẢO VẬT THỂ KHÔNG BAO GIỜ BIẾN MẤT:
-                    // Sau khi nạp xong, duy trì con vật luôn hiển thị trong không gian phòng
+                    // ĐẢM BẢO MÔ HÌNH 3D HIỂN THỊ TỨC THÌ TRÊN IPHONE & ANDROID:
+                    // Trong MindARThree, khi chưa nhận diện được thẻ .mind (isTargetFoundRef = false),
+                    // anchor.group.matrix mặc định là ma trận đơn vị ở tọa độ (0,0,0) - nằm phía sau mặt cắt camera.near
+                    // khiến mô hình bị cắt khuất hoàn toàn. Ta đặt ma trận fallback ngay chính giữa khung nhìn Camera!
                     if (hasScannedOnceRef.current && anchorGroupRef.current) {
                       anchorGroupRef.current.visible = true;
+
+                      if (!isTargetFoundRef.current) {
+                        const camNear = camera.near && camera.near > 0 ? camera.near : 10;
+                        const camFar = camera.far && camera.far > camNear ? camera.far : 10000;
+                        const dist = Math.min(Math.max(camNear * 6, 1000), camFar * 0.4);
+                        const fovDeg = camera.fov && camera.fov > 0 ? camera.fov : 45;
+                        const fovRad = (fovDeg * Math.PI) / 180;
+                        const visibleHeight = 2 * dist * Math.tan(fovRad / 2);
+
+                        fallbackPos.set(0, -visibleHeight * 0.05, -dist);
+                        fallbackQuat.set(0, 0, 0, 1);
+                        fallbackScale.set(visibleHeight, visibleHeight, visibleHeight);
+
+                        anchorGroupRef.current.matrix.compose(
+                          fallbackPos,
+                          fallbackQuat,
+                          fallbackScale
+                        );
+                        anchorGroupRef.current.matrixWorldNeedsUpdate = true;
+                      }
                     }
 
                     renderer.render(scene, camera);
@@ -530,16 +565,27 @@ export function WebArCardView({
       }
       if (mindarRef.current) {
         try {
-          mindarRef.current.stop();
           if (mindarRef.current.renderer) {
             mindarRef.current.renderer.setAnimationLoop(null);
+          }
+          if (mindarRef.current.controller) {
+            mindarRef.current.controller.stopProcessVideo();
+          }
+          if (mindarRef.current.video && mindarRef.current.video.srcObject) {
+            mindarRef.current.video.srcObject
+              .getTracks()
+              .forEach((t: MediaStreamTrack) => t.stop());
+            mindarRef.current.video.remove();
           }
         } catch (e) {
           console.warn("[MindAR Stop]:", e);
         }
       }
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
     };
-  }, [animal, loadScript]);
+  }, [animal.slug, animal.modelUrl, animal.targetUrl, loadScript]);
 
   // CỬ CHỈ CẢM ỨNG ĐA ĐIỂM TỰ NHIÊN CHUẨN APPLE AR (Simultaneous Multi-touch Gestures)
   // - 1 ngón tay kéo: Di chuyển vị trí (Pan)
