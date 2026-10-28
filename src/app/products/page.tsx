@@ -53,6 +53,19 @@ export default function ProductsPage() {
     setProducts(getMergedProducts(initialAnimals));
     setCategories(getProductCategories());
 
+    // Đọc URL search params để tự động chọn đúng danh mục hoặc từ khóa khi chuyển hướng từ trang chủ
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const categoryParam = params.get("category");
+      const searchParam = params.get("search");
+      if (categoryParam) {
+        setSelectedCategorySlug(categoryParam);
+      }
+      if (searchParam) {
+        setSearchQuery(searchParam);
+      }
+    }
+
     const handleProductsUpdated = () => {
       setProducts(getMergedProducts(initialAnimals));
     };

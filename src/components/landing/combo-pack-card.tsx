@@ -145,6 +145,16 @@ export function ComboPackCard({ pack }: ComboPackCardProps) {
               <span>Đặt Mua Bộ</span>
             </Link>
           </div>
+
+          {/* Link Xem Chi Tiết Từng Thẻ Lẻ Của Bộ Này Dẫn Sang /products */}
+          <Link
+            href={`/products?category=${pack.categorySlug}`}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200/80 bg-amber-50/70 hover:bg-amber-100/90 px-3 py-1.5 text-[11px] font-bold text-amber-900 transition-colors"
+            title={`Xem danh sách các thẻ lẻ trong bộ ${pack.name}`}
+          >
+            <span>Xem chi tiết danh sách {pack.cardsCount} thẻ lẻ của bộ này</span>
+            <ArrowRight className="h-3 w-3 text-amber-600" />
+          </Link>
         </div>
       </div>
     </article>
