@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { Lock, Unlock, KeyRound, Sparkles } from "lucide-react";
+import { Lock, Unlock, KeyRound, Sparkles, Eye, EyeOff } from "lucide-react";
 
 interface AuthModalProps {
   passcode: string;
@@ -19,6 +19,7 @@ export function AuthModal({
   onChangePasscode,
   onSubmit,
 }: AuthModalProps) {
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/90 backdrop-blur-md">
       <div className="w-full max-w-md rounded-3xl border-2 border-amber-400/40 bg-stone-900 p-6 sm:p-8 text-white shadow-2xl space-y-6">
@@ -42,14 +43,22 @@ export function AuthModal({
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-500" />
               <input
-                type="password"
-                maxLength={20}
+                type={showPassword ? "text" : "password"}
+                maxLength={200}
                 placeholder="Nhập mã PIN tác giả..."
                 value={passcode}
                 onChange={(e) => onChangePasscode(e.target.value)}
                 autoFocus
-                className="w-full bg-black/60 border border-white/20 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-white placeholder-stone-600 focus:outline-hidden focus:border-amber-400"
+                className="w-full bg-black/60 border border-white/20 rounded-xl pl-9 pr-10 py-2.5 text-sm font-mono text-white placeholder-stone-600 focus:outline-hidden focus:border-amber-400"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-amber-300 transition-colors p-1"
+                title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
             {authError && (
               <p className="text-[11px] font-bold text-rose-400 mt-1.5 animate-in fade-in">
