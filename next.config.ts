@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  outputFileTracingExcludes: {
+    "*": [
+      "./public/models/**",
+      "./public/images/**",
+      "./public/targets/**",
+      "./public/audio/**",
+      "./public/lib/**",
+      "./scripts/**",
+      "./docs/**",
+    ],
+  },
   turbopack: {
     rules: {
       "*.css": {

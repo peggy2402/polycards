@@ -70,7 +70,7 @@ export default function ProductsPage() {
       try {
         const res = await fetch("/api/products");
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           setProducts(getMergedProducts(json.data));
         }
       } catch (err) {
@@ -78,7 +78,20 @@ export default function ProductsPage() {
       }
     };
 
+    const fetchServerCategories = async () => {
+      try {
+        const res = await fetch("/api/categories");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setCategories(json.data);
+        }
+      } catch (err) {
+        console.warn("Lỗi tải danh mục từ API server, dùng dữ liệu local:", err);
+      }
+    };
+
     fetchServerProducts();
+    fetchServerCategories();
 
     const handleProductsUpdated = () => {
       fetchServerProducts();
@@ -86,6 +99,7 @@ export default function ProductsPage() {
     };
 
     const handleCategoriesUpdated = () => {
+      fetchServerCategories();
       setCategories(getProductCategories());
     };
 

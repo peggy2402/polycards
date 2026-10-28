@@ -1,40 +1,7 @@
 import { Animal, ProductCategory } from "@/types/animal";
-import animalsData from "../../data/animals.json";
+import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from "@/data/seed-data";
 
-export const DEFAULT_CATEGORIES: ProductCategory[] = [
-  {
-    id: "cat-dong-vat",
-    name: "Động Vật",
-    slug: "dong-vat",
-    description: "Các loài động vật kỳ thú, đáng yêu từ rừng rậm đến đại dương",
-    iconName: "PawPrint",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "cat-hanh-dong",
-    name: "Hành Động",
-    slug: "hanh-dong",
-    description: "Các hành động, chuyển động vui nhộn phát triển thể chất",
-    iconName: "Activity",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "cat-phuong-tien",
-    name: "Phương Tiện",
-    slug: "phuong-tien",
-    description: "Phương tiện giao thông đường bộ, đường hàng không, đường thủy",
-    iconName: "Car",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "cat-trai-cay",
-    name: "Trái Cây",
-    slug: "trai-cay",
-    description: "Hoa quả tươi ngon, đa dạng màu sắc và giàu vitamin",
-    iconName: "Apple",
-    createdAt: "2026-01-01",
-  },
-];
+export const DEFAULT_CATEGORIES: ProductCategory[] = INITIAL_CATEGORIES;
 
 const STORAGE_CATEGORIES_KEY = "polycards_categories_db";
 const STORAGE_PRODUCTS_KEY = "polycards_custom_products";
@@ -175,10 +142,10 @@ export function deleteProductCategory(id: string): void {
 }
 
 /**
- * Lấy danh sách sản phẩm hợp nhất (Default animals.json + Custom products từ Tools)
+ * Lấy danh sách sản phẩm hợp nhất (Seed/MongoDB products + Custom products từ Tools)
  */
 export function getMergedProducts(baseList?: Animal[]): Animal[] {
-  const sourceList: Animal[] = baseList || (animalsData as unknown as Animal[]);
+  const sourceList: Animal[] = baseList || INITIAL_PRODUCTS;
   const deletedKeys = getDeletedProductKeys();
 
   const defaultList: Animal[] = sourceList

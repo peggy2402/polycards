@@ -8,12 +8,13 @@
    - Tuyệt đối không dùng ký tự emoji (như 🦌, 🐱, 🔊, ✓, ❌) trong UI/JSX/SVG.
    - Luôn sử dụng icon SVG chuyên nghiệp từ `lucide-react`.
 
-3. **Logic Backend & Data Rõ Ràng**:
-   - Tách biệt Data Access (`src/lib/animals.ts`), QR Verification (`src/lib/qr-parser.ts`), và Browser Detection (`src/lib/user-agent.ts`).
+3. **Logic Backend & Data Rõ Ràng (MongoDB Atlas)**:
+   - Tách biệt Data Access (`src/lib/mongodb.ts`, `src/lib/animals.ts`), Seed Data (`src/data/seed-data.ts`), QR Verification (`src/lib/qr-parser.ts`), và Browser Detection (`src/lib/user-agent.ts`).
+   - Không dùng `fs` đọc/ghi file cục bộ trong các API Routes để tránh phình dung lượng Serverless Function trên Vercel.
    - Xử lý lỗi đầy đủ, strict TypeScript, không dùng `any`.
 
 4. **Bố Cục Dự Án Ngăn Nắp**:
-   - Phân chia rõ ràng: `src/app/`, `src/components/{common,landing,ar,scanner}`, `src/hooks/`, `src/lib/`, `src/config/`, `src/types/`, `data/`.
+   - Phân chia rõ ràng: `src/app/`, `src/components/{common,landing,ar,scanner,tools}`, `src/hooks/`, `src/lib/`, `src/data/`, `src/config/`, `src/types/`.
 
 5. **Không Lặp Code (DRY)**:
    - Tách các hàm định dạng vào `src/lib/formatters.ts`.

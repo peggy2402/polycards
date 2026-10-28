@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
-import fsSync from "fs";
-import path from "path";
-import animalsData from "../../../../data/animals.json";
 import { Animal } from "@/types/animal";
-import { readJsonDataSafe, writeJsonDataSafe } from "@/lib/server-storage";
+import {
+  dbGetProducts,
+  dbUpsertProduct,
+  dbDeleteProduct,
+  isMongoConfigured,
+} from "@/lib/mongodb";
 
-// Helper đọc dữ liệu sản phẩm mới nhất an toàn trên cả Local và Vercel
-async function readProductsData(): Promise<Animal[]> {
-  const fromProducts = await readJsonDataSafe<Animal[] | null>("products.json", null);
-  if (fromProducts && Array.isArray(fromProducts) && fromProducts.length > 0) {
-    return fromProducts;
-  }
-  const fromAnimals = await readJsonDataSafe<Animal[] | null>("animals.json", null);
-  if (fromAnimals && Array.isArray(fromAnimals) && fromAnimals.length > 0) {
-    return fromAnimals;
-  }
-  return animalsData as Animal[];
-}
+const KNOWN_GLB_SLUGS = new Set(["cat", "deer", "dog", "elephant", "lion", "panda"]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +15,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const query = searchParams.get("q");
 
-    const rawList = await readProductsData();
+    const rawList = await dbGetProducts();
 
     let list = rawList.map((a) => ({
       ...a,
@@ -51,14 +41,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
       total: list.length,
       data: list,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi đọc danh sách sản phẩm";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
@@ -72,120 +61,111 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const currentList = await readProductsData();
-    const cleanSlug = (body.slug || body.nameEn).toLowerCase().trim().replace(/\s+/g, "-");
+    const currentList = await dbGetProducts();
+    const cleanSlug = String(body.slug || body.nameEn)
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "-");
 
-    // Kiểm tra xem thẻ đã tồn tại chưa (theo slug hoặc id)
-    const existingIndex = currentList.findIndex(
+    const existingItem = currentList.find(
       (a) => a.slug.toLowerCase() === cleanSlug || (body.id && a.id === body.id)
     );
 
-    // Kiểm tra xem model 3D có tồn tại trên ổ đĩa không
-    const modelPathGlb = path.join(process.cwd(), "public", "models", `${cleanSlug}.glb`);
-    const modelPathUsdz = path.join(process.cwd(), "public", "models", `${cleanSlug}.usdz`);
-    const hasGlb = fsSync.existsSync(modelPathGlb);
-    const hasUsdz = fsSync.existsSync(modelPathUsdz);
+    const hasStaticModel = KNOWN_GLB_SLUGS.has(cleanSlug);
+    const defaultModelGlb = hasStaticModel ? `/models/${cleanSlug}.glb` : "/models/lion.glb";
+    const defaultModelUsdz = hasStaticModel ? `/models/${cleanSlug}.usdz` : "/models/lion.usdz";
 
-    const defaultModelGlb = hasGlb ? `/models/${cleanSlug}.glb` : "/models/lion.glb";
-    const defaultModelUsdz = hasUsdz ? `/models/${cleanSlug}.usdz` : "/models/lion.usdz";
-
-    // Xử lý ảnh: Nếu là chuỗi Base64 (từ canvas hoặc upload), lưu thành file tĩnh trong public/images/cards
-    let finalImageUrl = body.posterUrl || (Array.isArray(body.images) && body.images.length > 0 ? body.images[0] : "");
-    if (finalImageUrl && finalImageUrl.startsWith("data:image/")) {
-      try {
-        const match = finalImageUrl.match(/^data:image\/(\w+);base64,/);
-        const ext = match ? (match[1] === "jpeg" ? "jpg" : match[1]) : "jpg";
-        const fileName = `${cleanSlug}-card.${ext}`;
-        const cardsDir = path.join(process.cwd(), "public", "images", "cards");
-        await fs.mkdir(cardsDir, { recursive: true });
-        const base64Data = finalImageUrl.replace(/^data:image\/\w+;base64,/, "");
-        await fs.writeFile(path.join(cardsDir, fileName), Buffer.from(base64Data, "base64"));
-        finalImageUrl = `/images/cards/${fileName}`;
-      } catch (imgErr) {
-        console.warn("Lỗi lưu file ảnh card ra ổ đĩa, fallback ảnh mẫu:", imgErr);
-        finalImageUrl = "/images/cards/jump-template.jpg";
-      }
-    }
+    const finalImageUrl =
+      body.posterUrl ||
+      (Array.isArray(body.images) && body.images.length > 0 ? body.images[0] : "") ||
+      existingItem?.posterUrl ||
+      "/images/cards/jump-template.jpg";
 
     const defaultImages = finalImageUrl
       ? [finalImageUrl]
-      : (existingIndex >= 0 ? currentList[existingIndex].images : ["/images/cards/jump-template.jpg"]);
+      : existingItem?.images || ["/images/cards/jump-template.jpg"];
 
-    // Chuẩn hóa categorySlug và categoryId chính xác theo tên danh mục
-    const rawCategory = (body.category || "Động Vật").trim();
+    const rawCategory = String(body.category || "Động Vật").trim();
     let computedCategorySlug = body.categorySlug;
     if (!computedCategorySlug || computedCategorySlug === cleanSlug) {
       const catLower = rawCategory.toLowerCase();
       if (catLower.includes("hành động") || catLower.includes("hanh-dong")) {
         computedCategorySlug = "hanh-dong";
-      } else if (catLower.includes("phương tiện") || catLower.includes("xe cộ") || catLower.includes("phuong-tien")) {
-        computedCategorySlug = "phuong-tien";
-      } else if (catLower.includes("trái cây") || catLower.includes("hoa quả") || catLower.includes("trai-cay")) {
-        computedCategorySlug = "trai-cay";
+      } else if (
+        catLower.includes("phương tiện") ||
+        catLower.includes("xe cộ") ||
+        catLower.includes("phuong-tien") ||
+        catLower.includes("xe-co")
+      ) {
+        computedCategorySlug = "xe-co";
+      } else if (
+        catLower.includes("trái cây") ||
+        catLower.includes("hoa quả") ||
+        catLower.includes("trai-cay") ||
+        catLower.includes("hoa-qua")
+      ) {
+        computedCategorySlug = "hoa-qua";
       } else {
         computedCategorySlug = "dong-vat";
       }
     }
+
     const computedCategoryId = body.categoryId || `cat-${computedCategorySlug}`;
-    const computedPackCode = body.packCode || `POLY30-${computedCategorySlug.replace(/-/g, "").toUpperCase()}`;
+    const computedPackCode =
+      body.packCode || `POLY30-${computedCategorySlug.replace(/-/g, "").toUpperCase()}`;
 
     const updatedItem: Animal = {
-      id: body.id || (existingIndex >= 0 ? currentList[existingIndex].id : `${cleanSlug}-00${currentList.length + 1}`),
+      id: body.id || existingItem?.id || `${cleanSlug}-00${currentList.length + 1}`,
       slug: cleanSlug,
-      qrCode: body.qrCode || (existingIndex >= 0 ? currentList[existingIndex].qrCode : `AR-${cleanSlug.toUpperCase()}-00${currentList.length + 1}`),
-      nameEn: body.nameEn,
-      nameVi: body.nameVi,
-      nameZh: body.nameZh || (existingIndex >= 0 ? currentList[existingIndex].nameZh : ""),
-      ipa: body.ipa || (existingIndex >= 0 ? currentList[existingIndex].ipa : `/${cleanSlug}/`),
-      pinyinZh: body.pinyinZh || (existingIndex >= 0 ? currentList[existingIndex].pinyinZh : ""),
+      qrCode:
+        body.qrCode ||
+        existingItem?.qrCode ||
+        `AR-${cleanSlug.toUpperCase()}-00${currentList.length + 1}`,
+      nameEn: String(body.nameEn).trim(),
+      nameVi: String(body.nameVi).trim(),
+      nameZh: body.nameZh !== undefined ? String(body.nameZh).trim() : existingItem?.nameZh || "",
+      ipa: body.ipa ? String(body.ipa).trim() : existingItem?.ipa || `/${cleanSlug}/`,
+      pinyinZh:
+        body.pinyinZh !== undefined ? String(body.pinyinZh).trim() : existingItem?.pinyinZh || "",
       categoryId: computedCategoryId,
       category: rawCategory,
       categorySlug: computedCategorySlug,
       packCode: computedPackCode,
-      badge: body.badge || (existingIndex >= 0 ? currentList[existingIndex].badge : "Mới ra mắt"),
-      price: Number(body.price) || (existingIndex >= 0 ? currentList[existingIndex].price : 219000),
-      originalPrice: Number(body.originalPrice) || (existingIndex >= 0 ? currentList[existingIndex].originalPrice : 299000),
-      description: body.description || (existingIndex >= 0 ? currentList[existingIndex].description : `Thẻ học thông minh AR Poly Cards: ${body.nameVi} (${body.nameEn}).`),
+      badge: body.badge || existingItem?.badge || "Mới ra mắt",
+      price: Number(body.price) || existingItem?.price || 219000,
+      originalPrice: Number(body.originalPrice) || existingItem?.originalPrice || 299000,
+      description:
+        body.description ||
+        existingItem?.description ||
+        `Thẻ học thông minh AR Poly Cards: ${body.nameVi} (${body.nameEn}).`,
       images: defaultImages,
-      posterUrl: finalImageUrl || (existingIndex >= 0 ? currentList[existingIndex].posterUrl : "/images/cards/jump-template.jpg"),
-      audioUrl: body.audioUrl || (existingIndex >= 0 ? currentList[existingIndex].audioUrl : `/audio/${cleanSlug}.mp3`),
-      audios: existingIndex >= 0 && currentList[existingIndex].audios ? currentList[existingIndex].audios : {
+      posterUrl: finalImageUrl,
+      audioUrl: body.audioUrl || existingItem?.audioUrl || `/audio/${cleanSlug}.mp3`,
+      audios: existingItem?.audios || {
         en: `/audio/en/${cleanSlug}.mp3`,
         vi: `/audio/vi/${cleanSlug}.mp3`,
         zh: `/audio/zh/${cleanSlug}.mp3`,
       },
-      modelUrl: body.modelUrl || (existingIndex >= 0 ? currentList[existingIndex].modelUrl : defaultModelGlb),
-      iosModelUrl: body.iosModelUrl || (existingIndex >= 0 ? currentList[existingIndex].iosModelUrl : defaultModelUsdz),
-      targetUrl: body.targetUrl || (existingIndex >= 0 ? (currentList[existingIndex] as any).targetUrl : undefined),
-      animations: existingIndex >= 0 && currentList[existingIndex].animations ? currentList[existingIndex].animations : ["Idle", "Walk"],
+      modelUrl: body.modelUrl || existingItem?.modelUrl || defaultModelGlb,
+      iosModelUrl: body.iosModelUrl || existingItem?.iosModelUrl || defaultModelUsdz,
+      targetUrl: body.targetUrl || existingItem?.targetUrl || `/targets/${cleanSlug}.mind`,
+      animations: existingItem?.animations || ["Idle", "Walk"],
       arEnabled: true,
       buyUrl: body.buyUrl || `/order?animal=${cleanSlug}`,
       updatedAt: new Date().toISOString(),
     };
 
-
-    let newList: Animal[];
-    if (existingIndex >= 0) {
-      newList = [...currentList];
-      newList[existingIndex] = { ...newList[existingIndex], ...updatedItem };
-    } else {
-      newList = [...currentList, updatedItem];
-    }
-
-    // Ghi đồng bộ an toàn (tự động xử lý EROFS trên Vercel Serverless)
-    await writeJsonDataSafe("products.json", newList);
-    await writeJsonDataSafe("animals.json", newList);
+    const saved = await dbUpsertProduct(updatedItem);
 
     return NextResponse.json({
       success: true,
-      message: `Thẻ "${updatedItem.nameVi} (${updatedItem.nameEn})" đã được lưu thành công vào data/products.json!`,
-      data: updatedItem,
+      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+      message: `Thẻ "${saved.nameVi} (${saved.nameEn})" đã được lưu thành công vào MongoDB!`,
+      data: saved,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi lưu sản phẩm";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
@@ -201,40 +181,26 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const currentList = await readProductsData();
-    const clean = idOrSlug.toLowerCase().trim();
-    const targetItem = currentList.find(
-      (a) => a.id === idOrSlug || a.slug.toLowerCase() === clean
-    );
-
-    if (!targetItem) {
+    const deletedItem = await dbDeleteProduct(idOrSlug);
+    if (!deletedItem) {
       return NextResponse.json(
         { success: false, message: "Không tìm thấy thẻ bài để xóa." },
         { status: 404 }
       );
     }
 
-    const filtered = currentList.filter(
-      (a) => a.id !== idOrSlug && a.slug.toLowerCase() !== clean
-    );
-
-    // Ghi an toàn chống lỗi EROFS trên Vercel Serverless
-    await writeJsonDataSafe("products.json", filtered);
-    await writeJsonDataSafe("animals.json", filtered);
+    const remaining = await dbGetProducts();
 
     return NextResponse.json({
       success: true,
-      message: `Đã xóa thẻ bài "${targetItem.nameVi} (${targetItem.nameEn})" thành công khỏi hệ thống!`,
-      deletedItem: targetItem,
-      remainingCount: filtered.length,
+      message: `Đã xóa thẻ bài "${deletedItem.nameVi} (${deletedItem.nameEn})" khỏi MongoDB!`,
+      deletedItem,
+      remainingCount: remaining.length,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi xóa sản phẩm";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
 export { POST as PUT };
-

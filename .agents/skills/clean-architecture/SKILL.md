@@ -14,8 +14,9 @@ description: >-
 2. **Domain & Application Layer (`src/hooks/`, `src/lib/`)**:
    - `src/hooks/`: Quản lý state, hiệu ứng, vòng đời camera, audio.
    - `src/lib/`: Chứa các hàm nghiệp vụ thuần túy (Pure Functions) dễ kiểm thử đơn vị.
-3. **Data Layer (`data/animals.json`, `src/config/site.ts`)**:
-   - Quản lý cấu hình và dữ liệu sản phẩm tập trung. Mọi thay đổi dữ liệu không làm thay đổi code logic.
+3. **Data Layer (`src/lib/mongodb.ts`, `src/data/seed-data.ts`, `src/config/site.ts`)**:
+   - Quản lý cơ sở dữ liệu tập trung trên **MongoDB Atlas** (`products`, `categories`, `orders`, `customers`, `assets`) kèm cơ chế Auto-Seeding từ `src/data/seed-data.ts`.
+   - Tuyệt đối không dùng `fs` đọc/ghi file trong API Routes để tối ưu dung lượng Deployment & Serverless Functions trên Vercel.
 
 ## 2. Tiêu Chuẩn Tránh Lặp Code (DRY)
 - **Định dạng tiền tệ**: Dùng `formatVndCurrency(price)` từ `src/lib/formatters.ts`.

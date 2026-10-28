@@ -40,8 +40,9 @@ Tài liệu này định nghĩa 5 quy tắc cốt lõi bắt buộc tuân thủ 
 
 ## 3. Logic Backend & Xử Lý Dữ Liệu Rõ Ràng
 
-- **Kiến trúc phân tầng rõ ràng**:
-  - `data/animals.json`: Nguồn sự thật duy nhất (Single Source of Truth) cho dữ liệu đồ chơi.
+- **Kiến trúc phân tầng rõ ràng (MongoDB Atlas)**:
+  - `src/lib/mongodb.ts`: Tầng kết nối và Repository làm việc trực tiếp với **MongoDB Atlas** (`products`, `categories`, `orders`, `customers`), tích hợp Connection Pooling và Auto-Seeding.
+  - `src/data/seed-data.ts`: Nguồn dữ liệu khởi tạo chuẩn (Seed Data) có strict TypeScript types.
   - `src/lib/animals.ts`: Tầng Data Access Layer cung cấp các hàm helper đọc, lọc, tìm kiếm dữ liệu có type-safe.
   - `src/lib/qr-parser.ts`: Tầng Domain Service xử lý giải mã, xác minh tính hợp lệ và chặn URL độc hại/ngoài hệ thống.
   - `src/lib/user-agent.ts`: Tầng Infrastructure Service phát hiện thiết bị và trình duyệt nhúng (In-App Browser).

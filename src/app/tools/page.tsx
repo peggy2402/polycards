@@ -223,10 +223,19 @@ export default function ToolsPage() {
   });
   const [isSavingEditProduct, setIsSavingEditProduct] = useState<boolean>(false);
 
-  // Tải danh mục sản phẩm từ store khi khởi động
+  // Tải danh mục sản phẩm từ API MongoDB (hoặc fallback store)
   useEffect(() => {
-    const loadCategories = () => {
+    const loadCategories = async () => {
       setCategoriesList(getProductCategories());
+      try {
+        const res = await fetch("/api/categories");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            setCategoriesList(json.data);
+          }
+        }
+      } catch {}
     };
     loadCategories();
     window.addEventListener(CATEGORIES_UPDATED_EVENT, loadCategories);
@@ -1120,7 +1129,7 @@ export default function ToolsPage() {
           savedProductData = apiJson.data;
         }
       } catch (err) {
-        console.warn("Lỗi khi ghi data/products.json qua API:", err);
+        console.warn("Lỗi khi lưu sản phẩm vào MongoDB qua API:", err);
       }
 
       const cleanImageUrl =

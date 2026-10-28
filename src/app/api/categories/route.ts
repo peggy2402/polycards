@@ -1,70 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DEFAULT_CATEGORIES } from "@/lib/products-store";
 import { ProductCategory } from "@/types/animal";
-import { readJsonDataSafe, writeJsonDataSafe } from "@/lib/server-storage";
-
-async function readCategories(): Promise<ProductCategory[]> {
-  return await readJsonDataSafe<ProductCategory[]>("categories.json", DEFAULT_CATEGORIES);
-}
-
-async function writeCategories(list: ProductCategory[]): Promise<void> {
-  await writeJsonDataSafe("categories.json", list);
-}
+import {
+  dbGetCategories,
+  dbUpsertCategory,
+  dbDeleteCategory,
+  isMongoConfigured,
+} from "@/lib/mongodb";
 
 export async function GET() {
-  const categories = await readCategories();
-  return NextResponse.json({
-    success: true,
-    total: categories.length,
-    data: categories,
-  });
+  try {
+    const categories = await dbGetCategories();
+    return NextResponse.json({
+      success: true,
+      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+      total: categories.length,
+      data: categories,
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi tải danh mục";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.name || !body.name.trim()) {
+    if (!body.name || !String(body.name).trim()) {
       return NextResponse.json(
         { success: false, message: "Tên danh mục không được để trống." },
         { status: 400 }
       );
     }
 
-    const categories = await readCategories();
-    const cleanName = body.name.trim();
-    const cleanSlug = body.slug || cleanName.toLowerCase().replace(/\s+/g, "-");
+    const categories = await dbGetCategories();
+    const cleanName = String(body.name).trim();
+    const cleanSlug =
+      body.slug ||
+      cleanName
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[đĐ]/g, "d")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
 
-    const existingIdx = categories.findIndex((c) => c.id === body.id || c.slug === cleanSlug);
+    const existing = categories.find((c) => c.id === body.id || c.slug === cleanSlug);
 
     const categoryItem: ProductCategory = {
-      id: body.id || (existingIdx >= 0 ? categories[existingIdx].id : `cat-${cleanSlug}`),
+      id: body.id || existing?.id || `cat-${cleanSlug}`,
       name: cleanName,
       slug: cleanSlug,
-      description: body.description || `Bộ thẻ bài AR ${cleanName}`,
-      iconName: body.iconName || "Layers",
-      createdAt: body.createdAt || new Date().toISOString().split("T")[0],
+      packCode:
+        body.packCode ||
+        existing?.packCode ||
+        `POLY30-${cleanSlug.replace(/-/g, "").toUpperCase()}`,
+      totalCards: Number(body.totalCards) || existing?.totalCards || 30,
+      description: body.description || existing?.description || `Bộ thẻ bài AR ${cleanName}`,
+      iconName: body.iconName || existing?.iconName || "Layers",
+      createdAt: body.createdAt || existing?.createdAt || new Date().toISOString().split("T")[0],
     };
 
-    let updated: ProductCategory[];
-    if (existingIdx >= 0) {
-      updated = [...categories];
-      updated[existingIdx] = { ...updated[existingIdx], ...categoryItem };
-    } else {
-      updated = [...categories, categoryItem];
-    }
-
-    await writeCategories(updated);
+    const saved = await dbUpsertCategory(categoryItem);
 
     return NextResponse.json({
       success: true,
-      message: `Đã lưu danh mục "${categoryItem.name}" vào data/categories.json`,
-      data: categoryItem,
+      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+      message: `Đã lưu danh mục "${saved.name}" vào MongoDB!`,
+      data: saved,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi lưu danh mục";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
@@ -80,20 +86,16 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const categories = await readCategories();
-    const updated = categories.filter((c) => c.id !== id);
-    await writeCategories(updated);
+    await dbDeleteCategory(id);
+    const remaining = await dbGetCategories();
 
     return NextResponse.json({
       success: true,
-      message: "Đã xóa danh mục thành công khỏi data/categories.json",
-      remainingCount: updated.length,
+      message: "Đã xóa danh mục thành công khỏi MongoDB!",
+      remainingCount: remaining.length,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi xóa danh mục";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
-

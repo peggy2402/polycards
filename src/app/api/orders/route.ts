@@ -1,78 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readJsonDataSafe, writeJsonDataSafe } from "@/lib/server-storage";
-
-interface OrderLineItem {
-  id: string;
-  name: string;
-  packCode?: string;
-  categorySlug?: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
-interface OrderItem {
-  id: string;
-  code: string;
-  customerType: "TRUCTIEP" | "ONLINE";
-  customerName: string;
-  customerPhone?: string;
-  customerAddress?: string;
-  packId?: string;
-  packCode?: string;
-  packTitle: string;
-  allowedCategorySlug?: string;
-  items?: OrderLineItem[];
-  creditAmount: number; // Phát sinh Có - số tiền khách cần phải trả
-  debitAmount: number;  // Phát sinh Nợ - số tiền khách đã trả ngay
-  remainingAmount?: number; // Số tiền còn thiếu (nếu có)
-  paymentMethod: "TIEN_MAT" | "CHUYEN_KHOAN"; // Hình thức thanh toán
-  totalPrice?: number;
-  status?: string;
-  createdAt?: string;
-  note?: string;
-  directUrl?: string;
-}
-
-interface CustomerItem {
-  id: string;
-  name: string;
-  phone?: string;
-  type: "TRUCTIEP" | "ONLINE";
-  orders: string[];
-  totalSpent: number;
-  createdAt: string;
-}
-
-async function readOrders(): Promise<OrderItem[]> {
-  return await readJsonDataSafe<OrderItem[]>("orders.json", []);
-}
-
-async function writeOrders(orders: OrderItem[]): Promise<void> {
-  await writeJsonDataSafe("orders.json", orders);
-}
-
-async function readCustomers(): Promise<CustomerItem[]> {
-  return await readJsonDataSafe<CustomerItem[]>("customers.json", []);
-}
-
-async function writeCustomers(customers: CustomerItem[]): Promise<void> {
-  await writeJsonDataSafe("customers.json", customers);
-}
+import { SeedOrderItem } from "@/data/seed-data";
+import {
+  dbGetOrders,
+  dbUpsertOrder,
+  dbDeleteOrder,
+  dbSyncCustomerFromOrder,
+  isMongoConfigured,
+} from "@/lib/mongodb";
 
 export async function GET() {
   try {
-    const orders = await readOrders();
+    const orders = await dbGetOrders();
     return NextResponse.json({
       success: true,
+      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
       total: orders.length,
       data: orders,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi tải danh sách đơn hàng";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
@@ -86,19 +33,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const orders = await readOrders();
-    const cleanCode = body.code.trim().toUpperCase();
+    const orders = await dbGetOrders();
+    const cleanCode = String(body.code).trim().toUpperCase();
 
-    const existingIndex = orders.findIndex((o) => o.code === cleanCode || (body.id && o.id === body.id));
+    const existing = orders.find((o) => o.code === cleanCode || (body.id && o.id === body.id));
 
     const creditAmount = Number(body.creditAmount) || Number(body.totalPrice) || 249000;
     const debitAmount =
-      body.debitAmount !== undefined && body.debitAmount !== null ? Number(body.debitAmount) : creditAmount;
+      body.debitAmount !== undefined && body.debitAmount !== null
+        ? Number(body.debitAmount)
+        : creditAmount;
     const remainingAmount = creditAmount - debitAmount;
     const paymentMethod = body.paymentMethod === "CHUYEN_KHOAN" ? "CHUYEN_KHOAN" : "TIEN_MAT";
 
-    const newOrder: OrderItem = {
-      id: body.id || (existingIndex >= 0 ? orders[existingIndex].id : `ORD-${Date.now().toString().slice(-6)}`),
+    const newOrder: SeedOrderItem = {
+      id: body.id || existing?.id || `ORD-${Date.now().toString().slice(-6)}`,
       code: cleanCode,
       customerType: body.customerType || "TRUCTIEP",
       customerName: body.customerName || "Khách Hàng Trực Tiếp",
@@ -127,59 +76,23 @@ export async function POST(request: NextRequest) {
       status: remainingAmount <= 0 ? "PAID" : "PARTIAL",
       createdAt: body.createdAt || new Date().toLocaleString("vi-VN"),
       note: body.note || "",
-      directUrl: body.directUrl || `https://polycards-one.vercel.app/ar/lion?ar=1&code=${cleanCode}`,
+      directUrl:
+        body.directUrl ||
+        `https://polycards-one.vercel.app/ar/lion?ar=1&code=${cleanCode}`,
     };
 
-    let updatedOrders: OrderItem[];
-    if (existingIndex >= 0) {
-      updatedOrders = [...orders];
-      updatedOrders[existingIndex] = { ...updatedOrders[existingIndex], ...newOrder };
-    } else {
-      updatedOrders = [newOrder, ...orders];
-    }
-
-    await writeOrders(updatedOrders);
-
-    // Đồng bộ vào customers.json nếu có tên hoặc số điện thoại
-    if (newOrder.customerName) {
-      try {
-        const customers = await readCustomers();
-        const custIdx = customers.findIndex(
-          (c) => (newOrder.customerPhone && c.phone === newOrder.customerPhone) || c.name === newOrder.customerName
-        );
-
-        if (custIdx >= 0) {
-          if (!customers[custIdx].orders.includes(newOrder.id)) {
-            customers[custIdx].orders.push(newOrder.id);
-            customers[custIdx].totalSpent += newOrder.totalPrice || 0;
-          }
-        } else {
-          customers.push({
-            id: `CUST-${Date.now().toString().slice(-4)}`,
-            name: newOrder.customerName,
-            phone: newOrder.customerPhone || "",
-            type: newOrder.customerType,
-            orders: [newOrder.id],
-            totalSpent: newOrder.totalPrice || 0,
-            createdAt: new Date().toLocaleString("vi-VN"),
-          });
-        }
-        await writeCustomers(customers);
-      } catch (custErr) {
-        console.warn("Lỗi sync customer:", custErr);
-      }
-    }
+    const saved = await dbUpsertOrder(newOrder);
+    await dbSyncCustomerFromOrder(saved);
 
     return NextResponse.json({
       success: true,
-      message: `Đã lưu đơn hàng / mã bộ ${newOrder.code} thành công vào data/orders.json!`,
-      data: newOrder,
+      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+      message: `Đã lưu đơn hàng / mã bộ ${saved.code} thành công vào MongoDB!`,
+      data: saved,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi lưu đơn hàng";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
@@ -196,20 +109,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const orders = await readOrders();
-    const filtered = orders.filter((o) => (id ? o.id !== id : o.code !== code));
-
-    await writeOrders(filtered);
+    const remainingCount = await dbDeleteOrder(id, code);
 
     return NextResponse.json({
       success: true,
-      message: "Đã xóa đơn hàng thành công khỏi data/orders.json",
-      remainingCount: filtered.length,
+      message: "Đã xóa đơn hàng thành công khỏi MongoDB!",
+      remainingCount,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Lỗi xóa đơn hàng";
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }

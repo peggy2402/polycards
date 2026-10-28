@@ -96,6 +96,12 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 
 ### [x] Bước 5: Script tạo mã QR & Hướng dẫn kiểm thử di động (Đã hoàn thành)
 - Hoàn thành script [`scripts/generate-qr.ts`](file:///Users/peggy2402/Projects/polycards/scripts/generate-qr.ts) và lệnh `npm run generate-qr`.
-- Xuất thành công toàn bộ mã QR dạng PNG độ nét cao và SVG vector in ấn vào cả `public/qr-output/` và `qr-output/` cho 6 con vật.
+- Xuất thành công toàn bộ mã QR dạng PNG độ nét cao và SVG vector in ấn vào `public/qr-output/`.
 - Hỗ trợ đầy đủ 2 định dạng nội dung: URL web trực tiếp (`https://<domain>/ar/<slug>`) và mã định danh thẻ bài (`AR-LION-005`,...).
 - Sẵn sàng cơ chế bảo mật lọc link lạ và hướng dẫn cấu hình HTTPS qua tunnel để test thực tế trên mobile.
+
+### [x] Bước 6: Tích hợp MongoDB Atlas & Dọn dẹp triệt để File Storage cũ (Đã hoàn thành)
+- Tạo tầng kết nối & Repository [`src/lib/mongodb.ts`](file:///Users/peggy2402/Projects/polycards/src/lib/mongodb.ts) sử dụng driver chính thức `mongodb` với Global Connection Pool, Auto-Seeding và In-Memory Fallback an toàn.
+- Chuyển toàn bộ dữ liệu gốc sang [`src/data/seed-data.ts`](file:///Users/peggy2402/Projects/polycards/src/data/seed-data.ts) và xóa bỏ hoàn toàn thư mục `data/*.json`, `qr-output/` trùng lặp, các file SVG placeholder cũ và `src/lib/server-storage.ts`.
+- Gỡ bỏ 100% lệnh `fs` khỏi toàn bộ các API Routes ([`api/products/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/products/route.ts), [`api/categories/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/categories/route.ts), [`api/orders/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/orders/route.ts), [`api/tools/auth/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/tools/auth/route.ts), [`api/tools/upload/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/tools/upload/route.ts)) và cấu hình `outputFileTracingExcludes` trong [`next.config.ts`](file:///Users/peggy2402/Projects/polycards/next.config.ts) để ngăn Next.js đóng gói thư mục `public/models` (122MB) vào Serverless Functions trên Vercel.
+- Bổ sung script [`scripts/seed-mongodb.ts`](file:///Users/peggy2402/Projects/polycards/scripts/seed-mongodb.ts) (`npm run seed:mongodb`) để đồng bộ dữ liệu lên MongoDB Atlas.

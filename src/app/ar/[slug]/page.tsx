@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { getAnimalBySlug, getAnimalSlugs } from "@/lib/animals";
+import { dbGetProductBySlug } from "@/lib/mongodb";
 import { siteConfig } from "@/config/site";
 import { ArViewerContainer } from "./ar-viewer-container";
 import {
@@ -28,7 +29,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ArPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const animal = getAnimalBySlug(slug);
+  const animal = (await dbGetProductBySlug(slug)) || getAnimalBySlug(slug);
 
   if (!animal) {
     return {
@@ -49,7 +50,7 @@ export async function generateMetadata({ params }: ArPageProps): Promise<Metadat
 
 export default async function ArDetailPage({ params }: ArPageProps) {
   const { slug } = await params;
-  const animal = getAnimalBySlug(slug);
+  const animal = (await dbGetProductBySlug(slug)) || getAnimalBySlug(slug);
 
   if (!animal) {
     notFound();
