@@ -49,21 +49,23 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
       searchParams.get("mode") === "webar";
 
     const codeParam = searchParams.get("code") || searchParams.get("key");
+    const catSlug = animal.categorySlug || (animal.category === "Động Vật" ? "dong-vat" : animal.category === "Hành Động" ? "hanh-dong" : undefined);
     if (codeParam) {
-      activateWithCode(codeParam);
+      activateWithCode(codeParam, catSlug);
     }
 
     if (isDirectAr) {
-      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug);
+      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug, catSlug);
       setIsTrial(!isAlreadyUnlocked);
       setIsWebArOpen(true);
     }
-  }, [searchParams, animal.slug]);
+  }, [searchParams, animal.slug, animal.categorySlug, animal.category]);
 
   // Kiểm tra trạng thái bản quyền (Đã kích hoạt hay chưa) và đồng bộ tức thì
   useEffect(() => {
+    const catSlug = animal.categorySlug || (animal.category === "Động Vật" ? "dong-vat" : animal.category === "Hành Động" ? "hanh-dong" : undefined);
     const updateUnlockStatus = () => {
-      setUnlocked(isAnimalUnlocked(animal.slug));
+      setUnlocked(isAnimalUnlocked(animal.slug, catSlug));
     };
 
     updateUnlockStatus();
@@ -75,7 +77,7 @@ export function ArViewerContainer({ animal }: ArViewerContainerProps) {
       window.removeEventListener("storage", updateUnlockStatus);
       window.removeEventListener("polycards_activated", updateUnlockStatus);
     };
-  }, [animal.slug]);
+  }, [animal.slug, animal.categorySlug, animal.category]);
 
   // Xử lý khi người dùng bấm nút mở WebAR
   const handleRequestWebAr = () => {

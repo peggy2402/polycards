@@ -74,10 +74,14 @@ export interface InvoiceRecord {
   id: string;
   code: string;
   type: "direct" | "online";
+  customerType?: "TRUCTIEP" | "ONLINE";
   customerName: string;
   customerPhone?: string;
   packType: "combo6" | "combo30" | "vip";
+  packId?: string;
+  packCode?: string;
   packTitle: string;
+  allowedCategorySlug?: string;
   createdAt: string;
   note?: string;
   directUrl: string;
@@ -252,10 +256,79 @@ export default function ToolsPage() {
   // Modal hiển thị kết quả hóa đơn vừa tạo
   const [justCreatedInvoice, setJustCreatedInvoice] = useState<InvoiceRecord | null>(null);
 
+  // Toast & Thông Báo Người Dùng
+  interface ToastMessage {
+    id: string;
+    message: string;
+    type: "success" | "error" | "warning" | "info";
+  }
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const showToast = useCallback((message: string, type: "success" | "error" | "warning" | "info" = "info") => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3800);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Modal Xác Nhận (Thay thế hoàn toàn window.confirm)
+  interface ConfirmDialogState {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+  }
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
+    isOpen: false,
+    title: "",
+    message: "",
+    confirmText: "Xác nhận",
+    cancelText: "Hủy",
+    danger: false,
+    onConfirm: () => {},
+  });
+
+  const requestConfirm = useCallback(
+    (options: {
+      title: string;
+      message: string;
+      confirmText?: string;
+      cancelText?: string;
+      danger?: boolean;
+      onConfirm: () => void;
+    }) => {
+      setConfirmDialog({
+        isOpen: true,
+        title: options.title,
+        message: options.message,
+        confirmText: options.confirmText || "Xác nhận",
+        cancelText: options.cancelText || "Hủy",
+        danger: options.danger ?? true,
+        onConfirm: () => {
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+          options.onConfirm();
+        },
+      });
+    },
+    []
+  );
+
+  // Bộ chọn Danh mục / Gói thẻ cho Khách Hàng Trực Tiếp
+  const [selectedDirectCategory, setSelectedDirectCategory] = useState<string>("dong-vat");
+  const [lastGeneratedDirectCode, setLastGeneratedDirectCode] = useState<string>("");
+  const [copiedDirectCode, setCopiedDirectCode] = useState<boolean>(false);
+
   // 11. Quản lý Danh Mục Sản Phẩm (Categories)
   const [categoriesList, setCategoriesList] = useState<ProductCategory[]>([]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
-  const [categorySearchQuery, setCategorySearchQuery] = useState<string>("" );
+  const [categorySearchQuery, setCategorySearchQuery] = useState<string>("");
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState<string>("");
   const [categoryForm, setCategoryForm] = useState({
@@ -301,29 +374,36 @@ export default function ToolsPage() {
     };
   }, []);
 
-  // Nạp danh sách hóa đơn từ localStorage khi khởi động
+  // Nạp danh sách hóa đơn từ localStorage và đồng bộ backend
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedInvoices = localStorage.getItem("polycards_invoices_db");
       if (savedInvoices) {
         try {
-          setInvoices(JSON.parse(savedInvoices));
-          return;
+          const parsed = JSON.parse(savedInvoices);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setInvoices(parsed);
+            return;
+          }
         } catch {}
       }
-      // Dữ liệu mẫu ban đầu để sẵn sàng dùng thử
+      // Dữ liệu mẫu chuẩn ban đầu
       const initialSeed: InvoiceRecord[] = [
         {
           id: "INV-DEMO-01",
-          code: "HD-DIR-8821",
+          code: "POLY30-DONGVAT-8821",
           type: "direct",
-          customerName: "Khách Mua Trực Tiếp Tại Quầy",
+          customerType: "TRUCTIEP",
+          customerName: "Khách Mua Trực Tiếp (Bộ Động Vật)",
           customerPhone: "0901234567",
-          packType: "combo6",
-          packTitle: "Bộ 6 Thẻ AR Cơ Bản (Động Vật)",
+          packType: "combo30",
+          packId: "cat-animals",
+          packCode: "POLY30-DONGVAT",
+          packTitle: "Bộ 30 Thẻ AR Động Vật",
+          allowedCategorySlug: "dong-vat",
           createdAt: "2026-10-27 15:30",
-          note: "Mã hóa đơn in trực tiếp trên hộp thẻ / tem cào mở khóa 6 thẻ",
-          directUrl: "https://polycards-one.vercel.app/ar/lion?ar=1&code=HD-DIR-8821",
+          note: "Mã hóa đơn in trên hộp thẻ / tem cào mở khóa 30 thẻ Động Vật",
+          directUrl: "https://polycards-one.vercel.app/ar/lion?ar=1&code=POLY30-DONGVAT-8821",
         },
       ];
       setInvoices(initialSeed);
@@ -341,7 +421,7 @@ export default function ToolsPage() {
   // Hàm Random nhanh mã QR & Gắn vào ô trắng của thẻ
   const handleRandomizeQr = (type: "combo" | "direct" = "combo") => {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const prefix = type === "direct" ? "HD-DIR" : "HD-COMBO";
+    const prefix = type === "direct" ? "POLY30-DONGVAT" : "HD-COMBO";
     const newCode = `${prefix}-${randomNum}`;
 
     // Chọn ngẫu nhiên con vật từ bộ thẻ nếu muốn
@@ -360,40 +440,77 @@ export default function ToolsPage() {
       size: 25.8,
     });
 
-    setExportSuccessMsg(`Đã tạo mã QR ngẫu nhiên mới: ${newCode} (Thẻ: ${randomSlug.toUpperCase()})`);
-    setTimeout(() => setExportSuccessMsg(null), 3000);
+    showToast(`Đã tạo mã QR ngẫu nhiên: ${newCode} (${randomSlug.toUpperCase()})`, "success");
   };
 
-  // Tạo nhanh mã hóa đơn bán trực tiếp
-  const handleCreateDirectInvoice = () => {
+  // Tạo nhanh mã hóa đơn bán trực tiếp gắn với Danh mục / Bộ cụ thể
+  const handleCreateDirectInvoice = async () => {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const code = `HD-DIR-${randomNum}`;
+
+    // Lấy thông tin danh mục tương ứng
+    const foundCat = categoriesList.find((c) => c.slug === selectedDirectCategory) || {
+      id: "cat-animals",
+      name: "Động Vật",
+      slug: "dong-vat",
+      packCode: "POLY30-DONGVAT",
+    };
+
+    const prefix =
+      foundCat.packCode ||
+      `POLY30-${(foundCat.slug || "DONGVAT").toUpperCase().replace(/[^A-Z0-9]/g, "")}`;
+    const code = `${prefix}-${randomNum}`;
+
+    let targetCardSlug = "lion";
+    if (foundCat.slug === "hanh-dong") targetCardSlug = "jump";
+    else if (foundCat.slug === "xe-co") targetCardSlug = "car";
+    else if (foundCat.slug === "hoa-qua") targetCardSlug = "apple";
+
+    const packTitle = `Bộ 30 Thẻ AR ${foundCat.name}`;
+    const directUrl = `https://polycards-one.vercel.app/ar/${targetCardSlug}?ar=1&code=${code}`;
+
     const newInv: InvoiceRecord = {
       id: `INV-${Date.now()}`,
       code,
       type: "direct",
-      customerName: "Khách Mua Trực Tiếp",
+      customerType: "TRUCTIEP",
+      customerName: `Khách Mua Trực Tiếp (${foundCat.name})`,
       customerPhone: "",
-      packType: "combo6",
-      packTitle: "Bộ 6 Thẻ AR Cơ Bản (Động Vật)",
+      packType: "combo30",
+      packId: foundCat.id,
+      packCode: prefix,
+      packTitle,
+      allowedCategorySlug: foundCat.slug,
       createdAt: new Date().toLocaleString("vi-VN"),
-      note: "Mã hóa đơn in trên hộp thẻ / tem cào mở khóa 6 thẻ",
-      directUrl: `https://polycards-one.vercel.app/ar/lion?ar=1&code=${code}`,
+      note: `Mã hóa đơn in trên hộp thẻ / tem cào mở khóa 30 thẻ ${foundCat.name}`,
+      directUrl,
     };
+
+    // Ghi nhận vào file backend qua API
+    try {
+      await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newInv),
+      });
+    } catch (e) {
+      console.warn("Lưu backend orders thất bại, fallback local:", e);
+    }
 
     saveInvoicesList([newInv, ...invoices]);
     setJustCreatedInvoice(newInv);
+    setLastGeneratedDirectCode(code);
     setLicenseCode(code);
     setIncludeLicense(true);
     setDirectAr(true);
     setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+    showToast(`Đã sinh mã bản quyền ${code} cho Bộ ${foundCat.name}!`, "success");
   };
 
   // Tạo hóa đơn cho khách online
-  const handleCreateOnlineInvoice = (e: React.FormEvent) => {
+  const handleCreateOnlineInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onlineForm.customerName.trim()) {
-      alert("Vui lòng nhập tên khách hàng.");
+      showToast("Vui lòng nhập họ tên khách hàng.", "warning");
       return;
     }
 
@@ -413,6 +530,7 @@ export default function ToolsPage() {
       id: `INV-${Date.now()}`,
       code,
       type: "online",
+      customerType: "ONLINE",
       customerName: onlineForm.customerName.trim(),
       customerPhone: onlineForm.customerPhone.trim(),
       packType: onlineForm.packType,
@@ -422,8 +540,18 @@ export default function ToolsPage() {
       directUrl,
     };
 
+    try {
+      await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newInv),
+      });
+    } catch {}
+
     saveInvoicesList([newInv, ...invoices]);
     setJustCreatedInvoice(newInv);
+    showToast(`Đã lên đơn online thành công cho khách hàng ${newInv.customerName}`, "success");
+
     // Reset form
     setOnlineForm({
       customerName: "",
@@ -441,7 +569,7 @@ Poly Cards trân trọng gửi quý khách thông tin đơn hàng và mã kích 
 - Mã Hóa Đơn: ${inv.code}
 - Link Kích Hoạt 1-Chạm: ${inv.directUrl}
 
-(Hướng dẫn: Quý khách chỉ cần bấm vào đường link trên, camera WebAR sẽ tự động mở lên và kích hoạt toàn bộ 6 thẻ bài AR vĩnh viễn trên điện thoại của quý khách mà không cần nhập thêm mã ạ!).
+(Hướng dẫn: Quý khách chỉ cần bấm vào đường link trên, camera WebAR sẽ tự động mở lên và kích hoạt toàn bộ thẻ bài AR vĩnh viễn trên điện thoại của quý khách mà không cần nhập thêm mã ạ!).
 Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ cùng Poly Cards!`;
   };
 
@@ -450,7 +578,16 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
     const text = formatZaloMessage(inv);
     navigator.clipboard.writeText(text);
     setCopiedZaloMsgId(inv.id);
+    showToast(`Đã sao chép tin nhắn Zalo cho khách ${inv.customerName}`, "success");
     setTimeout(() => setCopiedZaloMsgId(null), 2500);
+  };
+
+  // Sao chép riêng mã bản quyền trực tiếp
+  const handleCopyDirectCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedDirectCode(true);
+    showToast(`Đã sao chép mã bản quyền: ${code}`, "success");
+    setTimeout(() => setCopiedDirectCode(false), 2000);
   };
 
   // Áp dụng mã hóa đơn này vào thẻ in ngay trong Studio
@@ -460,15 +597,41 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
     setDirectAr(true);
     setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
     setActiveMainTab("studio");
-    setExportSuccessMsg(`Đã nạp mã hóa đơn ${inv.code} vào thẻ bài để in.`);
-    setTimeout(() => setExportSuccessMsg(null), 3000);
+    showToast(`Đã nạp mã ${inv.code} vào thẻ bài trong Studio để in.`, "info");
   };
 
-  // Xóa 1 hóa đơn
-  const handleDeleteInvoice = (id: string) => {
-    if (confirm("Bạn có chắc chắn muốn xóa hóa đơn này khỏi danh sách?")) {
-      saveInvoicesList(invoices.filter((item) => item.id !== id));
-    }
+  // Xóa 1 hóa đơn với Modal xác nhận đẹp
+  const handleDeleteInvoice = (id: string, code: string) => {
+    requestConfirm({
+      title: "Xác Nhận Xóa Hóa Đơn",
+      message: `Bạn có chắc chắn muốn xóa hóa đơn "${code}" khỏi danh sách hệ thống không?`,
+      confirmText: "Xóa Hóa Đơn",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/orders?code=${encodeURIComponent(code)}`, {
+            method: "DELETE",
+          });
+        } catch {}
+        const updated = invoices.filter((item) => item.id !== id);
+        saveInvoicesList(updated);
+        showToast(`Đã xóa hóa đơn ${code}`, "info");
+      },
+    });
+  };
+
+  // Đặt lại / Dọn dẹp danh sách hóa đơn (Xóa các hóa đơn test cũ nếu muốn)
+  const handleResetInvoices = () => {
+    requestConfirm({
+      title: "Đặt Lại Danh Sách Hóa Đơn",
+      message: `Bạn có chắc muốn dọn sạch danh sách gồm ${invoices.length} hóa đơn hiện tại trong trình duyệt? Danh sách sẽ được đưa về trống để bạn tạo mới.`,
+      confirmText: "Đồng Ý Xóa Hết",
+      danger: true,
+      onConfirm: () => {
+        saveInvoicesList([]);
+        showToast("Đã dọn dẹp sạch toàn bộ danh sách hóa đơn!", "success");
+      },
+    });
   };
 
   // Xuất file JSON danh sách hóa đơn
@@ -634,7 +797,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
   // Xử lý nạp ảnh thẻ mẫu mới từ máy tính
   const handleLoadImageFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
-      alert("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).");
+      showToast("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).", "warning");
       return;
     }
 
@@ -855,7 +1018,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
       setExportSuccessMsg("Đã xuất tệp in ấn hoàn tất thành công!");
       setTimeout(() => setExportSuccessMsg(null), 3500);
     } catch (err: any) {
-      alert(`Lỗi xuất file: ${err.message}`);
+      showToast(`Lỗi xuất file: ${err.message}`, "error");
     } finally {
       setIsExporting(false);
     }
@@ -892,6 +1055,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
           new ClipboardItem({ "image/png": blob }),
         ]);
         setCopiedImage(true);
+        showToast("Đã sao chép ảnh thẻ vào Clipboard!", "success");
         setTimeout(() => setCopiedImage(false), 2500);
       }, "image/png");
     } catch (err) {
@@ -927,7 +1091,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         printWindow.document.close();
       }
     } catch (err: any) {
-      alert(`Lỗi chuẩn bị in: ${err.message}`);
+      showToast(`Lỗi chuẩn bị in: ${err.message}`, "error");
     }
   };
 
@@ -1007,11 +1171,11 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
   const handleSaveProductToLanding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.nameEn.trim() || !productForm.nameVi.trim()) {
-      alert("Vui lòng nhập tên tiếng Anh và tên tiếng Việt cho thẻ bài.");
+      showToast("Vui lòng nhập tên tiếng Anh và tên tiếng Việt cho thẻ bài.", "warning");
       return;
     }
     if (!productForm.category.trim()) {
-      alert("Vui lòng chọn danh mục cho thẻ bài.");
+      showToast("Vui lòng chọn danh mục cho thẻ bài.", "warning");
       return;
     }
 
@@ -1046,7 +1210,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         posterUrl: imageToSave,
       });
 
-      // 3. Gửi đồng bộ lên API endpoint (ghi trực tiếp vào file data/animals.json trên server)
+      // 3. Gửi đồng bộ lên API endpoint (ghi trực tiếp vào file data/products.json & data/animals.json trên server)
       try {
         const apiRes = await fetch("/api/products", {
           method: "POST",
@@ -1055,10 +1219,10 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         });
         const apiJson = await apiRes.json();
         if (apiJson.success) {
-          console.log("Đã cập nhật file data/animals.json:", apiJson.data);
+          console.log("Đã cập nhật file data/products.json & data/animals.json:", apiJson.data);
         }
       } catch (err) {
-        console.warn("Lỗi khi ghi data/animals.json qua API:", err);
+        console.warn("Lỗi khi ghi data/products.json qua API:", err);
       }
 
       setIsPublishModalOpen(false);
@@ -1068,17 +1232,16 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         slug: saved.slug,
       });
 
-      setExportSuccessMsg(`Đã cập nhật thẻ "${saved.nameEn}" vào #products & đồng bộ data/animals.json thành công!`);
-      setTimeout(() => setExportSuccessMsg(null), 4000);
+      showToast(`Đã xuất bản thẻ "${saved.nameEn}" ra #products thành công!`, "success");
     } catch (err: any) {
-      alert(`Lỗi xuất bản sản phẩm: ${err.message}`);
+      showToast(`Lỗi xuất bản sản phẩm: ${err.message}`, "error");
     } finally {
       setIsPublishingProduct(false);
     }
   };
 
   // Thêm mới danh mục
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryForm.name.trim()) return;
     try {
@@ -1087,33 +1250,63 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
         description: categoryForm.description,
         iconName: categoryForm.iconName,
       });
+
+      try {
+        await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newCat),
+        });
+      } catch {}
+
       setCategoryForm({ name: "", description: "", iconName: "Layers" });
       setCategoriesList(getProductCategories());
       setProductForm((prev) => ({ ...prev, category: newCat.name }));
+      showToast(`Đã thêm danh mục mới "${newCat.name}"`, "success");
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message, "error");
     }
   };
 
   // Cập nhật danh mục
-  const handleUpdateCategory = (id: string, name: string) => {
+  const handleUpdateCategory = async (id: string, name: string) => {
     if (!name.trim()) return;
     try {
       updateProductCategory(id, { name });
+      try {
+        await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name }),
+        });
+      } catch {}
       setEditingCategoryId(null);
       setEditingCategoryName("");
       setCategoriesList(getProductCategories());
+      showToast(`Đã cập nhật danh mục thành "${name}"`, "success");
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message, "error");
     }
   };
 
-  // Xóa danh mục
+  // Xóa danh mục với Modal xác nhận đẹp
   const handleDeleteCategory = (id: string, name: string) => {
-    if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${name}"?`)) {
-      deleteProductCategory(id);
-      setCategoriesList(getProductCategories());
-    }
+    requestConfirm({
+      title: "Xác Nhận Xóa Danh Mục",
+      message: `Bạn có chắc chắn muốn xóa danh mục "${name}"? Các sản phẩm trong danh mục này có thể cần được phân loại lại.`,
+      confirmText: "Xóa Danh Mục",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/categories?id=${encodeURIComponent(id)}`, {
+            method: "DELETE",
+          });
+        } catch {}
+        deleteProductCategory(id);
+        setCategoriesList(getProductCategories());
+        showToast(`Đã xóa danh mục "${name}"`, "info");
+      },
+    });
   };
 
   // Xử lý đăng nhập bảo mật
@@ -1814,7 +2007,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
       ) : (
             /* PHÂN HỆ QUẢN LÝ HÓA ĐƠN & ĐƠN HÀNG BỘ THẺ */
             <div className="space-y-5">
-              {/* 1. KHÁCH HÀNG TRỰC TIẾP (BÁN TẠI QUẦY / SỰ KIỆN / IN LÊN HỘP THẺ) */}
+              {/* 1. KHÁCH HÀNG TRỰC TIẾP (BÁN THEO BỘ THẺ) */}
               <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-3.5 shadow-xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1826,24 +2019,109 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
                         1. Khách Hàng Trực Tiếp (Bán Theo Bộ)
                       </h3>
                       <p className="text-[10px] text-stone-400">
-                        Mã hóa đơn in trên hộp / tem cào mở khóa 6 thẻ
+                        Chọn Bộ Thẻ cần cấp mã &amp; in tem/hộp tự động
                       </p>
                     </div>
                   </div>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                    Khóa Thẻ Theo Bộ
+                  </span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-black/60 border border-white/10 text-xs text-stone-300 space-y-2.5">
-                  <div className="text-[11px] leading-relaxed">
-                    Quy tắc hệ thống: <strong>1 Mã Hóa Đơn</strong> (ví dụ: <code className="text-amber-300 font-mono">HD-DIR-xxxx</code>) mở khóa vĩnh viễn <strong>Bộ 6 Thẻ</strong> (Mèo, Chó, Sư Tử, Hươu, Voi, Gấu Trúc). Khách quét hoặc nhập mã 1 lần duy nhất trên máy.
+                <div className="p-3.5 rounded-xl bg-black/70 border border-white/10 space-y-3 text-xs text-stone-300">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-200 mb-1.5 flex items-center justify-between">
+                      <span>Chọn Danh Mục / Bộ Thẻ Cần Sinh Mã *:</span>
+                      <span className="text-[10px] text-amber-400 font-mono">
+                        (Mỗi bộ 30 thẻ AR)
+                      </span>
+                    </label>
+                    <select
+                      value={selectedDirectCategory}
+                      onChange={(e) => setSelectedDirectCategory(e.target.value)}
+                      className="w-full bg-stone-900 border border-amber-400/60 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                    >
+                      {categoriesList.map((cat) => (
+                        <option key={cat.id} value={cat.slug}>
+                          {cat.name} ({cat.packCode || `POLY30-${cat.slug.toUpperCase()}`} - 30 Thẻ)
+                        </option>
+                      ))}
+                    </select>
                   </div>
+
+                  <div className="text-[11px] text-stone-400 leading-relaxed bg-black/40 p-2.5 rounded-lg border border-white/5">
+                    Quy tắc bảo mật: Mã sinh ra sẽ được gán cứng với{" "}
+                    <strong className="text-amber-300">
+                      {categoriesList.find((c) => c.slug === selectedDirectCategory)?.name || "Bộ Thẻ"}
+                    </strong>
+                    . Khách hàng trực tiếp mua bộ này quét thẻ sẽ mở khóa toàn bộ 30 thẻ của bộ, nhưng{" "}
+                    <strong className="text-rose-400">tuyệt đối bị khóa với thẻ thuộc các bộ khác</strong>!
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleCreateDirectInvoice}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
                     <Plus className="h-4 w-4" />
-                    <span>Sinh Mã Hóa Đơn Bán Trực Tiếp (In Hộp / Tem)</span>
+                    <span>Sinh Mã Bản Quyền Cho Bộ Này</span>
                   </button>
+
+                  {/* Hiển thị mã vừa tạo nổi bật */}
+                  {lastGeneratedDirectCode && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border-2 border-amber-400/70 space-y-2 animate-in fade-in">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-amber-300">
+                        <span>Mã Bản Quyền Bộ Vừa Sinh:</span>
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Đã Lưu Hệ Thống
+                        </span>
+                      </div>
+                      <div className="font-mono text-base font-black text-amber-300 tracking-wider bg-black/80 px-3 py-2 rounded-lg border border-amber-500/30 text-center select-all">
+                        {lastGeneratedDirectCode}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDirectCode(lastGeneratedDirectCode)}
+                          className="py-1.5 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
+                        >
+                          {copiedDirectCode ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-stone-950" />
+                              <span>Đã Sao Chép!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5" />
+                              <span>Sao Chép Mã</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLicenseCode(lastGeneratedDirectCode);
+                            setIncludeLicense(true);
+                            setDirectAr(true);
+                            setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+                            setActiveMainTab("studio");
+                            showToast(
+                              `Đã nạp mã ${lastGeneratedDirectCode} vào Studio để in thẻ.`,
+                              "success"
+                            );
+                          }}
+                          className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-all"
+                          title="Gắn mã này vào ô Nhúng mã bản quyền bên tab Studio"
+                        >
+                          <Layers className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Gắn Vào Thẻ In</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1971,17 +2249,21 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
                   <div className="p-2.5 rounded-xl bg-black/80 border border-white/10 font-mono text-xs text-amber-300 font-bold flex justify-between items-center">
                     <span>Mã Hóa Đơn: {justCreatedInvoice.code}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 uppercase">
-                      {justCreatedInvoice.type === "online" ? "Online" : "Trực Tiếp"}
+                      {justCreatedInvoice.customerType || justCreatedInvoice.type === "online" ? "Online" : "Trực Tiếp"}
                     </span>
                   </div>
 
                   <div className="space-y-1.5 text-xs text-stone-300">
                     <div>
-                      <strong>Khách hàng:</strong> {justCreatedInvoice.customerName} {justCreatedInvoice.customerPhone ? `(${justCreatedInvoice.customerPhone})` : ""}
+                      <strong>Khách hàng:</strong> {justCreatedInvoice.customerName}{" "}
+                      {justCreatedInvoice.customerPhone ? `(${justCreatedInvoice.customerPhone})` : ""}
                     </div>
                     <div>
                       <strong>Link kích hoạt 1-chạm:</strong>
-                      <div className="text-[10px] font-mono text-stone-400 truncate bg-black/50 p-1.5 rounded-lg mt-0.5" title={justCreatedInvoice.directUrl}>
+                      <div
+                        className="text-[10px] font-mono text-stone-400 truncate bg-black/50 p-1.5 rounded-lg mt-0.5"
+                        title={justCreatedInvoice.directUrl}
+                      >
                         {justCreatedInvoice.directUrl}
                       </div>
                     </div>
@@ -2027,14 +2309,28 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
                     <span>Lịch Sử Hóa Đơn ({invoices.length})</span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleExportInvoicesJson}
-                    className="text-[10px] text-amber-300 hover:text-white font-bold flex items-center gap-1 py-1 px-2 rounded-lg bg-white/5 border border-white/10 transition-colors"
-                  >
-                    <Download className="h-3 w-3" />
-                    <span>Xuất JSON</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {invoices.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleResetInvoices}
+                        className="text-[10px] text-rose-400 hover:text-white font-bold flex items-center gap-1 py-1 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/30 border border-rose-500/20 transition-colors"
+                        title="Dọn dẹp xóa các hóa đơn thử nghiệm cũ"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Dọn Dẹp</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleExportInvoicesJson}
+                      className="text-[10px] text-amber-300 hover:text-white font-bold flex items-center gap-1 py-1 px-2 rounded-lg bg-white/5 border border-white/10 transition-colors"
+                    >
+                      <Download className="h-3 w-3" />
+                      <span>Xuất JSON</span>
+                    </button>
+                  </div>
                 </div>
 
                 {invoices.length === 0 ? (
@@ -2054,12 +2350,12 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
                           </span>
                           <span
                             className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                              inv.type === "online"
+                              inv.customerType === "ONLINE" || inv.type === "online"
                                 ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
                                 : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                             }`}
                           >
-                            {inv.type === "online" ? "Online" : "Trực Tiếp"}
+                            {inv.customerType === "ONLINE" || inv.type === "online" ? "Online" : "Trực Tiếp"}
                           </span>
                         </div>
 
@@ -2105,9 +2401,9 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
 
                           <button
                             type="button"
-                            onClick={() => handleDeleteInvoice(inv.id)}
+                            onClick={() => handleDeleteInvoice(inv.id, inv.code)}
                             className="py-1 px-1.5 rounded-lg hover:bg-rose-500/20 text-stone-500 hover:text-rose-400 transition-colors"
-                            title="Xóa hóa đơn"
+                            title="Xóa hóa đơn này"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -2808,6 +3104,93 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
             >
               Đóng
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          TOAST NOTIFICATION CONTAINER (Góc phải trên màn hình)
+         ======================================================== */}
+      <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto flex items-start gap-2.5 p-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl animate-in slide-in-from-top-3 ${
+              toast.type === "success"
+                ? "bg-emerald-950/90 border-emerald-400/60 text-emerald-100"
+                : toast.type === "error"
+                ? "bg-rose-950/90 border-rose-400/60 text-rose-100"
+                : toast.type === "warning"
+                ? "bg-amber-950/90 border-amber-400/60 text-amber-100"
+                : "bg-stone-900/90 border-stone-600 text-stone-100"
+            }`}
+          >
+            {toast.type === "success" && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />}
+            {toast.type === "error" && <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />}
+            {toast.type === "warning" && <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />}
+            {toast.type === "info" && <HelpCircle className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />}
+
+            <div className="text-xs font-semibold leading-relaxed flex-1">
+              {toast.message}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              className="text-white/60 hover:text-white p-0.5 rounded-md transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* ========================================================
+          MODAL XÁC NHẬN TÙY BIẾN (Custom Confirm Dialog)
+         ======================================================== */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-stone-900 border border-white/20 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`h-10 w-10 rounded-2xl flex items-center justify-center font-black ${
+                  confirmDialog.danger
+                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                    : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                }`}
+              >
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <h3 className="text-sm font-black uppercase text-white">
+                {confirmDialog.title}
+              </h3>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              {confirmDialog.message}
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+                className="py-2 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-xs transition-colors"
+              >
+                {confirmDialog.cancelText || "Hủy"}
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={`py-2 px-4 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95 ${
+                  confirmDialog.danger
+                    ? "bg-rose-600 hover:bg-rose-500 text-white"
+                    : "bg-amber-400 hover:bg-amber-300 text-stone-950"
+                }`}
+              >
+                {confirmDialog.confirmText || "Xác nhận"}
+              </button>
+            </div>
           </div>
         </div>
       )}

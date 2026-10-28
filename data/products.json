@@ -1,0 +1,254 @@
+[
+  {
+    "id": "deer-001",
+    "slug": "deer",
+    "qrCode": "AR-DEER-001",
+    "nameEn": "Deer",
+    "nameVi": "Con hươu",
+    "nameZh": "小鹿",
+    "ipa": "/dɪr/",
+    "pinyinZh": "xiǎolù",
+    "categoryId": "cat-animals",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat",
+    "packCode": "POLY30-DONGVAT",
+    "description": "Hươu con hiền lành sống trong rừng cổ tích, nổi bật với đôi gạc duyên dáng và đôi mắt trong veo ấm áp.",
+    "price": 249000,
+    "originalPrice": 299000,
+    "images": [
+      "/images/animals/deer.jpg"
+    ],
+    "audioUrl": "/audio/deer.mp3",
+    "audios": {
+      "en": "/audio/en/deer.mp3",
+      "vi": "/audio/vi/deer.mp3",
+      "zh": "/audio/zh/deer.mp3"
+    },
+    "modelUrl": "/models/deer.glb",
+    "iosModelUrl": "/models/deer.usdz",
+    "posterUrl": "/images/posters/deer-poster.jpg",
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=deer",
+    "badge": "Yêu thích nhất"
+  },
+  {
+    "id": "cat-002",
+    "slug": "cat",
+    "qrCode": "AR-CAT-002",
+    "nameEn": "Cat",
+    "nameVi": "Con mèo",
+    "nameZh": "小猫",
+    "ipa": "/kæt/",
+    "pinyinZh": "xiǎomāo",
+    "categoryId": "cat-animals",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat",
+    "packCode": "POLY30-DONGVAT",
+    "description": "Mèo con bốn chân tinh nghịch, thích cuộn tròn sưởi nắng và có đôi tai vô cùng nhạy bén với âm thanh xung quanh.",
+    "price": 219000,
+    "originalPrice": 299000,
+    "images": [
+      "/images/animals/cat.jpg"
+    ],
+    "audioUrl": "/audio/cat.mp3",
+    "audios": {
+      "en": "/audio/en/cat.mp3",
+      "vi": "/audio/vi/cat.mp3",
+      "zh": "/audio/zh/cat.mp3"
+    },
+    "modelUrl": "/models/cat.glb",
+    "iosModelUrl": "/models/cat.usdz",
+    "posterUrl": "/images/posters/cat-poster.jpg",
+    "animations": [
+      "Walk",
+      "Idle"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=cat",
+    "badge": "Thân thiện"
+  },
+  {
+    "id": "dog-003",
+    "slug": "dog",
+    "qrCode": "AR-DOG-003",
+    "nameEn": "Dog",
+    "nameVi": "Con chó",
+    "nameZh": "小狗",
+    "ipa": "/dɔːɡ/",
+    "pinyinZh": "xiǎogǒu",
+    "categoryId": "cat-animals",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat",
+    "packCode": "POLY30-DONGVAT",
+    "description": "Chú chó trung thành và tinh khôn, luôn sẵn sàng vẫy đuôi chào đón bé và tham gia vào những trò chơi vui nhộn.",
+    "price": 219000,
+    "originalPrice": 299000,
+    "images": [
+      "/images/animals/dog.jpg"
+    ],
+    "audioUrl": "/audio/dog.mp3",
+    "audios": {
+      "en": "/audio/en/dog.mp3",
+      "vi": "/audio/vi/dog.mp3",
+      "zh": "/audio/zh/dog.mp3"
+    },
+    "modelUrl": "/models/dog.glb",
+    "iosModelUrl": "/models/dog.usdz",
+    "posterUrl": "/images/posters/dog-poster.jpg",
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=dog",
+    "badge": "Bán chạy"
+  },
+  {
+    "id": "elephant-004",
+    "slug": "elephant",
+    "qrCode": "AR-ELEPHANT-004",
+    "nameEn": "Elephant",
+    "nameVi": "Con voi",
+    "nameZh": "大象",
+    "ipa": "/ˈel.ə.fənt/",
+    "pinyinZh": "dàxiàng",
+    "categoryId": "cat-animals",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat",
+    "packCode": "POLY30-DONGVAT",
+    "description": "Voi khổng lồ tốt bụng với đôi tai to như cánh quạt và chiếc vòi khéo léo biết phun nước vui đùa dưới ánh mặt trời.",
+    "price": 269000,
+    "originalPrice": 329000,
+    "images": [
+      "/images/animals/elephant.jpg"
+    ],
+    "audioUrl": "/audio/elephant.mp3",
+    "audios": {
+      "en": "/audio/en/elephant.mp3",
+      "vi": "/audio/vi/elephant.mp3",
+      "zh": "/audio/zh/elephant.mp3"
+    },
+    "modelUrl": "/models/elephant.glb",
+    "iosModelUrl": "/models/elephant.usdz",
+    "posterUrl": "/images/posters/elephant-poster.jpg",
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=elephant",
+    "badge": "Mới ra mắt"
+  },
+  {
+    "id": "lion-005",
+    "slug": "lion",
+    "qrCode": "AR-LION-005",
+    "nameEn": "Lion",
+    "nameVi": "Sư tử",
+    "nameZh": "狮子",
+    "ipa": "/ˈlaɪ.ən/",
+    "pinyinZh": "shīzi",
+    "categoryId": "cat-animals",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat",
+    "packCode": "POLY30-DONGVAT",
+    "description": "Chúa sơn lâm dũng mãnh của thảo nguyên xanh, sở hữu chiếc bờm vàng óng ánh và tiếng gầm vang dội uy nghiêm.",
+    "price": 279000,
+    "originalPrice": 349000,
+    "images": [
+      "/images/animals/lion.jpg"
+    ],
+    "audioUrl": "/audio/lion.mp3",
+    "audios": {
+      "en": "/audio/en/lion.mp3",
+      "vi": "/audio/vi/lion.mp3",
+      "zh": "/audio/zh/lion.mp3"
+    },
+    "modelUrl": "/models/lion.glb",
+    "iosModelUrl": "/models/lion.usdz",
+    "posterUrl": "/images/posters/lion-poster.jpg",
+    "animations": [
+      "Object_0",
+      "Roar",
+      "Idle"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=lion",
+    "badge": "Dũng mãnh"
+  },
+  {
+    "id": "panda-006",
+    "slug": "panda",
+    "qrCode": "AR-PANDA-006",
+    "nameEn": "Panda",
+    "nameVi": "Gấu trúc",
+    "nameZh": "熊猫",
+    "ipa": "/ˈpæn.də/",
+    "pinyinZh": "xióngmāo",
+    "categoryId": "cat-animals",
+    "category": "Động Vật",
+    "categorySlug": "dong-vat",
+    "packCode": "POLY30-DONGVAT",
+    "description": "Gấu trúc con tròn xoe cực kỳ dễ thương với đôi mắt đen láy, thích ngồi nhai cành trúc non giữa rừng tre xanh biếc.",
+    "price": 259000,
+    "originalPrice": 299000,
+    "images": [
+      "/images/animals/panda.jpg"
+    ],
+    "audioUrl": "/audio/panda.mp3",
+    "audios": {
+      "en": "/audio/en/panda.mp3",
+      "vi": "/audio/vi/panda.mp3",
+      "zh": "/audio/zh/panda.mp3"
+    },
+    "modelUrl": "/models/panda.glb",
+    "iosModelUrl": "/models/panda.usdz",
+    "posterUrl": "/images/posters/panda-poster.jpg",
+    "animations": [
+      "Idle"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=panda",
+    "badge": "Dễ thương"
+  },
+  {
+    "id": "jump-007",
+    "slug": "jump",
+    "qrCode": "AR-JUMP-007",
+    "nameEn": "Jump",
+    "nameVi": "Nhảy vui nhộn",
+    "nameZh": "跳",
+    "ipa": "/dʒʌmp/",
+    "pinyinZh": "tiào",
+    "categoryId": "cat-actions",
+    "category": "Hành Động",
+    "categorySlug": "hanh-dong",
+    "packCode": "POLY30-HANHDONG",
+    "description": "Thẻ học thông minh AR Poly Cards: Bé tập nhảy và vận động vui tươi phát triển thể chất.",
+    "price": 219000,
+    "originalPrice": 299000,
+    "images": [
+      "/images/animals/lion.jpg"
+    ],
+    "audioUrl": "/audio/en/jump.mp3",
+    "audios": {
+      "en": "/audio/en/jump.mp3",
+      "vi": "/audio/vi/jump.mp3",
+      "zh": "/audio/zh/jump.mp3"
+    },
+    "modelUrl": "/models/lion.glb",
+    "iosModelUrl": "/models/lion.usdz",
+    "posterUrl": "/images/posters/lion-poster.jpg",
+    "animations": [
+      "Idle",
+      "Walk"
+    ],
+    "arEnabled": true,
+    "buyUrl": "/order?animal=jump",
+    "badge": "Mới ra mắt"
+  }
+]

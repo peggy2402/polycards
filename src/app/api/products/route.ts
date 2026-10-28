@@ -5,17 +5,22 @@ import path from "path";
 import animalsData from "../../../../data/animals.json";
 import { Animal } from "@/types/animal";
 
-const DATA_FILE_PATH = path.join(process.cwd(), "data", "animals.json");
+const PRODUCTS_FILE_PATH = path.join(process.cwd(), "data", "products.json");
+const ANIMALS_FILE_PATH = path.join(process.cwd(), "data", "animals.json");
 
-// Helper đọc dữ liệu mới nhất từ file animals.json
-async function readAnimalsData(): Promise<Animal[]> {
+// Helper đọc dữ liệu sản phẩm mới nhất từ file products.json hoặc animals.json
+async function readProductsData(): Promise<Animal[]> {
   try {
-    if (fsSync.existsSync(DATA_FILE_PATH)) {
-      const content = await fs.readFile(DATA_FILE_PATH, "utf8");
+    if (fsSync.existsSync(PRODUCTS_FILE_PATH)) {
+      const content = await fs.readFile(PRODUCTS_FILE_PATH, "utf8");
+      return JSON.parse(content) as Animal[];
+    }
+    if (fsSync.existsSync(ANIMALS_FILE_PATH)) {
+      const content = await fs.readFile(ANIMALS_FILE_PATH, "utf8");
       return JSON.parse(content) as Animal[];
     }
   } catch (err) {
-    console.warn("Lỗi đọc file data/animals.json, fallback sang JSON import:", err);
+    console.warn("Lỗi đọc file data/products.json, fallback sang JSON import:", err);
   }
   return animalsData as Animal[];
 }
@@ -26,7 +31,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const query = searchParams.get("q");
 
-    const rawList = await readAnimalsData();
+    const rawList = await readProductsData();
 
     let list = rawList.map((a) => ({
       ...a,
@@ -73,7 +78,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const currentList = await readAnimalsData();
+    const currentList = await readProductsData();
     const cleanSlug = (body.slug || body.nameEn).toLowerCase().trim().replace(/\s+/g, "-");
 
     // Kiểm tra xem thẻ đã tồn tại chưa (theo slug hoặc id)
@@ -99,8 +104,10 @@ export async function POST(request: NextRequest) {
       nameZh: body.nameZh || (existingIndex >= 0 ? currentList[existingIndex].nameZh : ""),
       ipa: body.ipa || (existingIndex >= 0 ? currentList[existingIndex].ipa : `/${cleanSlug}/`),
       pinyinZh: body.pinyinZh || (existingIndex >= 0 ? currentList[existingIndex].pinyinZh : ""),
+      categoryId: body.categoryId || (existingIndex >= 0 ? currentList[existingIndex].categoryId : `cat-${body.categorySlug || "animals"}`),
       category: body.category,
       categorySlug: body.categorySlug || cleanSlug,
+      packCode: body.packCode || (existingIndex >= 0 ? currentList[existingIndex].packCode : `POLY30-${(body.categorySlug || "DONGVAT").toUpperCase()}`),
       badge: body.badge || (existingIndex >= 0 ? currentList[existingIndex].badge : "Mới ra mắt"),
       price: Number(body.price) || (existingIndex >= 0 ? currentList[existingIndex].price : 219000),
       originalPrice: Number(body.originalPrice) || (existingIndex >= 0 ? currentList[existingIndex].originalPrice : 299000),
@@ -131,16 +138,17 @@ export async function POST(request: NextRequest) {
       newList = [...currentList, updatedItem];
     }
 
-    // Ghi trực tiếp xuống file data/animals.json
+    // Ghi đồng bộ xuống cả data/products.json và data/animals.json
     try {
-      await fs.writeFile(DATA_FILE_PATH, JSON.stringify(newList, null, 2), "utf8");
+      await fs.writeFile(PRODUCTS_FILE_PATH, JSON.stringify(newList, null, 2), "utf8");
+      await fs.writeFile(ANIMALS_FILE_PATH, JSON.stringify(newList, null, 2), "utf8");
     } catch (fsErr) {
-      console.warn("Không thể ghi file data/animals.json (có thể trên serverless):", fsErr);
+      console.warn("Không thể ghi file data (có thể trên serverless):", fsErr);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Thẻ "${updatedItem.nameVi} (${updatedItem.nameEn})" đã được lưu thành công vào data/animals.json!`,
+      message: `Thẻ "${updatedItem.nameVi} (${updatedItem.nameEn})" đã được lưu thành công vào data/products.json!`,
       data: updatedItem,
     });
   } catch (error: any) {

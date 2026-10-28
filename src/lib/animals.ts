@@ -9,9 +9,15 @@ function getLiveAnimals(): Animal[] {
     try {
       const fs = eval("require")("fs");
       const path = eval("require")("path");
-      const filePath = path.join(process.cwd(), "data", "animals.json");
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, "utf8");
+      const productsPath = path.join(process.cwd(), "data", "products.json");
+      const animalsPath = path.join(process.cwd(), "data", "animals.json");
+
+      if (fs.existsSync(productsPath)) {
+        const content = fs.readFileSync(productsPath, "utf8");
+        return JSON.parse(content) as Animal[];
+      }
+      if (fs.existsSync(animalsPath)) {
+        const content = fs.readFileSync(animalsPath, "utf8");
         return JSON.parse(content) as Animal[];
       }
     } catch {

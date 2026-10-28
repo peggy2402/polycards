@@ -10,6 +10,8 @@ export interface ProductCategory {
   slug: string;
   description?: string;
   iconName?: string;
+  packCode?: string;
+  totalCards?: number;
   createdAt?: string;
 }
 
@@ -27,7 +29,9 @@ export interface Animal {
   price: number;
   originalPrice?: number;
   category?: string;
+  categoryId?: string;
   categorySlug?: string;
+  packCode?: string;
   images: string[];
   audioUrl: string;
   audios?: AnimalAudio;

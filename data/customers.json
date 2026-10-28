@@ -1,0 +1,24 @@
+[
+  {
+    "id": "CUST-001",
+    "name": "Khách Mua Trực Tiếp Tại Quầy",
+    "phone": "0901234567",
+    "type": "TRUCTIEP",
+    "orders": [
+      "ORD-001"
+    ],
+    "totalSpent": 249000,
+    "createdAt": "2026-10-27 15:30"
+  },
+  {
+    "id": "CUST-002",
+    "name": "Nguyễn Văn An",
+    "phone": "0912345678",
+    "type": "ONLINE",
+    "orders": [
+      "ORD-002"
+    ],
+    "totalSpent": 219000,
+    "createdAt": "2026-10-27 16:45"
+  }
+]
