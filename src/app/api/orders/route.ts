@@ -6,16 +6,32 @@ import path from "path";
 const ORDERS_FILE_PATH = path.join(process.cwd(), "data", "orders.json");
 const CUSTOMERS_FILE_PATH = path.join(process.cwd(), "data", "customers.json");
 
+interface OrderLineItem {
+  id: string;
+  name: string;
+  packCode?: string;
+  categorySlug?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 interface OrderItem {
   id: string;
   code: string;
   customerType: "TRUCTIEP" | "ONLINE";
   customerName: string;
   customerPhone?: string;
+  customerAddress?: string;
   packId?: string;
   packCode?: string;
   packTitle: string;
   allowedCategorySlug?: string;
+  items?: OrderLineItem[];
+  creditAmount: number; // Phát sinh Có - số tiền khách cần phải trả
+  debitAmount: number;  // Phát sinh Nợ - số tiền khách đã trả ngay
+  remainingAmount?: number; // Số tiền còn thiếu (nếu có)
+  paymentMethod: "TIEN_MAT" | "CHUYEN_KHOAN"; // Hình thức thanh toán
   totalPrice?: number;
   status?: string;
   createdAt?: string;
@@ -96,18 +112,40 @@ export async function POST(request: NextRequest) {
 
     const existingIndex = orders.findIndex((o) => o.code === cleanCode || (body.id && o.id === body.id));
 
+    const creditAmount = Number(body.creditAmount) || Number(body.totalPrice) || 249000;
+    const debitAmount =
+      body.debitAmount !== undefined && body.debitAmount !== null ? Number(body.debitAmount) : creditAmount;
+    const remainingAmount = creditAmount - debitAmount;
+    const paymentMethod = body.paymentMethod === "CHUYEN_KHOAN" ? "CHUYEN_KHOAN" : "TIEN_MAT";
+
     const newOrder: OrderItem = {
       id: body.id || (existingIndex >= 0 ? orders[existingIndex].id : `ORD-${Date.now().toString().slice(-6)}`),
       code: cleanCode,
       customerType: body.customerType || "TRUCTIEP",
       customerName: body.customerName || "Khách Hàng Trực Tiếp",
       customerPhone: body.customerPhone || "",
+      customerAddress: body.customerAddress || "",
       packId: body.packId || "cat-animals",
       packCode: body.packCode || "POLY30-DONGVAT",
       packTitle: body.packTitle || "Bộ 30 Thẻ AR Động Vật",
       allowedCategorySlug: body.allowedCategorySlug || "dong-vat",
-      totalPrice: Number(body.totalPrice) || 249000,
-      status: body.status || "PAID",
+      items: body.items || [
+        {
+          id: body.packId || "cat-animals",
+          name: body.packTitle || "Bộ 30 Thẻ AR Động Vật",
+          packCode: body.packCode || "POLY30-DONGVAT",
+          categorySlug: body.allowedCategorySlug || "dong-vat",
+          quantity: 1,
+          unitPrice: creditAmount,
+          totalPrice: creditAmount,
+        },
+      ],
+      creditAmount,
+      debitAmount,
+      remainingAmount,
+      paymentMethod,
+      totalPrice: creditAmount,
+      status: remainingAmount <= 0 ? "PAID" : "PARTIAL",
       createdAt: body.createdAt || new Date().toLocaleString("vi-VN"),
       note: body.note || "",
       directUrl: body.directUrl || `https://polycards-one.vercel.app/ar/lion?ar=1&code=${cleanCode}`,

@@ -47,6 +47,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  Receipt,
 } from "lucide-react";
 import {
   getProductCategories,
@@ -234,27 +235,13 @@ export default function ToolsPage() {
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
 
-  // 8. Tab chính: "studio" (Chế bản thẻ & QR) | "invoices" (Quản lý hóa đơn & bộ thẻ)
-  const [activeMainTab, setActiveMainTab] = useState<"studio" | "invoices">("studio");
-
-  // 9. Chế độ xem trước thẻ FINAL (Ẩn hoàn toàn viền và núm kéo, hiển thị 100% sạch chuẩn in)
+  // 8. Chế độ xem trước thẻ FINAL (Ẩn hoàn toàn viền và núm kéo, hiển thị 100% sạch chuẩn in)
   const [isPreviewFinal, setIsPreviewFinal] = useState<boolean>(false);
 
-  // 10. Quản lý danh sách Hóa Đơn Bán Hàng (Trực tiếp & Online)
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-  const [copiedZaloMsgId, setCopiedZaloMsgId] = useState<string | null>(null);
-
-  // Form lên đơn cho khách online
-  const [onlineForm, setOnlineForm] = useState({
-    customerName: "",
-    customerPhone: "",
-    packType: "combo6" as "combo6" | "combo30" | "vip",
-    targetSlug: "lion",
-    note: "",
-  });
-
-  // Modal hiển thị kết quả hóa đơn vừa tạo
-  const [justCreatedInvoice, setJustCreatedInvoice] = useState<InvoiceRecord | null>(null);
+  // 9. Cấu hình Sinh Mã Bản Quyền Cho Bộ Thẻ (In Xưởng / Tem Dán)
+  const [selectedPackForCard, setSelectedPackForCard] = useState<string>("POLY30-DONGVAT");
+  const [packGeneratedCode, setPackGeneratedCode] = useState<string>("");
+  const [copiedPackCode, setCopiedPackCode] = useState<boolean>(false);
 
   // Toast & Thông Báo Người Dùng
   interface ToastMessage {
@@ -320,11 +307,6 @@ export default function ToolsPage() {
     []
   );
 
-  // Bộ chọn Danh mục / Gói thẻ cho Khách Hàng Trực Tiếp
-  const [selectedDirectCategory, setSelectedDirectCategory] = useState<string>("dong-vat");
-  const [lastGeneratedDirectCode, setLastGeneratedDirectCode] = useState<string>("");
-  const [copiedDirectCode, setCopiedDirectCode] = useState<boolean>(false);
-
   // 11. Quản lý Danh Mục Sản Phẩm (Categories)
   const [categoriesList, setCategoriesList] = useState<ProductCategory[]>([]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
@@ -374,277 +356,59 @@ export default function ToolsPage() {
     };
   }, []);
 
-  // Nạp danh sách hóa đơn từ localStorage và đồng bộ backend
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedInvoices = localStorage.getItem("polycards_invoices_db");
-      if (savedInvoices) {
-        try {
-          const parsed = JSON.parse(savedInvoices);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setInvoices(parsed);
-            return;
-          }
-        } catch {}
-      }
-      // Dữ liệu mẫu chuẩn ban đầu
-      const initialSeed: InvoiceRecord[] = [
-        {
-          id: "INV-DEMO-01",
-          code: "POLY30-DONGVAT-8821",
-          type: "direct",
-          customerType: "TRUCTIEP",
-          customerName: "Khách Mua Trực Tiếp (Bộ Động Vật)",
-          customerPhone: "0901234567",
-          packType: "combo30",
-          packId: "cat-animals",
-          packCode: "POLY30-DONGVAT",
-          packTitle: "Bộ 30 Thẻ AR Động Vật",
-          allowedCategorySlug: "dong-vat",
-          createdAt: "2026-10-27 15:30",
-          note: "Mã hóa đơn in trên hộp thẻ / tem cào mở khóa 30 thẻ Động Vật",
-          directUrl: "https://polycards-one.vercel.app/ar/lion?ar=1&code=POLY30-DONGVAT-8821",
-        },
-      ];
-      setInvoices(initialSeed);
-      localStorage.setItem("polycards_invoices_db", JSON.stringify(initialSeed));
-    }
-  }, []);
-
-  const saveInvoicesList = (newList: InvoiceRecord[]) => {
-    setInvoices(newList);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("polycards_invoices_db", JSON.stringify(newList));
-    }
-  };
-
-  // Hàm Random nhanh mã QR & Gắn vào ô trắng của thẻ
-  const handleRandomizeQr = (type: "combo" | "direct" = "combo") => {
+  // Sinh mã bản quyền tự động theo bộ và gắn trực tiếp vào mã QR trên thẻ mẫu để in
+  const handleGeneratePackCodeForCard = async () => {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const prefix = type === "direct" ? "POLY30-DONGVAT" : "HD-COMBO";
-    const newCode = `${prefix}-${randomNum}`;
+    const newCode = `${selectedPackForCard}-${randomNum}`;
 
-    // Chọn ngẫu nhiên con vật từ bộ thẻ nếu muốn
-    const comboSlugs = ["lion", "cat", "deer", "dog", "elephant", "panda", "jump"];
-    const randomSlug = comboSlugs[Math.floor(Math.random() * comboSlugs.length)];
+    let packSampleSlug = "lion";
+    if (selectedPackForCard === "POLY30-HANHDONG") packSampleSlug = "jump";
+    else if (selectedPackForCard === "POLY30-XECO") packSampleSlug = "car";
+    else if (selectedPackForCard === "POLY30-HOAQUA") packSampleSlug = "apple";
 
-    setSlug(randomSlug);
-    setDirectAr(true);
-    setIncludeLicense(true);
+    setSlug(packSampleSlug);
     setLicenseCode(newCode);
+    setIncludeLicense(true);
+    setDirectAr(true);
+    setPackGeneratedCode(newCode);
 
-    // Tự động gắn vào ô trắng góc dưới thẻ
-    setQrPos({
-      x: 6.2,
-      y: 70.8,
-      size: 25.8,
-    });
+    // Căn chuẩn vị trí QR vào ô trắng góc dưới thẻ
+    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
 
-    showToast(`Đã tạo mã QR ngẫu nhiên: ${newCode} (${randomSlug.toUpperCase()})`, "success");
-  };
-
-  // Tạo nhanh mã hóa đơn bán trực tiếp gắn với Danh mục / Bộ cụ thể
-  const handleCreateDirectInvoice = async () => {
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-
-    // Lấy thông tin danh mục tương ứng
-    const foundCat = categoriesList.find((c) => c.slug === selectedDirectCategory) || {
-      id: "cat-animals",
-      name: "Động Vật",
-      slug: "dong-vat",
-      packCode: "POLY30-DONGVAT",
-    };
-
-    const prefix =
-      foundCat.packCode ||
-      `POLY30-${(foundCat.slug || "DONGVAT").toUpperCase().replace(/[^A-Z0-9]/g, "")}`;
-    const code = `${prefix}-${randomNum}`;
-
-    let targetCardSlug = "lion";
-    if (foundCat.slug === "hanh-dong") targetCardSlug = "jump";
-    else if (foundCat.slug === "xe-co") targetCardSlug = "car";
-    else if (foundCat.slug === "hoa-qua") targetCardSlug = "apple";
-
-    const packTitle = `Bộ 30 Thẻ AR ${foundCat.name}`;
-    const directUrl = `https://polycards-one.vercel.app/ar/${targetCardSlug}?ar=1&code=${code}`;
-
-    const newInv: InvoiceRecord = {
-      id: `INV-${Date.now()}`,
-      code,
-      type: "direct",
-      customerType: "TRUCTIEP",
-      customerName: `Khách Mua Trực Tiếp (${foundCat.name})`,
-      customerPhone: "",
-      packType: "combo30",
-      packId: foundCat.id,
-      packCode: prefix,
-      packTitle,
-      allowedCategorySlug: foundCat.slug,
-      createdAt: new Date().toLocaleString("vi-VN"),
-      note: `Mã hóa đơn in trên hộp thẻ / tem cào mở khóa 30 thẻ ${foundCat.name}`,
-      directUrl,
-    };
-
-    // Ghi nhận vào file backend qua API
+    // Đăng ký mã bản quyền này vào hệ thống backend orders
     try {
       await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newInv),
+        body: JSON.stringify({
+          code: newCode,
+          customerType: "TRUCTIEP",
+          customerName: `Bộ Thẻ ${selectedPackForCard} (In Xưởng)`,
+          packCode: selectedPackForCard,
+          packTitle: `Bộ 30 Thẻ AR ${selectedPackForCard}`,
+          allowedCategorySlug: selectedPackForCard.toLowerCase().replace("poly30-", ""),
+          creditAmount: 249000,
+          debitAmount: 249000,
+          remainingAmount: 0,
+          paymentMethod: "TIEN_MAT",
+          status: "PAID",
+          directUrl: `https://polycards-one.vercel.app/ar/${packSampleSlug}?ar=1&code=${newCode}`,
+          note: `Mã bản quyền sinh tự động trong Studio Chế Bản Thẻ & QR`,
+        }),
       });
     } catch (e) {
-      console.warn("Lưu backend orders thất bại, fallback local:", e);
+      console.warn("Lưu backend orders:", e);
     }
 
-    saveInvoicesList([newInv, ...invoices]);
-    setJustCreatedInvoice(newInv);
-    setLastGeneratedDirectCode(code);
-    setLicenseCode(code);
-    setIncludeLicense(true);
-    setDirectAr(true);
-    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
-    showToast(`Đã sinh mã bản quyền ${code} cho Bộ ${foundCat.name}!`, "success");
+    showToast(`Đã sinh mã ${newCode} cho ${selectedPackForCard} và nhúng vào mã QR trên thẻ!`, "success");
   };
 
-  // Tạo hóa đơn cho khách online
-  const handleCreateOnlineInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onlineForm.customerName.trim()) {
-      showToast("Vui lòng nhập họ tên khách hàng.", "warning");
-      return;
-    }
-
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const code = `HD-ONL-2026-${randomNum}`;
-    const packTitle =
-      onlineForm.packType === "combo6"
-        ? "Bộ 6 Thẻ AR Cơ Bản (Động Vật)"
-        : onlineForm.packType === "combo30"
-        ? "Bộ 30 Thẻ AR Toàn Diện"
-        : "Trọn Bộ VIP Poly Cards";
-
-    const targetSlug = onlineForm.targetSlug || "lion";
-    const directUrl = `https://polycards-one.vercel.app/ar/${targetSlug}?ar=1&code=${code}`;
-
-    const newInv: InvoiceRecord = {
-      id: `INV-${Date.now()}`,
-      code,
-      type: "online",
-      customerType: "ONLINE",
-      customerName: onlineForm.customerName.trim(),
-      customerPhone: onlineForm.customerPhone.trim(),
-      packType: onlineForm.packType,
-      packTitle,
-      createdAt: new Date().toLocaleString("vi-VN"),
-      note: onlineForm.note.trim() || "Đơn hàng online",
-      directUrl,
-    };
-
-    try {
-      await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newInv),
-      });
-    } catch {}
-
-    saveInvoicesList([newInv, ...invoices]);
-    setJustCreatedInvoice(newInv);
-    showToast(`Đã lên đơn online thành công cho khách hàng ${newInv.customerName}`, "success");
-
-    // Reset form
-    setOnlineForm({
-      customerName: "",
-      customerPhone: "",
-      packType: "combo6",
-      targetSlug: "lion",
-      note: "",
-    });
-  };
-
-  // Soạn tin nhắn mẫu gửi Zalo/SMS cho khách
-  const formatZaloMessage = (inv: InvoiceRecord) => {
-    return `Kính chào quý khách ${inv.customerName || "quý khách"},
-Poly Cards trân trọng gửi quý khách thông tin đơn hàng và mã kích hoạt ${inv.packTitle}:
-- Mã Hóa Đơn: ${inv.code}
-- Link Kích Hoạt 1-Chạm: ${inv.directUrl}
-
-(Hướng dẫn: Quý khách chỉ cần bấm vào đường link trên, camera WebAR sẽ tự động mở lên và kích hoạt toàn bộ thẻ bài AR vĩnh viễn trên điện thoại của quý khách mà không cần nhập thêm mã ạ!).
-Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ cùng Poly Cards!`;
-  };
-
-  // Sao chép tin nhắn Zalo
-  const handleCopyZaloMessage = (inv: InvoiceRecord) => {
-    const text = formatZaloMessage(inv);
-    navigator.clipboard.writeText(text);
-    setCopiedZaloMsgId(inv.id);
-    showToast(`Đã sao chép tin nhắn Zalo cho khách ${inv.customerName}`, "success");
-    setTimeout(() => setCopiedZaloMsgId(null), 2500);
-  };
-
-  // Sao chép riêng mã bản quyền trực tiếp
-  const handleCopyDirectCode = (code: string) => {
+  // Sao chép mã bản quyền của bộ vừa sinh
+  const handleCopyPackCode = (code: string) => {
     navigator.clipboard.writeText(code);
-    setCopiedDirectCode(true);
+    setCopiedPackCode(true);
     showToast(`Đã sao chép mã bản quyền: ${code}`, "success");
-    setTimeout(() => setCopiedDirectCode(false), 2000);
-  };
-
-  // Áp dụng mã hóa đơn này vào thẻ in ngay trong Studio
-  const handleApplyInvoiceToStudio = (inv: InvoiceRecord) => {
-    setLicenseCode(inv.code);
-    setIncludeLicense(true);
-    setDirectAr(true);
-    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
-    setActiveMainTab("studio");
-    showToast(`Đã nạp mã ${inv.code} vào thẻ bài trong Studio để in.`, "info");
-  };
-
-  // Xóa 1 hóa đơn với Modal xác nhận đẹp
-  const handleDeleteInvoice = (id: string, code: string) => {
-    requestConfirm({
-      title: "Xác Nhận Xóa Hóa Đơn",
-      message: `Bạn có chắc chắn muốn xóa hóa đơn "${code}" khỏi danh sách hệ thống không?`,
-      confirmText: "Xóa Hóa Đơn",
-      danger: true,
-      onConfirm: async () => {
-        try {
-          await fetch(`/api/orders?code=${encodeURIComponent(code)}`, {
-            method: "DELETE",
-          });
-        } catch {}
-        const updated = invoices.filter((item) => item.id !== id);
-        saveInvoicesList(updated);
-        showToast(`Đã xóa hóa đơn ${code}`, "info");
-      },
-    });
-  };
-
-  // Đặt lại / Dọn dẹp danh sách hóa đơn (Xóa các hóa đơn test cũ nếu muốn)
-  const handleResetInvoices = () => {
-    requestConfirm({
-      title: "Đặt Lại Danh Sách Hóa Đơn",
-      message: `Bạn có chắc muốn dọn sạch danh sách gồm ${invoices.length} hóa đơn hiện tại trong trình duyệt? Danh sách sẽ được đưa về trống để bạn tạo mới.`,
-      confirmText: "Đồng Ý Xóa Hết",
-      danger: true,
-      onConfirm: () => {
-        saveInvoicesList([]);
-        showToast("Đã dọn dẹp sạch toàn bộ danh sách hóa đơn!", "success");
-      },
-    });
-  };
-
-  // Xuất file JSON danh sách hóa đơn
-  const handleExportInvoicesJson = () => {
-    const blob = new Blob([JSON.stringify(invoices, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.download = `polycards-invoices-${Date.now()}.json`;
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => setCopiedPackCode(false), 2000);
   };
 
   // Tự động nhận diện session bảo mật
@@ -1446,6 +1210,15 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
           </Link>
 
           <Link
+            href="/invoices"
+            className="flex items-center gap-1.5 text-xs font-black text-amber-300 hover:text-stone-950 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-400 border border-amber-500/40 transition-all shadow-sm active:scale-95"
+            title="Mở Module Lập Hóa Đơn Bán Hàng & POS chuyên biệt"
+          >
+            <Receipt className="h-3.5 w-3.5 text-amber-400" />
+            <span>Hóa Đơn Bán Hàng (POS)</span>
+          </Link>
+
+          <Link
             href="/ar/cat?ar=1"
             target="_blank"
             className="hidden sm:flex items-center gap-1 text-xs font-bold text-amber-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 transition-colors"
@@ -1472,73 +1245,102 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
             CỘT TRÁI: BẢNG TẠO MÃ QR & CẤU HÌNH (Width: 5/12 hoặc 4/12)
            ======================================================== */}
         <div className="lg:col-span-5 xl:col-span-4 border-b lg:border-b-0 lg:border-r border-white/10 bg-stone-900/60 p-4 sm:p-5 overflow-y-auto space-y-5 max-h-[calc(100vh-60px)]">
-          {/* TAB CHUYỂN ĐỔI: STUDIO CHẾ BẢN vs QUẢN LÝ HÓA ĐƠN & BỘ THẺ */}
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-black/80 border border-white/10 shadow-lg">
-            <button
-              type="button"
-              onClick={() => setActiveMainTab("studio")}
-              className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
-                activeMainTab === "studio"
-                  ? "bg-amber-500 text-stone-950 shadow-md"
-                  : "text-stone-300 hover:text-white"
-              }`}
+          {/* LIÊN KẾT NHANH SANG PHÂN HỆ HÓA ĐƠN BÁN HÀNG (POS) */}
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-500/30 shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <Receipt className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-xs font-black text-amber-300">Hóa Đơn Bán Hàng (POS)</div>
+                <div className="text-[10px] text-stone-400">Tách riêng phân hệ lập phiếu, hạch toán Nợ/Có</div>
+              </div>
+            </div>
+            <Link
+              href="/invoices"
+              className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1 transition-all shadow-md active:scale-95 shrink-0"
             >
-              <Layers className="h-3.5 w-3.5" />
-              <span>Chế Bản Thẻ & QR</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveMainTab("invoices")}
-              className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
-                activeMainTab === "invoices"
-                  ? "bg-amber-500 text-stone-950 shadow-md"
-                  : "text-stone-300 hover:text-white"
-              }`}
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>Quản Lý Hóa Đơn ({invoices.length})</span>
-            </button>
+              <span>Mở POS</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
 
-          {activeMainTab === "studio" ? (
-            <div className="space-y-5">
-              {/* KHỐI 1: BỘ KHỞI TẠO MÃ QR (QR GENERATOR STUDIO) - NỔI BẬT NHẤT */}
-              <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-4 shadow-xl shadow-amber-500/10">
+          <div className="space-y-5">
+            {/* KHỐI 1: BỘ KHỞI TẠO MÃ QR (QR GENERATOR STUDIO) - NỔI BẬT NHẤT */}
+            <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-4 shadow-xl shadow-amber-500/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <QrCode className="h-4 w-4 text-amber-400" />
+                  <span>1. Khởi Tạo Mã QR (QR Generator)</span>
+                </label>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
+                  Mã số #{qrGeneratedCount}
+                </span>
+              </div>
+
+              {/* TÍNH NĂNG: SINH MÃ TỰ ĐỘNG CHO BỘ THẺ (GẮN TRỰC TIẾP VÀO THẺ MẪU ĐỂ IN) */}
+              <div className="rounded-xl bg-black/60 border border-amber-500/30 p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <QrCode className="h-4 w-4 text-amber-400" />
-                    <span>1. Khởi Tạo Mã QR (QR Generator)</span>
-                  </label>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                    Mã số #{qrGeneratedCount}
+                  <span className="text-[11px] font-black uppercase text-amber-300 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Sinh Mã Bản Quyền Cho Bộ Thẻ:</span>
+                  </span>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Bán Theo Bộ
                   </span>
                 </div>
 
-                {/* NÚT RANDOM NHANH MÃ QR VÀ HÓA ĐƠN (1-Click Random & Auto-Snap) */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleRandomizeQr("combo")}
-                    className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                    title="Random mã QR mới cho Bộ Combo 6 Thẻ và tự động gắn vào ô trắng"
-                  >
-                    <Dices className="h-4 w-4" />
-                    <span>Random QR Combo 6</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCreateDirectInvoice}
-                    className="py-2.5 px-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                    title="Sinh mã hóa đơn bán trực tiếp HD-DIR-XXXX"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                    <span>Mã Bán Trực Tiếp</span>
-                  </button>
+                <p className="text-[10px] text-stone-300 leading-snug">
+                  Chọn bộ thẻ cần in &rarr; sinh mã bản quyền chuẩn và tự động nhúng vào mã QR trên thẻ mẫu để in xưởng.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-7">
+                    <select
+                      value={selectedPackForCard}
+                      onChange={(e) => setSelectedPackForCard(e.target.value)}
+                      className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:border-amber-400"
+                    >
+                      <option value="POLY30-DONGVAT">Bộ 30 Thẻ AR Động Vật (POLY30-DONGVAT)</option>
+                      <option value="POLY30-HANHDONG">Bộ 30 Thẻ AR Hành Động (POLY30-HANHDONG)</option>
+                      <option value="POLY30-XECO">Bộ 30 Thẻ AR Xe Cộ (POLY30-XECO)</option>
+                      <option value="POLY30-HOAQUA">Bộ 30 Thẻ AR Hoa Quả (POLY30-HOAQUA)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-5">
+                    <button
+                      type="button"
+                      onClick={handleGeneratePackCodeForCard}
+                      className="w-full h-full py-2 px-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-400 hover:from-amber-400 hover:to-orange-300 text-stone-950 font-black text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20"
+                      title="Sinh mã và gắn tự động vào QR trên thẻ"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Sinh Mã &amp; Gắn QR</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Chọn Chế Độ Tạo QR: Theo Slug AR hay Link Tùy Biến */}
-                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/60 border border-white/10">
+                {packGeneratedCode && (
+                  <div className="flex items-center justify-between bg-black/80 p-2 rounded-lg border border-amber-500/40 text-[11px]">
+                    <div className="font-mono text-amber-300 font-bold flex items-center gap-1.5 truncate mr-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate">Mã: <strong className="text-white">{packGeneratedCode}</strong></span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPackCode(packGeneratedCode)}
+                      className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-stone-300 hover:text-white text-[10px] font-bold flex items-center gap-1 transition-colors shrink-0"
+                    >
+                      {copiedPackCode ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                      <span>{copiedPackCode ? "Đã Chép" : "Sao Chép"}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Chọn Chế Độ Tạo QR: Theo Slug AR hay Link Tùy Biến */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/60 border border-white/10">
               <button
                 type="button"
                 onClick={() => setQrMode("slug")}
@@ -2004,418 +1806,7 @@ Chúc quý khách và các bé có những trải nghiệm khám phá vui vẻ c
             </button>
           </div>
         </div>
-      ) : (
-            /* PHÂN HỆ QUẢN LÝ HÓA ĐƠN & ĐƠN HÀNG BỘ THẺ */
-            <div className="space-y-5">
-              {/* 1. KHÁCH HÀNG TRỰC TIẾP (BÁN THEO BỘ THẺ) */}
-              <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-3.5 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
-                      <Sparkles className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-black uppercase text-amber-300">
-                        1. Khách Hàng Trực Tiếp (Bán Theo Bộ)
-                      </h3>
-                      <p className="text-[10px] text-stone-400">
-                        Chọn Bộ Thẻ cần cấp mã &amp; in tem/hộp tự động
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
-                    Khóa Thẻ Theo Bộ
-                  </span>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-black/70 border border-white/10 space-y-3 text-xs text-stone-300">
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-200 mb-1.5 flex items-center justify-between">
-                      <span>Chọn Danh Mục / Bộ Thẻ Cần Sinh Mã *:</span>
-                      <span className="text-[10px] text-amber-400 font-mono">
-                        (Mỗi bộ 30 thẻ AR)
-                      </span>
-                    </label>
-                    <select
-                      value={selectedDirectCategory}
-                      onChange={(e) => setSelectedDirectCategory(e.target.value)}
-                      className="w-full bg-stone-900 border border-amber-400/60 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
-                    >
-                      {categoriesList.map((cat) => (
-                        <option key={cat.id} value={cat.slug}>
-                          {cat.name} ({cat.packCode || `POLY30-${cat.slug.toUpperCase()}`} - 30 Thẻ)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="text-[11px] text-stone-400 leading-relaxed bg-black/40 p-2.5 rounded-lg border border-white/5">
-                    Quy tắc bảo mật: Mã sinh ra sẽ được gán cứng với{" "}
-                    <strong className="text-amber-300">
-                      {categoriesList.find((c) => c.slug === selectedDirectCategory)?.name || "Bộ Thẻ"}
-                    </strong>
-                    . Khách hàng trực tiếp mua bộ này quét thẻ sẽ mở khóa toàn bộ 30 thẻ của bộ, nhưng{" "}
-                    <strong className="text-rose-400">tuyệt đối bị khóa với thẻ thuộc các bộ khác</strong>!
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleCreateDirectInvoice}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Sinh Mã Bản Quyền Cho Bộ Này</span>
-                  </button>
-
-                  {/* Hiển thị mã vừa tạo nổi bật */}
-                  {lastGeneratedDirectCode && (
-                    <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border-2 border-amber-400/70 space-y-2 animate-in fade-in">
-                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-amber-300">
-                        <span>Mã Bản Quyền Bộ Vừa Sinh:</span>
-                        <span className="text-emerald-400 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Đã Lưu Hệ Thống
-                        </span>
-                      </div>
-                      <div className="font-mono text-base font-black text-amber-300 tracking-wider bg-black/80 px-3 py-2 rounded-lg border border-amber-500/30 text-center select-all">
-                        {lastGeneratedDirectCode}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleCopyDirectCode(lastGeneratedDirectCode)}
-                          className="py-1.5 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
-                        >
-                          {copiedDirectCode ? (
-                            <>
-                              <Check className="h-3.5 w-3.5 text-stone-950" />
-                              <span>Đã Sao Chép!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5" />
-                              <span>Sao Chép Mã</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLicenseCode(lastGeneratedDirectCode);
-                            setIncludeLicense(true);
-                            setDirectAr(true);
-                            setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
-                            setActiveMainTab("studio");
-                            showToast(
-                              `Đã nạp mã ${lastGeneratedDirectCode} vào Studio để in thẻ.`,
-                              "success"
-                            );
-                          }}
-                          className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-all"
-                          title="Gắn mã này vào ô Nhúng mã bản quyền bên tab Studio"
-                        >
-                          <Layers className="h-3.5 w-3.5 text-amber-400" />
-                          <span>Gắn Vào Thẻ In</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 2. KHÁCH HÀNG ONLINE (LÊN ĐƠN BÁN HÀNG & GỬI ZALO TỰ ĐỘNG) */}
-              <div className="rounded-2xl bg-gradient-to-b from-sky-500/15 via-black/50 to-black/60 border-2 border-sky-400/50 p-4 space-y-3.5 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-xl bg-sky-500 text-stone-950 flex items-center justify-center font-black">
-                      <Send className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-black uppercase text-sky-300">
-                        2. Lên Đơn Khách Hàng Online (Zalo/SMS)
-                      </h3>
-                      <p className="text-[10px] text-stone-400">
-                        Tự sinh mã hóa đơn riêng và tạo tin nhắn gửi khách
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <form onSubmit={handleCreateOnlineInvoice} className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                      Họ và tên khách hàng *:
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ví dụ: Chị Lan, Anh Tuấn..."
-                      value={onlineForm.customerName}
-                      onChange={(e) => setOnlineForm({ ...onlineForm, customerName: e.target.value })}
-                      className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-sky-400"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                        Số điện thoại / Zalo:
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="0912..."
-                        value={onlineForm.customerPhone}
-                        onChange={(e) => setOnlineForm({ ...onlineForm, customerPhone: e.target.value })}
-                        className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-sky-400 font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                        Gói bộ thẻ:
-                      </label>
-                      <select
-                        value={onlineForm.packType}
-                        onChange={(e) => setOnlineForm({ ...onlineForm, packType: e.target.value as any })}
-                        className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:border-sky-400"
-                      >
-                        <option value="combo6">Bộ 6 Thẻ AR Cơ Bản</option>
-                        <option value="combo30">Bộ 30 Thẻ AR Toàn Diện</option>
-                        <option value="vip">Trọn Bộ VIP Poly Cards</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                      Thẻ WebAR mở trực tiếp khi khách bấm link:
-                    </label>
-                    <select
-                      value={onlineForm.targetSlug}
-                      onChange={(e) => setOnlineForm({ ...onlineForm, targetSlug: e.target.value })}
-                      className="w-full bg-black/80 border border-white/20 rounded-xl px-2 py-2 text-xs text-white font-mono focus:outline-hidden focus:border-sky-400"
-                    >
-                      <option value="lion">Thẻ Sư Tử (lion) - Khuyên dùng</option>
-                      <option value="cat">Thẻ Con Mèo (cat)</option>
-                      <option value="dog">Thẻ Con Chó (dog)</option>
-                      <option value="deer">Thẻ Con Hươu (deer)</option>
-                      <option value="elephant">Thẻ Con Voi (elephant)</option>
-                      <option value="panda">Thẻ Gấu Trúc (panda)</option>
-                      <option value="jump">Thẻ Nhảy (jump)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                      Ghi chú đơn hàng (nếu có):
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Giao hàng COD / Đã thanh toán..."
-                      value={onlineForm.note}
-                      onChange={(e) => setOnlineForm({ ...onlineForm, note: e.target.value })}
-                      className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-300 placeholder-stone-500 focus:outline-hidden focus:border-sky-400"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span>Lên Đơn & Tự Sinh Mã Hóa Đơn Online</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* MODAL / BOX HIỂN THỊ KẾT QUẢ HÓA ĐƠN VỪA TẠO */}
-              {justCreatedInvoice && (
-                <div className="p-4 rounded-2xl bg-gradient-to-b from-emerald-500/20 to-black/80 border-2 border-emerald-400/60 space-y-3 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-black text-emerald-400">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span>Đã Sinh Hóa Đơn & Mã Kích Hoạt Thành Công!</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setJustCreatedInvoice(null)}
-                      className="text-[11px] text-stone-400 hover:text-white"
-                    >
-                      Đóng
-                    </button>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-black/80 border border-white/10 font-mono text-xs text-amber-300 font-bold flex justify-between items-center">
-                    <span>Mã Hóa Đơn: {justCreatedInvoice.code}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 uppercase">
-                      {justCreatedInvoice.customerType || justCreatedInvoice.type === "online" ? "Online" : "Trực Tiếp"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 text-xs text-stone-300">
-                    <div>
-                      <strong>Khách hàng:</strong> {justCreatedInvoice.customerName}{" "}
-                      {justCreatedInvoice.customerPhone ? `(${justCreatedInvoice.customerPhone})` : ""}
-                    </div>
-                    <div>
-                      <strong>Link kích hoạt 1-chạm:</strong>
-                      <div
-                        className="text-[10px] font-mono text-stone-400 truncate bg-black/50 p-1.5 rounded-lg mt-0.5"
-                        title={justCreatedInvoice.directUrl}
-                      >
-                        {justCreatedInvoice.directUrl}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Nút Copy Zalo & In Thẻ */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyZaloMessage(justCreatedInvoice)}
-                      className="py-2 px-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow"
-                    >
-                      {copiedZaloMsgId === justCreatedInvoice.id ? (
-                        <>
-                          <Check className="h-3.5 w-3.5" />
-                          <span>Đã Chép Tin Nhắn!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3.5 w-3.5" />
-                          <span>Chép Tin Zalo Gửi Khách</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleApplyInvoiceToStudio(justCreatedInvoice)}
-                      className="py-2 px-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center gap-1 transition-all"
-                    >
-                      <Layers className="h-3.5 w-3.5 text-amber-400" />
-                      <span>Áp Dụng In Thẻ Này</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* 3. DANH SÁCH LỊCH SỬ HÓA ĐƠN TRÊN HỆ THỐNG */}
-              <div className="rounded-2xl bg-black/40 border border-white/10 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-black uppercase text-stone-200">
-                    <FileSpreadsheet className="h-4 w-4 text-amber-400" />
-                    <span>Lịch Sử Hóa Đơn ({invoices.length})</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {invoices.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleResetInvoices}
-                        className="text-[10px] text-rose-400 hover:text-white font-bold flex items-center gap-1 py-1 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/30 border border-rose-500/20 transition-colors"
-                        title="Dọn dẹp xóa các hóa đơn thử nghiệm cũ"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span>Dọn Dẹp</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={handleExportInvoicesJson}
-                      className="text-[10px] text-amber-300 hover:text-white font-bold flex items-center gap-1 py-1 px-2 rounded-lg bg-white/5 border border-white/10 transition-colors"
-                    >
-                      <Download className="h-3 w-3" />
-                      <span>Xuất JSON</span>
-                    </button>
-                  </div>
-                </div>
-
-                {invoices.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-stone-500">
-                    Chưa có hóa đơn nào được tạo.
-                  </div>
-                ) : (
-                  <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-                    {invoices.map((inv) => (
-                      <div
-                        key={inv.id}
-                        className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-2 text-xs hover:border-amber-400/40 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono font-bold text-amber-300">
-                            {inv.code}
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                              inv.customerType === "ONLINE" || inv.type === "online"
-                                ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
-                                : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                            }`}
-                          >
-                            {inv.customerType === "ONLINE" || inv.type === "online" ? "Online" : "Trực Tiếp"}
-                          </span>
-                        </div>
-
-                        <div className="text-stone-300">
-                          <strong>{inv.customerName}</strong>
-                          {inv.customerPhone && (
-                            <span className="text-stone-400 ml-1 font-mono">
-                              ({inv.customerPhone})
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="text-[10px] text-stone-500 flex justify-between">
-                          <span>{inv.packTitle}</span>
-                          <span>{inv.createdAt}</span>
-                        </div>
-
-                        {/* Các nút thao tác nhanh trên từng hóa đơn */}
-                        <div className="flex items-center gap-1.5 pt-1 border-t border-white/10">
-                          <button
-                            type="button"
-                            onClick={() => handleCopyZaloMessage(inv)}
-                            className="flex-1 py-1 px-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[10px] flex items-center justify-center gap-1 transition-colors"
-                            title="Sao chép tin nhắn Zalo kèm link kích hoạt 1 chạm"
-                          >
-                            {copiedZaloMsgId === inv.id ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                            <span>{copiedZaloMsgId === inv.id ? "Đã Chép" : "Chép Zalo"}</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleApplyInvoiceToStudio(inv)}
-                            className="py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[10px] flex items-center gap-1 transition-colors"
-                            title="Nạp vào Studio để in thẻ hoặc tem dán"
-                          >
-                            <Layers className="h-3 w-3 text-amber-400" />
-                            <span>In Thẻ</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteInvoice(inv.id, inv.code)}
-                            className="py-1 px-1.5 rounded-lg hover:bg-rose-500/20 text-stone-500 hover:text-rose-400 transition-colors"
-                            title="Xóa hóa đơn này"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+      </div>
 
         {/* ========================================================
             CỘT PHẢI: KHÔNG GIAN CANVAS TƯƠNG TÁC (Interactive Workspace)

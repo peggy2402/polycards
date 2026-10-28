@@ -169,9 +169,18 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom Copyright */}
-        <div className="mt-12 border-t border-amber-200/80 pt-6 text-center text-xs text-slate-500 font-medium">
+        {/* Bottom Copyright & Internal Shortcuts */}
+        <div className="mt-12 border-t border-amber-200/80 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
           <p>© {currentYear} {siteConfig.name}. Tất cả quyền được bảo lưu. Đồ chơi giáo dục thông minh AR thế hệ mới.</p>
+          <div className="flex items-center gap-3 text-xs font-bold text-slate-600">
+            <Link href="/invoices" className="hover:text-amber-700 transition-colors">
+              Hóa Đơn Bán Hàng (POS)
+            </Link>
+            <span className="text-slate-300">•</span>
+            <Link href="/tools" className="hover:text-amber-700 transition-colors">
+              Chế Bản Thẻ &amp; QR
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
