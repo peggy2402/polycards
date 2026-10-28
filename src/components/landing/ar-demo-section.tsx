@@ -98,6 +98,7 @@ export function ArDemoSection() {
                     src="/images/animals/deer.jpg"
                     alt="Mô hình Deer AR tương tác"
                     fill
+                    sizes="(max-width: 768px) 100vw, 500px"
                     className="object-cover rounded-xl"
                   />
                 </div>

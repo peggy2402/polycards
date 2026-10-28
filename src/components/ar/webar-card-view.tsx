@@ -270,17 +270,28 @@ export function WebArCardView({
         setDownloadProgress(15);
 
         // Gán Three.js toàn cục để tương thích GLTFLoader
-        if (!window.THREE && window.MINDAR && window.MINDAR.IMAGE.THREE) {
-          window.THREE = window.MINDAR.IMAGE.THREE;
+        if (!window.THREE) {
+          if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.THREE) {
+            window.THREE = window.MINDAR.IMAGE.THREE;
+          } else if ((window as any).THREE) {
+            window.THREE = (window as any).THREE;
+          }
         }
 
         // 2. Nạp GLTFLoader nếu chưa có
-        if (!window.THREE.GLTFLoader) {
+        if (!(window.THREE && window.THREE.GLTFLoader)) {
           await loadScript("/lib/GLTFLoader.js");
+          if (!window.THREE && (window as any).THREE) {
+            window.THREE = (window as any).THREE;
+          }
         }
 
         if (isCancelled || !containerRef.current) return;
         setDownloadProgress(25);
+
+        if (!window.THREE) {
+          throw new Error("Không thể khởi tạo thư viện Three.js WebAR. Vui lòng tải lại trang.");
+        }
 
         const THREE = window.THREE;
         const { MindARThree } = window.MINDAR!.IMAGE;

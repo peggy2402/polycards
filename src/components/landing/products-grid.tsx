@@ -33,9 +33,10 @@ type PriceFilterType = "all" | "under220" | "220to250" | "above250";
 type SortOptionType = "default" | "price-asc" | "price-desc" | "name-az";
 
 export function ProductsGrid({ animals: initialAnimals }: ProductsGridProps) {
-  // 1. Quản lý danh sách sản phẩm & danh mục (hợp nhất từ server + custom trong tools)
-  const [products, setProducts] = useState<Animal[]>(() => getMergedProducts(initialAnimals));
-  const [categories, setCategories] = useState<ProductCategory[]>(() => getProductCategories());
+  // 1. Quản lý danh sách sản phẩm & danh mục
+  const [products, setProducts] = useState<Animal[]>(initialAnimals);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   // 2. Bộ lọc danh mục & Tìm kiếm & Giá
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("all");
@@ -45,6 +46,10 @@ export function ProductsGrid({ animals: initialAnimals }: ProductsGridProps) {
 
   // Đồng bộ thời gian thực khi có sản phẩm hoặc danh mục mới được cập nhật từ /tools
   useEffect(() => {
+    setIsMounted(true);
+    setProducts(getMergedProducts(initialAnimals));
+    setCategories(getProductCategories());
+
     const handleProductsUpdated = () => {
       setProducts(getMergedProducts(initialAnimals));
     };
@@ -192,6 +197,7 @@ export function ProductsGrid({ animals: initialAnimals }: ProductsGridProps) {
               <Sparkles className="h-4 w-4 text-amber-600 group-hover:rotate-12 transition-transform" />
               <span>Tất Cả Thẻ Bài</span>
               <span
+                suppressHydrationWarning
                 className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
                   selectedCategorySlug === "all"
                     ? "bg-stone-950 text-amber-300"
@@ -222,6 +228,7 @@ export function ProductsGrid({ animals: initialAnimals }: ProductsGridProps) {
                   </span>
                   <span>{cat.name}</span>
                   <span
+                    suppressHydrationWarning
                     className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
                       isSelected
                         ? "bg-stone-950 text-amber-300"

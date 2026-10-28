@@ -134,6 +134,7 @@ export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
                   src={option.images[0] || "/images/animals/lion.jpg"}
                   alt={option.nameVi}
                   fill
+                  sizes="96px"
                   className="object-cover"
                 />
               </div>

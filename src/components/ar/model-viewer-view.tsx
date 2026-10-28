@@ -162,6 +162,7 @@ export function ModelViewerView({
                 src={animal.images[0] || "/images/animals/lion.jpg"}
                 alt={animal.nameVi}
                 fill
+                sizes="192px"
                 className="object-cover"
               />
             </div>

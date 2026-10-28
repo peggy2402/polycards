@@ -297,6 +297,7 @@ export function CardFlashcardView({
                 alt={animal.nameEn}
                 fill
                 priority
+                sizes="(max-width: 640px) 100vw, 420px"
                 className="object-cover"
               />
             </div>
