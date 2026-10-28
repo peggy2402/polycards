@@ -2074,32 +2074,6 @@ export default function ToolsPage() {
                 Đang nạp: <strong className="text-amber-300">{cardFileName}</strong>
               </p>
             </div>
-
-            {/* Chọn nhanh thẻ mẫu có sẵn */}
-            <div>
-              <div className="text-[11px] font-bold text-stone-400 mb-1.5">
-                Hoặc chọn thẻ mẫu có sẵn:
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {CARD_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => handleSelectPreset(preset)}
-                    className={`py-2 px-2.5 rounded-xl text-left border text-xs font-bold transition-all flex flex-col gap-0.5 ${
-                      selectedPresetId === preset.id
-                        ? "bg-amber-500/20 border-amber-400 text-amber-300 shadow-md"
-                        : "bg-black/40 border-white/10 text-stone-300 hover:border-white/30 hover:text-white"
-                    }`}
-                  >
-                    <span className="truncate">{preset.name}</span>
-                    <span className="text-[9px] text-stone-400 font-mono">
-                      slug: {preset.slug}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* KHỐI 3: TINH CHỈNH VỊ TRÍ & KÍCH THƯỚC QR (1:1 RATIO) */}
