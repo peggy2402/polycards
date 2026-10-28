@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
-import fsSync from "fs";
-import path from "path";
 import { DEFAULT_CATEGORIES } from "@/lib/products-store";
 import { ProductCategory } from "@/types/animal";
-
-const CATEGORIES_FILE_PATH = path.join(process.cwd(), "data", "categories.json");
+import { readJsonDataSafe, writeJsonDataSafe } from "@/lib/server-storage";
 
 async function readCategories(): Promise<ProductCategory[]> {
-  try {
-    if (fsSync.existsSync(CATEGORIES_FILE_PATH)) {
-      const content = await fs.readFile(CATEGORIES_FILE_PATH, "utf8");
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn("Lỗi đọc categories.json:", err);
-  }
-  return DEFAULT_CATEGORIES;
+  return await readJsonDataSafe<ProductCategory[]>("categories.json", DEFAULT_CATEGORIES);
 }
 
 async function writeCategories(list: ProductCategory[]): Promise<void> {
-  await fs.writeFile(CATEGORIES_FILE_PATH, JSON.stringify(list, null, 2), "utf8");
+  await writeJsonDataSafe("categories.json", list);
 }
 
 export async function GET() {

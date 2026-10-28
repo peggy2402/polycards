@@ -38,8 +38,24 @@ export const DEFAULT_CATEGORIES: ProductCategory[] = [
 
 const STORAGE_CATEGORIES_KEY = "polycards_categories_db";
 const STORAGE_PRODUCTS_KEY = "polycards_custom_products";
+const STORAGE_DELETED_PRODUCTS_KEY = "polycards_deleted_products";
 export const PRODUCTS_UPDATED_EVENT = "polycards_products_updated";
 export const CATEGORIES_UPDATED_EVENT = "polycards_categories_updated";
+
+/**
+ * Lấy danh sách ID / Slug của các sản phẩm đã bị xóa
+ */
+export function getDeletedProductKeys(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(STORAGE_DELETED_PRODUCTS_KEY);
+    if (!raw) return new Set();
+    const list = JSON.parse(raw);
+    return new Set(Array.isArray(list) ? list.map((k: string) => String(k).toLowerCase()) : []);
+  } catch {
+    return new Set();
+  }
+}
 
 /**
  * Tạo slug chuẩn từ chuỗi tiếng Việt hoặc tiếng Anh
@@ -163,12 +179,20 @@ export function deleteProductCategory(id: string): void {
  */
 export function getMergedProducts(baseList?: Animal[]): Animal[] {
   const sourceList: Animal[] = baseList || (animalsData as unknown as Animal[]);
-  const defaultList: Animal[] = sourceList.map((item) => ({
-    ...item,
-    category: item.category || "Động Vật",
-    categorySlug: item.categorySlug || "dong-vat",
-    originalPrice: item.originalPrice || Math.round((item.price || 249000) * 1.3),
-  }));
+  const deletedKeys = getDeletedProductKeys();
+
+  const defaultList: Animal[] = sourceList
+    .filter(
+      (item) =>
+        !deletedKeys.has(item.id.toLowerCase()) &&
+        !deletedKeys.has(item.slug.toLowerCase())
+    )
+    .map((item) => ({
+      ...item,
+      category: item.category || "Động Vật",
+      categorySlug: item.categorySlug || "dong-vat",
+      originalPrice: item.originalPrice || Math.round((item.price || 249000) * 1.3),
+    }));
 
   if (typeof window === "undefined") {
     return defaultList;
@@ -184,9 +208,12 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
     }
 
     // Merge: custom items override default items by ID or SLUG, and new custom items are prepended
-    const result: Animal[] = [...customList];
-    const customSlugs = new Set(customList.map((c) => c.slug.toLowerCase()));
-    const customIds = new Set(customList.map((c) => c.id));
+    const validCustomList = customList.filter(
+      (c) => !deletedKeys.has(c.id.toLowerCase()) && !deletedKeys.has(c.slug.toLowerCase())
+    );
+    const result: Animal[] = [...validCustomList];
+    const customSlugs = new Set(validCustomList.map((c) => c.slug.toLowerCase()));
+    const customIds = new Set(validCustomList.map((c) => c.id));
 
     defaultList.forEach((def) => {
       if (!customSlugs.has(def.slug.toLowerCase()) && !customIds.has(def.id)) {
@@ -350,25 +377,55 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     }
   }
 
+  // Nếu sản phẩm này từng bị xóa trước đó, tự động gỡ khỏi danh sách blacklist
+  try {
+    const deleted = getDeletedProductKeys();
+    let unDeleted = false;
+    if (deleted.has(cleanSlug)) {
+      deleted.delete(cleanSlug);
+      unDeleted = true;
+    }
+    if (productData.id && deleted.has(productData.id.toLowerCase())) {
+      deleted.delete(productData.id.toLowerCase());
+      unDeleted = true;
+    }
+    if (unDeleted) {
+      localStorage.setItem(STORAGE_DELETED_PRODUCTS_KEY, JSON.stringify(Array.from(deleted)));
+    }
+  } catch {}
+
   window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: finalProduct }));
   return finalProduct;
 }
 
-
 /**
- * Xóa một sản phẩm do người dùng thêm
+ * Xóa một sản phẩm (áp dụng bền vững cho cả sản phẩm tùy chỉnh và sản phẩm mặc định hệ thống)
  */
 export function deleteCustomProduct(idOrSlug: string): void {
   if (typeof window === "undefined") return;
-  const raw = localStorage.getItem(STORAGE_PRODUCTS_KEY);
-  if (!raw) return;
+  const clean = idOrSlug.trim().toLowerCase();
 
+  // 1. Thêm vào danh sách blacklist thẻ đã xóa (loại bỏ vĩnh viễn cả thẻ mặc định trên Vercel Serverless)
   try {
-    const list: Animal[] = JSON.parse(raw);
-    const filtered = list.filter(
-      (item) => item.id !== idOrSlug && item.slug.toLowerCase() !== idOrSlug.toLowerCase()
-    );
-    localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(filtered));
-    window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: { deletedId: idOrSlug } }));
-  } catch {}
+    const deleted = getDeletedProductKeys();
+    deleted.add(clean);
+    deleted.add(idOrSlug.trim());
+    localStorage.setItem(STORAGE_DELETED_PRODUCTS_KEY, JSON.stringify(Array.from(deleted)));
+  } catch (err) {
+    console.warn("Lỗi lưu STORAGE_DELETED_PRODUCTS_KEY:", err);
+  }
+
+  // 2. Xóa khỏi danh sách custom products
+  const raw = localStorage.getItem(STORAGE_PRODUCTS_KEY);
+  if (raw) {
+    try {
+      const list: Animal[] = JSON.parse(raw);
+      const filtered = list.filter(
+        (item) => item.id !== idOrSlug && item.slug.toLowerCase() !== clean
+      );
+      localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(filtered));
+    } catch {}
+  }
+
+  window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: { deletedId: idOrSlug } }));
 }

@@ -1,41 +1,5 @@
 [
   {
-    "id": "deer-001",
-    "slug": "deer",
-    "qrCode": "AR-DEER-001",
-    "nameEn": "Deer",
-    "nameVi": "Con hươu",
-    "nameZh": "小鹿",
-    "ipa": "/dɪr/",
-    "pinyinZh": "xiǎolù",
-    "categoryId": "cat-animals",
-    "category": "Động Vật",
-    "categorySlug": "dong-vat",
-    "packCode": "POLY30-DONGVAT",
-    "description": "Hươu con hiền lành sống trong rừng cổ tích, nổi bật với đôi gạc duyên dáng và đôi mắt trong veo ấm áp.",
-    "price": 249000,
-    "originalPrice": 299000,
-    "images": [
-      "/images/animals/deer.jpg"
-    ],
-    "audioUrl": "/audio/deer.mp3",
-    "audios": {
-      "en": "/audio/en/deer.mp3",
-      "vi": "/audio/vi/deer.mp3",
-      "zh": "/audio/zh/deer.mp3"
-    },
-    "modelUrl": "/models/deer.glb",
-    "iosModelUrl": "/models/deer.usdz",
-    "posterUrl": "/images/posters/deer-poster.jpg",
-    "animations": [
-      "Idle",
-      "Walk"
-    ],
-    "arEnabled": true,
-    "buyUrl": "/order?animal=deer",
-    "badge": "Yêu thích nhất"
-  },
-  {
     "id": "cat-002",
     "slug": "cat",
     "qrCode": "AR-CAT-002",

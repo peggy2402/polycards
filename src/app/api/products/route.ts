@@ -4,23 +4,17 @@ import fsSync from "fs";
 import path from "path";
 import animalsData from "../../../../data/animals.json";
 import { Animal } from "@/types/animal";
+import { readJsonDataSafe, writeJsonDataSafe } from "@/lib/server-storage";
 
-const PRODUCTS_FILE_PATH = path.join(process.cwd(), "data", "products.json");
-const ANIMALS_FILE_PATH = path.join(process.cwd(), "data", "animals.json");
-
-// Helper đọc dữ liệu sản phẩm mới nhất từ file products.json hoặc animals.json
+// Helper đọc dữ liệu sản phẩm mới nhất an toàn trên cả Local và Vercel
 async function readProductsData(): Promise<Animal[]> {
-  try {
-    if (fsSync.existsSync(PRODUCTS_FILE_PATH)) {
-      const content = await fs.readFile(PRODUCTS_FILE_PATH, "utf8");
-      return JSON.parse(content) as Animal[];
-    }
-    if (fsSync.existsSync(ANIMALS_FILE_PATH)) {
-      const content = await fs.readFile(ANIMALS_FILE_PATH, "utf8");
-      return JSON.parse(content) as Animal[];
-    }
-  } catch (err) {
-    console.warn("Lỗi đọc file data/products.json, fallback sang JSON import:", err);
+  const fromProducts = await readJsonDataSafe<Animal[] | null>("products.json", null);
+  if (fromProducts && Array.isArray(fromProducts) && fromProducts.length > 0) {
+    return fromProducts;
+  }
+  const fromAnimals = await readJsonDataSafe<Animal[] | null>("animals.json", null);
+  if (fromAnimals && Array.isArray(fromAnimals) && fromAnimals.length > 0) {
+    return fromAnimals;
   }
   return animalsData as Animal[];
 }
@@ -178,13 +172,9 @@ export async function POST(request: NextRequest) {
       newList = [...currentList, updatedItem];
     }
 
-    // Ghi đồng bộ xuống cả data/products.json và data/animals.json
-    try {
-      await fs.writeFile(PRODUCTS_FILE_PATH, JSON.stringify(newList, null, 2), "utf8");
-      await fs.writeFile(ANIMALS_FILE_PATH, JSON.stringify(newList, null, 2), "utf8");
-    } catch (fsErr) {
-      console.warn("Không thể ghi file data (có thể trên serverless):", fsErr);
-    }
+    // Ghi đồng bộ an toàn (tự động xử lý EROFS trên Vercel Serverless)
+    await writeJsonDataSafe("products.json", newList);
+    await writeJsonDataSafe("animals.json", newList);
 
     return NextResponse.json({
       success: true,
@@ -228,8 +218,9 @@ export async function DELETE(request: NextRequest) {
       (a) => a.id !== idOrSlug && a.slug.toLowerCase() !== clean
     );
 
-    await fs.writeFile(PRODUCTS_FILE_PATH, JSON.stringify(filtered, null, 2), "utf8");
-    await fs.writeFile(ANIMALS_FILE_PATH, JSON.stringify(filtered, null, 2), "utf8");
+    // Ghi an toàn chống lỗi EROFS trên Vercel Serverless
+    await writeJsonDataSafe("products.json", filtered);
+    await writeJsonDataSafe("animals.json", filtered);
 
     return NextResponse.json({
       success: true,

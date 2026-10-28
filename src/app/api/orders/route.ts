@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
-import fsSync from "fs";
-import path from "path";
-
-const ORDERS_FILE_PATH = path.join(process.cwd(), "data", "orders.json");
-const CUSTOMERS_FILE_PATH = path.join(process.cwd(), "data", "customers.json");
+import { readJsonDataSafe, writeJsonDataSafe } from "@/lib/server-storage";
 
 interface OrderLineItem {
   id: string;
@@ -50,35 +45,19 @@ interface CustomerItem {
 }
 
 async function readOrders(): Promise<OrderItem[]> {
-  try {
-    if (fsSync.existsSync(ORDERS_FILE_PATH)) {
-      const content = await fs.readFile(ORDERS_FILE_PATH, "utf8");
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn("Lỗi đọc orders.json:", err);
-  }
-  return [];
+  return await readJsonDataSafe<OrderItem[]>("orders.json", []);
 }
 
 async function writeOrders(orders: OrderItem[]): Promise<void> {
-  await fs.writeFile(ORDERS_FILE_PATH, JSON.stringify(orders, null, 2), "utf8");
+  await writeJsonDataSafe("orders.json", orders);
 }
 
 async function readCustomers(): Promise<CustomerItem[]> {
-  try {
-    if (fsSync.existsSync(CUSTOMERS_FILE_PATH)) {
-      const content = await fs.readFile(CUSTOMERS_FILE_PATH, "utf8");
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn("Lỗi đọc customers.json:", err);
-  }
-  return [];
+  return await readJsonDataSafe<CustomerItem[]>("customers.json", []);
 }
 
 async function writeCustomers(customers: CustomerItem[]): Promise<void> {
-  await fs.writeFile(CUSTOMERS_FILE_PATH, JSON.stringify(customers, null, 2), "utf8");
+  await writeJsonDataSafe("customers.json", customers);
 }
 
 export async function GET() {
