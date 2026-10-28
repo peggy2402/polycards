@@ -84,6 +84,14 @@ export function ArResourcePanel({
     }
   };
 
+  // Helper upload đồng thời cả 2 tệp model 3D (.glb và .usdz)
+  const handleUploadModels = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      await handleUploadFile(file, "model");
+    }
+  };
+
   return (
     <div className="border border-amber-500/30 rounded-2xl overflow-hidden bg-black/40 p-3 sm:p-3.5 space-y-3">
       {/* Header Panel */}
@@ -155,30 +163,51 @@ export function ArResourcePanel({
 
       {/* 2. Upload tệp 3D riêng (.glb, .usdz) */}
       <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-stone-200 flex items-center gap-1.5">
-            <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span>Tải Lên Tệp 3D Riêng (.glb / .usdz)</span>
-          </span>
-          <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-black text-[10px] hover:bg-amber-300 active:scale-95 transition-all shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-1 border-b border-white/5">
+          <div>
+            <span className="text-[11px] font-bold text-stone-200 flex items-center gap-1.5">
+              <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span>Tải Lên Tệp 3D Riêng (.glb / .usdz)</span>
+            </span>
+            <p className="text-[9px] text-stone-400">
+              Có thể chọn tải cùng lúc cả 2 file (.glb và .usdz) hoặc tải riêng từng định dạng bên dưới.
+            </p>
+          </div>
+
+          <label className="cursor-pointer inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-amber-400 text-stone-950 font-black text-[10px] hover:bg-amber-300 active:scale-95 transition-all shrink-0 shadow-md">
             <Upload className="h-3 w-3 shrink-0" />
-            <span>{isUploading ? "Đang Tải..." : "Chọn File 3D"}</span>
+            <span>{isUploading ? "Đang Tải..." : "Chọn Cả 2 File (.glb & .usdz)"}</span>
             <input
               type="file"
+              multiple
               accept=".glb,.gltf,.usdz"
               disabled={isUploading}
               className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleUploadFile(file, "model");
-              }}
+              onChange={(e) => handleUploadModels(e.target.files)}
             />
           </label>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
-          <div>
-            <span className="text-stone-400 block mb-0.5">Model WebAR (.glb):</span>
+          {/* Cột 1: Model WebAR .glb */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-stone-300 font-bold block">Model WebAR / Android (.glb):</span>
+              <label className="cursor-pointer text-[9px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10">
+                <Upload className="h-2.5 w-2.5" />
+                <span>Tải .glb</span>
+                <input
+                  type="file"
+                  accept=".glb,.gltf"
+                  disabled={isUploading}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadFile(file, "model");
+                  }}
+                />
+              </label>
+            </div>
             <input
               type="text"
               value={modelUrl}
@@ -186,9 +215,28 @@ export function ArResourcePanel({
               placeholder="/models/lion.glb"
               className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
             />
+            <span className="text-[9px] text-stone-500 block">Dành cho Android, Chrome, Cốc Cốc, PC.</span>
           </div>
-          <div>
-            <span className="text-stone-400 block mb-0.5">Model Apple iOS (.usdz):</span>
+
+          {/* Cột 2: Model iOS .usdz */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-stone-300 font-bold block">Model Apple iOS (.usdz):</span>
+              <label className="cursor-pointer text-[9px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10">
+                <Upload className="h-2.5 w-2.5" />
+                <span>Tải .usdz</span>
+                <input
+                  type="file"
+                  accept=".usdz"
+                  disabled={isUploading}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadFile(file, "model");
+                  }}
+                />
+              </label>
+            </div>
             <input
               type="text"
               value={iosModelUrl}
@@ -196,6 +244,7 @@ export function ArResourcePanel({
               placeholder="/models/lion.usdz"
               className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
             />
+            <span className="text-[9px] text-stone-500 block">Dành riêng cho iPhone / iPad (Safari Quick Look).</span>
           </div>
         </div>
       </div>
@@ -228,9 +277,21 @@ export function ArResourcePanel({
             placeholder="/targets/lion.mind (Fallback tự động nếu trống)"
             className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
           />
-          <p className="text-[9px] text-stone-400">
-            Nếu để trống, WebAR tự động dùng AR Không Gian Tự Do.
-          </p>
+          <div className="pt-0.5 flex flex-col gap-0.5 text-[9px]">
+            <a
+              href="https://hiukim.github.io/mind-ar-js-doc/tools/compile/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold underline transition-colors"
+              title="Mở công cụ MindAR Compiler trực tuyến để tạo file .mind từ ảnh thẻ"
+            >
+              <span>Tạo file .mind online tại đây</span>
+              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+            </a>
+            <p className="text-stone-400">
+              Kéo ảnh thẻ vào link trên để tải về file .mind, sau đó nhấn nút &quot;Tải .mind&quot; ở trên.
+            </p>
+          </div>
         </div>
 
         {/* Âm thanh .mp3 */}
@@ -263,7 +324,7 @@ export function ArResourcePanel({
             className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
           />
           <p className="text-[9px] text-stone-400">
-            Web Speech AI tự động phát âm chuẩn bản xứ EN/VI/ZH.
+            Web Speech AI tự động phát âm chuẩn bản xứ EN/VI/ZH nếu không tải file riêng.
           </p>
         </div>
       </div>
