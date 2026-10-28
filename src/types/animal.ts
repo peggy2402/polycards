@@ -40,6 +40,7 @@ export interface Animal {
   posterUrl: string;
   animations: string[];
   arEnabled: boolean;
+  targetUrl?: string;
   buyUrl?: string;
   badge?: string;
   isCustom?: boolean;

@@ -91,6 +91,8 @@ export function WebArCardView({
   const [hasScannedOnce, setHasScannedOnce] = useState<boolean>(false);
   const [targetHitCount, setTargetHitCount] = useState<number>(0);
   const [playingClipName, setPlayingClipName] = useState<string | null>(null);
+  const [isFreeArMode, setIsFreeArMode] = useState<boolean>(false);
+  const [isUsingFallbackModel, setIsUsingFallbackModel] = useState<boolean>(false);
 
   // Debug HUD State
   const [isDebugOpen, setIsDebugOpen] = useState<boolean>(false);
@@ -296,10 +298,30 @@ export function WebArCardView({
         const THREE = window.THREE;
         const { MindARThree } = window.MINDAR!.IMAGE;
 
-        // 3. Khởi tạo MindAR Three instance
+        // 3. Xác thực & Chuẩn bị file Target MindAR (.mind) với cơ chế Fallback thông minh
+        let resolvedTargetSrc = animal.targetUrl || `/targets/${animal.slug}.mind`;
+        let isFallbackTarget = false;
+
+        try {
+          const checkRes = await fetch(resolvedTargetSrc, { method: "HEAD" });
+          if (!checkRes.ok) {
+            console.warn(`[WebAR] Target "${resolvedTargetSrc}" chưa sẵn sàng (HTTP ${checkRes.status}). Kích hoạt Fallback Target & Free AR View.`);
+            resolvedTargetSrc = "/targets/lion.mind";
+            isFallbackTarget = true;
+          }
+        } catch {
+          resolvedTargetSrc = "/targets/lion.mind";
+          isFallbackTarget = true;
+        }
+
+        if (isFallbackTarget && !isCancelled) {
+          setIsFreeArMode(true);
+        }
+
+        // Khởi tạo MindAR Three instance
         const mindarThree = new MindARThree({
           container: containerRef.current,
-          imageTargetSrc: `/targets/${animal.slug}.mind`,
+          imageTargetSrc: resolvedTargetSrc,
           maxTrack: 1,
           uiLoading: "no",
           uiScanning: "no",
@@ -343,138 +365,153 @@ export function WebArCardView({
           }
         };
 
-        // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker thời gian thực
+        // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker và Tự động Fallback sang lion.glb
         const loader = new THREE.GLTFLoader();
-        loader.load(
-          animal.modelUrl,
-          (gltf: any) => {
-            if (isCancelled) return;
-            setDownloadProgress(100);
+        const primaryModelUrl = animal.modelUrl || "/models/lion.glb";
+        const fallbackModelUrl = "/models/lion.glb";
 
-            const rawModel = gltf.scene;
+        const loadModelWithFallback = (urlToLoad: string, isFallbackAttempt: boolean = false) => {
+          loader.load(
+            urlToLoad,
+            (gltf: any) => {
+              if (isCancelled) return;
+              setDownloadProgress(100);
 
-            // Tính Bounding Box để lấy kích thước và căn tâm (Center)
-            const bbox = new THREE.Box3().setFromObject(rawModel);
-            const center = bbox.getCenter(new THREE.Vector3());
-            const size = bbox.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z) || 1;
-            maxDimRef.current = maxDim;
+              const rawModel = gltf.scene;
 
-            // CĂN TÂM CHUẨN XÁC: Tạo modelHolder để đưa tâm về (0,0,0)
-            // Tuyệt đối giữ nguyên rawModel gốc tại (0,0,0) để bảo toàn SkinnedMesh
-            const modelHolder = new THREE.Group();
-            modelHolder.position.set(-center.x, -center.y, -center.z);
-            modelHolder.add(rawModel);
+              // Tính Bounding Box để lấy kích thước và căn tâm (Center)
+              const bbox = new THREE.Box3().setFromObject(rawModel);
+              const center = bbox.getCenter(new THREE.Vector3());
+              const size = bbox.getSize(new THREE.Vector3());
+              const maxDim = Math.max(size.x, size.y, size.z) || 1;
+              maxDimRef.current = maxDim;
 
-            // Tạo Pivot Group làm tâm điều phối xoay 360 và di chuyển
-            const pivot = new THREE.Group();
-            pivot.add(modelHolder);
+              // CĂN TÂM CHUẨN XÁC: Tạo modelHolder để đưa tâm về (0,0,0)
+              // Tuyệt đối giữ nguyên rawModel gốc tại (0,0,0) để bảo toàn SkinnedMesh
+              const modelHolder = new THREE.Group();
+              modelHolder.position.set(-center.x, -center.y, -center.z);
+              modelHolder.add(rawModel);
 
-            // Gắn vào anchor.group
-            anchor.group.add(pivot);
+              // Tạo Pivot Group làm tâm điều phối xoay 360 và di chuyển
+              const pivot = new THREE.Group();
+              pivot.add(modelHolder);
 
-            const baseDim = 0.5;
-            const initialScale = (baseDim / maxDim) * userScaleRef.current;
-            pivot.scale.set(initialScale, initialScale, initialScale);
-            pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
-            pivot.rotation.set(0, 0, 0);
+              // Gắn vào anchor.group
+              anchor.group.add(pivot);
 
-            pivotGroupRef.current = pivot;
-            modelRef.current = rawModel;
+              const baseDim = 0.5;
+              const initialScale = (baseDim / maxDim) * userScaleRef.current;
+              pivot.scale.set(initialScale, initialScale, initialScale);
+              pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
+              pivot.rotation.set(0, 0, 0);
 
-            // ĐẶC BIỆT: HIỂN THỊ TỨC THÌ (Instant AR)
-            // Ngay khi mô hình tải xong, cho hiển thị luôn trước mắt bé
-            // Bé không bao giờ phải chịu cảnh màn hình trống trơn đợi tìm thẻ!
-            hasScannedOnceRef.current = true;
-            setHasScannedOnce(true);
-            anchor.group.visible = true;
+              pivotGroupRef.current = pivot;
+              modelRef.current = rawModel;
 
-            // Xử lý Animations: Khôi phục cử động sống động
-            if (gltf.animations && gltf.animations.length > 0) {
-              const mixer = new THREE.AnimationMixer(rawModel);
-              mixerRef.current = mixer;
-              actionsRef.current = {};
+              // ĐẶC BIỆT: HIỂN THỊ TỨC THÌ (Instant AR)
+              // Ngay khi mô hình tải xong, cho hiển thị luôn trước mắt bé
+              // Bé không bao giờ phải chịu cảnh màn hình trống trơn đợi tìm thẻ!
+              hasScannedOnceRef.current = true;
+              setHasScannedOnce(true);
+              anchor.group.visible = true;
 
-              gltf.animations.forEach((clip: any) => {
-                actionsRef.current[clip.name] = mixer.clipAction(clip);
-              });
+              // Xử lý Animations: Khôi phục cử động sống động
+              if (gltf.animations && gltf.animations.length > 0) {
+                const mixer = new THREE.AnimationMixer(rawModel);
+                mixerRef.current = mixer;
+                actionsRef.current = {};
 
-              // Đối với cat: Morph action gây vặn vẹo nên không tự động phát
-              // Đối với lion và các con vật khác: phát clip khớp hoặc clip đầu tiên
-              if (animal.slug !== "cat") {
-                let matchedClip = gltf.animations.find((clip: any) =>
-                  animal.animations?.some((a) => a.toLowerCase() === clip.name.toLowerCase())
-                );
-                if (!matchedClip) {
-                  matchedClip = gltf.animations[0];
-                }
-                if (matchedClip && actionsRef.current[matchedClip.name]) {
-                  actionsRef.current[matchedClip.name].play();
-                  setPlayingClipName(matchedClip.name);
+                gltf.animations.forEach((clip: any) => {
+                  actionsRef.current[clip.name] = mixer.clipAction(clip);
+                });
+
+                // Đối với cat: Morph action gây vặn vẹo nên không tự động phát
+                // Đối với lion và các con vật khác: phát clip khớp hoặc clip đầu tiên
+                if (animal.slug !== "cat") {
+                  let matchedClip = gltf.animations.find((clip: any) =>
+                    animal.animations?.some((a) => a.toLowerCase() === clip.name.toLowerCase())
+                  );
+                  if (!matchedClip) {
+                    matchedClip = gltf.animations[0];
+                  }
+                  if (matchedClip && actionsRef.current[matchedClip.name]) {
+                    actionsRef.current[matchedClip.name].play();
+                    setPlayingClipName(matchedClip.name);
+                  }
                 }
               }
-            }
 
-            // 5. Khởi động Camera và Video stream tracking
-            clockRef.current = new THREE.Clock();
+              // 5. Khởi động Camera và Video stream tracking
+              clockRef.current = new THREE.Clock();
 
-            mindarThree
-              .start()
-              .then(() => {
-                if (isCancelled) return;
-                setIsLoading(false);
-
-                // Khởi chạy vòng lặp render và tính FPS
-                renderer.setAnimationLoop(() => {
-                  // Đo FPS
-                  frameCountRef.current++;
-                  const now = Date.now();
-                  if (now - lastFpsTimeRef.current >= 1000) {
-                    setFps(frameCountRef.current);
-                    frameCountRef.current = 0;
-                    lastFpsTimeRef.current = now;
-                  }
-
-                  if (clockRef.current && mixerRef.current) {
-                    const delta = clockRef.current.getDelta();
-                    mixerRef.current.update(delta);
-                  }
-
-                  // ĐẢM BẢO VẬT THỂ KHÔNG BAO GIỜ BIẾN MẤT:
-                  // Sau khi nạp xong, duy trì con vật luôn hiển thị trong không gian phòng
-                  if (hasScannedOnceRef.current && anchorGroupRef.current) {
-                    anchorGroupRef.current.visible = true;
-                  }
-
-                  renderer.render(scene, camera);
-                });
-              })
-              .catch((err: any) => {
-                console.error("[MindAR Start Error]:", err);
-                if (!isCancelled) {
-                  setLoadError("Không thể truy cập camera. Vui lòng cấp quyền máy ảnh trong trình duyệt.");
+              mindarThree
+                .start()
+                .then(() => {
+                  if (isCancelled) return;
                   setIsLoading(false);
+
+                  // Khởi chạy vòng lặp render và tính FPS
+                  renderer.setAnimationLoop(() => {
+                    // Đo FPS
+                    frameCountRef.current++;
+                    const now = Date.now();
+                    if (now - lastFpsTimeRef.current >= 1000) {
+                      setFps(frameCountRef.current);
+                      frameCountRef.current = 0;
+                      lastFpsTimeRef.current = now;
+                    }
+
+                    if (clockRef.current && mixerRef.current) {
+                      const delta = clockRef.current.getDelta();
+                      mixerRef.current.update(delta);
+                    }
+
+                    // ĐẢM BẢO VẬT THỂ KHÔNG BAO GIỜ BIẾN MẤT:
+                    // Sau khi nạp xong, duy trì con vật luôn hiển thị trong không gian phòng
+                    if (hasScannedOnceRef.current && anchorGroupRef.current) {
+                      anchorGroupRef.current.visible = true;
+                    }
+
+                    renderer.render(scene, camera);
+                  });
+                })
+                .catch((err: any) => {
+                  console.error("[MindAR Start Error]:", err);
+                  if (!isCancelled) {
+                    setLoadError("Không thể truy cập camera. Vui lòng cấp quyền máy ảnh trong trình duyệt.");
+                    setIsLoading(false);
+                  }
+                });
+            },
+            (xhr: any) => {
+              if (xhr.lengthComputable && xhr.total > 0) {
+                const percent = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
+                setDownloadProgress(25 + Math.round(percent * 0.7));
+                setDownloadStats({
+                  loadedMb: (xhr.loaded / (1024 * 1024)).toFixed(1),
+                  totalMb: (xhr.total / (1024 * 1024)).toFixed(1),
+                });
+              }
+            },
+            (err: any) => {
+              console.error(`[GLTF Loader Error] URL: ${urlToLoad}`, err);
+              if (!isFallbackAttempt && urlToLoad !== fallbackModelUrl) {
+                console.warn(`[GLTF Fallback] Thử nạp mô hình mẫu thay thế: ${fallbackModelUrl}`);
+                if (!isCancelled) {
+                  setIsUsingFallbackModel(true);
                 }
-              });
-          },
-          (xhr: any) => {
-            if (xhr.lengthComputable && xhr.total > 0) {
-              const percent = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
-              setDownloadProgress(25 + Math.round(percent * 0.7));
-              setDownloadStats({
-                loadedMb: (xhr.loaded / (1024 * 1024)).toFixed(1),
-                totalMb: (xhr.total / (1024 * 1024)).toFixed(1),
-              });
+                loadModelWithFallback(fallbackModelUrl, true);
+                return;
+              }
+              if (!isCancelled) {
+                setLoadError("Không thể tải mô hình 3D con vật. Vui lòng thử lại sau.");
+                setIsLoading(false);
+              }
             }
-          },
-          (err: any) => {
-            console.error("[GLTF Loader Error]:", err);
-            if (!isCancelled) {
-              setLoadError("Không thể tải mô hình 3D con vật. Vui lòng thử lại sau.");
-              setIsLoading(false);
-            }
-          }
-        );
+          );
+        };
+
+        loadModelWithFallback(primaryModelUrl);
       } catch (err: any) {
         console.error("[WebAR Init Error]:", err);
         if (!isCancelled) {
@@ -771,12 +808,18 @@ export function WebArCardView({
         </div>
       </div>
 
-      {/* 4. Thanh Gợi Ý Cử Chỉ Tự Nhiên Chuẩn Apple AR (Không có nút bấm gây rối mắt) */}
-      <div className="absolute top-15 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+      {/* 4. Thanh Gợi Ý Cử Chỉ Tự Nhiên Chuẩn Apple AR */}
+      <div className="absolute top-15 inset-x-0 z-30 flex flex-col items-center gap-1.5 pointer-events-none px-4">
         <div className="flex items-center gap-2 rounded-full bg-stone-950/75 border border-white/20 px-3.5 py-1 backdrop-blur-md text-[11px] font-medium text-amber-200/95 shadow-xl">
           <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
           <span>Kéo 1 ngón di chuyển • Xoay 2 ngón 360° • Chụm 2 ngón thu phóng</span>
         </div>
+        {isFreeArMode && (
+          <div className="flex items-center gap-1.5 rounded-full bg-emerald-950/85 border border-emerald-400/40 px-3 py-0.5 backdrop-blur-md text-[10px] font-bold text-emerald-200 shadow-md animate-in fade-in slide-in-from-top-1 duration-200">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <span>Chế Độ AR Tương Tác Trực Tiếp (Không cần thẻ bài vật lý)</span>
+          </div>
+        )}
       </div>
 
       {/* 5. AR Diagnostic Debug HUD Modal (Trực quan hóa nhận diện thẻ, FPS, tọa độ) */}
@@ -793,7 +836,15 @@ export function WebArCardView({
           <div className="space-y-1 text-stone-300 text-[10px]">
             <div className="flex justify-between items-center">
               <span>Target:</span>
-              <span className="font-bold text-amber-300">{animal.slug}.mind</span>
+              <span className="font-bold text-amber-300">
+                {animal.slug}.mind {isFreeArMode ? "(Fallback Free AR)" : ""}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Mô hình 3D:</span>
+              <span className="font-bold text-amber-300">
+                {isUsingFallbackModel ? "lion.glb (Mẫu dự phòng)" : "Chính thức"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Trạng thái quét:</span>

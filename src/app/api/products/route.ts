@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       description: body.description || (existingIndex >= 0 ? currentList[existingIndex].description : `Thẻ học thông minh AR Poly Cards: ${body.nameVi} (${body.nameEn}).`),
       images: defaultImages,
       posterUrl: finalImageUrl || (existingIndex >= 0 ? currentList[existingIndex].posterUrl : "/images/cards/jump-template.jpg"),
-      audioUrl: existingIndex >= 0 ? currentList[existingIndex].audioUrl : `/audio/${cleanSlug}.mp3`,
+      audioUrl: body.audioUrl || (existingIndex >= 0 ? currentList[existingIndex].audioUrl : `/audio/${cleanSlug}.mp3`),
       audios: existingIndex >= 0 && currentList[existingIndex].audios ? currentList[existingIndex].audios : {
         en: `/audio/en/${cleanSlug}.mp3`,
         vi: `/audio/vi/${cleanSlug}.mp3`,
@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
       },
       modelUrl: body.modelUrl || (existingIndex >= 0 ? currentList[existingIndex].modelUrl : defaultModelGlb),
       iosModelUrl: body.iosModelUrl || (existingIndex >= 0 ? currentList[existingIndex].iosModelUrl : defaultModelUsdz),
+      targetUrl: body.targetUrl || (existingIndex >= 0 ? (currentList[existingIndex] as any).targetUrl : undefined),
       animations: existingIndex >= 0 && currentList[existingIndex].animations ? currentList[existingIndex].animations : ["Idle", "Walk"],
       arEnabled: true,
       buyUrl: body.buyUrl || `/order?animal=${cleanSlug}`,

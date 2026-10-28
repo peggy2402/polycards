@@ -55,6 +55,10 @@ import {
   Filter,
   ArrowUpDown,
   FileArchive,
+  Box,
+  Volume2,
+  FileUp,
+  FileCheck,
 } from "lucide-react";
 import JSZip from "jszip";
 import {
@@ -171,6 +175,73 @@ const CARD_PRESETS: CardPreset[] = [
     width: 709,
     height: 1024,
     defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+  },
+];
+
+export interface Preset3DModel {
+  id: string;
+  name: string;
+  modelUrl: string;
+  iosModelUrl: string;
+  targetUrl: string;
+  category: string;
+  description: string;
+}
+
+export const PRESET_3D_MODELS: Preset3DModel[] = [
+  {
+    id: "lion",
+    name: "Sư Tử Vàng (Có Animation)",
+    modelUrl: "/models/lion.glb",
+    iosModelUrl: "/models/lion.usdz",
+    targetUrl: "/targets/lion.mind",
+    category: "Động Vật",
+    description: "Mô hình 3D Sư Tử dũng mãnh, đầy đủ cử động sống động & tiếng gầm.",
+  },
+  {
+    id: "cat",
+    name: "Mèo Con (Vàng Cam)",
+    modelUrl: "/models/cat.glb",
+    iosModelUrl: "/models/cat.usdz",
+    targetUrl: "/targets/cat.mind",
+    category: "Động Vật",
+    description: "Mô hình 3D Chú mèo con đáng yêu, tinh nghịch.",
+  },
+  {
+    id: "dog",
+    name: "Chú Chó (Cưng)",
+    modelUrl: "/models/dog.glb",
+    iosModelUrl: "/models/dog.usdz",
+    targetUrl: "/targets/dog.mind",
+    category: "Động Vật",
+    description: "Mô hình 3D Chú chó con trung thành, hoạt bát.",
+  },
+  {
+    id: "deer",
+    name: "Hươu Rừng (Hiền Hòa)",
+    modelUrl: "/models/deer.glb",
+    iosModelUrl: "/models/deer.usdz",
+    targetUrl: "/targets/deer.mind",
+    category: "Động Vật",
+    description: "Mô hình 3D Chú hươu sao với cặp sừng tuyệt đẹp.",
+  },
+  {
+    id: "elephant",
+    name: "Con Voi (To Lớn)",
+    modelUrl: "/models/elephant.glb",
+    iosModelUrl: "/models/elephant.usdz",
+    targetUrl: "/targets/elephant.mind",
+    category: "Động Vật",
+    description: "Mô hình 3D Chú voi thông minh với chiếc vòi dài.",
+  },
+  {
+    id: "panda",
+    name: "Gấu Trúc (Ngộ Nghĩnh)",
+    modelUrl: "/models/panda.glb",
+    iosModelUrl: "/models/panda.usdz",
+    targetUrl: "/targets/panda.mind",
+    category: "Động Vật",
+    description: "Mô hình 3D Gấu trúc panda gặm trúc đáng yêu.",
   },
 ];
 
@@ -337,6 +408,7 @@ export default function ToolsPage() {
   // 12. Modal "Lưu / Cập Nhật Thẻ Vào #products Trang Chủ"
   const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
   const [showAdvancedFields, setShowAdvancedFields] = useState<boolean>(false);
+  const [show3DResourceFields, setShow3DResourceFields] = useState<boolean>(true);
   const [productForm, setProductForm] = useState({
     nameEn: "Jump",
     nameVi: "Nhảy Vui Nhộn",
@@ -349,7 +421,67 @@ export default function ToolsPage() {
     badge: "Mới ra mắt",
     description: "Thẻ học thông minh phát triển kỹ năng vận động và phản xạ thể chất cho trẻ.",
     useCompositeCardImage: true,
+    // Cấu hình tài nguyên 3D & AR
+    modelPresetId: "lion",
+    modelUrl: "/models/lion.glb",
+    iosModelUrl: "/models/lion.usdz",
+    targetUrl: "/targets/lion.mind",
+    audioUrl: "",
   });
+
+  // Trạng thái upload file 3D, MindAR target và Audio
+  const [isUploadingAsset, setIsUploadingAsset] = useState<boolean>(false);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState<string | null>(null);
+
+  // Helper tải tệp tài nguyên AR lên Server
+  const handleUploadArAsset = async (
+    file: File,
+    type: "model" | "target" | "audio",
+    formType: "publish" | "edit"
+  ) => {
+    try {
+      setIsUploadingAsset(true);
+      setUploadStatusMsg(`Đang tải tệp "${file.name}" lên hệ thống...`);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", type);
+      fd.append("name", slug || "custom-asset");
+
+      const res = await fetch("/api/tools/upload", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || "Tải lên thất bại");
+      }
+
+      const uploadedUrl = data.url;
+      const isUsdz = file.name.toLowerCase().endsWith(".usdz");
+
+      if (formType === "publish") {
+        setProductForm((prev) => ({
+          ...prev,
+          ...(type === "model" ? (isUsdz ? { iosModelUrl: uploadedUrl } : { modelUrl: uploadedUrl }) : {}),
+          ...(type === "target" ? { targetUrl: uploadedUrl } : {}),
+          ...(type === "audio" ? { audioUrl: uploadedUrl } : {}),
+        }));
+      } else {
+        setEditProductForm((prev) => ({
+          ...prev,
+          ...(type === "model" ? (isUsdz ? { iosModelUrl: uploadedUrl } : { modelUrl: uploadedUrl }) : {}),
+          ...(type === "target" ? { targetUrl: uploadedUrl } : {}),
+          ...(type === "audio" ? { audioUrl: uploadedUrl } : {}),
+        }));
+      }
+      showToast(`Đã tải lên tệp "${file.name}" thành công!`, "success");
+    } catch (err: any) {
+      showToast(`Lỗi tải tệp: ${err.message}`, "error");
+    } finally {
+      setIsUploadingAsset(false);
+      setUploadStatusMsg(null);
+    }
+  };
 
   // Thông báo xuất bản thành công
   const [publishedSuccessInfo, setPublishedSuccessInfo] = useState<{
@@ -401,6 +533,7 @@ export default function ToolsPage() {
   // 16. Modal Chỉnh Sửa Thông Tin Thẻ Bài
   const [editingProduct, setEditingProduct] = useState<Animal | null>(null);
   const [isEditProductModalOpen, setIsEditProductModalOpen] = useState<boolean>(false);
+  const [showEdit3DResourceFields, setShowEdit3DResourceFields] = useState<boolean>(true);
   const [editProductForm, setEditProductForm] = useState({
     nameVi: "",
     nameEn: "",
@@ -413,6 +546,11 @@ export default function ToolsPage() {
     badge: "Mới ra mắt",
     description: "",
     imageUrl: "",
+    // Tài nguyên 3D & AR
+    modelUrl: "/models/lion.glb",
+    iosModelUrl: "/models/lion.usdz",
+    targetUrl: "/targets/lion.mind",
+    audioUrl: "",
   });
   const [isSavingEditProduct, setIsSavingEditProduct] = useState<boolean>(false);
 
@@ -1135,6 +1273,11 @@ export default function ToolsPage() {
       badge: product.badge || "Mới ra mắt",
       description: product.description || "",
       imageUrl: product.posterUrl || (Array.isArray(product.images) && product.images[0]) || "",
+      // Tài nguyên 3D & AR
+      modelUrl: product.modelUrl || "/models/lion.glb",
+      iosModelUrl: product.iosModelUrl || "/models/lion.usdz",
+      targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
+      audioUrl: product.audioUrl || "",
     });
     setIsEditProductModalOpen(true);
   };
@@ -1160,6 +1303,11 @@ export default function ToolsPage() {
         description: editProductForm.description.trim(),
         posterUrl: editProductForm.imageUrl.trim() || editingProduct.posterUrl,
         images: editProductForm.imageUrl.trim() ? [editProductForm.imageUrl.trim()] : editingProduct.images,
+        // Tài nguyên 3D & AR
+        modelUrl: editProductForm.modelUrl.trim() || editingProduct.modelUrl,
+        iosModelUrl: editProductForm.iosModelUrl.trim() || editingProduct.iosModelUrl,
+        targetUrl: editProductForm.targetUrl.trim() || editingProduct.targetUrl,
+        audioUrl: editProductForm.audioUrl.trim() || editingProduct.audioUrl,
       };
 
       await fetch("/api/products", {
@@ -1204,6 +1352,7 @@ export default function ToolsPage() {
       showToast(`Đã nạp phôi thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
     }
 
+    const matchedProductPreset = PRESET_3D_MODELS.find((p) => p.modelUrl === product.modelUrl) || PRESET_3D_MODELS[0];
     setProductForm({
       nameEn: product.nameEn,
       nameVi: product.nameVi,
@@ -1216,6 +1365,11 @@ export default function ToolsPage() {
       badge: product.badge || "Mới ra mắt",
       description: product.description || "",
       useCompositeCardImage: true,
+      modelPresetId: matchedProductPreset.id,
+      modelUrl: product.modelUrl || matchedProductPreset.modelUrl,
+      iosModelUrl: product.iosModelUrl || matchedProductPreset.iosModelUrl,
+      targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
+      audioUrl: product.audioUrl || "",
     });
     setActiveStudioTab("editor");
   };
@@ -1273,6 +1427,8 @@ export default function ToolsPage() {
       defaultCat = availableCategories[0].name;
     }
 
+    const matchedPreset = PRESET_3D_MODELS.find((p) => p.id === cleanSlug) || PRESET_3D_MODELS[0];
+
     setProductForm({
       nameEn: defaultEn,
       nameVi: defaultVi,
@@ -1285,6 +1441,11 @@ export default function ToolsPage() {
       badge: "Mới ra mắt",
       description: `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${defaultVi} (${defaultEn}).`,
       useCompositeCardImage: true,
+      modelPresetId: matchedPreset.id,
+      modelUrl: matchedPreset.modelUrl,
+      iosModelUrl: matchedPreset.iosModelUrl,
+      targetUrl: matchedPreset.targetUrl,
+      audioUrl: "",
     });
 
     setCategoriesList(availableCategories);
@@ -1346,6 +1507,10 @@ export default function ToolsPage() {
             description: productForm.description,
             images: [imageToSave],
             posterUrl: imageToSave,
+            modelUrl: productForm.modelUrl || "/models/lion.glb",
+            iosModelUrl: productForm.iosModelUrl || "/models/lion.usdz",
+            targetUrl: productForm.targetUrl || "/targets/lion.mind",
+            audioUrl: productForm.audioUrl || "",
           }),
         });
         const apiJson = await apiRes.json();
@@ -1379,6 +1544,10 @@ export default function ToolsPage() {
         description: productForm.description,
         images: [cleanImageUrl],
         posterUrl: cleanImageUrl,
+        modelUrl: productForm.modelUrl || "/models/lion.glb",
+        iosModelUrl: productForm.iosModelUrl || "/models/lion.usdz",
+        targetUrl: productForm.targetUrl || "/targets/lion.mind",
+        audioUrl: productForm.audioUrl || "",
       });
 
       setIsPublishModalOpen(false);
@@ -3261,6 +3430,189 @@ export default function ToolsPage() {
                 />
               </div>
 
+              {/* KHỐI NÂNG CẤP: CẤU HÌNH & TẢI LÊN TÀI NGUYÊN 3D / AR / ÂM THANH */}
+              <div className="border border-amber-500/30 rounded-2xl overflow-hidden bg-black/40 p-3 sm:p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-lg bg-amber-400 text-stone-950 flex items-center justify-center shrink-0">
+                      <Box className="h-3.5 w-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-amber-300">
+                        Cấu Hình Tài Nguyên 3D & WebAR
+                      </h4>
+                      <p className="text-[10px] text-stone-400">
+                        Chọn mô hình có sẵn hoặc tải tệp .glb, .usdz, .mind, .mp3 từ máy tính
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href={`/ar/${editingProduct.slug}?ar=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/30 border border-emerald-500/40 text-[10px] font-bold text-emerald-300 hover:bg-emerald-600/50 transition-colors shrink-0"
+                  >
+                    <span>Test WebAR</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+
+                {/* 1. Chọn nhanh từ Mẫu 3D có sẵn */}
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1.5">
+                    Chọn nhanh từ Mô hình 3D mẫu có sẵn:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {PRESET_3D_MODELS.map((preset) => {
+                      const isSelected = editProductForm.modelUrl === preset.modelUrl;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setEditProductForm({
+                              ...editProductForm,
+                              modelUrl: preset.modelUrl,
+                              iosModelUrl: preset.iosModelUrl,
+                              targetUrl: preset.targetUrl,
+                            });
+                          }}
+                          className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "bg-amber-500/20 border-amber-400 text-amber-200 ring-1 ring-amber-400/50"
+                              : "bg-black/50 border-white/10 text-stone-300 hover:border-white/30"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-[11px] font-black truncate">{preset.name}</span>
+                            {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                          </div>
+                          <span className="text-[9px] text-stone-400 font-mono mt-0.5 truncate w-full">
+                            {preset.modelUrl}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Upload tệp 3D riêng (.glb, .usdz) */}
+                <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-stone-200 flex items-center gap-1.5">
+                      <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                      <span>Tải Lên Tệp 3D Riêng (.glb / .usdz)</span>
+                    </span>
+                    <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-black text-[10px] hover:bg-amber-300 active:scale-95 transition-all shrink-0">
+                      <Upload className="h-3 w-3 shrink-0" />
+                      <span>{isUploadingAsset ? "Đang Tải..." : "Chọn File 3D"}</span>
+                      <input
+                        type="file"
+                        accept=".glb,.gltf,.usdz"
+                        disabled={isUploadingAsset}
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadArAsset(file, "model", "edit");
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+                    <div>
+                      <span className="text-stone-400 block mb-0.5">Model WebAR (.glb):</span>
+                      <input
+                        type="text"
+                        value={editProductForm.modelUrl}
+                        onChange={(e) => setEditProductForm({ ...editProductForm, modelUrl: e.target.value })}
+                        placeholder="/models/lion.glb"
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-stone-400 block mb-0.5">Model Apple iOS (.usdz):</span>
+                      <input
+                        type="text"
+                        value={editProductForm.iosModelUrl}
+                        onChange={(e) => setEditProductForm({ ...editProductForm, iosModelUrl: e.target.value })}
+                        placeholder="/models/lion.usdz"
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Tệp Target MindAR (.mind) & Âm Thanh (.mp3) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Target .mind */}
+                  <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-stone-300">Target Marker (.mind):</span>
+                      <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
+                        <Upload className="h-2.5 w-2.5 shrink-0" />
+                        <span>Tải .mind</span>
+                        <input
+                          type="file"
+                          accept=".mind"
+                          disabled={isUploadingAsset}
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadArAsset(file, "target", "edit");
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={editProductForm.targetUrl}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, targetUrl: e.target.value })}
+                      placeholder="/targets/lion.mind (Fallback tự động nếu trống)"
+                      className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+                    />
+                    <p className="text-[9px] text-stone-400">
+                      Nếu để trống, WebAR tự động dùng AR Không Gian Tự Do.
+                    </p>
+                  </div>
+
+                  {/* Âm thanh .mp3 */}
+                  <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-stone-300 flex items-center gap-1">
+                        <Volume2 className="h-3 w-3 text-amber-400 shrink-0" />
+                        <span>Âm Thanh (.mp3):</span>
+                      </span>
+                      <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
+                        <Upload className="h-2.5 w-2.5 shrink-0" />
+                        <span>Tải .mp3</span>
+                        <input
+                          type="file"
+                          accept=".mp3,.wav,.ogg"
+                          disabled={isUploadingAsset}
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadArAsset(file, "audio", "edit");
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      value={editProductForm.audioUrl}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, audioUrl: e.target.value })}
+                      placeholder="Mặc định dùng AI Web Speech EN/VI/ZH"
+                      className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
+                    />
+                    <p className="text-[9px] text-stone-400">
+                      Web Speech AI tự động phát âm chuẩn bản xứ EN/VI/ZH.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-bold text-stone-300 mb-1">
                   Mô Tả Sản Phẩm:
@@ -3500,7 +3852,191 @@ export default function ToolsPage() {
                   </p>
                 </div>
 
-                {/* 6. THÔNG TIN NÂNG CAO (ACCORDION THU GỌN / MỞ RỘNG) */}
+                {/* 6. CẤU HÌNH & TẢI LÊN TÀI NGUYÊN 3D / AR / ÂM THANH */}
+                <div className="border border-amber-500/30 rounded-2xl overflow-hidden bg-black/40 p-3 sm:p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-lg bg-amber-400 text-stone-950 flex items-center justify-center shrink-0">
+                        <Box className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-amber-300">
+                          Tài Nguyên Mô Hình 3D & WebAR
+                        </h4>
+                        <p className="text-[10px] text-stone-400">
+                          Chọn mô hình có sẵn hoặc tải tệp .glb, .usdz, .mind, .mp3 từ máy tính
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href={`/ar/${slug}?ar=1`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/30 border border-emerald-500/40 text-[10px] font-bold text-emerald-300 hover:bg-emerald-600/50 transition-colors shrink-0"
+                    >
+                      <span>Test WebAR</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+
+                  {/* Chọn nhanh từ Mẫu 3D có sẵn */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1.5">
+                      Chọn nhanh từ Mô hình 3D mẫu có sẵn:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {PRESET_3D_MODELS.map((preset) => {
+                        const isSelected = productForm.modelUrl === preset.modelUrl;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setProductForm({
+                                ...productForm,
+                                modelPresetId: preset.id,
+                                modelUrl: preset.modelUrl,
+                                iosModelUrl: preset.iosModelUrl,
+                                targetUrl: preset.targetUrl,
+                              });
+                            }}
+                            className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all ${
+                              isSelected
+                                ? "bg-amber-500/20 border-amber-400 text-amber-200 ring-1 ring-amber-400/50"
+                                : "bg-black/50 border-white/10 text-stone-300 hover:border-white/30"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-[11px] font-black truncate">{preset.name}</span>
+                              {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                            </div>
+                            <span className="text-[9px] text-stone-400 font-mono mt-0.5 truncate w-full">
+                              {preset.modelUrl}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Upload tệp 3D riêng (.glb, .usdz) */}
+                  <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-stone-200 flex items-center gap-1.5">
+                        <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                        <span>Tải Lên Tệp 3D Riêng (.glb / .usdz)</span>
+                      </span>
+                      <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-black text-[10px] hover:bg-amber-300 active:scale-95 transition-all shrink-0">
+                        <Upload className="h-3 w-3 shrink-0" />
+                        <span>{isUploadingAsset ? "Đang Tải..." : "Chọn File 3D"}</span>
+                        <input
+                          type="file"
+                          accept=".glb,.gltf,.usdz"
+                          disabled={isUploadingAsset}
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadArAsset(file, "model", "publish");
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-stone-400 block mb-0.5">Model WebAR (.glb):</span>
+                        <input
+                          type="text"
+                          value={productForm.modelUrl}
+                          onChange={(e) => setProductForm({ ...productForm, modelUrl: e.target.value })}
+                          placeholder="/models/lion.glb"
+                          className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block mb-0.5">Model Apple iOS (.usdz):</span>
+                        <input
+                          type="text"
+                          value={productForm.iosModelUrl}
+                          onChange={(e) => setProductForm({ ...productForm, iosModelUrl: e.target.value })}
+                          placeholder="/models/lion.usdz"
+                          className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tệp Target MindAR (.mind) & Âm Thanh (.mp3) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Target .mind */}
+                    <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-stone-300">Target Marker (.mind):</span>
+                        <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
+                          <Upload className="h-2.5 w-2.5 shrink-0" />
+                          <span>Tải .mind</span>
+                          <input
+                            type="file"
+                            accept=".mind"
+                            disabled={isUploadingAsset}
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadArAsset(file, "target", "publish");
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        value={productForm.targetUrl}
+                        onChange={(e) => setProductForm({ ...productForm, targetUrl: e.target.value })}
+                        placeholder="/targets/lion.mind (Fallback tự động nếu trống)"
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+                      />
+                      <p className="text-[9px] text-stone-400">
+                        Nếu để trống, WebAR tự động dùng AR Không Gian Tự Do.
+                      </p>
+                    </div>
+
+                    {/* Âm thanh .mp3 */}
+                    <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-stone-300 flex items-center gap-1">
+                          <Volume2 className="h-3 w-3 text-amber-400 shrink-0" />
+                          <span>Âm Thanh (.mp3):</span>
+                        </span>
+                        <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
+                          <Upload className="h-2.5 w-2.5 shrink-0" />
+                          <span>Tải .mp3</span>
+                          <input
+                            type="file"
+                            accept=".mp3,.wav,.ogg"
+                            disabled={isUploadingAsset}
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadArAsset(file, "audio", "publish");
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        value={productForm.audioUrl}
+                        onChange={(e) => setProductForm({ ...productForm, audioUrl: e.target.value })}
+                        placeholder="Mặc định dùng AI Web Speech EN/VI/ZH"
+                        className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
+                      />
+                      <p className="text-[9px] text-stone-400">
+                        Web Speech AI tự động phát âm chuẩn bản xứ EN/VI/ZH.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 7. THÔNG TIN NÂNG CAO (ACCORDION THU GỌN / MỞ RỘNG) */}
                 <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/30">
                   <button
                     type="button"
