@@ -140,6 +140,10 @@ export function ArResourcePanel({
 
       const isUsdz = file.name.toLowerCase().endsWith(".usdz");
 
+      if (!finalUrl) {
+        throw new Error("Không nhận được URL tệp sau khi tải lên");
+      }
+
       if (type === "model") {
         if (isUsdz) {
           onChangeIosModelUrl(finalUrl);
@@ -289,7 +293,13 @@ export function ArResourcePanel({
               accept=".glb,.gltf,.usdz"
               disabled={isUploading}
               className="hidden"
-              onChange={(e) => handleUploadModels(e.target.files)}
+              onChange={(e) => {
+                const files = e.target.files;
+                e.target.value = "";
+                if (files && files.length > 0) {
+                  handleUploadModels(files);
+                }
+              }}
             />
           </label>
         </div>
@@ -309,6 +319,7 @@ export function ArResourcePanel({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
+                    e.target.value = "";
                     if (file) handleUploadFile(file, "model");
                   }}
                 />
@@ -338,6 +349,7 @@ export function ArResourcePanel({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
+                    e.target.value = "";
                     if (file) handleUploadFile(file, "model");
                   }}
                 />
@@ -371,6 +383,7 @@ export function ArResourcePanel({
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
+                  e.target.value = "";
                   if (file) handleUploadFile(file, "target");
                 }}
               />
@@ -429,6 +442,7 @@ export function ArResourcePanel({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
+                    e.target.value = "";
                     if (file) handleUploadFile(file, "audio", "sfx");
                   }}
                 />

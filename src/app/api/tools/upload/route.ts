@@ -228,6 +228,10 @@ export async function POST(req: NextRequest) {
     // TRƯỜNG HỢP 2: Tệp lớn (>= 2MB, ví dụ 5MB - 50MB) được cắt thành nhiều mảnh 2MB
     const chunksCol = db.collection<UploadTempChunkDoc>("upload_temp_chunks");
 
+    // Đảm bảo compound index để MongoDB sắp xếp theo index, không tốn bộ nhớ in-memory sort limit (32MB)
+    await chunksCol.createIndex({ uploadId: 1, chunkIndex: 1 }).catch(() => {});
+    await chunksCol.createIndex({ createdAt: 1 }, { expireAfterSeconds: 3600 }).catch(() => {});
+
     await chunksCol.updateOne(
       { uploadId, chunkIndex },
       {
@@ -254,17 +258,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Khi đã nhận mảnh cuối cùng -> Đọc toàn bộ các mảnh theo thứ tự và ghép vào GridFSBucket
-    const allChunks = await chunksCol
-      .find({ uploadId })
-      .sort({ chunkIndex: 1 })
-      .toArray();
-
-    // Xóa các bản ghi GridFS cũ trùng tên
+    // Khi đã nhận mảnh cuối cùng -> Ghép trực tiếp từ Cursor vào GridFSBucket (Streaming không tải cả mảng vào RAM)
     const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
     for (const oldFile of existingFiles) {
       await bucket.delete(oldFile._id);
     }
+
+    const cursor = chunksCol.find({ uploadId }).sort({ chunkIndex: 1 });
 
     await new Promise<void>((resolve, reject) => {
       const uploadStream = bucket.openUploadStream(finalFileName, {
@@ -280,11 +280,18 @@ export async function POST(req: NextRequest) {
       uploadStream.on("error", (err) => reject(err));
       uploadStream.on("finish", () => resolve());
 
-      for (const c of allChunks) {
-        const rawBuf = Buffer.from(c.data.buffer);
-        uploadStream.write(rawBuf);
-      }
-      uploadStream.end();
+      (async () => {
+        try {
+          for await (const c of cursor) {
+            const rawBuf = Buffer.from(c.data.buffer);
+            uploadStream.write(rawBuf);
+          }
+          uploadStream.end();
+        } catch (streamErr) {
+          uploadStream.destroy(streamErr as Error);
+          reject(streamErr);
+        }
+      })();
     });
 
     // Dọn dẹp các mảnh tạm sau khi đã ghép thành công vào GridFS
