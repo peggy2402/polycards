@@ -305,10 +305,12 @@ export default function ToolsPage() {
     };
   }, []);
 
-  // Tải danh sách sản phẩm từ API (hoặc fallback store)
-  const loadStudioProducts = useCallback(async () => {
+  // Tải danh sách sản phẩm từ API (hoặc fallback store) — Hỗ trợ chế độ silent không làm nháy/reload danh sách
+  const loadStudioProducts = useCallback(async (silent = false) => {
     try {
-      setIsLoadingProducts(true);
+      if (!silent) {
+        setIsLoadingProducts(true);
+      }
       const res = await fetch("/api/products");
       if (res.ok) {
         const json = await res.json();
@@ -320,14 +322,16 @@ export default function ToolsPage() {
     } catch (e) {
       console.warn("Fallback getMergedProducts:", e);
     } finally {
-      setIsLoadingProducts(false);
+      if (!silent) {
+        setIsLoadingProducts(false);
+      }
     }
     setProductsList(getMergedProducts());
   }, []);
 
   useEffect(() => {
-    loadStudioProducts();
-    const handleUpdate = () => loadStudioProducts();
+    loadStudioProducts(false);
+    const handleUpdate = () => loadStudioProducts(true);
     window.addEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
     return () => {
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
@@ -953,7 +957,10 @@ export default function ToolsPage() {
           });
           deleteCustomProduct(product.id);
           deleteCustomProduct(product.slug);
-          await loadStudioProducts();
+          setProductsList((prev) =>
+            prev.filter((p) => p.id !== product.id && p.slug !== product.slug)
+          );
+          await loadStudioProducts(true);
           showToast(`Đã xóa thẻ bài "${product.nameVi}" thành công!`, "success");
         } catch (err: any) {
           showToast(`Lỗi xóa thẻ bài: ${err.message}`, "error");
@@ -964,6 +971,23 @@ export default function ToolsPage() {
 
   const handleToggleShowOnHome = async (product: Animal) => {
     const nextPinned = !product.showOnHome;
+
+    // 1. Optimistic UI: Cập nhật ngay tức thì trên giao diện (0ms, giữ nguyên vị trí cuộn, không tải lại danh sách)
+    setProductsList((prev) =>
+      prev.map((item) =>
+        item.id === product.id || item.slug === product.slug
+          ? { ...item, showOnHome: nextPinned }
+          : item
+      )
+    );
+
+    showToast(
+      nextPinned
+        ? `Đã ghim thẻ "${product.nameVi}" lên Trang Chủ (#products)!`
+        : `Đã gỡ thẻ "${product.nameVi}" khỏi Trang Chủ (#products).`,
+      "success"
+    );
+
     const updatedData: Partial<Animal> & {
       nameEn: string;
       nameVi: string;
@@ -978,22 +1002,27 @@ export default function ToolsPage() {
       showOnHome: nextPinned,
     };
 
+    // 2. Đồng bộ ngầm xuống MongoDB và LocalStorage ở hậu cảnh
     try {
-      await fetch("/api/products", {
+      const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedData),
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       saveProductToLanding(updatedData);
-      await loadStudioProducts();
-      showToast(
-        nextPinned
-          ? `Đã ghim thẻ "${product.nameVi}" lên hàng 4 thẻ nổi bật tại Trang Chủ (#products)!`
-          : `Đã gỡ thẻ "${product.nameVi}" khỏi hàng nổi bật Trang Chủ (#products).`,
-        "success"
-      );
     } catch (err: any) {
-      showToast(`Lỗi cập nhật trạng thái ghim Trang Chủ: ${err.message}`, "error");
+      // Hoàn tác nếu lỗi mạng
+      setProductsList((prev) =>
+        prev.map((item) =>
+          item.id === product.id || item.slug === product.slug
+            ? { ...item, showOnHome: !nextPinned }
+            : item
+        )
+      );
+      showToast(`Lỗi đồng bộ trạng thái ghim: ${err.message}`, "error");
     }
   };
 
@@ -1071,7 +1100,7 @@ export default function ToolsPage() {
       saveProductToLanding(updatedData);
       setIsEditProductModalOpen(false);
       setEditingProduct(null);
-      await loadStudioProducts();
+      await loadStudioProducts(true);
       showToast(`Đã cập nhật thông tin thẻ "${updatedData.nameVi}" thành công!`, "success");
     } catch (err: any) {
       showToast(`Lỗi lưu thông tin thẻ: ${err.message}`, "error");
@@ -1440,7 +1469,7 @@ export default function ToolsPage() {
         audios: customAudios,
       });
 
-      await loadStudioProducts();
+      await loadStudioProducts(true);
       setIsPublishModalOpen(false);
       showToast(`Đã xuất bản thẻ "${saved.nameVi} (${saved.nameEn})" lên Hệ Thống thành công!`, "success");
     } catch (err: any) {
@@ -1659,7 +1688,7 @@ export default function ToolsPage() {
             type="button"
             onClick={() => {
               setActiveStudioTab("products");
-              loadStudioProducts();
+              loadStudioProducts(true);
             }}
             className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
               activeStudioTab === "products"

@@ -1,15 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
 import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 import { ComboPackCard } from "./combo-pack-card";
+import { SubjectFocusImage } from "@/components/common/subject-focus-image";
 import {
   getMergedProducts,
   getFeaturedCombo,
-  resolveValidProductImage,
   PRODUCTS_UPDATED_EVENT,
   COMBO_UPDATED_EVENT,
 } from "@/lib/products-store";
@@ -23,23 +22,6 @@ import {
 } from "lucide-react";
 
 function HomeMiniProductCard({ card }: { card: Animal }) {
-  const initialImg = resolveValidProductImage(
-    card.images?.[0],
-    card.posterUrl,
-    "/images/cards/jump-template.jpg"
-  );
-  const [imgSrc, setImgSrc] = useState<string>(initialImg);
-
-  useEffect(() => {
-    setImgSrc(
-      resolveValidProductImage(
-        card.images?.[0],
-        card.posterUrl,
-        "/images/cards/jump-template.jpg"
-      )
-    );
-  }, [card.images, card.posterUrl]);
-
   const cardDetailHref = `/ar/${card.slug}`;
   const price = card.price || 219000;
   const originalPrice = card.originalPrice || Math.round(price * 1.3);
@@ -57,15 +39,12 @@ function HomeMiniProductCard({ card }: { card: Animal }) {
         className="block space-y-3 cursor-pointer focus:outline-hidden"
         title={`Mở thẻ 3D & WebAR: ${card.nameVi} (${card.nameEn})`}
       >
-        <div className="relative aspect-[4/4.3] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-amber-50 via-stone-50 to-orange-50 border border-amber-100">
-          <Image
-            src={imgSrc}
+        <div className="relative aspect-[4/4.2] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-sky-50 via-amber-50/40 to-emerald-50/60 border border-amber-100">
+          <SubjectFocusImage
+            primaryUrl={card.images?.[0]}
+            secondaryUrl={card.posterUrl}
             alt={`Thẻ học thông minh AR ${card.nameVi} (${card.nameEn})`}
-            fill
-            unoptimized
-            onError={() => setImgSrc("/images/cards/jump-template.jpg")}
-            className="object-cover transition-transform duration-500 group-hover:scale-106"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            className="transition-transform duration-500 group-hover:scale-106"
           />
 
           {/* Top-Left: Danh mục + AR 3D */}

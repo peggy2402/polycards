@@ -5,18 +5,15 @@ import Image from "next/image";
 import QRCode from "qrcode";
 import { Animal } from "@/types/animal";
 import { siteConfig } from "@/config/site";
-import { resolveValidProductImage } from "@/lib/products-store";
+import { SubjectFocusImage } from "@/components/common/subject-focus-image";
 import {
   Camera,
   RotateCw,
   QrCode,
   Sparkles,
-  Maximize2,
   Minimize2,
   Volume2,
   ShieldCheck,
-  ShoppingBag,
-  ExternalLink,
 } from "lucide-react";
 import { playCardLanguageAudio } from "@/lib/speech-audio";
 
@@ -32,24 +29,7 @@ export function CardFlashcardView({
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [isFullscreenCard, setIsFullscreenCard] = useState<boolean>(false);
   const [activeVoice, setActiveVoice] = useState<string | null>(null);
-
-  const initialFrontImg = resolveValidProductImage(
-    animal.images?.[0],
-    animal.posterUrl,
-    "/images/cards/jump-template.jpg"
-  );
-  const [frontImageSrc, setFrontImageSrc] = useState<string>(initialFrontImg);
   const [qrDataUrl, setQrDataUrl] = useState<string>("/qr-output/lion-qr.png");
-
-  useEffect(() => {
-    setFrontImageSrc(
-      resolveValidProductImage(
-        animal.images?.[0],
-        animal.posterUrl,
-        "/images/cards/jump-template.jpg"
-      )
-    );
-  }, [animal.images, animal.posterUrl]);
 
   const showEn = animal.enableEnVi !== false;
   const showZh =
@@ -57,7 +37,9 @@ export function CardFlashcardView({
       ? animal.enableZhVi
       : Boolean(animal.nameZh && animal.nameZh.trim());
 
-  // Tự động sinh mã QR chuẩn xác cho mọi thẻ (kể cả các thẻ mới tạo từ Studio)
+  const hasBadge = Boolean(animal.badge && animal.badge.trim() !== "");
+
+  // Tự động sinh mã QR chuẩn xác cho mặt sau thẻ
   useEffect(() => {
     let isActive = true;
     const origin =
@@ -101,131 +83,144 @@ export function CardFlashcardView({
 
   return (
     <div className="relative w-full flex flex-col items-center">
-      {/* Khung thẻ bài chính với tỷ lệ chuẩn Flashcard (Aspect ratio 3:4) - Co giãn an toàn trên màn hình 360px+ */}
-      <div className="w-full max-w-[340px] sm:max-w-md perspective-1000 mx-auto">
+      {/* Khung thẻ bài 3D lật 2 mặt: Mặt trước tập trung 100% vào nhân vật & từ vựng, Mặt sau hiển thị mã QR */}
+      <div className="w-full max-w-[340px] sm:max-w-[380px] perspective-1000 mx-auto">
         <div
           onClick={() => setIsFlipped(!isFlipped)}
-          className={`relative aspect-[3/4] w-full rounded-3xl border-4 border-amber-300 bg-white shadow-2xl transition-transform duration-700 transform-style-preserve-3d cursor-pointer select-none ${
+          className={`relative aspect-[3/4.15] w-full rounded-[28px] border-[3px] border-amber-300/90 bg-white shadow-2xl transition-transform duration-700 transform-style-preserve-3d cursor-pointer select-none ${
             isFlipped ? "rotate-y-180" : ""
           }`}
           style={{
             boxShadow:
-              "0 20px 35px -10px rgba(180, 83, 9, 0.25), 0 0 15px rgba(251, 191, 36, 0.3)",
+              "0 24px 48px -12px rgba(180, 83, 9, 0.22), 0 0 0 4px rgba(254, 243, 199, 0.75)",
           }}
         >
-          {/* ================= MẶT TRƯỚC THẺ BÀI (FRONT) ================= */}
-          <div className="absolute inset-0 backface-hidden flex flex-col rounded-[22px] overflow-hidden bg-gradient-to-b from-amber-50/70 via-white to-amber-50/40 p-3.5 sm:p-4">
-            {/* Top header thẻ bài: Logo Poly Cards & Badge con vật */}
-            <div className="flex items-center justify-between pb-2 border-b border-amber-100 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="h-6 w-6 rounded-lg bg-amber-500 flex items-center justify-center text-stone-950 font-black text-xs shadow-xs shrink-0">
-                  P
+          {/* ================= MẶT TRƯỚC THẺ BÀI (NHÂN VẬT SẠCH QR + TỪ VỰNG TINH TẾ) ================= */}
+          <div className="absolute inset-0 backface-hidden flex flex-col rounded-[25px] overflow-hidden bg-gradient-to-b from-amber-50/80 via-white to-emerald-50/35 p-3.5 sm:p-4">
+            {/* Header thẻ mặt trước */}
+            <div className="flex items-center justify-between gap-2 pb-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="relative h-7 w-7 rounded-xl bg-white border border-amber-200 shadow-2xs p-0.5 shrink-0 overflow-hidden">
+                  <Image
+                    src="/images/icons/logo.png"
+                    alt="Poly Cards"
+                    width={26}
+                    height={26}
+                    className="h-full w-full object-contain"
+                  />
                 </div>
-                <span className="text-xs font-black tracking-wide text-amber-950 uppercase truncate">
-                  Poly Cards
+                <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 truncate">
+                  {animal.category || "Poly Cards"}
                 </span>
               </div>
 
-              {animal.badge && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300 shrink-0">
+              {hasBadge && (
+                <span className="rounded-full bg-gradient-to-r from-amber-400 to-amber-300 px-2.5 py-0.5 text-[10px] font-black text-stone-950 shadow-2xs shrink-0">
                   {animal.badge}
                 </span>
               )}
             </div>
 
-            {/* Khung minh họa con vật thực tế */}
-            <div className="relative flex-1 w-full my-3 rounded-2xl overflow-hidden border-2 border-amber-200 bg-stone-100 shadow-inner group">
-              <Image
-                src={frontImageSrc || "/images/cards/jump-template.jpg"}
-                alt={`Thẻ bài ${animal.nameEn}`}
-                fill
-                priority
-                unoptimized
-                onError={() => {
-                  if (frontImageSrc !== "/images/cards/jump-template.jpg") {
-                    setFrontImageSrc("/images/cards/jump-template.jpg");
-                  }
-                }}
-                sizes="(max-width: 640px) 100vw, 420px"
-                className="object-cover transition-transform duration-500 group-hover:scale-105"
+            {/* Khung trung tâm: Chỉ focus vào Nhân Vật / Vật Thể (không hiển thị QR hay ô chữ đè) */}
+            <div className="relative flex-1 w-full rounded-2xl overflow-hidden border-2 border-amber-200/80 bg-gradient-to-b from-sky-50 via-amber-50/40 to-emerald-50/60 shadow-inner group">
+              <SubjectFocusImage
+                primaryUrl={animal.images?.[0]}
+                secondaryUrl={animal.posterUrl}
+                alt={`Nhân vật ${animal.nameVi} (${animal.nameEn})`}
+                className="transition-transform duration-500 group-hover:scale-105"
               />
 
-              {/* Nút lật mặt sau mini ở góc trên hình */}
+              {/* Nút lật xem mã QR mặt sau */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsFlipped(true);
                 }}
-                className="absolute top-2.5 right-2.5 flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10px] font-bold text-amber-300 backdrop-blur-md shadow-md border border-white/20 active:scale-95 transition-all"
-                title="Bấm để xem mặt sau có mã QR"
+                className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 rounded-full bg-stone-950/75 hover:bg-stone-950 px-2.5 py-1 text-[10px] font-bold text-amber-300 backdrop-blur-md shadow-md border border-white/20 active:scale-95 transition-all cursor-pointer"
+                title="Bấm để lật xem mã QR ở mặt sau"
               >
-                <RotateCw className="h-3 w-3" />
-                <span>Xem Mặt Sau</span>
+                <QrCode className="h-3 w-3" />
+                <span>Lật Xem QR</span>
               </button>
             </div>
 
-            {/* Thông tin 3 Ngôn Ngữ chân thẻ bài */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-black text-stone-900 leading-tight">
-                    {animal.nameEn}
-                  </h3>
-                  <span className="text-xs font-mono font-bold text-amber-700">
-                    {animal.ipa}
-                  </span>
+            {/* Khu vực Từ Vựng & Nút Phát Âm (Đã loại bỏ hoàn toàn dấu ngoặc rỗng) */}
+            <div className="pt-3 space-y-2.5">
+              <div className="rounded-2xl bg-white/95 border border-amber-200/80 px-3.5 py-2.5 shadow-2xs flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-none tracking-tight">
+                      {showEn ? animal.nameEn : animal.nameVi}
+                    </h3>
+                    {showEn && animal.ipa && (
+                      <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200/80">
+                        {animal.ipa}
+                      </span>
+                    )}
+                  </div>
+                  {showEn && (
+                    <p className="text-xs sm:text-sm font-extrabold text-amber-700 mt-1 truncate">
+                      {animal.nameVi}
+                    </p>
+                  )}
                 </div>
 
-                <div className="text-right">
-                  <div className="text-sm font-black text-stone-800">
-                    {animal.nameVi}
+                {showZh && animal.nameZh && animal.nameZh.trim() !== "" && (
+                  <div className="text-right shrink-0 pl-2 border-l border-amber-100">
+                    <div className="text-base font-black text-rose-600 leading-tight">
+                      {animal.nameZh}
+                    </div>
+                    {animal.pinyinZh && animal.pinyinZh.trim() !== "" && (
+                      <div className="font-mono text-[11px] font-semibold text-stone-500">
+                        {animal.pinyinZh}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs font-bold text-rose-600">
-                    {animal.nameZh} <span className="font-mono text-[10px] text-stone-500">({animal.pinyinZh})</span>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Hàng nút bấm nghe phát âm nhanh trực tiếp trên thẻ */}
-              <div className="flex items-center gap-1.5 pt-1">
+              {/* Hàng nút bấm nghe phát âm nhanh */}
+              <div className="flex items-center gap-2">
                 {showEn && (
                   <button
                     type="button"
                     onClick={(e) => handleQuickSpeak(e, "en")}
-                    className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
+                    className={`flex-1 min-h-[38px] py-1.5 px-2.5 rounded-xl text-xs font-black border transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                       activeVoice === "en"
-                        ? "bg-amber-500 text-stone-950 border-amber-400"
-                        : "bg-white text-stone-700 border-amber-200 hover:bg-amber-50"
+                        ? "bg-amber-400 text-stone-950 border-amber-500 shadow-sm"
+                        : "bg-amber-50/80 text-amber-950 border-amber-200 hover:bg-amber-100"
                     }`}
                   >
-                    <Volume2 className="h-3 w-3 text-amber-600" />
+                    <Volume2 className="h-3.5 w-3.5 text-amber-600" />
                     <span>EN</span>
                   </button>
                 )}
+
                 <button
                   type="button"
                   onClick={(e) => handleQuickSpeak(e, "vi")}
-                  className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
+                  className={`flex-1 min-h-[38px] py-1.5 px-2.5 rounded-xl text-xs font-black border transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                     activeVoice === "vi"
-                      ? "bg-emerald-500 text-white border-emerald-400"
-                      : "bg-white text-stone-700 border-emerald-200 hover:bg-emerald-50"
+                      ? "bg-emerald-500 text-white border-emerald-600 shadow-sm"
+                      : "bg-emerald-50/80 text-emerald-900 border-emerald-200 hover:bg-emerald-100"
                   }`}
                 >
-                  <Volume2 className="h-3 w-3 text-emerald-600" />
+                  <Volume2 className="h-3.5 w-3.5 text-emerald-600" />
                   <span>VI</span>
                 </button>
+
                 {showZh && (
                   <button
                     type="button"
                     onClick={(e) => handleQuickSpeak(e, "zh")}
-                    className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
+                    className={`flex-1 min-h-[38px] py-1.5 px-2.5 rounded-xl text-xs font-black border transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                       activeVoice === "zh"
-                        ? "bg-rose-500 text-white border-rose-400"
-                        : "bg-white text-stone-700 border-rose-200 hover:bg-rose-50"
+                        ? "bg-rose-500 text-white border-rose-600 shadow-sm"
+                        : "bg-rose-50/80 text-rose-900 border-rose-200 hover:bg-rose-100"
                     }`}
                   >
-                    <Volume2 className="h-3 w-3 text-rose-600" />
+                    <Volume2 className="h-3.5 w-3.5 text-rose-600" />
                     <span>ZH</span>
                   </button>
                 )}
@@ -233,9 +228,8 @@ export function CardFlashcardView({
             </div>
           </div>
 
-          {/* ================= MẶT SAU THẺ BÀI (BACK - QR CODE) ================= */}
-          <div className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col justify-between rounded-[22px] overflow-hidden bg-gradient-to-br from-amber-950 via-stone-900 to-amber-950 text-white p-5 border-2 border-amber-400/50">
-            {/* Top header mặt sau */}
+          {/* ================= MẶT SAU THẺ BÀI (BACK - MÃ QR ĐỊNH DANH) ================= */}
+          <div className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col justify-between rounded-[25px] overflow-hidden bg-gradient-to-br from-amber-950 via-stone-900 to-amber-950 text-white p-5 border-2 border-amber-400/50">
             <div className="flex items-center justify-between pb-3 border-b border-amber-500/30">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-amber-400" />
@@ -248,7 +242,6 @@ export function CardFlashcardView({
               </span>
             </div>
 
-            {/* Vùng hiển thị Mã QR Code nhận diện thực tế ảo */}
             <div className="flex flex-col items-center justify-center my-auto py-2">
               <div className="relative h-44 w-44 rounded-2xl bg-white p-3 shadow-xl border-2 border-amber-400/80 flex items-center justify-center">
                 <Image
@@ -271,12 +264,11 @@ export function CardFlashcardView({
                   Mã Quét AR Định Danh
                 </span>
                 <p className="text-[11px] text-stone-300 max-w-xs mt-0.5 leading-relaxed">
-                  Hướng camera vào mã QR hoặc mặt trước thẻ để con vật {animal.nameVi} 3D xuất hiện.
+                  Hướng camera vào mã QR này hoặc mặt trước thẻ in để mô hình {animal.nameVi} 3D xuất hiện.
                 </p>
               </div>
             </div>
 
-            {/* Bottom info mặt sau */}
             <div className="pt-3 border-t border-amber-500/30 flex items-center justify-between text-[11px] text-amber-200/80">
               <div className="flex items-center gap-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
@@ -289,7 +281,7 @@ export function CardFlashcardView({
                   e.stopPropagation();
                   setIsFlipped(false);
                 }}
-                className="flex items-center gap-1 font-bold text-amber-300 hover:underline"
+                className="flex items-center gap-1 font-bold text-amber-300 hover:underline cursor-pointer"
               >
                 <RotateCw className="h-3 w-3" />
                 <span>Xem Mặt Trước</span>
@@ -299,8 +291,8 @@ export function CardFlashcardView({
         </div>
       </div>
 
-      {/* Thanh công cụ tương tác dưới thẻ bài - Tối ưu Touch Target & chống tràn */}
-      <div className="mt-4 flex flex-col gap-2.5 w-full max-w-[340px] sm:max-w-md mx-auto">
+      {/* Thanh công cụ mở camera AR bên dưới thẻ */}
+      <div className="mt-4 flex flex-col gap-2.5 w-full max-w-[340px] sm:max-w-[380px] mx-auto">
         {onOpenWebAr && (
           <button
             type="button"
@@ -311,35 +303,12 @@ export function CardFlashcardView({
             <span>Quét Thẻ AR Tương Tác</span>
           </button>
         )}
-
-        {/* <div className="flex items-center gap-2 w-full">
-          <button
-            type="button"
-            onClick={() => setIsFlipped(!isFlipped)}
-            className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-white px-3 py-2 text-xs font-extrabold text-stone-800 hover:bg-amber-50 active:scale-95 transition-all shadow-xs cursor-pointer truncate"
-          >
-            <RotateCw className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-            <span className="truncate">{isFlipped ? "Xem Mặt Trước" : "Lật Xem Mã QR"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsFullscreenCard(!isFullscreenCard)}
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-amber-200 bg-white text-stone-700 hover:bg-amber-50 active:scale-90 transition-all shadow-xs shrink-0 cursor-pointer"
-            title="Phóng to thẻ bài để quét từ máy khác"
-            aria-label="Phóng to thẻ bài"
-          >
-            <Maximize2 className="h-4 w-4 text-amber-700" />
-          </button>
-        </div> */}
       </div>
 
-      {/* Gợi ý cho phụ huynh / bé */}
       <p className="mt-3 text-[11px] text-stone-500 text-center max-w-sm leading-relaxed">
-        Chạm trực tiếp vào tấm thẻ để lật mặt trước/sau. Bạn có thể mở thẻ này trên máy tính để lấy điện thoại quét thử AR!
+        Chạm trực tiếp vào tấm thẻ để lật mặt trước (nhân vật) và mặt sau (mã QR quét thử AR).
       </p>
 
-      {/* Modal phóng to thẻ bài toàn màn hình để tiện quét từ điện thoại khác */}
       {isFullscreenCard && (
         <div
           onClick={() => setIsFullscreenCard(false)}
@@ -358,24 +327,16 @@ export function CardFlashcardView({
             </button>
 
             <span className="text-xs font-black uppercase text-amber-700 mb-2">
-              Thẻ Mẫu Thử AR: {animal.nameVi} ({animal.nameEn})
+              Nhân Vật AR: {animal.nameVi} ({animal.nameEn})
             </span>
 
             <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-stone-200">
-              <Image
-                src={frontImageSrc || "/images/cards/jump-template.jpg"}
+              <SubjectFocusImage
+                primaryUrl={animal.images?.[0]}
+                secondaryUrl={animal.posterUrl}
                 alt={animal.nameEn}
-                fill
-                priority
-                unoptimized
-                sizes="(max-width: 640px) 100vw, 420px"
-                className="object-cover"
               />
             </div>
-
-            <p className="mt-3 text-[11px] text-stone-600 text-center">
-              Dùng một điện thoại khác mở camera quét trực tiếp vào tấm thẻ này để trải nghiệm 3D AR!
-            </p>
           </div>
         </div>
       )}

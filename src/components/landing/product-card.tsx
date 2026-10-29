@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import Image from "next/image";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
 import { siteConfig } from "@/config/site";
 import { formatVndCurrency, buildTargetScanUrl } from "@/lib/formatters";
-import { resolveValidProductImage } from "@/lib/products-store";
 import { playCardLanguageAudio } from "@/lib/speech-audio";
-import { Badge } from "@/components/common/badge";
+import { SubjectFocusImage } from "@/components/common/subject-focus-image";
 import {
   Sparkles,
   ShoppingBag,
@@ -25,23 +23,6 @@ export function ProductCard({ animal }: ProductCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0, active: false });
   const [playingLang, setPlayingLang] = useState<"en" | "vi" | "zh" | null>(null);
-
-  const resolvedImg = resolveValidProductImage(
-    animal.images?.[0],
-    animal.posterUrl,
-    "/images/cards/jump-template.jpg"
-  );
-  const [imgSrc, setImgSrc] = useState<string>(resolvedImg);
-
-  useEffect(() => {
-    setImgSrc(
-      resolveValidProductImage(
-        animal.images?.[0],
-        animal.posterUrl,
-        "/images/cards/jump-template.jpg"
-      )
-    );
-  }, [animal.images, animal.posterUrl]);
 
   const targetScanUrl = buildTargetScanUrl(animal.slug);
   const buyUrl =
@@ -119,7 +100,7 @@ export function ProductCard({ animal }: ProductCardProps) {
         <div className="relative">
           <Link
             href={`/ar/${animal.slug}`}
-            className="group/img relative block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 border border-amber-200/80 shadow-inner cursor-pointer"
+            className="group/img relative block aspect-[4/3.6] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 border border-amber-200/80 shadow-inner cursor-pointer"
           >
             <div
               style={{
@@ -128,18 +109,11 @@ export function ProductCard({ animal }: ProductCardProps) {
               }}
               className="relative h-full w-full"
             >
-              <Image
-                src={imgSrc || "/images/cards/jump-template.jpg"}
+              <SubjectFocusImage
+                primaryUrl={animal.images?.[0]}
+                secondaryUrl={animal.posterUrl}
                 alt={`Mô hình đồ chơi 3D ${animal.nameVi} (${animal.nameEn})`}
-                fill
-                unoptimized
-                onError={() => {
-                  if (imgSrc !== "/images/cards/jump-template.jpg") {
-                    setImgSrc("/images/cards/jump-template.jpg");
-                  }
-                }}
-                className="object-cover rounded-xl transition-transform duration-500 group-hover/img:scale-108"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="rounded-xl transition-transform duration-500 group-hover/img:scale-108"
               />
             </div>
 
@@ -191,10 +165,12 @@ export function ProductCard({ animal }: ProductCardProps) {
               </div>
             </Link>
 
-            {animal.nameZh && (
+            {showZh && animal.nameZh && animal.nameZh.trim() !== "" && (
               <div className="text-right shrink-0">
                 <span className="text-sm font-bold text-slate-800">{animal.nameZh}</span>
-                <span className="block text-[10px] text-slate-500 font-medium">{animal.pinyinZh}</span>
+                {animal.pinyinZh && (
+                  <span className="block text-[10px] text-slate-500 font-medium">{animal.pinyinZh}</span>
+                )}
               </div>
             )}
           </div>
