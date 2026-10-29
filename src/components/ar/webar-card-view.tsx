@@ -95,6 +95,7 @@ export function WebArCardView({
   const [hasScannedOnce, setHasScannedOnce] = useState<boolean>(false);
   const [targetHitCount, setTargetHitCount] = useState<number>(0);
   const [playingClipName, setPlayingClipName] = useState<string | null>(null);
+  const [availableClips, setAvailableClips] = useState<string[]>([]);
   const [isFreeArMode, setIsFreeArMode] = useState<boolean>(false);
   const [isUsingFallbackModel, setIsUsingFallbackModel] = useState<boolean>(false);
 
@@ -438,17 +439,65 @@ export function WebArCardView({
                 mixerRef.current = mixer;
                 actionsRef.current = {};
 
+                const clipNames: string[] = [];
                 gltf.animations.forEach((clip: any) => {
                   actionsRef.current[clip.name] = mixer.clipAction(clip);
+                  clipNames.push(clip.name);
                 });
+                setAvailableClips(clipNames);
 
                 if (animal.slug !== "cat") {
+                  // 1. Thử khớp theo animal.animations nếu có
                   let matchedClip = gltf.animations.find((clip: any) =>
                     animal.animations?.some((a) => a.toLowerCase() === clip.name.toLowerCase())
                   );
+
+                  // 2. Tự động nhận diện animation thông minh theo Slug / Hành động của Thẻ
+                  const slugLower = (animal.slug || "").toLowerCase();
+                  const nameEnLower = (animal.nameEn || "").toLowerCase();
+                  const nameViLower = (animal.nameVi || "").toLowerCase();
+
+                  if (!matchedClip) {
+                    if (
+                      slugLower.includes("jump") ||
+                      nameEnLower.includes("jump") ||
+                      nameViLower.includes("nhảy")
+                    ) {
+                      matchedClip = gltf.animations.find((clip: any) => {
+                        const n = clip.name.toLowerCase();
+                        return (
+                          n.includes("jump") ||
+                          n.includes("spin") ||
+                          n.includes("nhay") ||
+                          n.startsWith("_01a")
+                        );
+                      });
+                    } else if (
+                      slugLower.includes("walk") ||
+                      nameEnLower.includes("walk") ||
+                      nameViLower.includes("đi bộ")
+                    ) {
+                      matchedClip = gltf.animations.find((clip: any) => {
+                        const n = clip.name.toLowerCase();
+                        return n.includes("walk") || n.includes("di") || n.includes("buoc");
+                      });
+                    } else if (
+                      slugLower.includes("run") ||
+                      nameEnLower.includes("run") ||
+                      nameViLower.includes("chạy")
+                    ) {
+                      matchedClip = gltf.animations.find((clip: any) => {
+                        const n = clip.name.toLowerCase();
+                        return n.includes("run") || n.includes("chay");
+                      });
+                    }
+                  }
+
+                  // 3. Fallback mặc định về clip đầu tiên
                   if (!matchedClip) {
                     matchedClip = gltf.animations[0];
                   }
+
                   if (matchedClip && actionsRef.current[matchedClip.name]) {
                     actionsRef.current[matchedClip.name].play();
                     setPlayingClipName(matchedClip.name);
@@ -855,6 +904,28 @@ export function WebArCardView({
     } catch (e) {
       console.error("[Capture Photo Error]:", e);
     }
+  };
+
+  const getClipFriendlyLabel = (name: string): string => {
+    const n = name.toLowerCase();
+    if (n.includes("highjump") || n.startsWith("_01a")) return "Nhảy Cao";
+    if (n.includes("spin") || n.includes("360")) return "Nhảy Xoay";
+    if (n.includes("jump") || n.includes("nhay")) return "Nhảy";
+    if (n.includes("run") || n.includes("chay")) return "Chạy";
+    if (n.includes("walk") || n.includes("di")) return "Đi bộ";
+    if (n.includes("roar") || n.includes("gam")) return "Gầm";
+    if (n.includes("idle") || n.includes("stand")) return "Đứng yên";
+    return name;
+  };
+
+  const handleSwitchClip = (clipName: string) => {
+    if (!actionsRef.current || !actionsRef.current[clipName]) return;
+    if (playingClipName && actionsRef.current[playingClipName] && playingClipName !== clipName) {
+      actionsRef.current[playingClipName].fadeOut(0.25);
+    }
+    const nextAction = actionsRef.current[clipName];
+    nextAction.reset().fadeIn(0.25).play();
+    setPlayingClipName(clipName);
   };
 
   return (
@@ -1314,7 +1385,32 @@ export function WebArCardView({
             </div>
           )}
 
-          {/* Hàng Tiếng Kêu & Chụp Ảnh (Loại bỏ nút Động Tác thừa thãi) */}
+          {/* Hàng chọn Động Tác Nhân Vật 3D khi mô hình có nhiều Animation */}
+          {availableClips.length > 1 && (
+            <div className="flex items-center gap-1.5 w-full overflow-x-auto py-1 scrollbar-none justify-center">
+              <span className="text-[10px] font-bold text-stone-400 shrink-0">Động tác:</span>
+              {availableClips.map((clip) => {
+                const isSelected = playingClipName === clip;
+                const label = getClipFriendlyLabel(clip);
+                return (
+                  <button
+                    key={clip}
+                    type="button"
+                    onClick={() => handleSwitchClip(clip)}
+                    className={`px-2.5 py-1 rounded-xl text-[10px] font-black border transition-all active:scale-95 shrink-0 cursor-pointer ${
+                      isSelected
+                        ? "bg-amber-400 text-stone-950 border-amber-300 shadow-md shadow-amber-400/30 scale-102"
+                        : "bg-black/60 text-stone-300 border-white/15 hover:bg-white/10"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Hàng Tiếng Kêu & Chụp Ảnh */}
           <div className="flex items-center justify-between gap-2 w-full">
             <button
               type="button"

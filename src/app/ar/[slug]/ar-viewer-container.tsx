@@ -66,6 +66,24 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
     animal.animations && animal.animations.length > 0 ? animal.animations[0] : ""
   );
 
+  useEffect(() => {
+    if (animal.animations && animal.animations.length > 0) {
+      const slugLower = (animal.slug || "").toLowerCase();
+      let bestAnim = animal.animations[0];
+      if (slugLower.includes("jump")) {
+        const found = animal.animations.find((a) => a.toLowerCase().includes("jump"));
+        if (found) bestAnim = found;
+      } else if (slugLower.includes("walk")) {
+        const found = animal.animations.find((a) => a.toLowerCase().includes("walk"));
+        if (found) bestAnim = found;
+      } else if (slugLower.includes("run")) {
+        const found = animal.animations.find((a) => a.toLowerCase().includes("run"));
+        if (found) bestAnim = found;
+      }
+      setSelectedAnimation(bestAnim);
+    }
+  }, [animal.animations, animal.slug]);
+
   const [isWebArOpen, setIsWebArOpen] = useState<boolean>(false);
   const [isTrial, setIsTrial] = useState<boolean>(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
