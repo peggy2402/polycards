@@ -155,7 +155,15 @@ export async function POST(req: NextRequest) {
       subFolder = "images/cards";
     }
 
-    let finalFileName = originalFileNameParam;
+    const rawBaseName =
+      dotIndex > 0 ? originalFileNameParam.slice(0, dotIndex) : originalFileNameParam;
+    const cleanBaseName =
+      rawBaseName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "_") || "asset";
+
+    let finalFileName = `${cleanBaseName}${ext}`;
     if (customName && customName.trim()) {
       const cleanCustom = customName
         .trim()

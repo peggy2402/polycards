@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { Animal } from "@/types/animal";
-import { Volume2, VolumeX, Sparkles } from "lucide-react";
+import { Volume2, VolumeX } from "lucide-react";
+import { playCardLanguageAudio, stopAllCardAudio } from "@/lib/speech-audio";
 
 interface ArAudioPlayerProps {
   animal: Animal;
@@ -10,53 +11,23 @@ interface ArAudioPlayerProps {
 
 export function ArAudioPlayer({ animal }: ArAudioPlayerProps) {
   const [playingLang, setPlayingLang] = useState<"en" | "vi" | "zh" | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+
+  const showEn = animal.enableEnVi !== false;
+  const showZh =
+    animal.enableZhVi !== undefined
+      ? animal.enableZhVi
+      : Boolean(animal.nameZh && animal.nameZh.trim());
 
   const playAudio = (lang: "en" | "vi" | "zh") => {
-    // Stop currently playing audio if any
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    }
-
-    try {
-      let audioPath = animal.audioUrl;
-      if (animal.audios) {
-        if (lang === "en" && animal.audios.en) audioPath = animal.audios.en;
-        if (lang === "vi" && animal.audios.vi) audioPath = animal.audios.vi;
-        if (lang === "zh" && animal.audios.zh) audioPath = animal.audios.zh;
-      }
-
-      const audio = new Audio(audioPath);
-      setCurrentAudio(audio);
-      setPlayingLang(lang);
-
-      audio.onended = () => {
-        setPlayingLang(null);
-        setCurrentAudio(null);
-      };
-      audio.onerror = () => {
-        setPlayingLang(null);
-        setCurrentAudio(null);
-      };
-
-      audio.play().catch(() => {
-        setPlayingLang(null);
-        setCurrentAudio(null);
-      });
-    } catch {
+    setPlayingLang(lang);
+    playCardLanguageAudio(animal, lang, () => {
       setPlayingLang(null);
-      setCurrentAudio(null);
-    }
+    });
   };
 
   const stopAudio = () => {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    }
+    stopAllCardAudio();
     setPlayingLang(null);
-    setCurrentAudio(null);
   };
 
   return (
@@ -89,27 +60,33 @@ export function ArAudioPlayer({ animal }: ArAudioPlayerProps) {
         )}
       </div>
 
-      {/* 3 Language Audio Buttons */}
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Language Audio Buttons based on active Bilingual toggles */}
+      <div
+        className={`mt-4 grid grid-cols-1 gap-3 ${
+          showEn && showZh ? "sm:grid-cols-3" : "sm:grid-cols-2"
+        }`}
+      >
         {/* EN Button */}
-        <button
-          type="button"
-          onClick={() => playAudio("en")}
-          className={`flex min-h-[56px] items-center justify-between rounded-2xl border-2 p-3 text-left transition-all active:scale-95 ${
-            playingLang === "en"
-              ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/30"
-              : "border-amber-200 bg-amber-50/70 text-amber-950 hover:bg-amber-100"
-          }`}
-        >
-          <div>
-            <span className="block text-xs font-extrabold tracking-wider uppercase opacity-80">
-              Tiếng Anh (EN)
-            </span>
-            <span className="text-base font-black">{animal.nameEn}</span>
-            <span className="block text-[11px] font-mono opacity-80">{animal.ipa}</span>
-          </div>
-          <Volume2 className={`h-5 w-5 shrink-0 ${playingLang === "en" ? "animate-pulse" : "text-amber-600"}`} />
-        </button>
+        {showEn && (
+          <button
+            type="button"
+            onClick={() => playAudio("en")}
+            className={`flex min-h-[56px] items-center justify-between rounded-2xl border-2 p-3 text-left transition-all active:scale-95 ${
+              playingLang === "en"
+                ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/30"
+                : "border-amber-200 bg-amber-50/70 text-amber-950 hover:bg-amber-100"
+            }`}
+          >
+            <div>
+              <span className="block text-xs font-extrabold tracking-wider uppercase opacity-80">
+                Tiếng Anh (EN)
+              </span>
+              <span className="text-base font-black">{animal.nameEn}</span>
+              <span className="block text-[11px] font-mono opacity-80">{animal.ipa}</span>
+            </div>
+            <Volume2 className={`h-5 w-5 shrink-0 ${playingLang === "en" ? "animate-pulse" : "text-amber-600"}`} />
+          </button>
+        )}
 
         {/* VI Button */}
         <button
@@ -132,7 +109,7 @@ export function ArAudioPlayer({ animal }: ArAudioPlayerProps) {
         </button>
 
         {/* ZH Button */}
-        {animal.nameZh ? (
+        {showZh && animal.nameZh ? (
           <button
             type="button"
             onClick={() => playAudio("zh")}
@@ -151,11 +128,7 @@ export function ArAudioPlayer({ animal }: ArAudioPlayerProps) {
             </div>
             <Volume2 className={`h-5 w-5 shrink-0 ${playingLang === "zh" ? "animate-pulse" : "text-red-600"}`} />
           </button>
-        ) : (
-          <div className="flex min-h-[56px] items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-3 text-center text-xs text-stone-400">
-            <span>Sắp cập nhật</span>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* Visual Audio Waveform when playing */}

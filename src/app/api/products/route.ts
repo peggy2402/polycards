@@ -127,6 +127,18 @@ export async function POST(request: NextRequest) {
       ipa: body.ipa ? String(body.ipa).trim() : existingItem?.ipa || `/${cleanSlug}/`,
       pinyinZh:
         body.pinyinZh !== undefined ? String(body.pinyinZh).trim() : existingItem?.pinyinZh || "",
+      enableEnVi:
+        typeof body.enableEnVi === "boolean"
+          ? body.enableEnVi
+          : existingItem?.enableEnVi !== undefined
+            ? existingItem.enableEnVi
+            : true,
+      enableZhVi:
+        typeof body.enableZhVi === "boolean"
+          ? body.enableZhVi
+          : existingItem?.enableZhVi !== undefined
+            ? existingItem.enableZhVi
+            : false,
       categoryId: computedCategoryId,
       category: rawCategory,
       categorySlug: computedCategorySlug,
@@ -141,10 +153,19 @@ export async function POST(request: NextRequest) {
       images: defaultImages,
       posterUrl: finalImageUrl,
       audioUrl: body.audioUrl || existingItem?.audioUrl || `/audio/${cleanSlug}.mp3`,
-      audios: existingItem?.audios || {
-        en: `/audio/en/${cleanSlug}.mp3`,
-        vi: `/audio/vi/${cleanSlug}.mp3`,
-        zh: `/audio/zh/${cleanSlug}.mp3`,
+      audios: {
+        en:
+          body.audios?.en !== undefined && String(body.audios.en).trim() !== ""
+            ? String(body.audios.en).trim()
+            : existingItem?.audios?.en || "",
+        vi:
+          body.audios?.vi !== undefined && String(body.audios.vi).trim() !== ""
+            ? String(body.audios.vi).trim()
+            : existingItem?.audios?.vi || "",
+        zh:
+          body.audios?.zh !== undefined && String(body.audios.zh).trim() !== ""
+            ? String(body.audios.zh).trim()
+            : existingItem?.audios?.zh || "",
       },
       modelUrl: body.modelUrl || existingItem?.modelUrl || defaultModelGlb,
       iosModelUrl: body.iosModelUrl || existingItem?.iosModelUrl || defaultModelUsdz,

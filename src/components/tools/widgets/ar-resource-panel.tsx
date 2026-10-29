@@ -8,6 +8,7 @@ import {
   Volume2,
   CheckCircle2,
   ExternalLink,
+  Play,
 } from "lucide-react";
 import { PRESET_3D_MODELS } from "../constants";
 
@@ -17,10 +18,18 @@ interface ArResourcePanelProps {
   iosModelUrl: string;
   targetUrl: string;
   audioUrl: string;
+  audioEnUrl?: string;
+  audioViUrl?: string;
+  audioZhUrl?: string;
+  enableEnVi?: boolean;
+  enableZhVi?: boolean;
   onChangeModelUrl: (url: string) => void;
   onChangeIosModelUrl: (url: string) => void;
   onChangeTargetUrl: (url: string) => void;
   onChangeAudioUrl: (url: string) => void;
+  onChangeAudioEnUrl?: (url: string) => void;
+  onChangeAudioViUrl?: (url: string) => void;
+  onChangeAudioZhUrl?: (url: string) => void;
   onSelectPreset?: (preset: typeof PRESET_3D_MODELS[0]) => void;
   onShowToast: (msg: string, type: "success" | "error" | "info" | "warning") => void;
 }
@@ -31,30 +40,59 @@ export function ArResourcePanel({
   iosModelUrl,
   targetUrl,
   audioUrl,
+  audioEnUrl = "",
+  audioViUrl = "",
+  audioZhUrl = "",
+  enableEnVi = true,
+  enableZhVi = false,
   onChangeModelUrl,
   onChangeIosModelUrl,
   onChangeTargetUrl,
   onChangeAudioUrl,
+  onChangeAudioEnUrl,
+  onChangeAudioViUrl,
+  onChangeAudioZhUrl,
   onSelectPreset,
   onShowToast,
 }: ArResourcePanelProps) {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
-  // Helper upload tệp qua API /api/tools/upload (Hỗ trợ Chunked Upload 2MB/mảnh để vượt giới hạn 4.5MB của Vercel)
+  // Phát thử file âm thanh ngay trong form
+  const handlePreviewAudioUrl = (url: string, label: string) => {
+    if (!url || !url.trim()) {
+      onShowToast(`Chưa có đường dẫn tệp âm thanh ${label} để nghe thử.`, "warning");
+      return;
+    }
+    try {
+      const audio = new Audio(url);
+      audio.onerror = () => {
+        onShowToast(`Không thể phát tệp "${url}". Hãy tải tệp .mp3 hợp lệ lên hệ thống.`, "warning");
+      };
+      audio.play().catch(() => {
+        onShowToast(`Không thể phát tệp "${url}".`, "warning");
+      });
+    } catch {
+      onShowToast(`Lỗi phát tệp âm thanh ${label}.`, "error");
+    }
+  };
+
+  // Helper upload tệp qua API /api/tools/upload (Giữ nguyên tên file gốc như b_run.glb, b_run.usdz)
   const handleUploadFile = async (
     file: File,
-    type: "model" | "target" | "audio"
+    type: "model" | "target" | "audio",
+    audioTarget?: "en" | "vi" | "zh" | "sfx"
   ) => {
     try {
       setIsUploading(true);
       setUploadProgress(5);
 
-      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB / mảnh (an toàn tuyệt đối dưới ngưỡng 4.5MB của Vercel)
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB / mảnh
       const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
       const uploadId = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
       let finalUrl = "";
+      let savedFileName = file.name;
 
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
         const start = chunkIndex * CHUNK_SIZE;
@@ -65,7 +103,7 @@ export function ArResourcePanel({
         fd.append("file", chunkBlob, file.name);
         fd.append("originalFileName", file.name);
         fd.append("type", type);
-        fd.append("name", slug || "asset");
+        // Không ghi đè name bằng slug để bảo toàn chính xác tên tệp tải lên (ví dụ: b_run.glb, b_run.usdz)
         fd.append("uploadId", uploadId);
         fd.append("chunkIndex", String(chunkIndex));
         fd.append("totalChunks", String(totalChunks));
@@ -95,6 +133,9 @@ export function ArResourcePanel({
         if (data.url) {
           finalUrl = data.url;
         }
+        if (data.fileName) {
+          savedFileName = data.fileName;
+        }
       }
 
       const isUsdz = file.name.toLowerCase().endsWith(".usdz");
@@ -108,11 +149,24 @@ export function ArResourcePanel({
       } else if (type === "target") {
         onChangeTargetUrl(finalUrl);
       } else if (type === "audio") {
-        onChangeAudioUrl(finalUrl);
+        if (audioTarget === "en" && onChangeAudioEnUrl) {
+          onChangeAudioEnUrl(finalUrl);
+        } else if (audioTarget === "vi" && onChangeAudioViUrl) {
+          onChangeAudioViUrl(finalUrl);
+        } else if (audioTarget === "zh" && onChangeAudioZhUrl) {
+          onChangeAudioZhUrl(finalUrl);
+        } else {
+          onChangeAudioUrl(finalUrl);
+        }
       }
 
+      const sizeStr =
+        file.size >= 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+
       onShowToast(
-        `Đã tải lên tệp "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB) lên MongoDB GridFS thành công!`,
+        `Đã tải lên tệp "${savedFileName}" (${sizeStr}) thành công!`,
         "success"
       );
     } catch (err: unknown) {
@@ -301,7 +355,7 @@ export function ArResourcePanel({
         </div>
       </div>
 
-      {/* 3. Tệp Target MindAR (.mind) & Âm Thanh (.mp3) */}
+      {/* 3. Tệp Target MindAR (.mind) & Hiệu Ứng Tiếng Động (.mp3) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {/* Target .mind */}
         <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
@@ -346,38 +400,198 @@ export function ArResourcePanel({
           </div>
         </div>
 
-        {/* Âm thanh .mp3 */}
+        {/* Hiệu ứng tiếng kêu / tiếng động riêng (.mp3) */}
         <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-1">
             <span className="text-[10px] font-bold text-stone-300 flex items-center gap-1">
               <Volume2 className="h-3 w-3 text-amber-400 shrink-0" />
-              <span>Âm Thanh (.mp3):</span>
+              <span>Tiếng Động / Tiếng Kêu (.mp3):</span>
             </span>
-            <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
-              <Upload className="h-2.5 w-2.5 shrink-0" />
-              <span>Tải .mp3</span>
-              <input
-                type="file"
-                accept=".mp3,.wav,.ogg"
-                disabled={isUploading}
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUploadFile(file, "audio");
-                }}
-              />
-            </label>
+            <div className="flex items-center gap-1 shrink-0">
+              {audioUrl && (
+                <button
+                  type="button"
+                  onClick={() => handlePreviewAudioUrl(audioUrl, "Tiếng động")}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[9px] border border-emerald-400/30 cursor-pointer"
+                  title="Nghe thử tệp tiếng động"
+                >
+                  <Play className="h-2.5 w-2.5" />
+                  <span>Nghe</span>
+                </button>
+              )}
+              <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
+                <Upload className="h-2.5 w-2.5 shrink-0" />
+                <span>Tải .mp3</span>
+                <input
+                  type="file"
+                  accept=".mp3,.wav,.ogg"
+                  disabled={isUploading}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadFile(file, "audio", "sfx");
+                  }}
+                />
+              </label>
+            </div>
           </div>
           <input
             type="text"
             value={audioUrl}
             onChange={(e) => onChangeAudioUrl(e.target.value)}
-            placeholder="Mặc định dùng AI Web Speech EN/VI/ZH"
+            placeholder="Tùy chọn: File tiếng kêu / hiệu ứng riêng (.mp3)"
             className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
           />
           <p className="text-[9px] text-stone-400">
-            Web Speech AI tự động phát âm chuẩn bản xứ EN/VI/ZH nếu không tải file riêng.
+            Âm thanh phát ra khi bé chạm vào mô hình 3D hoặc bấm nút &quot;Phát Tiếng Kêu&quot;.
           </p>
+        </div>
+      </div>
+
+      {/* 4. TẢI LÊN TỆP ÂM THANH PHÁT ÂM RIÊNG THEO TỪNG NGÔN NGỮ (EN / VI / ZH) */}
+      <div className="p-2.5 sm:p-3 rounded-xl bg-stone-950/80 border border-amber-400/30 space-y-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+          <div className="flex items-center gap-1.5">
+            <Volume2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="text-[11px] font-black text-amber-300">
+              Tệp Âm Thanh Đọc Từ Vựng Theo Ngôn Ngữ (.mp3 / .wav)
+            </span>
+          </div>
+          <span className="text-[9px] text-stone-400">
+            Tự động đồng bộ theo Toggle Song Ngữ
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 text-[10px]">
+          {/* A. Âm thanh Tiếng Việt (VI) - Luôn hiển thị vì cả EN-VI và ZH-VI đều cần Tiếng Việt */}
+          <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/30 space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-emerald-300">
+                1. Âm Thanh Tiếng Việt (VI - .mp3):
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {audioViUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handlePreviewAudioUrl(audioViUrl, "Tiếng Việt")}
+                    className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 font-bold text-[9px] border border-emerald-400/40 cursor-pointer"
+                  >
+                    <Play className="h-2.5 w-2.5" />
+                    <span>Nghe thử VI</span>
+                  </button>
+                )}
+                <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500 text-stone-950 font-black text-[9px] hover:bg-emerald-400 transition-colors">
+                  <Upload className="h-2.5 w-2.5" />
+                  <span>Tải .mp3 Tiếng Việt</span>
+                  <input
+                    type="file"
+                    accept=".mp3,.wav,.ogg"
+                    disabled={isUploading}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadFile(file, "audio", "vi");
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={audioViUrl}
+              onChange={(e) => onChangeAudioViUrl?.(e.target.value)}
+              placeholder="Chưa tải file riêng (Dùng giọng đọc AI Tiếng Việt chuẩn nếu để trống)"
+              className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-emerald-200 focus:outline-hidden focus:border-emerald-400"
+            />
+          </div>
+
+          {/* B. Âm thanh Tiếng Anh (EN) - Hiển thị khi bật Song Ngữ Anh - Việt */}
+          {enableEnVi && (
+            <div className="p-2 rounded-lg bg-amber-950/30 border border-amber-500/30 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-amber-300">
+                  2. Âm Thanh Tiếng Anh (EN - .mp3):
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {audioEnUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewAudioUrl(audioEnUrl, "Tiếng Anh")}
+                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[9px] border border-amber-400/40 cursor-pointer"
+                    >
+                      <Play className="h-2.5 w-2.5" />
+                      <span>Nghe thử EN</span>
+                    </button>
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400 text-stone-950 font-black text-[9px] hover:bg-amber-300 transition-colors">
+                    <Upload className="h-2.5 w-2.5" />
+                    <span>Tải .mp3 Tiếng Anh</span>
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,.ogg"
+                      disabled={isUploading}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadFile(file, "audio", "en");
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={audioEnUrl}
+                onChange={(e) => onChangeAudioEnUrl?.(e.target.value)}
+                placeholder="Chưa tải file riêng (Dùng giọng đọc AI Tiếng Anh chuẩn nếu để trống)"
+                className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-200 focus:outline-hidden focus:border-amber-400"
+              />
+            </div>
+          )}
+
+          {/* C. Âm thanh Tiếng Trung (ZH) - Hiển thị khi bật Song Ngữ Trung - Việt */}
+          {enableZhVi && (
+            <div className="p-2 rounded-lg bg-rose-950/30 border border-rose-500/30 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-rose-300">
+                  3. Âm Thanh Tiếng Trung (ZH - .mp3):
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {audioZhUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewAudioUrl(audioZhUrl, "Tiếng Trung")}
+                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold text-[9px] border border-rose-400/40 cursor-pointer"
+                    >
+                      <Play className="h-2.5 w-2.5" />
+                      <span>Nghe thử ZH</span>
+                    </button>
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500 text-white font-black text-[9px] hover:bg-rose-400 transition-colors">
+                    <Upload className="h-2.5 w-2.5" />
+                    <span>Tải .mp3 Tiếng Trung</span>
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,.ogg"
+                      disabled={isUploading}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadFile(file, "audio", "zh");
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={audioZhUrl}
+                onChange={(e) => onChangeAudioZhUrl?.(e.target.value)}
+                placeholder="Chưa tải file riêng (Dùng giọng đọc AI Tiếng Trung chuẩn nếu để trống)"
+                className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-rose-200 focus:outline-hidden focus:border-rose-400"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

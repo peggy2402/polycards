@@ -2,7 +2,10 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Animal } from "@/types/animal";
-import { speakWord, playAnimalSoundEffect } from "@/lib/speech-audio";
+import {
+  playCardLanguageAudio,
+  playAnimalSoundEffect,
+} from "@/lib/speech-audio";
 import {
   Camera,
   X,
@@ -108,16 +111,45 @@ export function WebArCardView({
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
   // Phân hệ 2 Luồng Song Ngữ: EN-VI (Anh - Việt) hoặc ZH-VI (Trung - Việt)
-  const [languageTrack, setLanguageTrack] = useState<"en-vi" | "zh-vi">("en-vi");
+  const isEnViEnabled = animal.enableEnVi !== false;
+  const isZhViEnabled =
+    animal.enableZhVi !== undefined
+      ? animal.enableZhVi
+      : Boolean(animal.nameZh && animal.nameZh.trim());
+
+  const [urlLockedTrack, setUrlLockedTrack] = useState<"en-vi" | "zh-vi" | null>(null);
+  const [languageTrack, setLanguageTrack] = useState<"en-vi" | "zh-vi">(
+    !isEnViEnabled && isZhViEnabled ? "zh-vi" : "en-vi"
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const queryLang = params.get("lang");
+      if (queryLang === "en-vi" || queryLang === "zh-vi") {
+        setUrlLockedTrack(queryLang);
+        setLanguageTrack(queryLang);
+        return;
+      }
+
+      if (isEnViEnabled && !isZhViEnabled) {
+        setLanguageTrack("en-vi");
+        return;
+      }
+      if (!isEnViEnabled && isZhViEnabled) {
+        setLanguageTrack("zh-vi");
+        return;
+      }
+
       const saved = localStorage.getItem("polycards_lang_track");
       if (saved === "zh-vi" || saved === "en-vi") {
         setLanguageTrack(saved);
       }
     }
-  }, []);
+  }, [isEnViEnabled, isZhViEnabled]);
+
+  const showBothTracksSwitcher =
+    !urlLockedTrack && isEnViEnabled && isZhViEnabled;
 
   // Bộ đếm thời gian dùng thử (30s trial)
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 30 : 0);
@@ -203,7 +235,7 @@ export function WebArCardView({
 
   // Xử lý chạm tương tác trực tiếp lên con vật
   const triggerTapInteraction = useCallback(() => {
-    playAnimalSoundEffect(animal.slug);
+    playAnimalSoundEffect(animal.slug, undefined, animal.audioUrl);
     triggerModelReaction();
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
@@ -217,7 +249,7 @@ export function WebArCardView({
     tapFeedbackTimeoutRef.current = setTimeout(() => {
       setTapFeedback(null);
     }, 1800);
-  }, [animal.slug, animal.nameVi, triggerModelReaction]);
+  }, [animal.slug, animal.audioUrl, animal.nameVi, triggerModelReaction]);
 
   // Dynamic script loader utility
   const loadScript = useCallback((src: string): Promise<void> => {
@@ -724,27 +756,27 @@ export function WebArCardView({
     handleZoom(delta);
   };
 
-  // Xử lý phát âm đa ngữ khi chạm vào 3 nút bấm
+  // Xử lý phát âm đa ngữ khi chạm vào các nút bấm (Ưu tiên file MP3 tải lên cho ngôn ngữ đó, fallback Web Speech AI)
   const handleSpeak = (lang: "en" | "vi" | "zh") => {
     setActiveLang(lang);
     triggerModelReaction();
 
-    let textToSpeak = animal.nameEn;
-    if (lang === "vi") textToSpeak = animal.nameVi;
-    if (lang === "zh") textToSpeak = animal.nameZh || animal.nameEn;
-
-    speakWord(textToSpeak, lang, () => {
+    playCardLanguageAudio(animal, lang, () => {
       setActiveLang(null);
     });
   };
 
-  // Xử lý phát tiếng kêu con vật
+  // Xử lý phát tiếng kêu con vật / hành động
   const handleAnimalSound = () => {
     setIsPlayingSound(true);
     triggerModelReaction();
-    playAnimalSoundEffect(animal.slug, () => {
-      setIsPlayingSound(false);
-    });
+    playAnimalSoundEffect(
+      animal.slug,
+      () => {
+        setIsPlayingSound(false);
+      },
+      animal.audioUrl
+    );
   };
 
   // Chụp ảnh kỷ niệm AR
@@ -1094,43 +1126,45 @@ export function WebArCardView({
       {/* 11. Floating Control Island (Trong suốt, chuẩn công thái học) */}
       <div className="absolute bottom-0 inset-x-0 z-30 flex flex-col items-center px-3.5 pb-5 pt-2 pointer-events-none">
         <div className="pointer-events-auto w-full max-w-md rounded-3xl bg-stone-950/70 border border-white/20 p-3 backdrop-blur-md shadow-2xl flex flex-col items-center gap-2.5">
-          {/* Nút Chuyển Đổi Gói Học Song Ngữ Chuyên Biệt (Anh - Việt vs Trung - Việt) */}
-          <div className="flex items-center p-1 rounded-full bg-black/60 border border-white/20 backdrop-blur-md">
-            <button
-              type="button"
-              onClick={() => {
-                setLanguageTrack("en-vi");
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("polycards_lang_track", "en-vi");
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                languageTrack === "en-vi"
-                  ? "bg-amber-400 text-stone-950 font-black shadow-md"
-                  : "text-stone-300 hover:text-white"
-              }`}
-            >
-              <Languages className="h-3 w-3" />
-              <span>Song Ngữ Anh - Việt</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setLanguageTrack("zh-vi");
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("polycards_lang_track", "zh-vi");
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                languageTrack === "zh-vi"
-                  ? "bg-rose-500 text-white font-black shadow-md"
-                  : "text-stone-300 hover:text-white"
-              }`}
-            >
-              <Languages className="h-3 w-3" />
-              <span>Song Ngữ Trung - Việt</span>
-            </button>
-          </div>
+          {/* Nút Chuyển Đổi Gói Học Song Ngữ Chuyên Biệt (Chỉ hiển thị khi cả 2 chế độ Anh-Việt và Trung-Việt cùng bật) */}
+          {showBothTracksSwitcher && (
+            <div className="flex items-center p-1 rounded-full bg-black/60 border border-white/20 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => {
+                  setLanguageTrack("en-vi");
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("polycards_lang_track", "en-vi");
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                  languageTrack === "en-vi"
+                    ? "bg-amber-400 text-stone-950 font-black shadow-md"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                <Languages className="h-3 w-3" />
+                <span>Song Ngữ Anh - Việt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLanguageTrack("zh-vi");
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("polycards_lang_track", "zh-vi");
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                  languageTrack === "zh-vi"
+                    ? "bg-rose-500 text-white font-black shadow-md"
+                    : "text-stone-300 hover:text-white"
+                }`}
+              >
+                <Languages className="h-3 w-3" />
+                <span>Song Ngữ Trung - Việt</span>
+              </button>
+            </div>
+          )}
 
           {/* Hàng 2 Nút Phát Âm To Rõ Công Thái Học Chuẩn Bé Học (EN-VI hoặc ZH-VI) */}
           {languageTrack === "en-vi" ? (

@@ -1,11 +1,103 @@
 /**
  * Poly Cards Audio & Speech Synthesis Engine
  * Tương tác phát âm đa ngữ (EN, VI, ZH) và hiệu ứng âm thanh con vật cho trẻ em.
- * Chuẩn W3C Web Speech API & Web Audio API - Tương thích 100% iOS Safari & Android Chrome.
+ * Ưu tiên phát file âm thanh riêng (.mp3 / .wav) do tác giả tải lên, tự động fallback sang Web Speech API.
  */
+
+import { Animal } from "@/types/animal";
 
 // Đảm bảo không lỗi trên SSR (Server-Side Rendering)
 const isBrowser = typeof window !== "undefined";
+
+let activeAudioElement: HTMLAudioElement | null = null;
+
+/**
+ * Dừng mọi luồng âm thanh hoặc giọng đọc đang phát
+ */
+export function stopAllCardAudio(): void {
+  if (!isBrowser) return;
+  try {
+    if (activeAudioElement) {
+      activeAudioElement.pause();
+      activeAudioElement.currentTime = 0;
+      activeAudioElement = null;
+    }
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  } catch {}
+}
+
+/**
+ * Kiểm tra đường dẫn âm thanh có phải là tệp tùy chỉnh đã tải lên hay không
+ */
+export function isCustomUploadedAudioUrl(url?: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  const clean = url.trim();
+  if (!clean) return false;
+  // Các đường dẫn mặc định dạng /audio/en/lion.mp3 hoặc /audio/lion.mp3 chưa có file vật lý sẽ ưu tiên Web Speech AI hoặc Web Audio Synth
+  if (/^\/audio\/(en\/|vi\/|zh\/)?[a-z0-9-_]+\.mp3$/i.test(clean)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Phát âm từ vựng theo ngôn ngữ (EN / VI / ZH):
+ * 1. Nếu thẻ có tải lên tệp âm thanh riêng cho ngôn ngữ đó (animal.audios[lang]), phát file MP3/WAV đó trước.
+ * 2. Nếu chưa tải file riêng (hoặc file lỗi), tự động phát âm chuẩn bản xứ bằng Web Speech AI.
+ */
+export function playCardLanguageAudio(
+  animal: Pick<Animal, "nameEn" | "nameVi" | "nameZh" | "audios" | "audioUrl">,
+  lang: "en" | "vi" | "zh",
+  onEnd?: () => void
+): void {
+  if (!isBrowser) {
+    if (onEnd) onEnd();
+    return;
+  }
+
+  stopAllCardAudio();
+
+  let textToSpeak = animal.nameEn || animal.nameVi;
+  if (lang === "vi") textToSpeak = animal.nameVi || animal.nameEn;
+  if (lang === "zh") textToSpeak = animal.nameZh || animal.nameVi || animal.nameEn;
+
+  const customLangUrl = animal.audios?.[lang]?.trim();
+
+  if (customLangUrl && isCustomUploadedAudioUrl(customLangUrl)) {
+    try {
+      const audio = new Audio(customLangUrl);
+      activeAudioElement = audio;
+
+      let fallbackTriggered = false;
+      const triggerFallback = () => {
+        if (fallbackTriggered) return;
+        fallbackTriggered = true;
+        activeAudioElement = null;
+        speakWord(textToSpeak, lang, onEnd);
+      };
+
+      audio.onended = () => {
+        activeAudioElement = null;
+        if (onEnd) onEnd();
+      };
+
+      audio.onerror = () => {
+        triggerFallback();
+      };
+
+      audio.play().catch(() => {
+        triggerFallback();
+      });
+      return;
+    } catch {
+      // Fallback sang Web Speech API bên dưới
+    }
+  }
+
+  speakWord(textToSpeak, lang, onEnd);
+}
 
 /**
  * Phát âm từ vựng chuẩn ngữ âm thông qua Web Speech API
@@ -51,10 +143,41 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
 }
 
 /**
- * Tạo âm thanh mô phỏng tiếng kêu con vật sống động bằng Web Audio API
- * Đảm bảo 100% không bao giờ gặp lỗi 404 Missing MP3 trên môi trường di động.
+ * Tạo âm thanh mô phỏng tiếng kêu con vật / hành động sống động:
+ * Ưu tiên phát file hiệu ứng customAudioUrl nếu đã tải lên, nếu không dùng Web Audio API Synth.
  */
-export function playAnimalSoundEffect(slug: string, onEnd?: () => void): void {
+export function playAnimalSoundEffect(
+  slug: string,
+  onEnd?: () => void,
+  customAudioUrl?: string
+): void {
+  if (!isBrowser) return;
+
+  if (customAudioUrl && isCustomUploadedAudioUrl(customAudioUrl)) {
+    try {
+      stopAllCardAudio();
+      const audio = new Audio(customAudioUrl.trim());
+      activeAudioElement = audio;
+      audio.onended = () => {
+        activeAudioElement = null;
+        if (onEnd) onEnd();
+      };
+      audio.onerror = () => {
+        activeAudioElement = null;
+        playSynthSoundEffect(slug, onEnd);
+      };
+      audio.play().catch(() => {
+        activeAudioElement = null;
+        playSynthSoundEffect(slug, onEnd);
+      });
+      return;
+    } catch {}
+  }
+
+  playSynthSoundEffect(slug, onEnd);
+}
+
+function playSynthSoundEffect(slug: string, onEnd?: () => void): void {
   if (!isBrowser) return;
 
   // Nếu trình duyệt hỗ trợ AudioContext

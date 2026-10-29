@@ -41,6 +41,8 @@ export interface ProductFormData {
   nameZh: string;
   ipa: string;
   pinyinZh: string;
+  enableEnVi: boolean;
+  enableZhVi: boolean;
   category: string;
   price: number;
   originalPrice: number;
@@ -52,6 +54,9 @@ export interface ProductFormData {
   iosModelUrl: string;
   targetUrl: string;
   audioUrl: string;
+  audioEnUrl: string;
+  audioViUrl: string;
+  audioZhUrl: string;
 }
 
 export interface EditProductFormData {
@@ -60,6 +65,8 @@ export interface EditProductFormData {
   nameZh: string;
   ipa: string;
   pinyinZh: string;
+  enableEnVi: boolean;
+  enableZhVi: boolean;
   category: string;
   price: number;
   originalPrice: number;
@@ -70,6 +77,9 @@ export interface EditProductFormData {
   iosModelUrl: string;
   targetUrl: string;
   audioUrl: string;
+  audioEnUrl: string;
+  audioViUrl: string;
+  audioZhUrl: string;
 }
 
 export interface QrPosition {

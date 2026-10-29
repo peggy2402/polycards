@@ -7,6 +7,7 @@ import { Animal } from "@/types/animal";
 import { siteConfig } from "@/config/site";
 import { formatVndCurrency, buildTargetScanUrl } from "@/lib/formatters";
 import { resolveValidProductImage } from "@/lib/products-store";
+import { playCardLanguageAudio } from "@/lib/speech-audio";
 import { Badge } from "@/components/common/badge";
 import {
   Sparkles,
@@ -67,24 +68,18 @@ export function ProductCard({ animal }: ProductCardProps) {
     setTilt({ x: 0, y: 0, active: false });
   };
 
+  const showEn = animal.enableEnVi !== false;
+  const showZh =
+    animal.enableZhVi !== undefined
+      ? animal.enableZhVi
+      : Boolean(animal.nameZh && animal.nameZh.trim());
+
   // Audio Playback for multiple languages (EN, VI, ZH)
   const playAudio = (lang: "en" | "vi" | "zh") => {
-    try {
-      setPlayingLang(lang);
-      let audioPath = animal.audioUrl;
-      if (animal.audios) {
-        if (lang === "en" && animal.audios.en) audioPath = animal.audios.en;
-        if (lang === "vi" && animal.audios.vi) audioPath = animal.audios.vi;
-        if (lang === "zh" && animal.audios.zh) audioPath = animal.audios.zh;
-      }
-
-      const audio = new Audio(audioPath);
-      audio.onended = () => setPlayingLang(null);
-      audio.onerror = () => setPlayingLang(null);
-      audio.play().catch(() => setPlayingLang(null));
-    } catch {
+    setPlayingLang(lang);
+    playCardLanguageAudio(animal, lang, () => {
       setPlayingLang(null);
-    }
+    });
   };
 
   return (
@@ -212,18 +207,20 @@ export function ProductCard({ animal }: ProductCardProps) {
             </span>
 
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => playAudio("en")}
-                className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
-                  playingLang === "en"
-                    ? "bg-amber-500 text-white shadow-xs animate-pulse"
-                    : "bg-white text-stone-700 hover:bg-amber-200/60 border border-amber-200"
-                }`}
-                title="Nghe phát âm tiếng Anh"
-              >
-                EN
-              </button>
+              {showEn && (
+                <button
+                  type="button"
+                  onClick={() => playAudio("en")}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
+                    playingLang === "en"
+                      ? "bg-amber-500 text-white shadow-xs animate-pulse"
+                      : "bg-white text-stone-700 hover:bg-amber-200/60 border border-amber-200"
+                  }`}
+                  title="Nghe phát âm tiếng Anh"
+                >
+                  EN
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => playAudio("vi")}
@@ -236,7 +233,7 @@ export function ProductCard({ animal }: ProductCardProps) {
               >
                 VI
               </button>
-              {animal.nameZh && (
+              {showZh && animal.nameZh && (
                 <button
                   type="button"
                   onClick={() => playAudio("zh")}

@@ -18,7 +18,7 @@ import {
   ShoppingBag,
   ExternalLink,
 } from "lucide-react";
-import { speakWord } from "@/lib/speech-audio";
+import { playCardLanguageAudio } from "@/lib/speech-audio";
 
 interface CardFlashcardViewProps {
   animal: Animal;
@@ -51,6 +51,12 @@ export function CardFlashcardView({
     );
   }, [animal.images, animal.posterUrl]);
 
+  const showEn = animal.enableEnVi !== false;
+  const showZh =
+    animal.enableZhVi !== undefined
+      ? animal.enableZhVi
+      : Boolean(animal.nameZh && animal.nameZh.trim());
+
   // Tự động sinh mã QR chuẩn xác cho mọi thẻ (kể cả các thẻ mới tạo từ Studio)
   useEffect(() => {
     let isActive = true;
@@ -58,7 +64,9 @@ export function CardFlashcardView({
       typeof window !== "undefined" && window.location?.origin
         ? window.location.origin
         : siteConfig.url.replace(/\/$/, "");
-    const targetArUrl = `${origin}/ar/${animal.slug}?ar=1`;
+    const langParam =
+      showEn && !showZh ? "&lang=en-vi" : !showEn && showZh ? "&lang=zh-vi" : "";
+    const targetArUrl = `${origin}/ar/${animal.slug}?ar=1${langParam}`;
 
     QRCode.toDataURL(targetArUrl, {
       width: 360,
@@ -81,16 +89,12 @@ export function CardFlashcardView({
     return () => {
       isActive = false;
     };
-  }, [animal.slug]);
+  }, [animal.slug, showEn, showZh]);
 
   const handleQuickSpeak = (e: React.MouseEvent, lang: "en" | "vi" | "zh") => {
     e.stopPropagation();
     setActiveVoice(lang);
-    let text = animal.nameEn;
-    if (lang === "vi") text = animal.nameVi;
-    if (lang === "zh") text = animal.nameZh || animal.nameEn;
-
-    speakWord(text, lang, () => {
+    playCardLanguageAudio(animal, lang, () => {
       setActiveVoice(null);
     });
   };
@@ -185,18 +189,20 @@ export function CardFlashcardView({
 
               {/* Hàng nút bấm nghe phát âm nhanh trực tiếp trên thẻ */}
               <div className="flex items-center gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickSpeak(e, "en")}
-                  className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
-                    activeVoice === "en"
-                      ? "bg-amber-500 text-stone-950 border-amber-400"
-                      : "bg-white text-stone-700 border-amber-200 hover:bg-amber-50"
-                  }`}
-                >
-                  <Volume2 className="h-3 w-3 text-amber-600" />
-                  <span>EN</span>
-                </button>
+                {showEn && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleQuickSpeak(e, "en")}
+                    className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
+                      activeVoice === "en"
+                        ? "bg-amber-500 text-stone-950 border-amber-400"
+                        : "bg-white text-stone-700 border-amber-200 hover:bg-amber-50"
+                    }`}
+                  >
+                    <Volume2 className="h-3 w-3 text-amber-600" />
+                    <span>EN</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => handleQuickSpeak(e, "vi")}
@@ -209,18 +215,20 @@ export function CardFlashcardView({
                   <Volume2 className="h-3 w-3 text-emerald-600" />
                   <span>VI</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickSpeak(e, "zh")}
-                  className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
-                    activeVoice === "zh"
-                      ? "bg-rose-500 text-white border-rose-400"
-                      : "bg-white text-stone-700 border-rose-200 hover:bg-rose-50"
-                  }`}
-                >
-                  <Volume2 className="h-3 w-3 text-rose-600" />
-                  <span>ZH</span>
-                </button>
+                {showZh && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleQuickSpeak(e, "zh")}
+                    className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 flex items-center justify-center gap-1 ${
+                      activeVoice === "zh"
+                        ? "bg-rose-500 text-white border-rose-400"
+                        : "bg-white text-stone-700 border-rose-200 hover:bg-rose-50"
+                    }`}
+                  >
+                    <Volume2 className="h-3 w-3 text-rose-600" />
+                    <span>ZH</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

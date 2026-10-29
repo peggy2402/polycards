@@ -172,6 +172,8 @@ export default function ToolsPage() {
     nameZh: "跳",
     ipa: "/dʒʌmp/",
     pinyinZh: "tiào",
+    enableEnVi: true,
+    enableZhVi: false,
     category: "Hành Động",
     price: 219000,
     originalPrice: 299000,
@@ -183,6 +185,9 @@ export default function ToolsPage() {
     iosModelUrl: "/models/lion.usdz",
     targetUrl: "/targets/lion.mind",
     audioUrl: "",
+    audioEnUrl: "",
+    audioViUrl: "",
+    audioZhUrl: "",
   });
   const [isPublishingProduct, setIsPublishingProduct] = useState<boolean>(false);
 
@@ -210,6 +215,8 @@ export default function ToolsPage() {
     nameZh: "",
     ipa: "",
     pinyinZh: "",
+    enableEnVi: true,
+    enableZhVi: false,
     category: "Động Vật",
     price: 219000,
     originalPrice: 299000,
@@ -220,6 +227,9 @@ export default function ToolsPage() {
     iosModelUrl: "/models/lion.usdz",
     targetUrl: "/targets/lion.mind",
     audioUrl: "",
+    audioEnUrl: "",
+    audioViUrl: "",
+    audioZhUrl: "",
   });
   const [isSavingEditProduct, setIsSavingEditProduct] = useState<boolean>(false);
 
@@ -314,12 +324,27 @@ export default function ToolsPage() {
     if (directAr) {
       params.set("ar", "1");
     }
+    if (productForm.enableEnVi && !productForm.enableZhVi) {
+      params.set("lang", "en-vi");
+    } else if (!productForm.enableEnVi && productForm.enableZhVi) {
+      params.set("lang", "zh-vi");
+    }
     if (includeLicense && licenseCode.trim()) {
       params.set("code", licenseCode.trim());
     }
     const queryString = params.toString();
     return queryString ? `${url}?${queryString}` : url;
-  }, [qrMode, qrTargetEnv, customUrl, slug, directAr, includeLicense, licenseCode]);
+  }, [
+    qrMode,
+    qrTargetEnv,
+    customUrl,
+    slug,
+    directAr,
+    productForm.enableEnVi,
+    productForm.enableZhVi,
+    includeLicense,
+    licenseCode,
+  ]);
 
   const targetUrl = computedTargetUrl();
 
@@ -894,6 +919,11 @@ export default function ToolsPage() {
       nameZh: product.nameZh || "",
       ipa: product.ipa || `/${product.slug}/`,
       pinyinZh: product.pinyinZh || "",
+      enableEnVi: product.enableEnVi !== false,
+      enableZhVi:
+        product.enableZhVi !== undefined
+          ? product.enableZhVi
+          : Boolean(product.nameZh && product.nameZh.trim()),
       category: product.category || "Động Vật",
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
@@ -904,6 +934,9 @@ export default function ToolsPage() {
       iosModelUrl: product.iosModelUrl || "/models/lion.usdz",
       targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
       audioUrl: product.audioUrl || "",
+      audioEnUrl: product.audios?.en || "",
+      audioViUrl: product.audios?.vi || "",
+      audioZhUrl: product.audios?.zh || "",
     });
     setIsEditProductModalOpen(true);
   };
@@ -916,10 +949,12 @@ export default function ToolsPage() {
       const updatedData: Partial<Animal> & { nameEn: string; nameVi: string; category: string; price: number } = {
         ...editingProduct,
         nameVi: editProductForm.nameVi.trim(),
-        nameEn: editProductForm.nameEn.trim(),
+        nameEn: editProductForm.nameEn.trim() || editProductForm.nameVi.trim(),
         nameZh: editProductForm.nameZh.trim(),
         ipa: editProductForm.ipa.trim(),
         pinyinZh: editProductForm.pinyinZh.trim(),
+        enableEnVi: editProductForm.enableEnVi,
+        enableZhVi: editProductForm.enableZhVi,
         category: editProductForm.category.trim(),
         categorySlug: slugify(editProductForm.category),
         price: Number(editProductForm.price) || 219000,
@@ -932,6 +967,11 @@ export default function ToolsPage() {
         iosModelUrl: editProductForm.iosModelUrl.trim() || editingProduct.iosModelUrl,
         targetUrl: editProductForm.targetUrl.trim() || editingProduct.targetUrl,
         audioUrl: editProductForm.audioUrl.trim() || editingProduct.audioUrl,
+        audios: {
+          en: editProductForm.audioEnUrl.trim(),
+          vi: editProductForm.audioViUrl.trim(),
+          zh: editProductForm.audioZhUrl.trim(),
+        },
       };
 
       await fetch("/api/products", {
@@ -1016,6 +1056,11 @@ export default function ToolsPage() {
       nameZh: product.nameZh || "",
       ipa: product.ipa || `/${product.slug}/`,
       pinyinZh: product.pinyinZh || "",
+      enableEnVi: product.enableEnVi !== false,
+      enableZhVi:
+        product.enableZhVi !== undefined
+          ? product.enableZhVi
+          : Boolean(product.nameZh && product.nameZh.trim()),
       category: resolvedCategory,
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
@@ -1027,6 +1072,9 @@ export default function ToolsPage() {
       iosModelUrl: product.iosModelUrl || "/models/lion.usdz",
       targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
       audioUrl: product.audioUrl || "",
+      audioEnUrl: product.audios?.en || "",
+      audioViUrl: product.audios?.vi || "",
+      audioZhUrl: product.audios?.zh || "",
     });
     setActiveStudioTab("editor");
   };
@@ -1054,6 +1102,11 @@ export default function ToolsPage() {
         nameZh: existingProduct.nameZh || "",
         ipa: existingProduct.ipa || `/${cleanSlug}/`,
         pinyinZh: existingProduct.pinyinZh || "",
+        enableEnVi: existingProduct.enableEnVi !== false,
+        enableZhVi:
+          existingProduct.enableZhVi !== undefined
+            ? existingProduct.enableZhVi
+            : Boolean(existingProduct.nameZh && existingProduct.nameZh.trim()),
         category: resolvedCategory,
         price: existingProduct.price || 219000,
         originalPrice:
@@ -1069,6 +1122,9 @@ export default function ToolsPage() {
         iosModelUrl: existingProduct.iosModelUrl || "/models/lion.usdz",
         targetUrl: existingProduct.targetUrl || `/targets/${cleanSlug}.mind`,
         audioUrl: existingProduct.audioUrl || "",
+        audioEnUrl: existingProduct.audios?.en || "",
+        audioViUrl: existingProduct.audios?.vi || "",
+        audioZhUrl: existingProduct.audios?.zh || "",
       });
 
       setIsPublishModalOpen(true);
@@ -1131,6 +1187,8 @@ export default function ToolsPage() {
       nameZh: isCurrentSlugSame && prev.nameZh ? prev.nameZh : defaultZh,
       ipa: `/${cleanSlug}/`,
       pinyinZh: isCurrentSlugSame && prev.pinyinZh ? prev.pinyinZh : defaultPinyin,
+      enableEnVi: prev.enableEnVi !== undefined ? prev.enableEnVi : true,
+      enableZhVi: prev.enableZhVi !== undefined ? prev.enableZhVi : false,
       category: isCurrentSlugSame && prev.category ? prev.category : resolvedDefaultCat,
       price: prev.price || 219000,
       originalPrice: prev.originalPrice || 299000,
@@ -1151,6 +1209,9 @@ export default function ToolsPage() {
         ? matchedPreset.targetUrl
         : prev.targetUrl || "/targets/lion.mind",
       audioUrl: prev.audioUrl || "",
+      audioEnUrl: prev.audioEnUrl || "",
+      audioViUrl: prev.audioViUrl || "",
+      audioZhUrl: prev.audioZhUrl || "",
     }));
 
     setIsPublishModalOpen(true);
@@ -1158,8 +1219,16 @@ export default function ToolsPage() {
 
   const handleSaveProductToLanding = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productForm.nameEn.trim() || !productForm.nameVi.trim()) {
-      showToast("Vui lòng nhập tên tiếng Anh và tên tiếng Việt cho thẻ bài.", "warning");
+    if (!productForm.nameVi.trim()) {
+      showToast("Vui lòng nhập tên tiếng Việt cho thẻ bài.", "warning");
+      return;
+    }
+    if (productForm.enableEnVi && !productForm.nameEn.trim()) {
+      showToast("Vui lòng nhập từ vựng Tiếng Anh khi bật chế độ Song Ngữ Anh - Việt.", "warning");
+      return;
+    }
+    if (productForm.enableZhVi && !productForm.nameZh.trim()) {
+      showToast("Vui lòng nhập từ vựng Tiếng Trung khi bật chế độ Song Ngữ Trung - Việt.", "warning");
       return;
     }
     if (!productForm.category.trim()) {
@@ -1206,6 +1275,13 @@ export default function ToolsPage() {
       const catSlug = selectedCatObj?.slug || slugify(productForm.category);
       const catId = selectedCatObj?.id || `cat-${catSlug}`;
 
+      const finalNameEn = productForm.nameEn.trim() || productForm.nameVi.trim();
+      const customAudios = {
+        en: productForm.audioEnUrl.trim(),
+        vi: productForm.audioViUrl.trim(),
+        zh: productForm.audioZhUrl.trim(),
+      };
+
       let savedProductData: any = null;
       try {
         const apiRes = await fetch("/api/products", {
@@ -1213,11 +1289,13 @@ export default function ToolsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             slug,
-            nameEn: productForm.nameEn,
+            nameEn: finalNameEn,
             nameVi: productForm.nameVi,
             nameZh: productForm.nameZh,
             ipa: productForm.ipa,
             pinyinZh: productForm.pinyinZh,
+            enableEnVi: productForm.enableEnVi,
+            enableZhVi: productForm.enableZhVi,
             category: productForm.category,
             categorySlug: catSlug,
             categoryId: catId,
@@ -1231,6 +1309,7 @@ export default function ToolsPage() {
             iosModelUrl: productForm.iosModelUrl || "/models/lion.usdz",
             targetUrl: productForm.targetUrl || "/targets/lion.mind",
             audioUrl: productForm.audioUrl || "",
+            audios: customAudios,
           }),
         });
         const apiJson = await apiRes.json();
@@ -1245,11 +1324,13 @@ export default function ToolsPage() {
 
       const saved = saveProductToLanding({
         slug,
-        nameEn: productForm.nameEn,
+        nameEn: finalNameEn,
         nameVi: productForm.nameVi,
         nameZh: productForm.nameZh,
         ipa: productForm.ipa,
         pinyinZh: productForm.pinyinZh,
+        enableEnVi: productForm.enableEnVi,
+        enableZhVi: productForm.enableZhVi,
         category: productForm.category,
         categorySlug: catSlug,
         categoryId: catId,
@@ -1263,6 +1344,7 @@ export default function ToolsPage() {
         iosModelUrl: productForm.iosModelUrl || "/models/lion.usdz",
         targetUrl: productForm.targetUrl || "/targets/lion.mind",
         audioUrl: productForm.audioUrl || "",
+        audios: customAudios,
       });
 
       await loadStudioProducts();

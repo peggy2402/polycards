@@ -25,6 +25,8 @@ export interface Animal {
   ipa: string;
   ipaVi?: string;
   pinyinZh?: string;
+  enableEnVi?: boolean;
+  enableZhVi?: boolean;
   description: string;
   price: number;
   originalPrice?: number;
