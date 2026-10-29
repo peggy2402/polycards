@@ -16,12 +16,16 @@ export async function GET(request: NextRequest) {
     const orders = await dbGetOrders();
 
     if (codeParam) {
-      const matched = orders.find((o) => o.code.trim().toUpperCase() === codeParam);
+      const matched = orders.find(
+        (o) =>
+          o.code.trim().toUpperCase() === codeParam ||
+          (o.packCode && o.packCode.trim().toUpperCase() === codeParam)
+      );
       if (!matched) {
         return NextResponse.json(
           {
             success: false,
-            message: "Mã hóa đơn không tồn tại trên hệ thống.",
+            message: "Mã bộ / Mã hóa đơn không tồn tại trên hệ thống.",
           },
           { status: 404 }
         );

@@ -151,8 +151,8 @@ export function WebArCardView({
   const showBothTracksSwitcher =
     !urlLockedTrack && isEnViEnabled && isZhViEnabled;
 
-  // Bộ đếm thời gian dùng thử (30s trial)
-  const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 30 : 0);
+  // Bộ đếm thời gian dùng thử (3s trial cho khách chưa mua)
+  const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 3 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
 
   // Refs bắt cử chỉ cảm ứng đa điểm Apple AR (1-finger pan, 2-finger rotate & pinch)
@@ -1297,10 +1297,10 @@ export function WebArCardView({
             </div>
 
             <h3 className="text-lg font-black text-white">
-              Hết 30s Trải Nghiệm Thử!
+              Hết 3 Giây Quét Thử Miễn Phí!
             </h3>
             <p className="mt-2 text-xs text-stone-300 leading-relaxed">
-              Bé vừa khám phá xong bạn <strong>{animal.nameVi}</strong> ({animal.nameEn}). Để kích hoạt không giới hạn toàn bộ bộ thẻ bài AR Poly Cards, bạn có thể:
+              Khách chưa mua thẻ chỉ được quét thử <strong>3 giây</strong>. Để mở khóa không giới hạn trọn bộ 30 thẻ thuộc thể loại này, bạn vui lòng:
             </p>
 
             <div className="mt-5 space-y-2.5">

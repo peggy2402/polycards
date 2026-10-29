@@ -177,7 +177,7 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
               className="inline-flex min-h-[48px] w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-2xl bg-stone-950 px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-black text-amber-300 shadow-lg hover:bg-stone-900 active:scale-95 transition-all cursor-pointer"
             >
               <Sparkles className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
-              <span className="truncate">{unlocked ? "Bật Camera Quét Thẻ" : "Quét AR (Thử 30s / Mở Khóa)"}</span>
+              <span className="truncate">{unlocked ? "Bật Camera Quét Thẻ" : "Quét AR (Thử 3s / Mở Khóa)"}</span>
               <ArrowRight className="h-4 w-4 text-amber-400 shrink-0" />
             </button>
           </div>

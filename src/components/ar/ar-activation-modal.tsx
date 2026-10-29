@@ -145,7 +145,7 @@ export function ArActivationModal({
                 Công nghệ Camera AR tương tác 3 ngôn ngữ (Anh - Việt - Trung) và con vật 3D đồng hành là tính năng cao cấp dành riêng cho khách hàng sở hữu <strong>Bộ thẻ bài vật lý Poly Cards</strong>.
               </p>
 
-              {/* Lựa chọn 1: Trải nghiệm thử 30 giây */}
+              {/* Lựa chọn 1: Trải nghiệm thử 3 giây */}
               <button
                 type="button"
                 onClick={() => {
@@ -160,10 +160,10 @@ export function ArActivationModal({
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-xs sm:text-sm font-black text-stone-900 group-hover:text-amber-900 truncate">
-                      Trải Nghiệm Thử 30 Giây
+                      Quét Thử Miễn Phí 3 Giây
                     </h4>
                     <span className="text-[10px] sm:text-[11px] text-stone-500 truncate block">
-                      Dùng thử camera AR trực tiếp trên màn hình
+                      Khách chưa mua chỉ được dùng thử 3 giây trên camera AR
                     </span>
                   </div>
                 </div>
