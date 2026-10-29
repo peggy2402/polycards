@@ -952,8 +952,39 @@ export default function ToolsPage() {
     }
   };
 
+  // Helper đối chiếu tên danh mục chuẩn xác với danh sách categoriesList hiện có
+  const resolveCanonicalCategoryName = useCallback(
+    (rawCategory?: string, rawCategorySlug?: string): string => {
+      const allCats = categoriesList.length > 0 ? categoriesList : getProductCategories();
+      if (rawCategory) {
+        const cleanRaw = rawCategory.trim().toLowerCase();
+        const rawSlug = slugify(rawCategory);
+        const matched = allCats.find(
+          (c) =>
+            c.name.trim().toLowerCase() === cleanRaw ||
+            c.slug.toLowerCase() === cleanRaw ||
+            c.slug.toLowerCase() === rawSlug
+        );
+        if (matched) return matched.name;
+      }
+      if (rawCategorySlug) {
+        const cleanSlugVal = rawCategorySlug.trim().toLowerCase();
+        const matchedBySlug = allCats.find((c) => c.slug.toLowerCase() === cleanSlugVal);
+        if (matchedBySlug) return matchedBySlug.name;
+      }
+      if (rawCategory && rawCategory.trim()) {
+        return rawCategory.trim();
+      }
+      return allCats[0]?.name || "Động Vật";
+    },
+    [categoriesList]
+  );
+
   const handleLoadCardToCanvas = (product: Animal) => {
-    const cardImg = product.posterUrl || (Array.isArray(product.images) && product.images[0]) || `/images/cards/${product.slug}-template.jpg`;
+    const cardImg =
+      product.posterUrl ||
+      (Array.isArray(product.images) && product.images[0]) ||
+      `/images/cards/${product.slug}-template.jpg`;
     setCardImageSrc(cardImg);
     setSlug(product.slug);
     setCardFileName(`${product.slug}-card.jpg`);
@@ -971,22 +1002,29 @@ export default function ToolsPage() {
       showToast(`Đã nạp phôi thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
     }
 
-    const matchedProductPreset = PRESET_3D_MODELS.find((p) => p.modelUrl === product.modelUrl) || PRESET_3D_MODELS[0];
+    const matchedProductPreset = PRESET_3D_MODELS.find(
+      (p) => p.modelUrl === product.modelUrl
+    );
+    const resolvedCategory = resolveCanonicalCategoryName(
+      product.category,
+      product.categorySlug
+    );
+
     setProductForm({
       nameEn: product.nameEn,
       nameVi: product.nameVi,
       nameZh: product.nameZh || "",
       ipa: product.ipa || `/${product.slug}/`,
       pinyinZh: product.pinyinZh || "",
-      category: product.category || "Động Vật",
+      category: resolvedCategory,
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
       badge: product.badge || "Mới ra mắt",
       description: product.description || "",
       useCompositeCardImage: true,
-      modelPresetId: matchedProductPreset.id,
-      modelUrl: product.modelUrl || matchedProductPreset.modelUrl,
-      iosModelUrl: product.iosModelUrl || matchedProductPreset.iosModelUrl,
+      modelPresetId: matchedProductPreset ? matchedProductPreset.id : "custom",
+      modelUrl: product.modelUrl || "/models/lion.glb",
+      iosModelUrl: product.iosModelUrl || "/models/lion.usdz",
       targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
       audioUrl: product.audioUrl || "",
     });
@@ -995,6 +1033,49 @@ export default function ToolsPage() {
 
   const handleOpenPublishModal = () => {
     const cleanSlug = slug.trim().toLowerCase() || "jump";
+
+    // Kiểm tra xem thẻ với slug này đã tồn tại trên hệ thống (chế độ Cập nhật) hay chưa
+    const existingProduct =
+      productsList.find((p) => p.slug.toLowerCase() === cleanSlug) ||
+      getMergedProducts().find((p) => p.slug.toLowerCase() === cleanSlug);
+
+    if (existingProduct) {
+      const resolvedCategory = resolveCanonicalCategoryName(
+        existingProduct.category,
+        existingProduct.categorySlug
+      );
+      const matchedPreset = PRESET_3D_MODELS.find(
+        (p) => p.modelUrl === existingProduct.modelUrl
+      );
+
+      setProductForm({
+        nameEn: existingProduct.nameEn || cleanSlug.charAt(0).toUpperCase() + cleanSlug.slice(1),
+        nameVi: existingProduct.nameVi || existingProduct.nameEn,
+        nameZh: existingProduct.nameZh || "",
+        ipa: existingProduct.ipa || `/${cleanSlug}/`,
+        pinyinZh: existingProduct.pinyinZh || "",
+        category: resolvedCategory,
+        price: existingProduct.price || 219000,
+        originalPrice:
+          existingProduct.originalPrice ||
+          Math.round((existingProduct.price || 219000) * 1.3),
+        badge: existingProduct.badge || "Mới ra mắt",
+        description:
+          existingProduct.description ||
+          `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${existingProduct.nameVi} (${existingProduct.nameEn}).`,
+        useCompositeCardImage: true,
+        modelPresetId: matchedPreset ? matchedPreset.id : "custom",
+        modelUrl: existingProduct.modelUrl || "/models/lion.glb",
+        iosModelUrl: existingProduct.iosModelUrl || "/models/lion.usdz",
+        targetUrl: existingProduct.targetUrl || `/targets/${cleanSlug}.mind`,
+        audioUrl: existingProduct.audioUrl || "",
+      });
+
+      setIsPublishModalOpen(true);
+      return;
+    }
+
+    // Trường hợp tạo thẻ mới hoàn toàn
     let defaultCat = "Động Vật";
     let defaultEn = cleanSlug.charAt(0).toUpperCase() + cleanSlug.slice(1);
     let defaultVi = defaultEn;
@@ -1038,34 +1119,40 @@ export default function ToolsPage() {
       defaultPinyin = "xióngmāo";
     }
 
-    const availableCategories = getProductCategories();
-    const hasCat = availableCategories.some((c) => c.name.toLowerCase() === defaultCat.toLowerCase());
-    if (!hasCat && availableCategories.length > 0) {
-      defaultCat = availableCategories[0].name;
-    }
+    const resolvedDefaultCat = resolveCanonicalCategoryName(defaultCat);
+    const matchedPreset = PRESET_3D_MODELS.find((p) => p.id === cleanSlug);
 
-    const matchedPreset = PRESET_3D_MODELS.find((p) => p.id === cleanSlug) || PRESET_3D_MODELS[0];
+    // Nếu người dùng đã tải file .glb/.usdz/.mind lên trong phiên hiện tại thì giữ nguyên
+    const isCurrentSlugSame = slugify(productForm.nameEn) === cleanSlug;
 
-    setProductForm({
-      nameEn: defaultEn,
-      nameVi: defaultVi,
-      nameZh: defaultZh,
+    setProductForm((prev) => ({
+      nameEn: isCurrentSlugSame && prev.nameEn ? prev.nameEn : defaultEn,
+      nameVi: isCurrentSlugSame && prev.nameVi ? prev.nameVi : defaultVi,
+      nameZh: isCurrentSlugSame && prev.nameZh ? prev.nameZh : defaultZh,
       ipa: `/${cleanSlug}/`,
-      pinyinZh: defaultPinyin,
-      category: defaultCat,
-      price: 219000,
-      originalPrice: 299000,
-      badge: "Mới ra mắt",
-      description: `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${defaultVi} (${defaultEn}).`,
+      pinyinZh: isCurrentSlugSame && prev.pinyinZh ? prev.pinyinZh : defaultPinyin,
+      category: isCurrentSlugSame && prev.category ? prev.category : resolvedDefaultCat,
+      price: prev.price || 219000,
+      originalPrice: prev.originalPrice || 299000,
+      badge: prev.badge || "Mới ra mắt",
+      description:
+        isCurrentSlugSame && prev.description
+          ? prev.description
+          : `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${defaultVi} (${defaultEn}).`,
       useCompositeCardImage: true,
-      modelPresetId: matchedPreset.id,
-      modelUrl: matchedPreset.modelUrl,
-      iosModelUrl: matchedPreset.iosModelUrl,
-      targetUrl: matchedPreset.targetUrl,
-      audioUrl: "",
-    });
+      modelPresetId: matchedPreset ? matchedPreset.id : prev.modelPresetId || "lion",
+      modelUrl: matchedPreset
+        ? matchedPreset.modelUrl
+        : prev.modelUrl || "/models/lion.glb",
+      iosModelUrl: matchedPreset
+        ? matchedPreset.iosModelUrl
+        : prev.iosModelUrl || "/models/lion.usdz",
+      targetUrl: matchedPreset
+        ? matchedPreset.targetUrl
+        : prev.targetUrl || "/targets/lion.mind",
+      audioUrl: prev.audioUrl || "",
+    }));
 
-    setCategoriesList(availableCategories);
     setIsPublishModalOpen(true);
   };
 
@@ -1178,6 +1265,7 @@ export default function ToolsPage() {
         audioUrl: productForm.audioUrl || "",
       });
 
+      await loadStudioProducts();
       setIsPublishModalOpen(false);
       showToast(`Đã xuất bản thẻ "${saved.nameVi} (${saved.nameEn})" lên Hệ Thống thành công!`, "success");
     } catch (err: any) {

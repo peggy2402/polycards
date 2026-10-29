@@ -163,9 +163,17 @@ export function ArResourcePanel({
 
       {/* 1. Chọn nhanh từ Mẫu 3D có sẵn */}
       <div>
-        <label className="block text-[11px] font-bold text-stone-300 mb-1.5">
-          Chọn nhanh từ Mô hình 3D mẫu có sẵn:
-        </label>
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <label className="block text-[11px] font-bold text-stone-300">
+            Chọn nhanh từ Mô hình 3D mẫu có sẵn:
+          </label>
+          {!PRESET_3D_MODELS.some((p) => p.modelUrl === modelUrl) && modelUrl && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/50 px-2.5 py-0.5 text-[10px] font-black text-emerald-300">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              <span>Đang dùng tệp 3D riêng</span>
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {PRESET_3D_MODELS.map((preset) => {
             const isSelected = modelUrl === preset.modelUrl;
