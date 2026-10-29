@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Layers,
   Plus,
@@ -20,6 +20,8 @@ import {
   ListPlus,
   FileDown,
   Download,
+  Eye,
+  MousePointerClick,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -71,10 +73,22 @@ export function ProductsTab({
   const [onlyHomeFeatured, setOnlyHomeFeatured] = useState<boolean>(false);
   const [selectedDetailSlug, setSelectedDetailSlug] = useState<string | null>(null);
 
-  // Quản lý chọn hàng loạt để gán mã bộ hoặc xuất in
+  // Quản lý chế độ chọn nhiều thẻ (Selection Mode)
+  const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [batchTargetPackCode, setBatchTargetPackCode] = useState<string>("POLY30-HANHDONG");
   const [isApplyingBatch, setIsApplyingBatch] = useState<boolean>(false);
+
+  // Kéo chuột quét vùng chọn nhiều thẻ (Marquee Drag Selection)
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [marquee, setMarquee] = useState<{
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+  const isPointerDownRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0 });
 
   // Modal tải file .ZIP theo Bộ Thẻ
   const [isPackZipModalOpen, setIsPackZipModalOpen] = useState<boolean>(false);
@@ -120,6 +134,21 @@ export function ProductsTab({
     return matchesSearch && matchesCategory && matchesPackCode && matchesHomeFilter;
   });
 
+  const handleToggleSelectionMode = () => {
+    setIsSelectionMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSelectedSlugs([]);
+      }
+      return next;
+    });
+  };
+
+  const handleExitSelectionMode = () => {
+    setSelectedSlugs([]);
+    setIsSelectionMode(false);
+  };
+
   const toggleSelectCard = (slug: string) => {
     setSelectedSlugs((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
@@ -127,12 +156,122 @@ export function ProductsTab({
   };
 
   const handleSelectAllFiltered = () => {
+    setIsSelectionMode(true);
     setSelectedSlugs(filteredProducts.map((p) => p.slug));
   };
 
   const handleClearSelection = () => {
     setSelectedSlugs([]);
+    // Vẫn duy trì isSelectionMode = true để người dùng tiếp tục chọn thẻ khác một cách tự nhiên!
   };
+
+  // Phím tắt Ctrl+A / Cmd+A để chọn tất cả thẻ theo bộ lọc, và phím Escape để thoát/bỏ chọn
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+      if (isInput) return;
+
+      // Ctrl + A hoặc Cmd + A
+      if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        setIsSelectionMode(true);
+        setSelectedSlugs(filteredProducts.map((p) => p.slug));
+        return;
+      }
+
+      // Escape: Bỏ chọn hoặc thoát chế độ chọn
+      if (e.key === "Escape") {
+        if (selectedSlugs.length > 0) {
+          setSelectedSlugs([]);
+        } else if (isSelectionMode) {
+          setIsSelectionMode(false);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [filteredProducts, isSelectionMode, selectedSlugs.length]);
+
+  // Chuột kéo quét vùng chọn marquee
+  const handleGridPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, input, select, textarea, [data-prevent-marquee]")) {
+      return;
+    }
+    isPointerDownRef.current = true;
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!isPointerDownRef.current) return;
+      const dx = e.clientX - startPosRef.current.x;
+      const dy = e.clientY - startPosRef.current.y;
+      if (Math.hypot(dx, dy) > 8) {
+        setIsSelectionMode(true);
+        setMarquee({
+          startX: startPosRef.current.x,
+          startY: startPosRef.current.y,
+          currentX: e.clientX,
+          currentY: e.clientY,
+        });
+
+        if (gridContainerRef.current) {
+          const boxLeft = Math.min(startPosRef.current.x, e.clientX);
+          const boxRight = Math.max(startPosRef.current.x, e.clientX);
+          const boxTop = Math.min(startPosRef.current.y, e.clientY);
+          const boxBottom = Math.max(startPosRef.current.y, e.clientY);
+
+          const cardEls = gridContainerRef.current.querySelectorAll<HTMLElement>(
+            "[data-card-slug]"
+          );
+          const intersectingSlugs: string[] = [];
+          cardEls.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            const intersects = !(
+              rect.right < boxLeft ||
+              rect.left > boxRight ||
+              rect.bottom < boxTop ||
+              rect.top > boxBottom
+            );
+            if (intersects) {
+              const slug = el.getAttribute("data-card-slug");
+              if (slug) intersectingSlugs.push(slug);
+            }
+          });
+
+          if (intersectingSlugs.length > 0) {
+            setSelectedSlugs((prev) => {
+              const set = new Set([...prev, ...intersectingSlugs]);
+              return Array.from(set);
+            });
+          }
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      isPointerDownRef.current = false;
+      setMarquee(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, []);
 
   const handleExecuteBatchAssign = async () => {
     if (selectedSlugs.length === 0) return;
@@ -319,52 +458,66 @@ export function ProductsTab({
             </select>
           </div>
 
-          {/* Nút Chọn Hàng Loạt */}
+          {/* Nút Bật/Tắt Chế Độ Chọn Nhiều Thẻ */}
           <button
             type="button"
-            onClick={
-              selectedSlugs.length === filteredProducts.length && filteredProducts.length > 0
-                ? handleClearSelection
-                : handleSelectAllFiltered
-            }
+            onClick={handleToggleSelectionMode}
             className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              selectedSlugs.length > 0
-                ? "bg-purple-500/20 text-purple-300 border-purple-400/40 hover:bg-purple-500/30"
-                : "bg-stone-900 text-stone-400 border-white/15 hover:text-white"
+              isSelectionMode
+                ? "bg-purple-500 text-white border-purple-300 shadow-md shadow-purple-500/30 ring-2 ring-purple-400/40"
+                : "bg-stone-900 text-stone-300 border-white/15 hover:border-purple-400/40 hover:text-white"
             }`}
+            title="Bật/tắt chế độ chọn nhiều thẻ bài (hoặc bấm Ctrl+A / Cmd+A)"
           >
-            <CheckSquare className="h-3.5 w-3.5 text-purple-400" />
+            <CheckSquare className="h-3.5 w-3.5" />
             <span>
-              {selectedSlugs.length > 0
-                ? `Đã chọn (${selectedSlugs.length}/${filteredProducts.length})`
-                : "Chọn nhiều thẻ"}
+              {isSelectionMode
+                ? selectedSlugs.length > 0
+                  ? `Đang chọn (${selectedSlugs.length}/${filteredProducts.length})`
+                  : "Chế độ chọn (Bật)"
+                : "Chọn nhiều thẻ (Ctrl+A)"}
             </span>
           </button>
         </div>
       </div>
 
-      {/* TIỆN ÍCH GÁN MÃ BỘ HÀNG LOẠT (Sticky Batch Action Bar) */}
-      {selectedSlugs.length > 0 && (
-        <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-950/90 via-stone-900 to-amber-950/90 border-2 border-purple-400/60 shadow-xl shadow-purple-950/50 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+      {/* THANH TÁC VỤ CHỌN NHIỀU THẺ (Sticky Batch Action Bar) */}
+      {isSelectionMode && (
+        <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-950/95 via-stone-900 to-amber-950/95 border-2 border-purple-400/70 shadow-2xl shadow-purple-950/60 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-purple-500 text-white flex items-center justify-center font-black shrink-0 shadow-md shadow-purple-500/30">
-              <PackageCheck className="h-5 w-5" />
+              <CheckSquare className="h-5 w-5" />
             </div>
             <div>
-              <div className="font-black text-xs sm:text-sm text-purple-200 flex items-center gap-2">
+              <div className="font-black text-xs sm:text-sm text-purple-200 flex items-center gap-2 flex-wrap">
                 <span>
-                  Đã chọn: <strong className="text-white text-sm">{selectedSlugs.length}</strong> thẻ bài
+                  Đã chọn: <strong className="text-white text-sm">{selectedSlugs.length}</strong> / {filteredProducts.length} thẻ
                 </span>
+                <span className="text-stone-500">•</span>
+                {selectedSlugs.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleClearSelection}
+                    className="text-[11px] text-amber-300 hover:text-amber-200 underline cursor-pointer font-bold"
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-purple-300/80 font-medium">
+                    Nhấn vào thẻ bất kỳ hoặc quét chuột để chọn
+                  </span>
+                )}
+                <span className="text-stone-500">•</span>
                 <button
                   type="button"
-                  onClick={handleClearSelection}
-                  className="text-[11px] text-stone-400 hover:text-white underline cursor-pointer"
+                  onClick={handleSelectAllFiltered}
+                  className="text-[11px] text-purple-300 hover:text-white underline cursor-pointer"
                 >
-                  Bỏ chọn tất cả
+                  Chọn tất cả ({filteredProducts.length})
                 </button>
               </div>
               <p className="text-[10px] text-purple-300/70">
-                Chọn mã bộ đích bên dưới và bấm &quot;Gán Cho Các Thẻ Đã Chọn&quot;
+                Mẹo: Bấm <strong>Ctrl + A</strong> (Cmd + A) để chọn tất cả thẻ theo bộ lọc, hoặc rê chuột quét vùng chọn
               </p>
             </div>
           </div>
@@ -395,9 +548,9 @@ export function ProductsTab({
 
             <button
               type="button"
-              disabled={isApplyingBatch}
+              disabled={isApplyingBatch || selectedSlugs.length === 0}
               onClick={handleExecuteBatchAssign}
-              className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
             >
               {isApplyingBatch ? (
                 <>
@@ -416,13 +569,14 @@ export function ProductsTab({
             {onBatchAddToPrintQueue && (
               <button
                 type="button"
+                disabled={selectedSlugs.length === 0}
                 onClick={() => {
                   const selectedCards = productsList.filter((p) =>
                     selectedSlugs.includes(p.slug)
                   );
                   onBatchAddToPrintQueue(selectedCards);
                 }}
-                className="py-2 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                className="py-2 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-40"
                 title="Đưa các thẻ đã chọn vào danh sách chờ xuất file in"
               >
                 <FolderPlus className="h-3.5 w-3.5" />
@@ -434,7 +588,7 @@ export function ProductsTab({
             {onDownloadZipForCards && (
               <button
                 type="button"
-                disabled={isGeneratingZip}
+                disabled={isGeneratingZip || selectedSlugs.length === 0}
                 onClick={() => {
                   const selectedCards = productsList.filter((p) =>
                     selectedSlugs.includes(p.slug)
@@ -444,7 +598,7 @@ export function ProductsTab({
                     `polycards-chon-${selectedCards.length}-the-in.zip`
                   );
                 }}
-                className="py-2 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-400/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                className="py-2 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-400/20 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
                 title="Tải ngay tệp ZIP các ảnh phôi in chất lượng cao đã có mã QR"
               >
                 {isGeneratingZip ? (
@@ -455,6 +609,16 @@ export function ProductsTab({
                 <span>Tải ZIP ({selectedSlugs.length} Thẻ In)</span>
               </button>
             )}
+
+            {/* Nút thoát chế độ chọn */}
+            <button
+              type="button"
+              onClick={handleExitSelectionMode}
+              className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/20 text-stone-300 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 transition-colors cursor-pointer"
+              title="Thoát chế độ chọn (Esc)"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
@@ -486,7 +650,11 @@ export function ProductsTab({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div
+          ref={gridContainerRef}
+          onPointerDown={handleGridPointerDown}
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 select-none"
+        >
           {filteredProducts.map((card) => {
             const key = card.id || card.slug;
             const isPinned = Boolean(card.showOnHome);
@@ -496,10 +664,19 @@ export function ProductsTab({
             return (
               <div
                 key={key}
-                onClick={() => setSelectedDetailSlug(card.slug)}
+                data-card-slug={card.slug}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    toggleSelectCard(card.slug);
+                  } else {
+                    setSelectedDetailSlug(card.slug);
+                  }
+                }}
                 className={`group relative rounded-2xl bg-stone-900/90 border p-2.5 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/60 cursor-pointer flex flex-col justify-between ${
                   isSelected
-                    ? "border-purple-400 ring-2 ring-purple-400/40 bg-purple-950/20"
+                    ? "border-purple-400 ring-2 ring-purple-400/50 bg-purple-950/30"
+                    : isSelectionMode
+                    ? "border-purple-400/30 hover:border-purple-400/80 hover:bg-stone-850"
                     : isPinned
                     ? "border-emerald-400/60 ring-1 ring-emerald-400/20"
                     : "border-white/10 hover:border-amber-400/50"
@@ -519,9 +696,12 @@ export function ProductsTab({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!isSelectionMode) {
+                        setIsSelectionMode(true);
+                      }
                       toggleSelectCard(card.slug);
                     }}
-                    title={isSelected ? "Bỏ chọn thẻ này" : "Chọn thẻ này để gán mã bộ hàng loạt"}
+                    title={isSelected ? "Bỏ chọn thẻ này" : "Chọn thẻ này"}
                     className={`absolute top-1.5 left-1.5 z-20 h-6 w-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                       isSelected
                         ? "bg-purple-500 text-white shadow-md ring-2 ring-purple-300"
@@ -593,7 +773,21 @@ export function ProductsTab({
                     >
                       {card.nameVi}
                     </h3>
-                    <ChevronRight className="h-3.5 w-3.5 text-stone-500 group-hover:text-amber-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    {isSelectionMode ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDetailSlug(card.slug);
+                        }}
+                        title="Xem chi tiết thẻ này"
+                        className="h-5 w-5 rounded-md bg-white/10 hover:bg-white/20 text-stone-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                      >
+                        <Eye className="h-3 w-3" />
+                      </button>
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-stone-500 group-hover:text-amber-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between gap-1 text-[11px]">
@@ -829,6 +1023,19 @@ export function ProductsTab({
         onAddToPrintQueue={onAddToPrintQueue}
         onDownloadSingleCard={onDownloadSingleCard}
       />
+
+      {/* Vùng quét chuột kéo chọn thẻ (Marquee Drag Selection Box) */}
+      {marquee && (
+        <div
+          className="fixed pointer-events-none z-50 border-2 border-purple-400 bg-purple-500/20 backdrop-blur-[0.5px] rounded-lg shadow-xl"
+          style={{
+            left: Math.min(marquee.startX, marquee.currentX),
+            top: Math.min(marquee.startY, marquee.currentY),
+            width: Math.abs(marquee.currentX - marquee.startX),
+            height: Math.abs(marquee.currentY - marquee.startY),
+          }}
+        />
+      )}
     </div>
   );
 }
