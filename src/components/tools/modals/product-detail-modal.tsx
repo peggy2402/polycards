@@ -16,6 +16,8 @@ import {
   QrCode,
   Volume2,
   PackageCheck,
+  FolderPlus,
+  FileDown,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -30,6 +32,8 @@ interface ProductDetailModalProps {
   onOpenEditProduct: (card: Animal) => void;
   onDeleteProduct: (card: Animal) => void;
   onUpdatePackCode?: (card: Animal, newPackCode: string) => void;
+  onAddToPrintQueue?: (card: Animal) => void;
+  onDownloadSingleCard?: (card: Animal) => void;
 }
 
 export function ProductDetailModal({
@@ -40,6 +44,8 @@ export function ProductDetailModal({
   onOpenEditProduct,
   onDeleteProduct,
   onUpdatePackCode,
+  onAddToPrintQueue,
+  onDownloadSingleCard,
 }: ProductDetailModalProps) {
   const [previewMode, setPreviewMode] = useState<"subject" | "fullcard">("subject");
 
@@ -349,6 +355,34 @@ export function ProductDetailModal({
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
+            {onAddToPrintQueue && (
+              <button
+                type="button"
+                onClick={() => {
+                  onAddToPrintQueue(card);
+                }}
+                className="py-2.5 px-3.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Đưa thẻ này vào danh sách hàng đợi in để xuất ZIP nhiều thẻ"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                <span>+ Hàng Đợi In</span>
+              </button>
+            )}
+
+            {onDownloadSingleCard && (
+              <button
+                type="button"
+                onClick={() => {
+                  onDownloadSingleCard(card);
+                }}
+                className="py-2.5 px-3.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500 text-indigo-300 hover:text-white border border-indigo-400/40 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Tải trực tiếp ảnh phôi thẻ chuẩn in (PNG kèm mã QR scannable)"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                <span>Tải Phôi In (PNG + QR)</span>
+              </button>
+            )}
+
             <Link
               href={`/ar/${card.slug}?ar=1${card.packCode ? `&code=${card.packCode}` : ""}`}
               target="_blank"

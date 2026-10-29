@@ -15,6 +15,11 @@ import {
   CheckSquare,
   Square,
   Check,
+  FolderArchive,
+  FolderPlus,
+  ListPlus,
+  FileDown,
+  Download,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -33,6 +38,12 @@ interface ProductsTabProps {
   onOpenComboModal: () => void;
   onBatchAssignPackCode: (slugs: string[], packCode: string) => Promise<void> | void;
   onUpdatePackCode?: (card: Animal, newPackCode: string) => Promise<void> | void;
+  onAddToPrintQueue?: (card: Animal) => void;
+  onBatchAddToPrintQueue?: (cards: Animal[]) => void;
+  onDownloadSingleCard?: (card: Animal) => void;
+  onDownloadZipForCards?: (cards: Animal[], customZipName?: string) => Promise<void> | void;
+  printQueueCount?: number;
+  isGeneratingZip?: boolean;
 }
 
 export function ProductsTab({
@@ -47,6 +58,12 @@ export function ProductsTab({
   onOpenComboModal,
   onBatchAssignPackCode,
   onUpdatePackCode,
+  onAddToPrintQueue,
+  onBatchAddToPrintQueue,
+  onDownloadSingleCard,
+  onDownloadZipForCards,
+  printQueueCount = 0,
+  isGeneratingZip = false,
 }: ProductsTabProps) {
   const [searchCardQuery, setSearchCardQuery] = useState("");
   const [filterCardCategory, setFilterCardCategory] = useState("all");
@@ -54,10 +71,14 @@ export function ProductsTab({
   const [onlyHomeFeatured, setOnlyHomeFeatured] = useState<boolean>(false);
   const [selectedDetailSlug, setSelectedDetailSlug] = useState<string | null>(null);
 
-  // Quản lý chọn hàng loạt để gán mã bộ
+  // Quản lý chọn hàng loạt để gán mã bộ hoặc xuất in
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [batchTargetPackCode, setBatchTargetPackCode] = useState<string>("POLY30-HANHDONG");
   const [isApplyingBatch, setIsApplyingBatch] = useState<boolean>(false);
+
+  // Modal tải file .ZIP theo Bộ Thẻ
+  const [isPackZipModalOpen, setIsPackZipModalOpen] = useState<boolean>(false);
+  const [selectedExportPackCode, setSelectedExportPackCode] = useState<string>("all");
 
   const pinnedCardsCount = productsList.filter((c) => Boolean(c.showOnHome)).length;
 
@@ -151,6 +172,25 @@ export function ProductsTab({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onDownloadZipForCards && (
+            <button
+              type="button"
+              disabled={isGeneratingZip}
+              onClick={() => {
+                if (filterCardPackCode !== "all" && filterCardPackCode !== "none") {
+                  setSelectedExportPackCode(filterCardPackCode);
+                } else {
+                  setSelectedExportPackCode("all");
+                }
+                setIsPackZipModalOpen(true);
+              }}
+              className="py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500 text-purple-200 hover:text-white border border-purple-400/50 font-black text-xs flex items-center gap-2 shadow-lg shadow-purple-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <FolderArchive className="h-4 w-4" />
+              <span>Xuất Tệp .ZIP Thẻ In Theo Bộ</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenComboModal}
@@ -357,7 +397,7 @@ export function ProductsTab({
               type="button"
               disabled={isApplyingBatch}
               onClick={handleExecuteBatchAssign}
-              className="py-2 px-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
             >
               {isApplyingBatch ? (
                 <>
@@ -367,10 +407,54 @@ export function ProductsTab({
               ) : (
                 <>
                   <Check className="h-3.5 w-3.5" />
-                  <span>Gán Cho {selectedSlugs.length} Thẻ Đã Chọn</span>
+                  <span>Gán Mã Bộ ({selectedSlugs.length})</span>
                 </>
               )}
             </button>
+
+            {/* Thêm hàng loạt vào hàng đợi in */}
+            {onBatchAddToPrintQueue && (
+              <button
+                type="button"
+                onClick={() => {
+                  const selectedCards = productsList.filter((p) =>
+                    selectedSlugs.includes(p.slug)
+                  );
+                  onBatchAddToPrintQueue(selectedCards);
+                }}
+                className="py-2 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                title="Đưa các thẻ đã chọn vào danh sách chờ xuất file in"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                <span>+ Hàng Đợi In ({selectedSlugs.length})</span>
+              </button>
+            )}
+
+            {/* Tải tệp ZIP trực tiếp cho các thẻ đã chọn */}
+            {onDownloadZipForCards && (
+              <button
+                type="button"
+                disabled={isGeneratingZip}
+                onClick={() => {
+                  const selectedCards = productsList.filter((p) =>
+                    selectedSlugs.includes(p.slug)
+                  );
+                  onDownloadZipForCards(
+                    selectedCards,
+                    `polycards-chon-${selectedCards.length}-the-in.zip`
+                  );
+                }}
+                className="py-2 px-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-400/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                title="Tải ngay tệp ZIP các ảnh phôi in chất lượng cao đã có mã QR"
+              >
+                {isGeneratingZip ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                <span>Tải ZIP ({selectedSlugs.length} Thẻ In)</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -483,6 +567,21 @@ export function ProductsTab({
                       {card.badge}
                     </span>
                   )}
+
+                  {/* Nút thêm nhanh vào hàng đợi in khi hover */}
+                  {onAddToPrintQueue && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddToPrintQueue(card);
+                      }}
+                      title="Thêm nhanh thẻ này vào hàng đợi in"
+                      className="absolute bottom-1.5 right-1.5 z-10 h-7 w-7 rounded-full bg-black/75 hover:bg-emerald-500 text-stone-300 hover:text-stone-950 border border-white/20 backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-md"
+                    >
+                      <FolderPlus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Thông tin tóm tắt gọn gàng */}
@@ -532,6 +631,192 @@ export function ProductsTab({
         </div>
       )}
 
+      {/* Modal Xuất File .ZIP Thẻ In Theo Bộ */}
+      {isPackZipModalOpen && (
+        <div
+          onClick={() => setIsPackZipModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-xl w-full bg-stone-900 border-2 border-purple-400/50 rounded-3xl text-white shadow-2xl flex flex-col overflow-hidden ring-1 ring-purple-400/20 max-h-[90dvh]"
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-white/10 bg-stone-950/95 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-400/30 flex items-center justify-center font-black">
+                  <FolderArchive className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">
+                    Xuất Tệp .ZIP Thẻ In Theo Bộ
+                  </h3>
+                  <p className="text-[11px] text-purple-300/80">
+                    Nén thành file .zip chứa toàn bộ ảnh phôi in .png kèm mã QR WebAR
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPackZipModalOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body: Danh sách chọn Bộ */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-400/30 text-xs text-purple-200 leading-relaxed">
+                Tất cả các thẻ xuất ra là file <strong>.png</strong> độ nét cao (1:1), đã chứa hình ảnh nhân vật, từ vựng song ngữ và <strong>mã QR tương tác WebAR</strong> quét được ngay. Xưởng in có thể dùng trực tiếp để in ấn!
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-300 block">
+                  Chọn Bộ Thẻ Cần Xuất ZIP:
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Tùy chọn 1: Toàn bộ kho thẻ */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExportPackCode("all")}
+                    className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                      selectedExportPackCode === "all"
+                        ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white"
+                        : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-black text-xs">Toàn Bộ Kho Thẻ</div>
+                      <div className="text-[10px] text-stone-400">Tất cả danh mục trong studio</div>
+                    </div>
+                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10">
+                      {productsList.length} thẻ
+                    </span>
+                  </button>
+
+                  {/* Tùy chọn 2: Các thẻ đang lọc */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExportPackCode("filtered")}
+                    className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                      selectedExportPackCode === "filtered"
+                        ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white"
+                        : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-black text-xs">Danh Sách Đang Lọc</div>
+                      <div className="text-[10px] text-stone-400">Theo bộ lọc tìm kiếm & danh mục</div>
+                    </div>
+                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10">
+                      {filteredProducts.length} thẻ
+                    </span>
+                  </button>
+
+                  {/* Từng Bộ thẻ cụ thể có sẵn */}
+                  {uniquePackCodes.map((code) => {
+                    const count = productsList.filter((p) => p.packCode === code).length;
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => setSelectedExportPackCode(code)}
+                        className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                          selectedExportPackCode === code
+                            ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white"
+                            : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="font-mono font-black text-xs truncate text-purple-300">
+                            {code}
+                          </div>
+                          <div className="text-[10px] text-stone-400 truncate">
+                            Bộ thẻ bài chủ đề
+                          </div>
+                        </div>
+                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
+                          {count} thẻ
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            {(() => {
+              const exportCards =
+                selectedExportPackCode === "all"
+                  ? productsList
+                  : selectedExportPackCode === "filtered"
+                  ? filteredProducts
+                  : productsList.filter((p) => p.packCode === selectedExportPackCode);
+
+              const exportZipName =
+                selectedExportPackCode === "all"
+                  ? "polycards-toan-bo-kho-the.zip"
+                  : selectedExportPackCode === "filtered"
+                  ? "polycards-the-theo-bo-loc.zip"
+                  : `polycards-${selectedExportPackCode.toLowerCase()}.zip`;
+
+              return (
+                <div className="px-5 py-3.5 border-t border-white/10 bg-stone-950/95 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                  <div className="text-xs text-stone-400">
+                    Sẽ xuất: <strong className="text-white font-mono">{exportCards.length}</strong> thẻ in (.png + QR)
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {onBatchAddToPrintQueue && (
+                      <button
+                        type="button"
+                        disabled={exportCards.length === 0}
+                        onClick={() => {
+                          onBatchAddToPrintQueue(exportCards);
+                          setIsPackZipModalOpen(false);
+                        }}
+                        className="py-2.5 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <FolderPlus className="h-3.5 w-3.5" />
+                        <span>+ Hàng Đợi In</span>
+                      </button>
+                    )}
+
+                    {onDownloadZipForCards && (
+                      <button
+                        type="button"
+                        disabled={isGeneratingZip || exportCards.length === 0}
+                        onClick={async () => {
+                          await onDownloadZipForCards(exportCards, exportZipName);
+                          setIsPackZipModalOpen(false);
+                        }}
+                        className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-purple-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isGeneratingZip ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <span>Đang Đóng Gói .ZIP...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" />
+                            <span>Tải Tệp .ZIP ({exportCards.length} Thẻ)</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Modal Xem Chi Tiết & Thao Tác Đầy Đủ Cho Thẻ Được Chọn */}
       <ProductDetailModal
         card={activeDetailCard}
@@ -541,6 +826,8 @@ export function ProductsTab({
         onOpenEditProduct={onOpenEditProduct}
         onDeleteProduct={onDeleteProduct}
         onUpdatePackCode={onUpdatePackCode}
+        onAddToPrintQueue={onAddToPrintQueue}
+        onDownloadSingleCard={onDownloadSingleCard}
       />
     </div>
   );

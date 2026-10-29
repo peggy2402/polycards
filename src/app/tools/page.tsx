@@ -945,6 +945,310 @@ export default function ToolsPage() {
     }
   };
 
+  // Helper render phôi thẻ in kèm mã QR chất lượng cao cho bất kỳ thẻ nào trong hệ thống
+  const generateCardCompositeBlob = async (
+    card: Animal
+  ): Promise<{ blob: Blob; previewUrl: string }> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const cardImgSrc =
+          card.posterUrl ||
+          (Array.isArray(card.images) && card.images[0]) ||
+          `/images/cards/${card.slug}-card.jpg`;
+
+        const isAlreadyComposite =
+          cardImgSrc.includes("-card.") ||
+          cardImgSrc.includes("jump-card") ||
+          cardImgSrc.includes("lion-card") ||
+          cardImgSrc.includes("walk-card");
+
+        const targetWebArUrl = `${
+          typeof window !== "undefined" ? window.location.origin : "https://polycards-one.vercel.app"
+        }/ar/${card.slug}?ar=1${card.packCode ? `&code=${encodeURIComponent(card.packCode)}` : ""}`;
+
+        // Sinh mã QR kèm logo tròn Poly Cards ở trung tâm
+        let qrDataUrl = "";
+        if (!isAlreadyComposite) {
+          const rawDataUrl = await QRCode.toDataURL(targetWebArUrl, {
+            errorCorrectionLevel: "H",
+            margin: 1,
+            width: 1024,
+            color: { dark: "#000000", light: "#FFFFFF" },
+          });
+
+          const qrCanvas = document.createElement("canvas");
+          qrCanvas.width = 1024;
+          qrCanvas.height = 1024;
+          const qrCtx = qrCanvas.getContext("2d");
+          if (qrCtx) {
+            await new Promise<void>((resQr) => {
+              const qrImg = new window.Image();
+              qrImg.crossOrigin = "anonymous";
+              qrImg.onload = () => {
+                qrCtx.drawImage(qrImg, 0, 0, 1024, 1024);
+                const badgeSize = 1024 * 0.22;
+                const center = 1024 / 2;
+                qrCtx.fillStyle = "#FFFFFF";
+                qrCtx.beginPath();
+                qrCtx.arc(center, center, badgeSize / 2 + 10, 0, Math.PI * 2);
+                qrCtx.fill();
+                qrCtx.lineWidth = 6;
+                qrCtx.strokeStyle = "#F59E0B";
+                qrCtx.stroke();
+
+                const logo = new window.Image();
+                logo.crossOrigin = "anonymous";
+                logo.onload = () => {
+                  const innerSize = badgeSize * 0.8;
+                  qrCtx.drawImage(
+                    logo,
+                    center - innerSize / 2,
+                    center - innerSize / 2,
+                    innerSize,
+                    innerSize
+                  );
+                  qrDataUrl = qrCanvas.toDataURL("image/png");
+                  resQr();
+                };
+                logo.onerror = () => {
+                  qrDataUrl = rawDataUrl;
+                  resQr();
+                };
+                logo.src = "/images/icons/logo.png";
+              };
+              qrImg.onerror = () => {
+                qrDataUrl = rawDataUrl;
+                resQr();
+              };
+              qrImg.src = rawDataUrl;
+            });
+          }
+        }
+
+        // Tạo canvas hoàn chỉnh
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Không thể khởi tạo Canvas Context");
+
+        const baseImg = new window.Image();
+        baseImg.crossOrigin = "anonymous";
+        baseImg.onload = () => {
+          const width = baseImg.naturalWidth || 700;
+          const height = baseImg.naturalHeight || 1000;
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.drawImage(baseImg, 0, 0, width, height);
+
+          // Nếu chưa có QR, vẽ lớp QR vào góc dưới bên trái (x=6.2%, y=70.8%, size=25.8%)
+          if (!isAlreadyComposite && qrDataUrl) {
+            const realQrX = (6.2 / 100) * width;
+            const realQrY = (70.8 / 100) * height;
+            const realQrSize = (25.8 / 100) * width;
+
+            const qrEl = new window.Image();
+            qrEl.crossOrigin = "anonymous";
+            qrEl.onload = () => {
+              ctx.drawImage(qrEl, realQrX, realQrY, realQrSize, realQrSize);
+              finish();
+            };
+            qrEl.onerror = () => finish();
+            qrEl.src = qrDataUrl;
+          } else {
+            finish();
+          }
+
+          function finish() {
+            canvas.toBlob(
+              (b) => {
+                if (b) {
+                  resolve({
+                    blob: b,
+                    previewUrl: canvas.toDataURL("image/png", 0.4),
+                  });
+                } else {
+                  reject(new Error("Không thể tạo Blob từ Canvas"));
+                }
+              },
+              "image/png",
+              1.0
+            );
+          }
+        };
+        baseImg.onerror = () =>
+          reject(new Error(`Không thể nạp ảnh của thẻ ${card.nameVi}`));
+        baseImg.src = cardImgSrc;
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
+  // Thêm 1 thẻ từ Kho Thẻ Bài vào Hàng Đợi In
+  const handleAddCardToPrintQueue = async (card: Animal) => {
+    try {
+      showToast(`Đang chuẩn bị phôi in thẻ "${card.nameVi}"...`, "info");
+      const { blob, previewUrl } = await generateCardCompositeBlob(card);
+      const nextOrder = printQueue.length + 1;
+      const newItem: PrintQueueItem = {
+        id: `queue-${Date.now()}-${card.slug}`,
+        orderNumber: nextOrder,
+        name: card.nameVi,
+        slug: card.slug,
+        category: card.category || "Động Vật",
+        previewUrl,
+        blob,
+        addedAt: new Date().toLocaleTimeString("vi-VN"),
+      };
+      setPrintQueue((prev) => [...prev, newItem]);
+      setIsQueueExpanded(true);
+      showToast(
+        `Đã thêm "${card.nameVi}" vào Hàng Đợi In (${nextOrder}.png)!`,
+        "success"
+      );
+    } catch (err: any) {
+      showToast(`Lỗi thêm thẻ vào hàng đợi: ${err.message}`, "error");
+    }
+  };
+
+  // Thêm nhiều thẻ từ Kho Thẻ Bài vào Hàng Đợi In
+  const handleBatchAddToPrintQueue = async (cards: Animal[]) => {
+    if (!cards || cards.length === 0) return;
+    try {
+      showToast(`Đang nạp ${cards.length} thẻ vào Hàng Đợi In...`, "info");
+      const newItems: PrintQueueItem[] = [];
+      let currentOrder = printQueue.length;
+
+      for (const card of cards) {
+        currentOrder++;
+        const { blob, previewUrl } = await generateCardCompositeBlob(card);
+        newItems.push({
+          id: `queue-${Date.now()}-${card.slug}-${currentOrder}`,
+          orderNumber: currentOrder,
+          name: card.nameVi,
+          slug: card.slug,
+          category: card.category || "Động Vật",
+          previewUrl,
+          blob,
+          addedAt: new Date().toLocaleTimeString("vi-VN"),
+        });
+      }
+
+      setPrintQueue((prev) => [...prev, ...newItems]);
+      setIsQueueExpanded(true);
+      showToast(
+        `Đã thêm thành công ${newItems.length} thẻ vào Hàng Đợi In!`,
+        "success"
+      );
+    } catch (err: any) {
+      showToast(`Lỗi thêm hàng loạt: ${err.message}`, "error");
+    }
+  };
+
+  // Tải trực tiếp file in ấn (PNG kèm QR) cho 1 thẻ bài
+  const handleDownloadSingleCardPrint = async (card: Animal) => {
+    try {
+      showToast(`Đang xuất phôi in thẻ "${card.nameVi}"...`, "info");
+      const { blob } = await generateCardCompositeBlob(card);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `polycards-${card.slug}-card-ready-to-print.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast(`Đã xuất ảnh in "${card.nameVi}" (PNG kèm QR) thành công!`, "success");
+    } catch (err: any) {
+      showToast(`Lỗi xuất ảnh in: ${err.message}`, "error");
+    }
+  };
+
+  // Tải file .ZIP theo Bộ Thẻ hoặc danh sách thẻ đã chọn (Toàn bộ là PNG kèm QR)
+  const handleDownloadZipForCards = async (
+    cards: Animal[],
+    customZipName?: string
+  ) => {
+    if (!cards || cards.length === 0) {
+      showToast("Không có thẻ bài nào để tạo tệp ZIP!", "warning");
+      return;
+    }
+
+    try {
+      setIsGeneratingZip(true);
+      showToast(`Bắt đầu đóng gói ${cards.length} thẻ in...`, "info");
+      const zip = new JSZip();
+
+      const manifestLines: string[] = [
+        `============================================================`,
+        `POLY CARDS - GÓI THẺ BÀI IN ẤN XƯỞNG CHUẨN ĐỘ NÉT CAO (PNG 1:1 KÈM QR)`,
+        `Tổng số thẻ: ${cards.length} thẻ`,
+        `Thời gian xuất file: ${new Date().toLocaleString("vi-VN")}`,
+        `Quy ước: Thứ tự file 01-[slug].png, 02-[slug].png...`,
+        `============================================================\n`,
+      ];
+
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        const orderNum = String(i + 1).padStart(2, "0");
+        const fileName = `${orderNum}-${card.slug}.png`;
+
+        showToast(
+          `Đang vẽ phôi in có QR (${i + 1}/${cards.length}): ${card.nameVi}...`,
+          "info"
+        );
+        const { blob } = await generateCardCompositeBlob(card);
+        zip.file(fileName, blob);
+
+        manifestLines.push(
+          `[${fileName}] ${card.nameVi} (${card.nameEn}) | Mã Bộ: ${
+            card.packCode || "Chưa có"
+          } | Danh mục: ${card.category} | WebAR: /ar/${card.slug}?ar=1${
+            card.packCode ? `&code=${card.packCode}` : ""
+          }`
+        );
+      }
+
+      manifestLines.push(
+        `\n------------------------------------------------------------`
+      );
+      manifestLines.push(
+        `Poly Cards Studio - Chế bản & In ấn thẻ học thông minh AR 3D.`
+      );
+      zip.file("danh-sach-the-in.txt", manifestLines.join("\n"));
+
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+
+      let rawName = (customZipName || "bo-the-polycards-in-an").trim();
+      if (!rawName.toLowerCase().endsWith(".zip")) {
+        rawName += ".zip";
+      }
+
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = rawName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      showToast(
+        `Đã xuất và tải xuống thành công tệp ZIP "${rawName}" (${cards.length} thẻ)!`,
+        "success"
+      );
+    } catch (err: any) {
+      console.error("Lỗi xuất ZIP:", err);
+      showToast(`Lỗi xuất file ZIP: ${err.message}`, "error");
+    } finally {
+      setIsGeneratingZip(false);
+    }
+  };
+
   // CRUD Thẻ Bài Handlers
   const handleDeleteProduct = (product: Animal) => {
     requestConfirm({
@@ -1902,6 +2206,12 @@ export default function ToolsPage() {
           onOpenComboModal={() => setIsComboModalOpen(true)}
           onBatchAssignPackCode={handleBatchAssignPackCode}
           onUpdatePackCode={handleUpdateSinglePackCode}
+          onAddToPrintQueue={handleAddCardToPrintQueue}
+          onBatchAddToPrintQueue={handleBatchAddToPrintQueue}
+          onDownloadSingleCard={handleDownloadSingleCardPrint}
+          onDownloadZipForCards={handleDownloadZipForCards}
+          printQueueCount={printQueue.length}
+          isGeneratingZip={isGeneratingZip}
         />
       )}
 
