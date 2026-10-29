@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Check,
   Languages,
+  Star,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { EditProductFormData } from "../types";
@@ -276,15 +277,42 @@ export function EditProductModal({
 
             <div>
               <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                Huy Hiệu (Badge):
+                Huy Hiệu Nổi Bật (Badge góc phải trên ảnh thẻ):
               </label>
               <input
                 type="text"
                 value={editProductForm.badge}
                 onChange={(e) => onChangeForm({ badge: e.target.value })}
-                placeholder="Mới ra mắt, Bán chạy..."
+                placeholder="Nhập tùy ý (Để trống để ẩn Badge)..."
                 className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
               />
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                {["Mới ra mắt", "Bán chạy", "Hot", "Yêu thích nhất"].map((presetBadge) => (
+                  <button
+                    key={presetBadge}
+                    type="button"
+                    onClick={() => onChangeForm({ badge: presetBadge })}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                      editProductForm.badge === presetBadge
+                        ? "bg-amber-400 text-stone-950 border-amber-300"
+                        : "bg-white/5 text-stone-400 border-white/10 hover:text-white"
+                    }`}
+                  >
+                    {presetBadge}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => onChangeForm({ badge: "" })}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                    editProductForm.badge === ""
+                      ? "bg-rose-500/20 text-rose-300 border-rose-400/40"
+                      : "bg-white/5 text-stone-400 border-white/10 hover:text-rose-300"
+                  }`}
+                >
+                  Ẩn badge
+                </button>
+              </div>
             </div>
 
             <div>
@@ -310,6 +338,29 @@ export function EditProductModal({
                 className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-400 font-mono focus:outline-hidden focus:border-amber-400"
               />
             </div>
+          </div>
+
+          {/* TÙY CHỌN GHIM THẺ LÊN HÀNG 4 THẺ TRANG CHỦ (#PRODUCTS) */}
+          <div
+            className={`p-3 rounded-xl border transition-colors space-y-1 ${
+              editProductForm.showOnHome
+                ? "bg-emerald-500/15 border-emerald-400/50"
+                : "bg-black/40 border-white/10"
+            }`}
+          >
+            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-black text-emerald-300">
+              <input
+                type="checkbox"
+                checked={editProductForm.showOnHome}
+                onChange={(e) => onChangeForm({ showOnHome: e.target.checked })}
+                className="rounded border-stone-700 text-emerald-500 focus:ring-emerald-400 h-4 w-4"
+              />
+              <Star className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span>Ghim thẻ này lên hàng 4 thẻ nổi bật tại Trang Chủ (#products)</span>
+            </label>
+            <p className="text-[10px] text-stone-400 pl-6">
+              Bật để đưa thẻ lên hàng 4 thẻ nhỏ nổi bật phía trên Khối Combo Lớn tại trang chủ.
+            </p>
           </div>
 
           <div>

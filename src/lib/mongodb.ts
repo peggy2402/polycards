@@ -1,5 +1,6 @@
 import { MongoClient, Db, Document, OptionalUnlessRequiredId } from "mongodb";
 import { Animal, ProductCategory } from "@/types/animal";
+import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 import {
   INITIAL_PRODUCTS,
   INITIAL_CATEGORIES,
@@ -16,6 +17,7 @@ interface InMemoryStore {
   categories: ProductCategory[];
   orders: SeedOrderItem[];
   customers: SeedCustomerItem[];
+  featuredCombo: CardComboPack;
 }
 
 declare global {
@@ -31,6 +33,7 @@ function getInMemoryStore(): InMemoryStore {
       categories: structuredClone(INITIAL_CATEGORIES),
       orders: structuredClone(INITIAL_ORDERS),
       customers: structuredClone(INITIAL_CUSTOMERS),
+      featuredCombo: structuredClone(DEFAULT_FEATURED_COMBO),
     };
   }
   return globalThis._inMemoryStore;
@@ -386,5 +389,45 @@ export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<voi
       await col.insertOne({ ...targetCust });
     }
   }
+}
+
+// ============================================================================
+// 5. FEATURED COMBO BANNER REPOSITORY (#products Home Page)
+// ============================================================================
+
+export async function dbGetFeaturedCombo(): Promise<CardComboPack> {
+  const db = await getMongoDb();
+  if (!db) {
+    return getInMemoryStore().featuredCombo || DEFAULT_FEATURED_COMBO;
+  }
+
+  try {
+    const doc = await db
+      .collection<{ key: string; data: CardComboPack }>("settings")
+      .findOne({ key: "featured_combo" });
+    if (doc && doc.data) {
+      return doc.data;
+    }
+  } catch (err) {
+    console.warn("[MongoDB] Không thể đọc featured_combo:", err);
+  }
+  return getInMemoryStore().featuredCombo || DEFAULT_FEATURED_COMBO;
+}
+
+export async function dbSaveFeaturedCombo(combo: CardComboPack): Promise<CardComboPack> {
+  const mem = getInMemoryStore();
+  mem.featuredCombo = combo;
+
+  const db = await getMongoDb();
+  if (db) {
+    await db
+      .collection<{ key: string; data: CardComboPack; updatedAt: string }>("settings")
+      .updateOne(
+        { key: "featured_combo" },
+        { $set: { key: "featured_combo", data: combo, updatedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
+  }
+  return combo;
 }
 

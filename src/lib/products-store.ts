@@ -1,4 +1,5 @@
 import { Animal, ProductCategory } from "@/types/animal";
+import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from "@/data/seed-data";
 
 export const DEFAULT_CATEGORIES: ProductCategory[] = INITIAL_CATEGORIES;
@@ -6,8 +7,10 @@ export const DEFAULT_CATEGORIES: ProductCategory[] = INITIAL_CATEGORIES;
 const STORAGE_CATEGORIES_KEY = "polycards_categories_db";
 const STORAGE_PRODUCTS_KEY = "polycards_custom_products";
 const STORAGE_DELETED_PRODUCTS_KEY = "polycards_deleted_products";
+const STORAGE_FEATURED_COMBO_KEY = "polycards_featured_combo";
 export const PRODUCTS_UPDATED_EVENT = "polycards_products_updated";
 export const CATEGORIES_UPDATED_EVENT = "polycards_categories_updated";
+export const COMBO_UPDATED_EVENT = "polycards_combo_updated";
 
 /**
  * Lấy danh sách ID / Slug của các sản phẩm đã bị xóa
@@ -400,7 +403,10 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     animations: productData.animations || ["Idle"],
     arEnabled: productData.arEnabled !== undefined ? productData.arEnabled : true,
     buyUrl: productData.buyUrl || `/order?animal=${cleanSlug}`,
-    badge: productData.badge || "Mới ra mắt",
+    badge:
+      productData.badge !== undefined ? productData.badge.trim() : "Mới ra mắt",
+    showOnHome:
+      productData.showOnHome !== undefined ? productData.showOnHome : false,
     isCustom: true,
     updatedAt: new Date().toISOString(),
   };
@@ -490,4 +496,34 @@ export function deleteCustomProduct(idOrSlug: string): void {
   }
 
   window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: { deletedId: idOrSlug } }));
+}
+
+/**
+ * Lấy thông tin Khối Combo Lớn trên trang chủ (#products)
+ */
+export function getFeaturedCombo(): CardComboPack {
+  if (typeof window === "undefined") return DEFAULT_FEATURED_COMBO;
+  try {
+    const raw = localStorage.getItem(STORAGE_FEATURED_COMBO_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.name) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return DEFAULT_FEATURED_COMBO;
+}
+
+/**
+ * Lưu thông tin Khối Combo Lớn vào localStorage và phát sự kiện cập nhật
+ */
+export function saveFeaturedComboLocal(combo: CardComboPack): CardComboPack {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(STORAGE_FEATURED_COMBO_KEY, JSON.stringify(combo));
+    } catch {}
+    window.dispatchEvent(new CustomEvent(COMBO_UPDATED_EVENT, { detail: combo }));
+  }
+  return combo;
 }

@@ -23,11 +23,15 @@ import {
   saveProductToLanding,
   deleteCustomProduct,
   getMergedProducts,
+  getFeaturedCombo,
+  saveFeaturedComboLocal,
   slugify,
   CATEGORIES_UPDATED_EVENT,
   PRODUCTS_UPDATED_EVENT,
+  COMBO_UPDATED_EVENT,
 } from "@/lib/products-store";
 import { Animal, ProductCategory } from "@/types/animal";
+import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 
 // Import Types & Constants đã chuẩn hóa
 import {
@@ -49,6 +53,7 @@ import { AuthModal } from "@/components/tools/modals/auth-modal";
 import { PublishProductModal } from "@/components/tools/modals/publish-product-modal";
 import { EditProductModal } from "@/components/tools/modals/edit-product-modal";
 import { CategoryModal } from "@/components/tools/modals/category-modal";
+import { ComboConfigModal } from "@/components/tools/modals/combo-config-modal";
 
 // Import Tabs
 import { EditorTab } from "@/components/tools/tabs/editor-tab";
@@ -178,6 +183,7 @@ export default function ToolsPage() {
     price: 219000,
     originalPrice: 299000,
     badge: "Mới ra mắt",
+    showOnHome: true,
     description: "Thẻ học thông minh phát triển kỹ năng vận động và phản xạ thể chất cho trẻ.",
     useCompositeCardImage: true,
     modelPresetId: "lion",
@@ -221,6 +227,7 @@ export default function ToolsPage() {
     price: 219000,
     originalPrice: 299000,
     badge: "Mới ra mắt",
+    showOnHome: false,
     description: "",
     imageUrl: "",
     modelUrl: "/models/lion.glb",
@@ -232,6 +239,50 @@ export default function ToolsPage() {
     audioZhUrl: "",
   });
   const [isSavingEditProduct, setIsSavingEditProduct] = useState<boolean>(false);
+
+  // 17. Cấu hình Khối Combo Lớn trên Trang Chủ (#products)
+  const [featuredCombo, setFeaturedCombo] = useState<CardComboPack>(DEFAULT_FEATURED_COMBO);
+  const [isComboModalOpen, setIsComboModalOpen] = useState<boolean>(false);
+  const [isSavingCombo, setIsSavingCombo] = useState<boolean>(false);
+
+  useEffect(() => {
+    const loadCombo = async () => {
+      setFeaturedCombo(getFeaturedCombo());
+      try {
+        const res = await fetch("/api/featured-combo");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            setFeaturedCombo(json.data);
+          }
+        }
+      } catch {}
+    };
+    loadCombo();
+    window.addEventListener(COMBO_UPDATED_EVENT, loadCombo);
+    return () => {
+      window.removeEventListener(COMBO_UPDATED_EVENT, loadCombo);
+    };
+  }, []);
+
+  const handleSaveFeaturedCombo = async (updatedCombo: CardComboPack) => {
+    try {
+      setIsSavingCombo(true);
+      await fetch("/api/featured-combo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedCombo),
+      });
+      saveFeaturedComboLocal(updatedCombo);
+      setFeaturedCombo(updatedCombo);
+      setIsComboModalOpen(false);
+      showToast("Đã cập nhật Khối Combo Lớn tại Trang Chủ (#products) thành công!", "success");
+    } catch (err: any) {
+      showToast(`Lỗi lưu Khối Combo: ${err.message}`, "error");
+    } finally {
+      setIsSavingCombo(false);
+    }
+  };
 
   // Tải danh mục sản phẩm từ API MongoDB (hoặc fallback store)
   useEffect(() => {
@@ -911,6 +962,41 @@ export default function ToolsPage() {
     });
   };
 
+  const handleToggleShowOnHome = async (product: Animal) => {
+    const nextPinned = !product.showOnHome;
+    const updatedData: Partial<Animal> & {
+      nameEn: string;
+      nameVi: string;
+      category: string;
+      price: number;
+    } = {
+      ...product,
+      nameEn: product.nameEn,
+      nameVi: product.nameVi,
+      category: product.category || "Động Vật",
+      price: product.price || 219000,
+      showOnHome: nextPinned,
+    };
+
+    try {
+      await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData),
+      });
+      saveProductToLanding(updatedData);
+      await loadStudioProducts();
+      showToast(
+        nextPinned
+          ? `Đã ghim thẻ "${product.nameVi}" lên hàng 4 thẻ nổi bật tại Trang Chủ (#products)!`
+          : `Đã gỡ thẻ "${product.nameVi}" khỏi hàng nổi bật Trang Chủ (#products).`,
+        "success"
+      );
+    } catch (err: any) {
+      showToast(`Lỗi cập nhật trạng thái ghim Trang Chủ: ${err.message}`, "error");
+    }
+  };
+
   const handleOpenEditProduct = (product: Animal) => {
     setEditingProduct(product);
     setEditProductForm({
@@ -927,7 +1013,8 @@ export default function ToolsPage() {
       category: product.category || "Động Vật",
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
-      badge: product.badge || "Mới ra mắt",
+      badge: product.badge !== undefined ? product.badge : "Mới ra mắt",
+      showOnHome: Boolean(product.showOnHome),
       description: product.description || "",
       imageUrl: product.posterUrl || (Array.isArray(product.images) && product.images[0]) || "",
       modelUrl: product.modelUrl || "/models/lion.glb",
@@ -960,6 +1047,7 @@ export default function ToolsPage() {
         price: Number(editProductForm.price) || 219000,
         originalPrice: Number(editProductForm.originalPrice) || 299000,
         badge: editProductForm.badge.trim(),
+        showOnHome: editProductForm.showOnHome,
         description: editProductForm.description.trim(),
         posterUrl: editProductForm.imageUrl.trim() || editingProduct.posterUrl,
         images: editProductForm.imageUrl.trim() ? [editProductForm.imageUrl.trim()] : editingProduct.images,
@@ -1064,7 +1152,8 @@ export default function ToolsPage() {
       category: resolvedCategory,
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
-      badge: product.badge || "Mới ra mắt",
+      badge: product.badge !== undefined ? product.badge : "Mới ra mắt",
+      showOnHome: Boolean(product.showOnHome),
       description: product.description || "",
       useCompositeCardImage: true,
       modelPresetId: matchedProductPreset ? matchedProductPreset.id : "custom",
@@ -1112,7 +1201,8 @@ export default function ToolsPage() {
         originalPrice:
           existingProduct.originalPrice ||
           Math.round((existingProduct.price || 219000) * 1.3),
-        badge: existingProduct.badge || "Mới ra mắt",
+        badge: existingProduct.badge !== undefined ? existingProduct.badge : "Mới ra mắt",
+        showOnHome: Boolean(existingProduct.showOnHome),
         description:
           existingProduct.description ||
           `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${existingProduct.nameVi} (${existingProduct.nameEn}).`,
@@ -1192,7 +1282,8 @@ export default function ToolsPage() {
       category: isCurrentSlugSame && prev.category ? prev.category : resolvedDefaultCat,
       price: prev.price || 219000,
       originalPrice: prev.originalPrice || 299000,
-      badge: prev.badge || "Mới ra mắt",
+      badge: prev.badge !== undefined ? prev.badge : "Mới ra mắt",
+      showOnHome: prev.showOnHome !== undefined ? prev.showOnHome : true,
       description:
         isCurrentSlugSame && prev.description
           ? prev.description
@@ -1302,6 +1393,7 @@ export default function ToolsPage() {
             price: productForm.price,
             originalPrice: productForm.originalPrice,
             badge: productForm.badge,
+            showOnHome: productForm.showOnHome,
             description: productForm.description,
             images: [imageToSave],
             posterUrl: imageToSave,
@@ -1337,6 +1429,7 @@ export default function ToolsPage() {
         price: productForm.price,
         originalPrice: productForm.originalPrice,
         badge: productForm.badge,
+        showOnHome: productForm.showOnHome,
         description: productForm.description,
         images: [cleanImageUrl],
         posterUrl: cleanImageUrl,
@@ -1711,6 +1804,8 @@ export default function ToolsPage() {
           onLoadCardToCanvas={handleLoadCardToCanvas}
           onOpenEditProduct={handleOpenEditProduct}
           onDeleteProduct={handleDeleteProduct}
+          onToggleShowOnHome={handleToggleShowOnHome}
+          onOpenComboModal={() => setIsComboModalOpen(true)}
         />
       )}
 
@@ -1773,6 +1868,15 @@ export default function ToolsPage() {
         }}
         onUpdateCategory={handleUpdateCategory}
         onDeleteCategory={(cat) => handleDeleteCategory(cat.id, cat.name)}
+      />
+
+      <ComboConfigModal
+        isOpen={isComboModalOpen}
+        comboData={featuredCombo}
+        isSaving={isSavingCombo}
+        onClose={() => setIsComboModalOpen(false)}
+        onSave={handleSaveFeaturedCombo}
+        onShowToast={showToast}
       />
 
       <ConfirmModal

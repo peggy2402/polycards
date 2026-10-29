@@ -47,6 +47,7 @@ export interface ProductFormData {
   price: number;
   originalPrice: number;
   badge: string;
+  showOnHome: boolean;
   description: string;
   useCompositeCardImage: boolean;
   modelPresetId: string;
@@ -71,6 +72,7 @@ export interface EditProductFormData {
   price: number;
   originalPrice: number;
   badge: string;
+  showOnHome: boolean;
   description: string;
   imageUrl: string;
   modelUrl: string;

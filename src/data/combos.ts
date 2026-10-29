@@ -9,9 +9,11 @@ export interface CardComboPack {
   originalPrice: number;
   discountPercent: number;
   badge: string;
+  subBadge?: string;
   badgeVariant?: "primary" | "secondary" | "success" | "warning";
   imageSrc: string;
   sampleSlug: string;
+  targetUrl?: string;
   description: string;
   highlights: string[];
   isFeatured?: boolean;
@@ -95,10 +97,14 @@ export const COMBO_PACKS: CardComboPack[] = [
     originalPrice: 1196000,
     discountPercent: 33,
     badge: "Tiết Kiệm 397K • Hộp Quà VIP",
+    subBadge: "Gói Combo Đại Gia Đình Toàn Diện Nhất",
     imageSrc: "/images/cards/lion-cards.jpg",
     sampleSlug: "jump",
+    targetUrl: "/products",
     description: "Trọn bộ 4 chủ đề Động Vật + Hành Động + Xe Cộ + Hoa Quả. Tặng kèm Hộp quà cao cấp, thẻ bảo hành & mã kích hoạt trọn đời.",
     highlights: ["Trọn bộ 120 Thẻ AR", "Hộp quà cứng cao cấp", "Bảo hành bản quyền trọn đời"],
     isFeatured: true,
   },
 ];
+
+export const DEFAULT_FEATURED_COMBO: CardComboPack = COMBO_PACKS[4];

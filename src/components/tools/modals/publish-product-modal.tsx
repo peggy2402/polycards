@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Check,
   Languages,
+  Star,
 } from "lucide-react";
 import { ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -347,24 +348,46 @@ export function PublishProductModal({
               </div>
             </div>
 
-            {/* 4. HUY HIỆU & SLUG AR */}
+            {/* 4. HUY HIỆU (BADGE) & SLUG AR */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                  Huy hiệu nổi bật (Badge):
+                  Huy hiệu nổi bật (Badge góc phải trên ảnh thẻ):
                 </label>
-                <select
+                <input
+                  type="text"
                   value={productForm.badge}
                   onChange={(e) => onChangeForm({ badge: e.target.value })}
-                  className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400 cursor-pointer"
-                >
-                  <option value="Mới ra mắt">Mới ra mắt</option>
-                  <option value="Bán chạy">Bán chạy</option>
-                  <option value="Yêu thích nhất">Yêu thích nhất</option>
-                  <option value="Hot">Hot</option>
-                  <option value="Thân thiện">Thân thiện</option>
-                  <option value="Combo tiết kiệm">Combo tiết kiệm</option>
-                </select>
+                  placeholder="Nhập tùy ý (Để trống để ẩn Badge)..."
+                  className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                />
+                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                  {["Mới ra mắt", "Bán chạy", "Hot", "Yêu thích nhất"].map((presetBadge) => (
+                    <button
+                      key={presetBadge}
+                      type="button"
+                      onClick={() => onChangeForm({ badge: presetBadge })}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                        productForm.badge === presetBadge
+                          ? "bg-amber-400 text-stone-950 border-amber-300"
+                          : "bg-white/5 text-stone-400 border-white/10 hover:text-white"
+                      }`}
+                    >
+                      {presetBadge}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => onChangeForm({ badge: "" })}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                      productForm.badge === ""
+                        ? "bg-rose-500/20 text-rose-300 border-rose-400/40"
+                        : "bg-white/5 text-stone-400 border-white/10 hover:text-rose-300"
+                    }`}
+                  >
+                    Ẩn badge
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -380,20 +403,44 @@ export function PublishProductModal({
               </div>
             </div>
 
-            {/* 5. TÙY CHỌN ẢNH THẺ TỪ CANVAS */}
-            <div className="p-2.5 sm:p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
-                <input
-                  type="checkbox"
-                  checked={productForm.useCompositeCardImage}
-                  onChange={(e) => onChangeForm({ useCompositeCardImage: e.target.checked })}
-                  className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
-                />
-                <span>Sử dụng ảnh thẻ thành phẩm từ Canvas (Đã gắn QR chuẩn in)</span>
-              </label>
-              <p className="text-[10px] text-stone-400 pl-6">
-                Nếu bỏ tích, hệ thống sẽ sử dụng ảnh thẻ mẫu gốc (chưa ghép QR).
-              </p>
+            {/* 5. TÙY CHỌN GHIM LÊN TRANG CHỦ #PRODUCTS & ẢNH THẺ CANVAS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div
+                className={`p-2.5 sm:p-3 rounded-xl border transition-colors space-y-1 ${
+                  productForm.showOnHome
+                    ? "bg-emerald-500/15 border-emerald-400/50"
+                    : "bg-black/40 border-white/10"
+                }`}
+              >
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-black text-emerald-300">
+                  <input
+                    type="checkbox"
+                    checked={productForm.showOnHome}
+                    onChange={(e) => onChangeForm({ showOnHome: e.target.checked })}
+                    className="rounded border-stone-700 text-emerald-500 focus:ring-emerald-400 h-4 w-4"
+                  />
+                  <Star className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span>Ghim lên hàng 4 thẻ Trang Chủ (#products)</span>
+                </label>
+                <p className="text-[10px] text-stone-400 pl-6">
+                  Hiển thị trực tiếp ở hàng 4 thẻ nhỏ nổi bật trên trang chủ.
+                </p>
+              </div>
+
+              <div className="p-2.5 sm:p-3 rounded-xl bg-black/40 border border-white/10 space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+                  <input
+                    type="checkbox"
+                    checked={productForm.useCompositeCardImage}
+                    onChange={(e) => onChangeForm({ useCompositeCardImage: e.target.checked })}
+                    className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+                  />
+                  <span>Sử dụng ảnh thẻ thành phẩm từ Canvas</span>
+                </label>
+                <p className="text-[10px] text-stone-400 pl-6">
+                  Nếu bỏ tích, hệ thống giữ nguyên ảnh mẫu gốc (chưa ghép QR).
+                </p>
+              </div>
             </div>
 
             {/* 6. CẤU HÌNH & TẢI LÊN TÀI NGUYÊN 3D / AR / ÂM THANH (DRY REUSABLE WIDGET) */}

@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
 import { getAllAnimals } from "@/lib/animals";
+import { getMergedProducts, resolveValidProductImage } from "@/lib/products-store";
 import {
   Trophy,
   CheckCircle2,
@@ -21,14 +22,21 @@ interface ArInteractiveQuizProps {
 }
 
 export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
-  const allAnimals = getAllAnimals();
+  const [catalog, setCatalog] = useState<Animal[]>(() => getAllAnimals());
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [hasCompleted, setHasCompleted] = useState(false);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setCatalog(getMergedProducts(getAllAnimals()));
+  }, []);
 
   // Sinh 3 lựa chọn gồm: con vật hiện tại + 2 con vật khác (Deterministic, không dùng Math.random để tránh lỗi SSR)
   const options = React.useMemo(() => {
-    const wrongAnimals = allAnimals.filter((a) => a.id !== currentAnimal.id);
+    const wrongAnimals = catalog.filter(
+      (a) => a.id !== currentAnimal.id && a.slug !== currentAnimal.slug
+    );
     if (wrongAnimals.length < 2) return [currentAnimal];
 
     // Tạo seed cố định dựa trên ký tự của con vật hiện tại
@@ -44,7 +52,7 @@ export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
     const combined = [...pickedWrong];
     combined.splice(targetPos, 0, currentAnimal);
     return combined;
-  }, [currentAnimal, allAnimals]);
+  }, [currentAnimal, catalog]);
 
   const handleSelectOption = (animal: Animal) => {
     setSelectedOptionId(animal.id);
@@ -131,9 +139,21 @@ export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
             >
               <div className="relative aspect-square w-24 overflow-hidden rounded-xl bg-white shadow-xs border border-amber-200 mb-2">
                 <Image
-                  src={option.images[0] || "/images/animals/lion.jpg"}
+                  src={
+                    failedImages[option.id]
+                      ? "/images/cards/jump-template.jpg"
+                      : resolveValidProductImage(
+                          option.images?.[0],
+                          option.posterUrl,
+                          "/images/cards/jump-template.jpg"
+                        )
+                  }
                   alt={option.nameVi}
                   fill
+                  unoptimized
+                  onError={() =>
+                    setFailedImages((prev) => ({ ...prev, [option.id]: true }))
+                  }
                   sizes="96px"
                   className="object-cover"
                 />

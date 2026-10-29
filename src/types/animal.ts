@@ -45,6 +45,7 @@ export interface Animal {
   targetUrl?: string;
   buyUrl?: string;
   badge?: string;
+  showOnHome?: boolean;
   isCustom?: boolean;
   updatedAt?: string;
 }

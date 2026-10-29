@@ -192,20 +192,33 @@ export function WebArCardView({
     pivot.rotation.y = userRotYRef.current;
     pivot.rotation.x = userRotXRef.current;
 
-    // Chiều rộng thẻ bài là 1.0 -> tỉ lệ chuẩn ~0.50 kích thước thẻ bài
-    const baseDim = 0.5;
+    // Tỉ lệ chuẩn 0.34 giúp toàn bộ cơ thể mô hình 3D (từ đầu đến chân) nằm gọn giữa khung hình camera
+    const baseDim = 0.34;
     const s = (baseDim / (maxDimRef.current || 1)) * userScaleRef.current;
     pivot.scale.set(s, s, s);
     pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
   }, []);
 
-  // Nút bấm tăng / giảm tỉ lệ mô hình 3D
-  const handleZoom = useCallback((delta: number) => {
-    const next = Math.max(0.35, Math.min(2.8, Math.round((userScaleRef.current + delta) * 100) / 100));
-    userScaleRef.current = next;
-    setZoomPercent(Math.round(next * 100));
-    applyTransform();
-  }, [applyTransform]);
+  // Nút bấm tăng / giảm tỉ lệ mô hình 3D (Cho phép thu nhỏ sâu tới 5% và phóng to tới 300%)
+  const handleZoom = useCallback(
+    (delta: number) => {
+      const current = userScaleRef.current;
+      const effectiveDelta =
+        current <= 0.4 && delta < 0
+          ? -0.08
+          : current < 0.4 && delta > 0
+            ? 0.08
+            : delta;
+      const next = Math.max(
+        0.05,
+        Math.min(3.0, Math.round((current + effectiveDelta) * 100) / 100)
+      );
+      userScaleRef.current = next;
+      setZoomPercent(Math.round(next * 100));
+      applyTransform();
+    },
+    [applyTransform]
+  );
 
   // Đặt lại góc nhìn, vị trí và tỉ lệ mô hình về chuẩn 100%
   const handleResetTransform = useCallback(() => {
@@ -419,43 +432,7 @@ export function WebArCardView({
 
               const rawModel = gltf.scene;
 
-              // Tính Bounding Box để lấy kích thước và căn tâm (Center)
-              const bbox = new THREE.Box3().setFromObject(rawModel);
-              const center = bbox.getCenter(new THREE.Vector3());
-              const size = bbox.getSize(new THREE.Vector3());
-              const maxDim = Math.max(size.x, size.y, size.z) || 1;
-              maxDimRef.current = maxDim;
-
-              // CĂN TÂM CHUẨN XÁC: Tạo modelHolder để đưa tâm về (0,0,0)
-              // Tuyệt đối giữ nguyên rawModel gốc tại (0,0,0) để bảo toàn SkinnedMesh
-              const modelHolder = new THREE.Group();
-              modelHolder.position.set(-center.x, -center.y, -center.z);
-              modelHolder.add(rawModel);
-
-              // Tạo Pivot Group làm tâm điều phối xoay 360 và di chuyển
-              const pivot = new THREE.Group();
-              pivot.add(modelHolder);
-
-              // Gắn vào anchor.group
-              anchor.group.add(pivot);
-
-              const baseDim = 0.5;
-              const initialScale = (baseDim / maxDim) * userScaleRef.current;
-              pivot.scale.set(initialScale, initialScale, initialScale);
-              pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
-              pivot.rotation.set(0, 0, 0);
-
-              pivotGroupRef.current = pivot;
-              modelRef.current = rawModel;
-
-              // ĐẶC BIỆT: HIỂN THỊ TỨC THÌ (Instant AR)
-              // Ngay khi mô hình tải xong, cho hiển thị luôn trước mắt bé
-              // Bé không bao giờ phải chịu cảnh màn hình trống trơn đợi tìm thẻ!
-              hasScannedOnceRef.current = true;
-              setHasScannedOnce(true);
-              anchor.group.visible = true;
-
-              // Xử lý Animations: Khôi phục cử động sống động
+              // Khởi tạo Animations trước khi đo Bounding Box để lấy đúng kích thước thật của nhân vật có khung xương (SkinnedMesh / Mixamo / Sketchfab)
               if (gltf.animations && gltf.animations.length > 0) {
                 const mixer = new THREE.AnimationMixer(rawModel);
                 mixerRef.current = mixer;
@@ -465,8 +442,6 @@ export function WebArCardView({
                   actionsRef.current[clip.name] = mixer.clipAction(clip);
                 });
 
-                // Đối với cat: Morph action gây vặn vẹo nên không tự động phát
-                // Đối với lion và các con vật khác: phát clip khớp hoặc clip đầu tiên
                 if (animal.slug !== "cat") {
                   let matchedClip = gltf.animations.find((clip: any) =>
                     animal.animations?.some((a) => a.toLowerCase() === clip.name.toLowerCase())
@@ -479,7 +454,82 @@ export function WebArCardView({
                     setPlayingClipName(matchedClip.name);
                   }
                 }
+                // Cập nhật frame đầu tiên của animation để các Bone nhận đúng tọa độ thế giới
+                mixer.update(0.016);
               }
+
+              rawModel.updateMatrixWorld(true);
+
+              // Tính Bounding Box chuẩn xác cho cả Static Mesh lẫn Animated SkinnedMesh (Armature Scale 100x)
+              const bbox = new THREE.Box3().setFromObject(rawModel);
+              const boneBox = new THREE.Box3();
+              const tempVec = new THREE.Vector3();
+              let boneCount = 0;
+
+              rawModel.traverse((child: any) => {
+                if (child.isBone && child.matrixWorld) {
+                  tempVec.setFromMatrixPosition(child.matrixWorld);
+                  boneBox.expandByPoint(tempVec);
+                  boneCount++;
+                }
+                if (child.isSkinnedMesh && child.skeleton && Array.isArray(child.skeleton.bones)) {
+                  child.skeleton.bones.forEach((bone: any) => {
+                    if (bone && bone.matrixWorld) {
+                      tempVec.setFromMatrixPosition(bone.matrixWorld);
+                      boneBox.expandByPoint(tempVec);
+                      boneCount++;
+                    }
+                  });
+                }
+              });
+
+              if (boneCount >= 2 && !boneBox.isEmpty()) {
+                const boneSize = boneBox.getSize(new THREE.Vector3());
+                const boneMaxSpan = Math.max(boneSize.x, boneSize.y, boneSize.z);
+                const meshSize = bbox.getSize(new THREE.Vector3());
+                const meshMaxSpan = Math.max(meshSize.x, meshSize.y, meshSize.z);
+
+                // Mở rộng thêm 18% cho phần đầu/bàn chân vượt quá khớp xương cuối
+                boneBox.expandByScalar(boneMaxSpan * 0.18);
+
+                // Trong Three.js r13x (MindAR), Box3.setFromObject trên SkinnedMesh thường trả về kích thước bind-pose rất nhỏ (0.01) trong khi khung xương thật cao 1.8 - 180 đơn vị
+                if (boneMaxSpan > meshMaxSpan * 1.25 || meshMaxSpan === 0 || !isFinite(meshMaxSpan)) {
+                  bbox.copy(boneBox);
+                } else {
+                  bbox.union(boneBox);
+                }
+              }
+
+              const center = bbox.getCenter(new THREE.Vector3());
+              const size = bbox.getSize(new THREE.Vector3());
+              const maxDim = Math.max(size.x, size.y, size.z) || 1;
+              maxDimRef.current = maxDim;
+
+              // CĂN TÂM CHUẨN XÁC: Tạo modelHolder đưa tâm cơ thể về (0,0,0) để hiển thị trọn vẹn từ đầu tới chân
+              const modelHolder = new THREE.Group();
+              modelHolder.position.set(-center.x, -center.y, -center.z);
+              modelHolder.add(rawModel);
+
+              // Tạo Pivot Group làm tâm điều phối xoay 360 và di chuyển
+              const pivot = new THREE.Group();
+              pivot.add(modelHolder);
+
+              // Gắn vào anchor.group
+              anchor.group.add(pivot);
+
+              const baseDim = 0.34;
+              const initialScale = (baseDim / maxDim) * userScaleRef.current;
+              pivot.scale.set(initialScale, initialScale, initialScale);
+              pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
+              pivot.rotation.set(0, 0, 0);
+
+              pivotGroupRef.current = pivot;
+              modelRef.current = rawModel;
+
+              // ĐẶC BIỆT: HIỂN THỊ TỨC THÌ (Instant AR)
+              hasScannedOnceRef.current = true;
+              setHasScannedOnce(true);
+              anchor.group.visible = true;
 
               // 5. Khởi động Camera và Video stream tracking
               clockRef.current = new THREE.Clock();
@@ -676,9 +726,12 @@ export function WebArCardView({
       const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       const currentAngle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
 
-      // 1. Pinch to Zoom
+      // 1. Pinch to Zoom (Cho phép thu phóng tự do từ 5% đến 300%)
       const factor = currentDist / initialTouchDistRef.current;
-      const nextScale = Math.max(0.35, Math.min(2.8, Math.round(initialUserScaleRef.current * factor * 100) / 100));
+      const nextScale = Math.max(
+        0.05,
+        Math.min(3.0, Math.round(initialUserScaleRef.current * factor * 100) / 100)
+      );
       userScaleRef.current = nextScale;
       setZoomPercent(Math.round(nextScale * 100));
 
