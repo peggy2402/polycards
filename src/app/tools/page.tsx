@@ -1646,7 +1646,14 @@ export default function ToolsPage() {
           onSetDirectAr={setDirectAr}
           onSetIncludeLicense={setIncludeLicense}
           onSetLicenseCode={setLicenseCode}
-          onGenerateQr={handleGenerateQr}
+          onGenerateQr={async () => {
+            setIsQrOverlayEnabled(true);
+            await handleGenerateQr();
+            showToast(
+              `Đã cập nhật mã QR (${targetUrl}) và gắn lên thẻ bài!`,
+              "success"
+            );
+          }}
           onDownloadQrPng={handleDownloadQrPng}
           onDownloadQrSvg={handleDownloadQrSvg}
           onCopyUrl={() => {
