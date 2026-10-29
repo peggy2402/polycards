@@ -962,9 +962,22 @@ export default function ToolsPage() {
           cardImgSrc.includes("lion-card") ||
           cardImgSrc.includes("walk-card");
 
+        const effectivePackCode =
+          card.packCode && card.packCode.trim() !== ""
+            ? card.packCode.trim()
+            : card.categorySlug === "hanh-dong" || card.category === "Hành Động"
+            ? "POLY30-HANHDONG"
+            : card.categorySlug === "dong-vat" || card.category === "Động Vật"
+            ? "POLY30-DONGVAT"
+            : card.categorySlug === "xe-co" || card.category === "Xe Cộ"
+            ? "POLY30-XECO"
+            : card.categorySlug === "hoa-qua" || card.category === "Hoa Quả"
+            ? "POLY30-HOAQUA"
+            : "";
+
         const targetWebArUrl = `${
           typeof window !== "undefined" ? window.location.origin : "https://polycards-one.vercel.app"
-        }/ar/${card.slug}?ar=1${card.packCode ? `&code=${encodeURIComponent(card.packCode)}` : ""}`;
+        }/ar/${card.slug}?ar=1${effectivePackCode ? `&code=${encodeURIComponent(effectivePackCode)}` : ""}`;
 
         // Sinh mã QR kèm logo tròn Poly Cards ở trung tâm
         let qrDataUrl = "";
@@ -1200,11 +1213,24 @@ export default function ToolsPage() {
         const { blob } = await generateCardCompositeBlob(card);
         zip.file(fileName, blob);
 
+        const effectivePackCode =
+          card.packCode && card.packCode.trim() !== ""
+            ? card.packCode.trim()
+            : card.categorySlug === "hanh-dong" || card.category === "Hành Động"
+            ? "POLY30-HANHDONG"
+            : card.categorySlug === "dong-vat" || card.category === "Động Vật"
+            ? "POLY30-DONGVAT"
+            : card.categorySlug === "xe-co" || card.category === "Xe Cộ"
+            ? "POLY30-XECO"
+            : card.categorySlug === "hoa-qua" || card.category === "Hoa Quả"
+            ? "POLY30-HOAQUA"
+            : "";
+
         manifestLines.push(
           `[${fileName}] ${card.nameVi} (${card.nameEn}) | Mã Bộ: ${
-            card.packCode || "Chưa có"
+            effectivePackCode || "Chưa có"
           } | Danh mục: ${card.category} | WebAR: /ar/${card.slug}?ar=1${
-            card.packCode ? `&code=${card.packCode}` : ""
+            effectivePackCode ? `&code=${effectivePackCode}` : ""
           }`
         );
       }
