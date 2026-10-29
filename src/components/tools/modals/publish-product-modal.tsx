@@ -12,6 +12,7 @@ import {
   Check,
   Languages,
   Star,
+  PackageCheck,
 } from "lucide-react";
 import { ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -400,6 +401,56 @@ export function PublishProductModal({
                   onChange={(e) => onChangeSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                   className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
                 />
+              </div>
+            </div>
+
+            {/* MÃ BỘ BẢN QUYỀN (PACK CODE - &code=) */}
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-purple-500/10 border border-purple-400/40 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                  <PackageCheck className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                  <span>Mã Bộ Bản Quyền (Pack Code - Tham số &code=)</span>
+                </label>
+                <span className="text-[10px] text-stone-400">Tùy chọn</span>
+              </div>
+              <input
+                type="text"
+                placeholder="VD: POLY30-HANHDONG, POLY30-DONGVAT... (Để trống nếu Chưa có)"
+                value={productForm.packCode || ""}
+                onChange={(e) => onChangeForm({ packCode: e.target.value.toUpperCase() })}
+                className="w-full bg-black/80 border border-purple-400/50 rounded-xl px-3 py-2 text-xs font-mono font-bold text-purple-300 placeholder-stone-500 focus:outline-hidden focus:border-purple-300"
+              />
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-stone-400">Gợi ý nhanh:</span>
+                {[
+                  { label: "Động Vật", code: "POLY30-DONGVAT" },
+                  { label: "Hành Động", code: "POLY30-HANHDONG" },
+                  { label: "Xe Cộ", code: "POLY30-XECO" },
+                  { label: "Hoa Quả", code: "POLY30-HOAQUA" },
+                  { label: "Combo VIP", code: "POLY120-COMBOVIP" },
+                ].map((preset) => (
+                  <button
+                    key={preset.code}
+                    type="button"
+                    onClick={() => onChangeForm({ packCode: preset.code })}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border font-mono transition-colors cursor-pointer ${
+                      productForm.packCode === preset.code
+                        ? "bg-purple-500 text-white border-purple-400 shadow-sm"
+                        : "bg-white/5 text-purple-300 border-purple-400/20 hover:bg-purple-500/20"
+                    }`}
+                  >
+                    {preset.code}
+                  </button>
+                ))}
+                {productForm.packCode && (
+                  <button
+                    type="button"
+                    onClick={() => onChangeForm({ packCode: "" })}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-800 text-stone-400 hover:text-white border border-white/10 transition-colors cursor-pointer"
+                  >
+                    Xóa (Chưa có)
+                  </button>
+                )}
               </div>
             </div>
 

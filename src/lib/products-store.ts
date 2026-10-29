@@ -244,6 +244,10 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
         return {
           ...(serverMatch || {}),
           ...localItem,
+          packCode:
+            localItem.packCode !== undefined
+              ? localItem.packCode
+              : serverMatch?.packCode || "",
           images: [bestImage],
           posterUrl: bestImage,
           modelUrl: serverMatch?.modelUrl || localItem.modelUrl || `/models/lion.glb`,
@@ -389,6 +393,12 @@ export function saveProductToLanding(productData: Partial<Animal> & {
     originalPrice: Number(productData.originalPrice) || Math.round((Number(productData.price) || 219000) * 1.3),
     category: productData.category.trim(),
     categorySlug,
+    packCode:
+      productData.packCode !== undefined
+        ? productData.packCode.trim()
+        : existingIndex >= 0
+        ? customList[existingIndex].packCode || ""
+        : "",
     images: safeImages,
     audioUrl: productData.audioUrl || `/audio/${cleanSlug}.mp3`,
     audios: productData.audios || {

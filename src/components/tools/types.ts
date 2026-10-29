@@ -44,6 +44,7 @@ export interface ProductFormData {
   enableEnVi: boolean;
   enableZhVi: boolean;
   category: string;
+  packCode?: string;
   price: number;
   originalPrice: number;
   badge: string;
@@ -69,6 +70,7 @@ export interface EditProductFormData {
   enableEnVi: boolean;
   enableZhVi: boolean;
   category: string;
+  packCode?: string;
   price: number;
   originalPrice: number;
   badge: string;

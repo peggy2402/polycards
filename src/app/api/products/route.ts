@@ -54,6 +54,42 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Hỗ trợ cập nhật hàng loạt (Batch update, ví dụ: gán mã bộ cho nhiều thẻ cùng lúc)
+    if (Array.isArray(body) || (body && Array.isArray(body.batch))) {
+      const itemsToUpdate: Partial<Animal>[] = Array.isArray(body) ? body : body.batch;
+      const currentList = await dbGetProducts();
+      const updatedList: Animal[] = [];
+
+      for (const item of itemsToUpdate) {
+        if (!item.slug && !item.id) continue;
+        const cleanSlug = String(item.slug || "").toLowerCase().trim();
+        const existing = currentList.find(
+          (a) => (cleanSlug && a.slug.toLowerCase() === cleanSlug) || (item.id && a.id === item.id)
+        );
+        if (!existing) continue;
+
+        const merged: Animal = {
+          ...existing,
+          ...item,
+          packCode:
+            item.packCode !== undefined
+              ? String(item.packCode).trim()
+              : existing.packCode || "",
+          updatedAt: new Date().toISOString(),
+        };
+
+        await dbUpsertProduct(merged);
+        updatedList.push(merged);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Đã cập nhật thành công ${updatedList.length} thẻ bài.`,
+        data: updatedList,
+      });
+    }
+
     if (!body.nameEn || !body.nameVi || !body.category) {
       return NextResponse.json(
         { success: false, message: "Thiếu thông tin bắt buộc (Tên thẻ, Danh mục)." },
@@ -112,7 +148,11 @@ export async function POST(request: NextRequest) {
 
     const computedCategoryId = body.categoryId || `cat-${computedCategorySlug}`;
     const computedPackCode =
-      body.packCode || `POLY30-${computedCategorySlug.replace(/-/g, "").toUpperCase()}`;
+      body.packCode !== undefined
+        ? String(body.packCode).trim()
+        : existingItem?.packCode !== undefined
+          ? existingItem.packCode
+          : `POLY30-${computedCategorySlug.replace(/-/g, "").toUpperCase()}`;
 
     const updatedItem: Animal = {
       id: body.id || existingItem?.id || `${cleanSlug}-00${currentList.length + 1}`,

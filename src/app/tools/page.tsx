@@ -180,6 +180,7 @@ export default function ToolsPage() {
     enableEnVi: true,
     enableZhVi: false,
     category: "Hành Động",
+    packCode: "POLY30-HANHDONG",
     price: 219000,
     originalPrice: 299000,
     badge: "Mới ra mắt",
@@ -224,6 +225,7 @@ export default function ToolsPage() {
     enableEnVi: true,
     enableZhVi: false,
     category: "Động Vật",
+    packCode: "",
     price: 219000,
     originalPrice: 299000,
     badge: "Mới ra mắt",
@@ -998,6 +1000,7 @@ export default function ToolsPage() {
       nameEn: product.nameEn,
       nameVi: product.nameVi,
       category: product.category || "Động Vật",
+      packCode: product.packCode || "",
       price: product.price || 219000,
       showOnHome: nextPinned,
     };
@@ -1026,6 +1029,58 @@ export default function ToolsPage() {
     }
   };
 
+  // Tiện ích nhanh: Gán Mã Bộ hàng loạt cho danh sách thẻ bài đã chọn
+  const handleBatchAssignPackCode = async (slugs: string[], packCode: string) => {
+    if (!slugs || slugs.length === 0) return;
+    const cleanPackCode = packCode.trim();
+
+    // 1. Optimistic update local state ngay lập tức (không reload danh sách, zero delay)
+    setProductsList((prev) =>
+      prev.map((item) =>
+        slugs.includes(item.slug) ? { ...item, packCode: cleanPackCode } : item
+      )
+    );
+
+    // 2. Cập nhật localStorage
+    slugs.forEach((slug) => {
+      const existing = productsList.find((p) => p.slug === slug);
+      if (existing) {
+        saveProductToLanding({
+          ...existing,
+          category: existing.category || "Động Vật",
+          packCode: cleanPackCode,
+        });
+      }
+    });
+
+    // 3. Gửi batch update lên MongoDB qua API
+    try {
+      const itemsToUpdate = slugs.map((slug) => ({ slug, packCode: cleanPackCode }));
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch: itemsToUpdate }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      showToast(
+        cleanPackCode
+          ? `Đã gán Mã Bộ "${cleanPackCode}" cho ${slugs.length} thẻ thành công!`
+          : `Đã xóa Mã Bộ của ${slugs.length} thẻ thành công!`,
+        "success"
+      );
+    } catch (err: any) {
+      console.warn("Lỗi đồng bộ mã bộ lên server:", err);
+      showToast(`Đã lưu cục bộ nhưng đồng bộ server bị lỗi: ${err.message}`, "warning");
+    }
+  };
+
+  // Cập nhật Mã Bộ cho 1 thẻ đơn lẻ (ví dụ từ ProductDetailModal)
+  const handleUpdateSinglePackCode = async (card: Animal, newPackCode: string) => {
+    await handleBatchAssignPackCode([card.slug], newPackCode);
+  };
+
   const handleOpenEditProduct = (product: Animal) => {
     setEditingProduct(product);
     setEditProductForm({
@@ -1040,6 +1095,7 @@ export default function ToolsPage() {
           ? product.enableZhVi
           : Boolean(product.nameZh && product.nameZh.trim()),
       category: product.category || "Động Vật",
+      packCode: product.packCode || "",
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
       badge: product.badge !== undefined ? product.badge : "Mới ra mắt",
@@ -1073,6 +1129,10 @@ export default function ToolsPage() {
         enableZhVi: editProductForm.enableZhVi,
         category: editProductForm.category.trim(),
         categorySlug: slugify(editProductForm.category),
+        packCode:
+          editProductForm.packCode !== undefined
+            ? editProductForm.packCode.trim()
+            : editingProduct.packCode || "",
         price: Number(editProductForm.price) || 219000,
         originalPrice: Number(editProductForm.originalPrice) || 299000,
         badge: editProductForm.badge.trim(),
@@ -1179,6 +1239,7 @@ export default function ToolsPage() {
           ? product.enableZhVi
           : Boolean(product.nameZh && product.nameZh.trim()),
       category: resolvedCategory,
+      packCode: product.packCode || "",
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
       badge: product.badge !== undefined ? product.badge : "Mới ra mắt",
@@ -1226,6 +1287,7 @@ export default function ToolsPage() {
             ? existingProduct.enableZhVi
             : Boolean(existingProduct.nameZh && existingProduct.nameZh.trim()),
         category: resolvedCategory,
+        packCode: existingProduct.packCode || "",
         price: existingProduct.price || 219000,
         originalPrice:
           existingProduct.originalPrice ||
@@ -1309,6 +1371,7 @@ export default function ToolsPage() {
       enableEnVi: prev.enableEnVi !== undefined ? prev.enableEnVi : true,
       enableZhVi: prev.enableZhVi !== undefined ? prev.enableZhVi : false,
       category: isCurrentSlugSame && prev.category ? prev.category : resolvedDefaultCat,
+      packCode: prev.packCode || "",
       price: prev.price || 219000,
       originalPrice: prev.originalPrice || 299000,
       badge: prev.badge !== undefined ? prev.badge : "Mới ra mắt",
@@ -1419,6 +1482,7 @@ export default function ToolsPage() {
             category: productForm.category,
             categorySlug: catSlug,
             categoryId: catId,
+            packCode: productForm.packCode ? productForm.packCode.trim() : "",
             price: productForm.price,
             originalPrice: productForm.originalPrice,
             badge: productForm.badge,
@@ -1455,6 +1519,7 @@ export default function ToolsPage() {
         category: productForm.category,
         categorySlug: catSlug,
         categoryId: catId,
+        packCode: productForm.packCode ? productForm.packCode.trim() : "",
         price: productForm.price,
         originalPrice: productForm.originalPrice,
         badge: productForm.badge,
@@ -1835,6 +1900,8 @@ export default function ToolsPage() {
           onDeleteProduct={handleDeleteProduct}
           onToggleShowOnHome={handleToggleShowOnHome}
           onOpenComboModal={() => setIsComboModalOpen(true)}
+          onBatchAssignPackCode={handleBatchAssignPackCode}
+          onUpdatePackCode={handleUpdateSinglePackCode}
         />
       )}
 

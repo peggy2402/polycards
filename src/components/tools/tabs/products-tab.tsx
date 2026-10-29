@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Layers,
   Plus,
@@ -11,6 +11,10 @@ import {
   Star,
   Sparkles,
   ChevronRight,
+  PackageCheck,
+  CheckSquare,
+  Square,
+  Check,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -27,6 +31,8 @@ interface ProductsTabProps {
   onDeleteProduct: (card: Animal) => void;
   onToggleShowOnHome: (card: Animal) => void;
   onOpenComboModal: () => void;
+  onBatchAssignPackCode: (slugs: string[], packCode: string) => Promise<void> | void;
+  onUpdatePackCode?: (card: Animal, newPackCode: string) => Promise<void> | void;
 }
 
 export function ProductsTab({
@@ -39,13 +45,36 @@ export function ProductsTab({
   onDeleteProduct,
   onToggleShowOnHome,
   onOpenComboModal,
+  onBatchAssignPackCode,
+  onUpdatePackCode,
 }: ProductsTabProps) {
   const [searchCardQuery, setSearchCardQuery] = useState("");
   const [filterCardCategory, setFilterCardCategory] = useState("all");
+  const [filterCardPackCode, setFilterCardPackCode] = useState("all");
   const [onlyHomeFeatured, setOnlyHomeFeatured] = useState<boolean>(false);
   const [selectedDetailSlug, setSelectedDetailSlug] = useState<string | null>(null);
 
+  // Quản lý chọn hàng loạt để gán mã bộ
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const [batchTargetPackCode, setBatchTargetPackCode] = useState<string>("POLY30-HANHDONG");
+  const [isApplyingBatch, setIsApplyingBatch] = useState<boolean>(false);
+
   const pinnedCardsCount = productsList.filter((c) => Boolean(c.showOnHome)).length;
+
+  // Danh sách các Mã Bộ độc nhất hiện có
+  const uniquePackCodes = useMemo(() => {
+    const set = new Set<string>();
+    productsList.forEach((p) => {
+      if (p.packCode && p.packCode.trim() !== "") {
+        set.add(p.packCode.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [productsList]);
+
+  const cardsWithoutPackCodeCount = useMemo(() => {
+    return productsList.filter((p) => !p.packCode || p.packCode.trim() === "").length;
+  }, [productsList]);
 
   const filteredProducts = productsList.filter((card) => {
     const matchesSearch =
@@ -59,10 +88,41 @@ export function ProductsTab({
       card.categorySlug === filterCardCategory ||
       card.category === filterCardCategory;
 
+    const matchesPackCode =
+      filterCardPackCode === "all" ||
+      (filterCardPackCode === "none"
+        ? !card.packCode || card.packCode.trim() === ""
+        : card.packCode === filterCardPackCode);
+
     const matchesHomeFilter = !onlyHomeFeatured || Boolean(card.showOnHome);
 
-    return matchesSearch && matchesCategory && matchesHomeFilter;
+    return matchesSearch && matchesCategory && matchesPackCode && matchesHomeFilter;
   });
+
+  const toggleSelectCard = (slug: string) => {
+    setSelectedSlugs((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedSlugs(filteredProducts.map((p) => p.slug));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedSlugs([]);
+  };
+
+  const handleExecuteBatchAssign = async () => {
+    if (selectedSlugs.length === 0) return;
+    setIsApplyingBatch(true);
+    try {
+      await onBatchAssignPackCode(selectedSlugs, batchTargetPackCode);
+      setSelectedSlugs([]);
+    } finally {
+      setIsApplyingBatch(false);
+    }
+  };
 
   // Luôn lấy dữ liệu mới nhất từ productsList để khi bấm Ghim trong Modal trạng thái cập nhật ngay tức thì
   const activeDetailCard = selectedDetailSlug
@@ -86,7 +146,7 @@ export function ProductsTab({
             </span>
           </div>
           <p className="text-xs text-stone-400 mt-1 max-w-2xl">
-            Bấm trực tiếp vào bất kỳ thẻ nhỏ nào bên dưới để xem chi tiết, sửa thông tin, chế bản in hoặc thử WebAR 3D. Bấm biểu tượng ngôi sao góc phải ảnh để ghim nhanh lên <strong className="text-amber-300">#products</strong> tức thì (không tải lại trang).
+            Bấm trực tiếp vào bất kỳ thẻ nhỏ nào bên dưới để xem chi tiết, sửa thông tin, chế bản in hoặc thử WebAR 3D. Chọn nhiều thẻ để gán nhanh Mã Bộ hàng loạt.
           </p>
         </div>
 
@@ -145,8 +205,9 @@ export function ProductsTab({
         </button>
       </div>
 
-      {/* Thanh Công Cụ: Tìm Kiếm, Lọc Danh Mục */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      {/* Thanh Công Cụ: Tìm Kiếm, Lọc Danh Mục, Lọc Mã Bộ, Chọn Hàng Loạt */}
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
+        {/* Tìm kiếm */}
         <div className="flex-1 relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
           <input
@@ -167,7 +228,8 @@ export function ProductsTab({
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Lọc Theo Danh Mục */}
           <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
             <Filter className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <select
@@ -191,8 +253,127 @@ export function ProductsTab({
               ))}
             </select>
           </div>
+
+          {/* Lọc Theo Mã Bộ (Pack Code) */}
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+            <PackageCheck className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+            <select
+              value={filterCardPackCode}
+              onChange={(e) => setFilterCardPackCode(e.target.value)}
+              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer"
+            >
+              <option value="all" className="bg-stone-900 text-white">
+                Tất Cả Mã Bộ ({productsList.length})
+              </option>
+              <option value="none" className="bg-stone-900 text-amber-300">
+                Chưa Có Mã Bộ ({cardsWithoutPackCodeCount})
+              </option>
+              {uniquePackCodes.map((code) => {
+                const count = productsList.filter((p) => p.packCode === code).length;
+                return (
+                  <option key={code} value={code} className="bg-stone-900 text-purple-300 font-mono">
+                    Bộ: {code} ({count})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* Nút Chọn Hàng Loạt */}
+          <button
+            type="button"
+            onClick={
+              selectedSlugs.length === filteredProducts.length && filteredProducts.length > 0
+                ? handleClearSelection
+                : handleSelectAllFiltered
+            }
+            className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              selectedSlugs.length > 0
+                ? "bg-purple-500/20 text-purple-300 border-purple-400/40 hover:bg-purple-500/30"
+                : "bg-stone-900 text-stone-400 border-white/15 hover:text-white"
+            }`}
+          >
+            <CheckSquare className="h-3.5 w-3.5 text-purple-400" />
+            <span>
+              {selectedSlugs.length > 0
+                ? `Đã chọn (${selectedSlugs.length}/${filteredProducts.length})`
+                : "Chọn nhiều thẻ"}
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* TIỆN ÍCH GÁN MÃ BỘ HÀNG LOẠT (Sticky Batch Action Bar) */}
+      {selectedSlugs.length > 0 && (
+        <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-950/90 via-stone-900 to-amber-950/90 border-2 border-purple-400/60 shadow-xl shadow-purple-950/50 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-purple-500 text-white flex items-center justify-center font-black shrink-0 shadow-md shadow-purple-500/30">
+              <PackageCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-black text-xs sm:text-sm text-purple-200 flex items-center gap-2">
+                <span>
+                  Đã chọn: <strong className="text-white text-sm">{selectedSlugs.length}</strong> thẻ bài
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="text-[11px] text-stone-400 hover:text-white underline cursor-pointer"
+                >
+                  Bỏ chọn tất cả
+                </button>
+              </div>
+              <p className="text-[10px] text-purple-300/70">
+                Chọn mã bộ đích bên dưới và bấm &quot;Gán Cho Các Thẻ Đã Chọn&quot;
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Dropdown chọn mã bộ đích */}
+            <div className="flex items-center gap-1.5 bg-black/60 border border-purple-400/40 rounded-xl px-2.5 py-1.5">
+              <span className="text-[10px] font-bold text-purple-300">Gán mã bộ:</span>
+              <select
+                value={batchTargetPackCode}
+                onChange={(e) => setBatchTargetPackCode(e.target.value)}
+                className="bg-transparent text-white font-mono font-bold text-xs focus:outline-hidden cursor-pointer"
+              >
+                <option value="POLY30-DONGVAT" className="bg-stone-900 text-white">POLY30-DONGVAT (Động Vật)</option>
+                <option value="POLY30-HANHDONG" className="bg-stone-900 text-white">POLY30-HANHDONG (Hành Động)</option>
+                <option value="POLY30-XECO" className="bg-stone-900 text-white">POLY30-XECO (Xe Cộ)</option>
+                <option value="POLY30-HOAQUA" className="bg-stone-900 text-white">POLY30-HOAQUA (Hoa Quả)</option>
+                <option value="POLY120-COMBOVIP" className="bg-stone-900 text-white">POLY120-COMBOVIP (Trọn Bộ VIP)</option>
+                {uniquePackCodes
+                  .filter((c) => !["POLY30-DONGVAT", "POLY30-HANHDONG", "POLY30-XECO", "POLY30-HOAQUA", "POLY120-COMBOVIP"].includes(c))
+                  .map((c) => (
+                    <option key={c} value={c} className="bg-stone-900 text-white">{c}</option>
+                  ))
+                }
+                <option value="" className="bg-stone-900 text-rose-300">-- Xóa mã bộ (Đặt về Chưa có) --</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              disabled={isApplyingBatch}
+              onClick={handleExecuteBatchAssign}
+              className="py-2 px-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isApplyingBatch ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  <span>Đang gán...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Gán Cho {selectedSlugs.length} Thẻ Đã Chọn</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Lưới Thẻ Bài Thu Gọn (Compact Grid 2 -> 6 cột) — Chỉ hiện Loader khi chưa có dữ liệu lần đầu */}
       {isLoadingProducts && productsList.length === 0 ? (
@@ -205,18 +386,19 @@ export function ProductsTab({
           <Layers className="h-10 w-10 text-stone-600 mx-auto" />
           <h4 className="text-sm font-bold text-stone-300">Không tìm thấy thẻ bài nào phù hợp</h4>
           <p className="text-xs text-stone-500 max-w-md mx-auto">
-            Thử tìm kiếm với từ khóa khác hoặc tắt bộ lọc thẻ ghim Trang Chủ để xem toàn bộ kho thẻ.
+            Thử tìm kiếm với từ khóa khác, tắt bộ lọc mã bộ hoặc bộ lọc thẻ ghim Trang Chủ để xem toàn bộ kho thẻ.
           </p>
           <button
             type="button"
             onClick={() => {
               setSearchCardQuery("");
               setFilterCardCategory("all");
+              setFilterCardPackCode("all");
               setOnlyHomeFeatured(false);
             }}
             className="py-2 px-4 rounded-xl bg-white/10 text-xs font-bold text-white hover:bg-white/15 transition-colors cursor-pointer"
           >
-            Xóa Bộ Lọc Tìm Kiếm
+            Xóa Toàn Bộ Lọc
           </button>
         </div>
       ) : (
@@ -225,13 +407,16 @@ export function ProductsTab({
             const key = card.id || card.slug;
             const isPinned = Boolean(card.showOnHome);
             const hasBadge = Boolean(card.badge && card.badge.trim() !== "");
+            const isSelected = selectedSlugs.includes(card.slug);
 
             return (
               <div
                 key={key}
                 onClick={() => setSelectedDetailSlug(card.slug)}
                 className={`group relative rounded-2xl bg-stone-900/90 border p-2.5 space-y-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/60 cursor-pointer flex flex-col justify-between ${
-                  isPinned
+                  isSelected
+                    ? "border-purple-400 ring-2 ring-purple-400/40 bg-purple-950/20"
+                    : isPinned
                     ? "border-emerald-400/60 ring-1 ring-emerald-400/20"
                     : "border-white/10 hover:border-amber-400/50"
                 }`}
@@ -245,12 +430,33 @@ export function ProductsTab({
                     className="transition-transform duration-300 group-hover:scale-106"
                   />
 
-                  {/* Góc trên trái: Danh mục */}
-                  <span className="absolute top-1.5 left-1.5 z-10 text-[9px] font-bold px-2 py-0.5 rounded-full bg-black/75 text-stone-200 backdrop-blur-md border border-white/15 max-w-[70%] truncate">
+                  {/* Góc trên trái: Checkbox chọn nhiều thẻ */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelectCard(card.slug);
+                    }}
+                    title={isSelected ? "Bỏ chọn thẻ này" : "Chọn thẻ này để gán mã bộ hàng loạt"}
+                    className={`absolute top-1.5 left-1.5 z-20 h-6 w-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-purple-500 text-white shadow-md ring-2 ring-purple-300"
+                        : "bg-black/60 text-stone-400 hover:text-white border border-white/20 backdrop-blur-md opacity-80 group-hover:opacity-100"
+                    }`}
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="h-3.5 w-3.5" />
+                    ) : (
+                      <Square className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+
+                  {/* Kế bên checkbox: Danh mục */}
+                  <span className="absolute top-1.5 left-8.5 z-10 text-[9px] font-bold px-2 py-0.5 rounded-full bg-black/75 text-stone-200 backdrop-blur-md border border-white/15 max-w-[55%] truncate">
                     {card.category || "Động Vật"}
                   </span>
 
-                  {/* Góc trên phải: Nút Ngôi Sao 1 chạm ghim/gỡ #products tức thì (không mở modal, không reload) */}
+                  {/* Góc trên phải: Nút Ngôi Sao 1 chạm ghim/gỡ #products tức thì */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -299,6 +505,26 @@ export function ProductsTab({
                       {formatVndCurrency(card.price || 219000)}
                     </span>
                   </div>
+
+                  {/* Hiển thị Mã Bộ: Bộ [code] hoặc Chưa có */}
+                  <div className="flex items-center justify-between gap-1 pt-0.5 border-t border-white/5 text-[10px]">
+                    <span className="text-stone-500 font-medium">Mã bộ:</span>
+                    {card.packCode && card.packCode.trim() !== "" ? (
+                      <span
+                        className="font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/25 text-purple-300 border border-purple-400/40 text-[9px] truncate max-w-[110px]"
+                        title={`Mã bộ: ${card.packCode}`}
+                      >
+                        {card.packCode}
+                      </span>
+                    ) : (
+                      <span
+                        className="font-bold px-1.5 py-0.2 rounded bg-stone-800/80 text-amber-300/80 border border-amber-400/20 text-[9px]"
+                        title="Chưa gắn mã bộ"
+                      >
+                        Chưa có
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -314,6 +540,7 @@ export function ProductsTab({
         onLoadCardToCanvas={onLoadCardToCanvas}
         onOpenEditProduct={onOpenEditProduct}
         onDeleteProduct={onDeleteProduct}
+        onUpdatePackCode={onUpdatePackCode}
       />
     </div>
   );

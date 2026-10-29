@@ -15,6 +15,7 @@ import {
   Image as ImageIcon,
   QrCode,
   Volume2,
+  PackageCheck,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -28,6 +29,7 @@ interface ProductDetailModalProps {
   onLoadCardToCanvas: (card: Animal) => void;
   onOpenEditProduct: (card: Animal) => void;
   onDeleteProduct: (card: Animal) => void;
+  onUpdatePackCode?: (card: Animal, newPackCode: string) => void;
 }
 
 export function ProductDetailModal({
@@ -37,6 +39,7 @@ export function ProductDetailModal({
   onLoadCardToCanvas,
   onOpenEditProduct,
   onDeleteProduct,
+  onUpdatePackCode,
 }: ProductDetailModalProps) {
   const [previewMode, setPreviewMode] = useState<"subject" | "fullcard">("subject");
 
@@ -178,6 +181,67 @@ export function ProductDetailModal({
                 </button>
               </div>
 
+              {/* Mã Bộ Bản Quyền & Kích Hoạt */}
+              <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-400/30 space-y-2.5">
+                <div className="flex items-center justify-between text-[11px] font-black text-purple-300">
+                  <span className="flex items-center gap-1.5">
+                    <PackageCheck className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Mã Bộ Bản Quyền (Tham số &code=)</span>
+                  </span>
+                  {card.packCode && card.packCode.trim() !== "" ? (
+                    <span className="px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 text-[10px] font-mono font-bold">
+                      {card.packCode}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/30 text-[10px] font-bold">
+                      Chưa có
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-stone-300 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-stone-400">Gán nhanh mã bộ:</span>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {[
+                      "POLY30-DONGVAT",
+                      "POLY30-HANHDONG",
+                      "POLY30-XECO",
+                      "POLY30-HOAQUA",
+                      "POLY120-COMBOVIP",
+                    ].map((pCode) => (
+                      <button
+                        key={pCode}
+                        type="button"
+                        onClick={() => onUpdatePackCode && onUpdatePackCode(card, pCode)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border transition-all cursor-pointer ${
+                          card.packCode === pCode
+                            ? "bg-purple-500 text-white border-purple-300 shadow-sm"
+                            : "bg-white/5 text-purple-300 border-purple-400/20 hover:bg-purple-500/20"
+                        }`}
+                      >
+                        {pCode}
+                      </button>
+                    ))}
+                    {card.packCode && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdatePackCode && onUpdatePackCode(card, "")}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 hover:bg-rose-500/20 text-rose-300 border border-rose-400/20 transition-all cursor-pointer"
+                      >
+                        Xóa (Chưa có)
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[10px] font-mono text-stone-400 pt-1 border-t border-purple-400/20 flex items-center justify-between gap-1">
+                  <span>URL WebAR kích hoạt:</span>
+                  <code className="text-purple-300 truncate max-w-[240px]">
+                    /ar/{card.slug}?ar=1{card.packCode ? `&code=${card.packCode}` : ""}
+                  </code>
+                </div>
+              </div>
+
               {/* Từ vựng & Chế độ song ngữ */}
               <div className="p-3.5 rounded-2xl bg-stone-950/90 border border-white/10 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-black text-amber-300">
@@ -286,7 +350,7 @@ export function ProductDetailModal({
 
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`/ar/${card.slug}?ar=1`}
+              href={`/ar/${card.slug}?ar=1${card.packCode ? `&code=${card.packCode}` : ""}`}
               target="_blank"
               className="py-2.5 px-3.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-400/30 font-bold text-xs flex items-center gap-1.5 transition-colors"
             >
