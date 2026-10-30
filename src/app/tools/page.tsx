@@ -340,7 +340,10 @@ export default function ToolsPage() {
       if (!silent) {
         setIsLoadingProducts(true);
       }
-      const res = await fetch("/api/products");
+      const res = await fetch(`/api/products?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -1780,6 +1783,17 @@ export default function ToolsPage() {
     }
   };
 
+  // Làm mới danh sách sản phẩm từ MongoDB Atlas
+  const handleRefreshProducts = async () => {
+    try {
+      showToast("Đang đồng bộ danh sách thẻ bài mới nhất...", "info");
+      await loadStudioProducts(false);
+      showToast("Đã làm mới danh sách thẻ bài thành công!", "success");
+    } catch (err: any) {
+      showToast(`Lỗi khi làm mới: ${err.message}`, "error");
+    }
+  };
+
   // Tiện ích nhanh: Gán Mã Bộ hàng loạt cho danh sách thẻ bài đã chọn
   const handleBatchAssignPackCode = async (slugs: string[], packCode: string) => {
     if (!slugs || slugs.length === 0) return;
@@ -2827,6 +2841,7 @@ export default function ToolsPage() {
           productsList={productsList}
           categoriesList={categoriesList}
           isLoadingProducts={isLoadingProducts}
+          onRefreshProducts={handleRefreshProducts}
           onNavigateToEditor={() => setActiveStudioTab("editor")}
           onLoadCardToCanvas={handleLoadCardToCanvas}
           onOpenEditProduct={handleOpenEditProduct}

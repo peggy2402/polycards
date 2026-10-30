@@ -49,6 +49,7 @@ interface ProductsTabProps {
   productsList: Animal[];
   categoriesList: ProductCategory[];
   isLoadingProducts: boolean;
+  onRefreshProducts?: () => Promise<void> | void;
   onNavigateToEditor: () => void;
   onLoadCardToCanvas: (card: Animal) => void;
   onOpenEditProduct: (card: Animal) => void;
@@ -71,6 +72,7 @@ export function ProductsTab({
   productsList,
   categoriesList,
   isLoadingProducts,
+  onRefreshProducts,
   onNavigateToEditor,
   onLoadCardToCanvas,
   onOpenEditProduct,
@@ -516,6 +518,19 @@ export function ProductsTab({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onRefreshProducts && (
+            <button
+              type="button"
+              disabled={isLoadingProducts}
+              onClick={onRefreshProducts}
+              className="py-2.5 px-4 rounded-xl bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white border border-white/15 font-black text-xs flex items-center gap-2 shadow-md hover:border-amber-400/40 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              title="Làm mới danh sách thẻ bài (Đồng bộ dữ liệu mới nhất từ MongoDB Atlas)"
+            >
+              <RefreshCw className={`h-4 w-4 text-amber-400 ${isLoadingProducts ? "animate-spin" : ""}`} />
+              <span>{isLoadingProducts ? "Đang đồng bộ..." : "Làm Mới"}</span>
+            </button>
+          )}
+
           {onDownloadZipForCards && (
             <button
               type="button"
@@ -710,6 +725,23 @@ export function ProductsTab({
               <List className="h-4 w-4" />
             </button>
           </div>
+
+          {/* Nút Làm Mới Nhanh */}
+          {onRefreshProducts && (
+            <button
+              type="button"
+              disabled={isLoadingProducts}
+              onClick={onRefreshProducts}
+              className="p-2 rounded-xl bg-stone-900 border border-white/15 text-stone-300 hover:text-white hover:border-amber-400/50 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+              title="Làm mới danh sách (Đồng bộ từ MongoDB Atlas)"
+            >
+              <RefreshCw
+                className={`h-4 w-4 text-amber-400 ${
+                  isLoadingProducts ? "animate-spin" : ""
+                }`}
+              />
+            </button>
+          )}
 
           {/* Chọn số thẻ / trang */}
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
