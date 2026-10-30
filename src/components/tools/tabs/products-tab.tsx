@@ -30,6 +30,7 @@ import {
   Eye,
   MousePointerClick,
   Trash2,
+  Tag,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -169,8 +170,42 @@ export function ProductsTab({
   // Modal tải file .ZIP theo Bộ Thẻ
   const [isPackZipModalOpen, setIsPackZipModalOpen] = useState<boolean>(false);
   const [selectedExportPackCode, setSelectedExportPackCode] = useState<string>("all");
+  const [zipExportTab, setZipExportTab] = useState<"quick" | "category" | "packCode">("quick");
 
   const pinnedCardsCount = productsList.filter((c) => Boolean(c.showOnHome)).length;
+
+  // Thống kê thẻ bài theo từng Danh Mục
+  const categoryStats = useMemo(() => {
+    const list: Array<{ name: string; slug: string; count: number }> = [];
+    const seenSlugs = new Set<string>();
+
+    categoriesList.forEach((cat) => {
+      const count = productsList.filter(
+        (p) => p.categorySlug === cat.slug || p.category?.toLowerCase() === cat.name.toLowerCase()
+      ).length;
+      seenSlugs.add(cat.slug);
+      if (count > 0) {
+        list.push({ name: cat.name, slug: cat.slug, count });
+      }
+    });
+
+    productsList.forEach((p) => {
+      const catSlug = p.categorySlug || "danh-muc-khac";
+      if (!seenSlugs.has(catSlug)) {
+        seenSlugs.add(catSlug);
+        const count = productsList.filter(
+          (x) => (x.categorySlug || "danh-muc-khac") === catSlug
+        ).length;
+        list.push({
+          name: p.category || "Danh mục khác",
+          slug: catSlug,
+          count,
+        });
+      }
+    });
+
+    return list;
+  }, [categoriesList, productsList]);
 
   // Danh sách các Mã Bộ độc nhất hiện có
   const uniquePackCodes = useMemo(() => {
@@ -1375,85 +1410,205 @@ export function ProductsTab({
               </button>
             </div>
 
-            {/* Modal Body: Danh sách chọn Bộ */}
+            {/* Modal Body: Danh sách chọn Bộ hoặc Danh Mục */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-400/30 text-xs text-purple-200 leading-relaxed">
                 Tất cả các thẻ xuất ra là file <strong>.png</strong> độ nét cao (1:1), đã chứa hình ảnh nhân vật, từ vựng song ngữ và <strong>mã QR tương tác WebAR</strong> quét được ngay. Xưởng in có thể dùng trực tiếp để in ấn!
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-stone-300 block">
-                  Chọn Bộ Thẻ Cần Xuất ZIP:
-                </label>
+              {/* Tabs chuyển đổi hình thức xuất ZIP */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-stone-300 block">
+                    Chọn Tiêu Chí Đóng Gói Tệp ZIP:
+                  </label>
+                  <span className="text-[11px] text-purple-300 font-mono">
+                    Đang chọn: {selectedExportPackCode}
+                  </span>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {/* Tùy chọn 1: Toàn bộ kho thẻ */}
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-stone-950/80 rounded-2xl border border-white/10">
                   <button
                     type="button"
-                    onClick={() => setSelectedExportPackCode("all")}
-                    className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                      selectedExportPackCode === "all"
-                        ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white"
-                        : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                    onClick={() => {
+                      setZipExportTab("category");
+                      if (!selectedExportPackCode.startsWith("cat:") && categoryStats[0]) {
+                        setSelectedExportPackCode(`cat:${categoryStats[0].slug}`);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      zipExportTab === "category"
+                        ? "bg-purple-500 text-white shadow-md shadow-purple-500/30"
+                        : "text-stone-400 hover:text-white"
                     }`}
                   >
-                    <div>
-                      <div className="font-black text-xs">Toàn Bộ Kho Thẻ</div>
-                      <div className="text-[10px] text-stone-400">Tất cả danh mục trong studio</div>
-                    </div>
-                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10">
-                      {productsList.length} thẻ
-                    </span>
+                    <Tag className="h-3.5 w-3.5 shrink-0" />
+                    <span>Theo Danh Mục ({categoryStats.length})</span>
                   </button>
 
-                  {/* Tùy chọn 2: Các thẻ đang lọc */}
                   <button
                     type="button"
-                    onClick={() => setSelectedExportPackCode("filtered")}
-                    className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                      selectedExportPackCode === "filtered"
-                        ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white"
-                        : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                    onClick={() => {
+                      setZipExportTab("packCode");
+                      if (!selectedExportPackCode.startsWith("pack:") && uniquePackCodes[0]) {
+                        setSelectedExportPackCode(`pack:${uniquePackCodes[0]}`);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      zipExportTab === "packCode"
+                        ? "bg-purple-500 text-white shadow-md shadow-purple-500/30"
+                        : "text-stone-400 hover:text-white"
                     }`}
                   >
-                    <div>
-                      <div className="font-black text-xs">Danh Sách Đang Lọc</div>
-                      <div className="text-[10px] text-stone-400">Theo bộ lọc tìm kiếm & danh mục</div>
-                    </div>
-                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10">
-                      {filteredProducts.length} thẻ
-                    </span>
+                    <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+                    <span>Theo Mã Bộ ({uniquePackCodes.length})</span>
                   </button>
 
-                  {/* Từng Bộ thẻ cụ thể có sẵn */}
-                  {uniquePackCodes.map((code) => {
-                    const count = productsList.filter((p) => p.packCode === code).length;
-                    return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZipExportTab("quick");
+                      if (selectedExportPackCode.startsWith("cat:") || selectedExportPackCode.startsWith("pack:")) {
+                        setSelectedExportPackCode("all");
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      zipExportTab === "quick"
+                        ? "bg-purple-500 text-white shadow-md shadow-purple-500/30"
+                        : "text-stone-400 hover:text-white"
+                    }`}
+                  >
+                    <Layers className="h-3.5 w-3.5 shrink-0" />
+                    <span>Xuất Nhanh</span>
+                  </button>
+                </div>
+
+                {/* NỘI DUNG TAB 1: THEO DANH MỤC */}
+                {zipExportTab === "category" && (
+                  <div className="space-y-2 animate-in fade-in duration-150">
+                    <p className="text-[11px] text-stone-400">
+                      Chọn 1 danh mục để đóng gói toàn bộ thẻ bài thuộc chủ đề đó vào tệp ZIP:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {categoryStats.map((cat) => {
+                        const isSelected = selectedExportPackCode === `cat:${cat.slug}`;
+                        return (
+                          <button
+                            key={cat.slug}
+                            type="button"
+                            onClick={() => setSelectedExportPackCode(`cat:${cat.slug}`)}
+                            className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white shadow-md shadow-purple-500/20"
+                                : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-black text-xs truncate text-amber-300">
+                                {cat.name}
+                              </div>
+                              <div className="text-[10px] text-stone-400 font-mono truncate">
+                                Slug: {cat.slug}
+                              </div>
+                            </div>
+                            <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
+                              {cat.count} thẻ
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* NỘI DUNG TAB 2: THEO MÃ BỘ BẢN QUYỀN */}
+                {zipExportTab === "packCode" && (
+                  <div className="space-y-2 animate-in fade-in duration-150">
+                    <p className="text-[11px] text-stone-400">
+                      Chọn mã bộ bản quyền đã gắn trên thẻ bài để đóng gói ZIP:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {uniquePackCodes.map((code) => {
+                        const count = productsList.filter((p) => p.packCode === code).length;
+                        const isSelected =
+                          selectedExportPackCode === `pack:${code}` ||
+                          selectedExportPackCode === code;
+                        return (
+                          <button
+                            key={code}
+                            type="button"
+                            onClick={() => setSelectedExportPackCode(`pack:${code}`)}
+                            className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white shadow-md shadow-purple-500/20"
+                                : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-mono font-black text-xs truncate text-purple-300">
+                                {code}
+                              </div>
+                              <div className="text-[10px] text-stone-400 truncate">
+                                Bộ thẻ bài xưởng
+                              </div>
+                            </div>
+                            <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
+                              {count} thẻ
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* NỘI DUNG TAB 3: XUẤT NHANH (KHO & BỘ LỌC) */}
+                {zipExportTab === "quick" && (
+                  <div className="space-y-2 animate-in fade-in duration-150">
+                    <p className="text-[11px] text-stone-400">
+                      Tùy chọn đóng gói toàn bộ thẻ hoặc danh sách bạn vừa tìm kiếm / lọc:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {/* Tùy chọn 1: Toàn bộ kho thẻ */}
                       <button
-                        key={code}
                         type="button"
-                        onClick={() => setSelectedExportPackCode(code)}
+                        onClick={() => setSelectedExportPackCode("all")}
                         className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                          selectedExportPackCode === code
-                            ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white"
+                          selectedExportPackCode === "all"
+                            ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white shadow-md shadow-purple-500/20"
                             : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
                         }`}
                       >
-                        <div className="min-w-0">
-                          <div className="font-mono font-black text-xs truncate text-purple-300">
-                            {code}
-                          </div>
-                          <div className="text-[10px] text-stone-400 truncate">
-                            Bộ thẻ bài chủ đề
-                          </div>
+                        <div>
+                          <div className="font-black text-xs text-amber-300">Toàn Bộ Kho Thẻ</div>
+                          <div className="text-[10px] text-stone-400">Tất cả danh mục trong studio</div>
                         </div>
-                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
-                          {count} thẻ
+                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10 shrink-0">
+                          {productsList.length} thẻ
                         </span>
                       </button>
-                    );
-                  })}
-                </div>
+
+                      {/* Tùy chọn 2: Các thẻ đang lọc */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedExportPackCode("filtered")}
+                        className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                          selectedExportPackCode === "filtered"
+                            ? "bg-purple-500/25 border-purple-400 ring-1 ring-purple-400 text-white shadow-md shadow-purple-500/20"
+                            : "bg-stone-950/70 border-white/10 hover:border-white/25 text-stone-300"
+                        }`}
+                      >
+                        <div>
+                          <div className="font-black text-xs text-emerald-300">Danh Sách Đang Lọc</div>
+                          <div className="text-[10px] text-stone-400">Theo bộ lọc tìm kiếm & danh mục</div>
+                        </div>
+                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10 shrink-0">
+                          {filteredProducts.length} thẻ
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1464,6 +1619,18 @@ export function ProductsTab({
                   ? productsList
                   : selectedExportPackCode === "filtered"
                   ? filteredProducts
+                  : selectedExportPackCode.startsWith("cat:")
+                  ? productsList.filter((p) => {
+                      const catSlug = selectedExportPackCode.replace("cat:", "");
+                      return (
+                        p.categorySlug === catSlug ||
+                        p.category?.toLowerCase() === catSlug.replace(/-/g, " ")
+                      );
+                    })
+                  : selectedExportPackCode.startsWith("pack:")
+                  ? productsList.filter(
+                      (p) => p.packCode === selectedExportPackCode.replace("pack:", "")
+                    )
                   : productsList.filter((p) => p.packCode === selectedExportPackCode);
 
               const exportZipName =
@@ -1471,6 +1638,10 @@ export function ProductsTab({
                   ? "polycards-toan-bo-kho-the.zip"
                   : selectedExportPackCode === "filtered"
                   ? "polycards-the-theo-bo-loc.zip"
+                  : selectedExportPackCode.startsWith("cat:")
+                  ? `polycards-danh-muc-${selectedExportPackCode.replace("cat:", "")}.zip`
+                  : selectedExportPackCode.startsWith("pack:")
+                  ? `polycards-${selectedExportPackCode.replace("pack:", "").toLowerCase()}.zip`
                   : `polycards-${selectedExportPackCode.toLowerCase()}.zip`;
 
               return (

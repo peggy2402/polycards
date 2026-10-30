@@ -46,6 +46,8 @@ import {
   ConfirmState,
   ToastItem,
   StudioTab,
+  ZipExportProgressState,
+  ZipExportProgressItem,
 } from "@/components/tools/types";
 import { CARD_PRESETS, PRESET_3D_MODELS } from "@/components/tools/constants";
 
@@ -57,6 +59,7 @@ import { PublishProductModal } from "@/components/tools/modals/publish-product-m
 import { EditProductModal } from "@/components/tools/modals/edit-product-modal";
 import { CategoryModal } from "@/components/tools/modals/category-modal";
 import { ComboConfigModal } from "@/components/tools/modals/combo-config-modal";
+import { ZipProgressIndicator } from "@/components/tools/widgets/zip-progress-indicator";
 import { getPackCodeForCategory } from "@/lib/pack-codes-store";
 
 // Import Tabs
@@ -217,6 +220,20 @@ export default function ToolsPage() {
   const [isAddingToQueue, setIsAddingToQueue] = useState<boolean>(false);
   const [isGeneratingZip, setIsGeneratingZip] = useState<boolean>(false);
   const [isQueueExpanded, setIsQueueExpanded] = useState<boolean>(true);
+  const cancelZipExportRef = useRef<boolean>(false);
+  const [zipProgress, setZipProgress] = useState<ZipExportProgressState>({
+    isOpen: false,
+    isActive: false,
+    current: 0,
+    total: 0,
+    percent: 0,
+    currentCardName: "",
+    zipFileName: "",
+    isCompressing: false,
+    isCompleted: false,
+    isCancelled: false,
+    items: [],
+  });
 
   // 15. Quản lý Thẻ Bài Sản Phẩm (CRUD Products Studio)
   const [productsList, setProductsList] = useState<Animal[]>([]);
@@ -1037,8 +1054,37 @@ export default function ToolsPage() {
       return;
     }
 
+    let rawName = zipFileName.trim() || "bo-the-polycards-in-an";
+    if (!rawName.toLowerCase().endsWith(".zip")) {
+      rawName += ".zip";
+    }
+
+    cancelZipExportRef.current = false;
+    setIsGeneratingZip(true);
+
+    const initialItems: ZipExportProgressItem[] = printQueue.map((item, idx) => ({
+      slug: item.slug,
+      nameVi: item.name,
+      category: item.category,
+      orderNum: idx + 1,
+      status: "done",
+    }));
+
+    setZipProgress({
+      isOpen: true,
+      isActive: true,
+      current: printQueue.length,
+      total: printQueue.length,
+      percent: 90,
+      currentCardName: "Đang nén dữ liệu từ hàng đợi in...",
+      zipFileName: rawName,
+      isCompressing: true,
+      isCompleted: false,
+      isCancelled: false,
+      items: initialItems,
+    });
+
     try {
-      setIsGeneratingZip(true);
       const zip = new JSZip();
 
       const manifestLines: string[] = [
@@ -1069,11 +1115,6 @@ export default function ToolsPage() {
         compressionOptions: { level: 6 },
       });
 
-      let rawName = zipFileName.trim() || "bo-the-polycards-in-an";
-      if (!rawName.toLowerCase().endsWith(".zip")) {
-        rawName += ".zip";
-      }
-
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -1083,9 +1124,25 @@ export default function ToolsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
 
-      showToast(`Đã tải xuống tệp ZIP "${rawName}" (${printQueue.length} thẻ) thành công!`, "success");
+      setZipProgress((prev) => ({
+        ...prev,
+        isActive: false,
+        isCompressing: false,
+        isCompleted: true,
+        percent: 100,
+        currentCardName: `Đã hoàn tất tải gói ZIP (${printQueue.length} thẻ in)!`,
+      }));
+
+      showToast(`Đã tải xuống thành công tệp ZIP "${rawName}"!`, "success");
     } catch (err: any) {
-      showToast(`Lỗi xuất file ZIP: ${err.message}`, "error");
+      console.error("Lỗi xuất ZIP hàng đợi:", err);
+      setZipProgress((prev) => ({
+        ...prev,
+        isActive: false,
+        isCompressing: false,
+        isCancelled: true,
+      }));
+      showToast(`Lỗi tạo file .ZIP: ${err.message}`, "error");
     } finally {
       setIsGeneratingZip(false);
     }
@@ -1335,6 +1392,21 @@ export default function ToolsPage() {
     }
   };
 
+  const handleCancelZipExport = () => {
+    cancelZipExportRef.current = true;
+    setZipProgress((prev) => ({
+      ...prev,
+      isActive: false,
+      isCancelled: true,
+      currentCardName: "Đã yêu cầu hủy tiến trình...",
+    }));
+    showToast("Đang dừng và hủy tiến trình tạo tệp ZIP...", "info");
+  };
+
+  const handleCloseZipProgress = () => {
+    setZipProgress((prev) => ({ ...prev, isOpen: false }));
+  };
+
   // Tải file .ZIP theo Bộ Thẻ hoặc danh sách thẻ đã chọn (Toàn bộ là PNG kèm QR)
   const handleDownloadZipForCards = async (
     cards: Animal[],
@@ -1345,9 +1417,38 @@ export default function ToolsPage() {
       return;
     }
 
+    let rawName = (customZipName || "bo-the-polycards-in-an").trim();
+    if (!rawName.toLowerCase().endsWith(".zip")) {
+      rawName += ".zip";
+    }
+
+    cancelZipExportRef.current = false;
+    setIsGeneratingZip(true);
+
+    const initialItems: ZipExportProgressItem[] = cards.map((c, i) => ({
+      slug: c.slug,
+      nameVi: c.nameVi,
+      nameEn: c.nameEn,
+      category: c.category,
+      orderNum: i + 1,
+      status: "pending",
+    }));
+
+    setZipProgress({
+      isOpen: true,
+      isActive: true,
+      current: 0,
+      total: cards.length,
+      percent: 0,
+      currentCardName: cards[0]?.nameVi || "",
+      zipFileName: rawName,
+      isCompressing: false,
+      isCompleted: false,
+      isCancelled: false,
+      items: initialItems,
+    });
+
     try {
-      setIsGeneratingZip(true);
-      showToast(`Bắt đầu đóng gói ${cards.length} thẻ in...`, "info");
       const zip = new JSZip();
 
       const manifestLines: string[] = [
@@ -1360,38 +1461,88 @@ export default function ToolsPage() {
       ];
 
       for (let i = 0; i < cards.length; i++) {
+        // Kiểm tra xem người dùng có bấm hủy không
+        if (cancelZipExportRef.current) {
+          setIsGeneratingZip(false);
+          setZipProgress((prev) => ({
+            ...prev,
+            isActive: false,
+            isCancelled: true,
+            currentCardName: "Tiến trình đã bị người dùng hủy bỏ.",
+          }));
+          showToast("Đã dừng và hủy thành công tiến trình tạo tệp ZIP.", "info");
+          return;
+        }
+
         const card = cards[i];
         const orderNum = String(i + 1).padStart(2, "0");
         const fileName = `${orderNum}-${card.slug}.png`;
 
-        showToast(
-          `Đang vẽ phôi in có QR (${i + 1}/${cards.length}): ${card.nameVi}...`,
-          "info"
-        );
-        const { blob } = await generateCardCompositeBlob(card);
-        zip.file(fileName, blob);
+        // Đánh dấu thẻ hiện tại đang vẽ phôi
+        setZipProgress((prev) => ({
+          ...prev,
+          current: i,
+          percent: Math.round((i / cards.length) * 100),
+          currentCardName: card.nameVi,
+          items: prev.items.map((item, idx) =>
+            idx === i ? { ...item, status: "processing" } : item
+          ),
+        }));
 
-        const effectivePackCode =
-          card.packCode && card.packCode.trim() !== ""
-            ? card.packCode.trim()
-            : card.categorySlug === "hanh-dong" || card.category === "Hành Động"
-            ? "POLY30-HANHDONG"
-            : card.categorySlug === "dong-vat" || card.category === "Động Vật"
-            ? "POLY30-DONGVAT"
-            : card.categorySlug === "xe-co" || card.category === "Xe Cộ"
-            ? "POLY30-XECO"
-            : card.categorySlug === "hoa-qua" || card.category === "Hoa Quả"
-            ? "POLY30-HOAQUA"
-            : "";
+        try {
+          const { blob } = await generateCardCompositeBlob(card);
+          zip.file(fileName, blob);
 
-        manifestLines.push(
-          `[${fileName}] ${card.nameVi} (${card.nameEn}) | Mã Bộ: ${
-            effectivePackCode || "Chưa có"
-          } | Danh mục: ${card.category} | WebAR: /ar/${card.slug}?ar=1${
-            effectivePackCode ? `&code=${effectivePackCode}` : ""
-          }`
-        );
+          const effectivePackCode =
+            card.packCode && card.packCode.trim() !== ""
+              ? card.packCode.trim()
+              : getPackCodeForCategory(card.categorySlug || card.category);
+
+          manifestLines.push(
+            `[${fileName}] ${card.nameVi} (${card.nameEn}) | Mã Bộ: ${
+              effectivePackCode || "Chưa có"
+            } | Danh mục: ${card.category} | WebAR: /ar/${card.slug}?ar=1${
+              effectivePackCode ? `&code=${effectivePackCode}` : ""
+            }`
+          );
+
+          // Cập nhật thẻ này đã hoàn thành
+          setZipProgress((prev) => ({
+            ...prev,
+            current: i + 1,
+            percent: Math.round(((i + 1) / cards.length) * 100),
+            items: prev.items.map((item, idx) =>
+              idx === i ? { ...item, status: "done" } : item
+            ),
+          }));
+        } catch (cardErr: any) {
+          console.warn(`Lỗi tạo phôi in cho ${card.nameVi}:`, cardErr);
+          setZipProgress((prev) => ({
+            ...prev,
+            items: prev.items.map((item, idx) =>
+              idx === i ? { ...item, status: "error" } : item
+            ),
+          }));
+        }
       }
+
+      // Kiểm tra lại trước khi tiến hành nén file
+      if (cancelZipExportRef.current) {
+        setIsGeneratingZip(false);
+        setZipProgress((prev) => ({
+          ...prev,
+          isActive: false,
+          isCancelled: true,
+        }));
+        showToast("Đã hủy tiến trình tạo tệp ZIP.", "info");
+        return;
+      }
+
+      setZipProgress((prev) => ({
+        ...prev,
+        isCompressing: true,
+        currentCardName: "Đang nén dữ liệu và đóng gói file .ZIP...",
+      }));
 
       manifestLines.push(
         `\n------------------------------------------------------------`
@@ -1407,11 +1558,6 @@ export default function ToolsPage() {
         compressionOptions: { level: 6 },
       });
 
-      let rawName = (customZipName || "bo-the-polycards-in-an").trim();
-      if (!rawName.toLowerCase().endsWith(".zip")) {
-        rawName += ".zip";
-      }
-
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -1421,12 +1567,28 @@ export default function ToolsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
 
+      setZipProgress((prev) => ({
+        ...prev,
+        isActive: false,
+        isCompressing: false,
+        isCompleted: true,
+        percent: 100,
+        current: cards.length,
+        currentCardName: `Đã hoàn tất xuất ${cards.length} thẻ in!`,
+      }));
+
       showToast(
         `Đã xuất và tải xuống thành công tệp ZIP "${rawName}" (${cards.length} thẻ)!`,
         "success"
       );
     } catch (err: any) {
       console.error("Lỗi xuất ZIP:", err);
+      setZipProgress((prev) => ({
+        ...prev,
+        isActive: false,
+        isCompressing: false,
+        isCancelled: true,
+      }));
       showToast(`Lỗi xuất file ZIP: ${err.message}`, "error");
     } finally {
       setIsGeneratingZip(false);
@@ -2661,6 +2823,13 @@ export default function ToolsPage() {
       <ConfirmModal
         confirmState={confirmDialog}
         onCancel={() => setConfirmDialog(null)}
+      />
+
+      {/* 9. TIẾN TRÌNH ĐÓNG GÓI & TẢI FILE ZIP (BOTTOM-RIGHT FLOATING WIDGET) */}
+      <ZipProgressIndicator
+        progress={zipProgress}
+        onCancel={handleCancelZipExport}
+        onClose={handleCloseZipProgress}
       />
 
       <ToastNotification

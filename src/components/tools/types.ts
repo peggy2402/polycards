@@ -110,3 +110,26 @@ export interface ToastItem {
 }
 
 export type StudioTab = "editor" | "products" | "categories" | "licenses" | "invoices" | "customers";
+
+export interface ZipExportProgressItem {
+  slug: string;
+  nameVi: string;
+  nameEn?: string;
+  category?: string;
+  status: "pending" | "processing" | "done" | "error";
+  orderNum: number;
+}
+
+export interface ZipExportProgressState {
+  isOpen: boolean;
+  isActive: boolean;
+  current: number; // x
+  total: number;   // y
+  percent: number;
+  currentCardName: string;
+  zipFileName: string;
+  isCompressing: boolean;
+  isCompleted: boolean;
+  isCancelled: boolean;
+  items: ZipExportProgressItem[];
+}
