@@ -76,6 +76,11 @@ export async function POST(request: NextRequest) {
             item.packCode !== undefined
               ? String(item.packCode).trim()
               : existing.packCode || "",
+          rawImageUrl:
+            item.rawImageUrl !== undefined
+              ? String(item.rawImageUrl).trim()
+              : existing.rawImageUrl,
+          qrPosition: item.qrPosition || existing.qrPosition,
           updatedAt: new Date().toISOString(),
         };
 
@@ -199,6 +204,18 @@ export async function POST(request: NextRequest) {
         `Thẻ học thông minh AR Poly Cards: ${body.nameVi} (${body.nameEn}).`,
       images: defaultImages,
       posterUrl: finalImageUrl,
+      rawImageUrl:
+        body.rawImageUrl !== undefined
+          ? String(body.rawImageUrl).trim()
+          : existingItem?.rawImageUrl || "",
+      qrPosition:
+        body.qrPosition && typeof body.qrPosition.x === "number"
+          ? {
+              x: Number(body.qrPosition.x),
+              y: Number(body.qrPosition.y),
+              size: Number(body.qrPosition.size),
+            }
+          : existingItem?.qrPosition,
       audioUrl: body.audioUrl || existingItem?.audioUrl || `/audio/${cleanSlug}.mp3`,
       audios: {
         en:

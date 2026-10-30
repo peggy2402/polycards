@@ -77,11 +77,15 @@ interface EditorTabProps {
   cardElementRef: RefObject<HTMLDivElement | null>;
   cardImageSrc: string;
   isPreviewFinal: boolean;
+  cardHasBakedQr?: boolean;
   onSetIsPreviewFinal: (val: boolean) => void;
   onPointerDownQr: (e: React.PointerEvent) => void;
   onResizePointerDown: (handle: string, e: React.PointerEvent) => void;
   onWorkspacePointerMove: (e: React.PointerEvent) => void;
   onWorkspacePointerUp: (e: React.PointerEvent) => void;
+  onUploadCleanTemplate?: (file: File) => void;
+  onCleanOldQrPatch?: () => void;
+  onResetQrToStandard?: () => void;
 }
 
 export function EditorTab({
@@ -145,11 +149,15 @@ export function EditorTab({
   cardElementRef,
   cardImageSrc,
   isPreviewFinal,
+  cardHasBakedQr = false,
   onSetIsPreviewFinal,
   onPointerDownQr,
   onResizePointerDown,
   onWorkspacePointerMove,
   onWorkspacePointerUp,
+  onUploadCleanTemplate,
+  onCleanOldQrPatch,
+  onResetQrToStandard,
 }: EditorTabProps) {
   return (
     <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
@@ -256,12 +264,16 @@ export function EditorTab({
         qrPos={qrPos}
         isQrOverlayEnabled={isQrOverlayEnabled}
         isPreviewFinal={isPreviewFinal}
+        cardHasBakedQr={cardHasBakedQr}
         onSetIsPreviewFinal={onSetIsPreviewFinal}
         onToggleQrOverlay={onToggleQrOverlay}
         onPointerDownQr={onPointerDownQr}
         onResizePointerDown={onResizePointerDown}
         onWorkspacePointerMove={onWorkspacePointerMove}
         onWorkspacePointerUp={onWorkspacePointerUp}
+        onUploadCleanTemplate={onUploadCleanTemplate}
+        onCleanOldQrPatch={onCleanOldQrPatch}
+        onResetQrToStandard={onResetQrToStandard}
       />
     </main>
   );

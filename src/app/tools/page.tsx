@@ -93,6 +93,8 @@ export default function ToolsPage() {
   });
   const [cardFileName, setCardFileName] = useState<string>("jump-template.jpg");
   const [isDraggingOverFile, setIsDraggingOverFile] = useState(false);
+  const [rawImageUrl, setRawImageUrl] = useState<string>("");
+  const [rawImageBlob, setRawImageBlob] = useState<Blob | null>(null);
 
   // 5. Tọa độ & Kích thước QR trên Thẻ (% để chuẩn xác trên mọi kích thước ảnh)
   const [qrPos, setQrPos] = useState<QrPosition>({
@@ -546,7 +548,7 @@ export default function ToolsPage() {
     setTimeout(() => setCopiedPackCode(false), 2000);
   };
 
-  // Nạp ảnh thẻ mẫu mới từ máy tính
+  // Nạp ảnh thẻ mẫu mới từ máy tính (lưu cả phôi sạch để tái sử dụng bền vững)
   const handleLoadImageFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       showToast("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).", "warning");
@@ -557,12 +559,15 @@ export default function ToolsPage() {
     const img = new window.Image();
     img.onload = () => {
       setCardImageSrc(objectUrl);
+      setRawImageUrl(objectUrl);
+      setRawImageBlob(file);
       setCardDimensions({
         width: img.naturalWidth || 709,
         height: img.naturalHeight || 1024,
       });
       setCardFileName(file.name);
       setSelectedPresetId("custom-upload");
+      setIsQrOverlayEnabled(true);
 
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
       const cleanSlug = nameWithoutExt.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/^-+|-+$/g, "");
@@ -573,8 +578,97 @@ export default function ToolsPage() {
     img.src = objectUrl;
   };
 
+  // Nạp ảnh phôi sạch (chưa có QR) mới cho thẻ bài đang chế bản
+  const handleLoadCleanTemplate = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      showToast("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).", "warning");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      setCardImageSrc(objectUrl);
+      setRawImageUrl(objectUrl);
+      setRawImageBlob(file);
+      setCardDimensions({
+        width: img.naturalWidth || 709,
+        height: img.naturalHeight || 1024,
+      });
+      setCardFileName(file.name);
+      setIsQrOverlayEnabled(true);
+      setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+      showToast(
+        "Đã nạp ảnh phôi sạch mới thành công! Mã QR giờ đây đã nổi bên trên, bạn có thể tự do căn chỉnh lại sắc nét.",
+        "success"
+      );
+    };
+    img.src = objectUrl;
+  };
+
+  // Vá / Tẩy vùng mã QR cũ bị in chết trên thẻ bài bằng màu nền chuẩn của khung thẻ
+  const handleCleanOldQrPatch = () => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = cardDimensions.width;
+      canvas.height = cardDimensions.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, cardDimensions.width, cardDimensions.height);
+
+        // Vùng QR cũ thường nằm trong khoảng x: 5% đến 44%, y: 58% đến 90%
+        const patchX = 0.05 * cardDimensions.width;
+        const patchY = 0.58 * cardDimensions.height;
+        const patchW = 0.42 * cardDimensions.width;
+        const patchH = 0.32 * cardDimensions.height;
+        const radius = 0.02 * cardDimensions.width;
+
+        ctx.save();
+        ctx.fillStyle = "#FEF6D8"; // Màu nền vàng kem ấm áp chuẩn khung thẻ Poly Cards
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(patchX, patchY, patchW, patchH, radius);
+        } else {
+          ctx.rect(patchX, patchY, patchW, patchH);
+        }
+        ctx.fill();
+        ctx.restore();
+
+        const cleanDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        setCardImageSrc(cleanDataUrl);
+        setRawImageUrl(cleanDataUrl);
+        setIsQrOverlayEnabled(true);
+        setQrPos({ x: 6.8, y: 71.5, size: 25.0 });
+
+        canvas.toBlob((b) => {
+          if (b) setRawImageBlob(b);
+        }, "image/jpeg", 0.92);
+
+        showToast(
+          "Đã tẩy sạch mã QR cũ bị lệch trên thẻ! Mã QR mới đã được căn giữa ô vàng chuẩn đẹp.",
+          "success"
+        );
+      };
+      img.onerror = () => {
+        showToast("Không thể tải ảnh nền hiện tại để tẩy QR. Vui lòng tải file phôi sạch mới từ máy tính.", "warning");
+      };
+      img.src = cardImageSrc;
+    } catch (err: any) {
+      showToast(`Không thể tẩy mã QR cũ: ${err.message}`, "error");
+    }
+  };
+
   const handleAutoSnap = () => {
     setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+  };
+
+  const handleResetQrToStandard = () => {
+    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+    showToast("Đã căn mã QR vào vị trí ô vàng tiêu chuẩn (X: 6.2%, Y: 70.8%, Cỡ: 25.8%).", "info");
   };
 
   const handleToggleQrOverlay = () => {
@@ -951,16 +1045,20 @@ export default function ToolsPage() {
   ): Promise<{ blob: Blob; previewUrl: string }> => {
     return new Promise(async (resolve, reject) => {
       try {
+        const hasRawTemplate = Boolean(card.rawImageUrl && card.rawImageUrl.trim());
         const cardImgSrc =
+          card.rawImageUrl ||
           card.posterUrl ||
           (Array.isArray(card.images) && card.images[0]) ||
           `/images/cards/${card.slug}-card.jpg`;
 
+        // Nếu thẻ có ảnh phôi sạch riêng (rawImageUrl) thì bắt buộc phải ghép QR mới
         const isAlreadyComposite =
-          cardImgSrc.includes("-card.") ||
-          cardImgSrc.includes("jump-card") ||
-          cardImgSrc.includes("lion-card") ||
-          cardImgSrc.includes("walk-card");
+          !hasRawTemplate &&
+          (cardImgSrc.includes("-card.") ||
+            cardImgSrc.includes("jump-card") ||
+            cardImgSrc.includes("lion-card") ||
+            cardImgSrc.includes("walk-card"));
 
         const effectivePackCode =
           card.packCode && card.packCode.trim() !== ""
@@ -1053,11 +1151,15 @@ export default function ToolsPage() {
 
           ctx.drawImage(baseImg, 0, 0, width, height);
 
-          // Nếu chưa có QR, vẽ lớp QR vào góc dưới bên trái (x=6.2%, y=70.8%, size=25.8%)
+          // Nếu chưa có QR hoặc vẽ lại từ phôi sạch, vẽ lớp QR vào vị trí đã lưu của thẻ (mặc định x=6.2%, y=70.8%, size=25.8%)
           if (!isAlreadyComposite && qrDataUrl) {
-            const realQrX = (6.2 / 100) * width;
-            const realQrY = (70.8 / 100) * height;
-            const realQrSize = (25.8 / 100) * width;
+            const qrX = card.qrPosition?.x ?? 6.2;
+            const qrY = card.qrPosition?.y ?? 70.8;
+            const qrSize = card.qrPosition?.size ?? 25.8;
+
+            const realQrX = (qrX / 100) * width;
+            const realQrY = (qrY / 100) * height;
+            const realQrSize = (qrSize / 100) * width;
 
             const qrEl = new window.Image();
             qrEl.crossOrigin = "anonymous";
@@ -1528,25 +1630,50 @@ export default function ToolsPage() {
   );
 
   const handleLoadCardToCanvas = (product: Animal) => {
-    const cardImg =
-      product.posterUrl ||
-      (Array.isArray(product.images) && product.images[0]) ||
-      `/images/cards/${product.slug}-template.jpg`;
+    // 1. Ưu tiên nạp ảnh phôi sạch (rawImageUrl) nếu có
+    const hasRawTemplate = Boolean(product.rawImageUrl && product.rawImageUrl.trim());
+    const cardImg = hasRawTemplate
+      ? product.rawImageUrl!
+      : product.posterUrl ||
+        (Array.isArray(product.images) && product.images[0]) ||
+        `/images/cards/${product.slug}-template.jpg`;
+
     setCardImageSrc(cardImg);
+    setRawImageUrl(product.rawImageUrl || "");
+    setRawImageBlob(null);
     setSlug(product.slug);
     setCardFileName(`${product.slug}-card.jpg`);
-    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
 
-    const isAlreadyHasQr = cardImg.includes("-card.") || !cardImg.includes("-template.");
-    if (isAlreadyHasQr) {
-      setIsQrOverlayEnabled(false);
+    // 2. Khôi phục tọa độ QR tùy chỉnh của thẻ hoặc vị trí chuẩn
+    if (product.qrPosition && typeof product.qrPosition.x === "number") {
+      setQrPos({
+        x: product.qrPosition.x,
+        y: product.qrPosition.y,
+        size: product.qrPosition.size,
+      });
+    } else {
+      setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+    }
+
+    // 3. Nếu có ảnh phôi sạch, BẬT NGAY lớp QR ghép nổi bên trên
+    if (hasRawTemplate) {
+      setIsQrOverlayEnabled(true);
       showToast(
-        `Đã nạp thẻ "${product.nameVi}". Thẻ đã có sẵn mã QR (Đã ẩn lớp QR ghép thêm để không bị lặp 2 mã).`,
-        "info"
+        `Đã nạp phôi thẻ sạch của "${product.nameVi}". Bạn có thể tự do căn chỉnh lại mã QR nổi bên trên!`,
+        "success"
       );
     } else {
-      setIsQrOverlayEnabled(true);
-      showToast(`Đã nạp phôi thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
+      const isAlreadyHasQr = cardImg.includes("-card.") || !cardImg.includes("-template.");
+      if (isAlreadyHasQr) {
+        setIsQrOverlayEnabled(false);
+        showToast(
+          `Thẻ "${product.nameVi}" đang dùng ảnh đã in sẵn QR. Nhấn "Thay Phôi Sạch" hoặc "Tẩy QR Cũ" nếu muốn căn chỉnh lại!`,
+          "info"
+        );
+      } else {
+        setIsQrOverlayEnabled(true);
+        showToast(`Đã nạp phôi thẻ "${product.nameVi}" lên Bàn Chế Bản!`, "success");
+      }
     }
 
     const matchedProductPreset = PRESET_3D_MODELS.find(
@@ -1752,6 +1879,30 @@ export default function ToolsPage() {
     try {
       setIsPublishingProduct(true);
 
+      // 1. Lưu ảnh phôi sạch nguyên bản (chưa ghép QR) nếu người dùng vừa nạp phôi mới từ máy
+      let savedRawImageUrl = rawImageUrl;
+      if (rawImageBlob) {
+        try {
+          const rawFormData = new FormData();
+          rawFormData.append("file", rawImageBlob, `${slug}-raw.jpg`);
+          rawFormData.append("type", "image");
+          rawFormData.append("name", `${slug}-raw`);
+          const rawUploadRes = await fetch("/api/tools/upload", {
+            method: "POST",
+            body: rawFormData,
+          });
+          if (rawUploadRes.ok) {
+            const rawJson = await rawUploadRes.json();
+            if (rawJson.success && rawJson.url) {
+              savedRawImageUrl = rawJson.url;
+              setRawImageUrl(rawJson.url);
+            }
+          }
+        } catch (err) {
+          console.warn("Không thể tải ảnh phôi sạch lên GridFS:", err);
+        }
+      }
+
       let imageToSave = cardImageSrc;
       if (productForm.useCompositeCardImage) {
         try {
@@ -1820,6 +1971,12 @@ export default function ToolsPage() {
             description: productForm.description,
             images: [imageToSave],
             posterUrl: imageToSave,
+            rawImageUrl: savedRawImageUrl || "",
+            qrPosition: {
+              x: qrPos.x,
+              y: qrPos.y,
+              size: qrPos.size,
+            },
             modelUrl: productForm.modelUrl || "/models/lion.glb",
             iosModelUrl: productForm.iosModelUrl || "/models/lion.usdz",
             targetUrl: productForm.targetUrl || "/targets/lion.mind",
@@ -1857,6 +2014,12 @@ export default function ToolsPage() {
         description: productForm.description,
         images: [cleanImageUrl],
         posterUrl: cleanImageUrl,
+        rawImageUrl: savedRawImageUrl || "",
+        qrPosition: {
+          x: qrPos.x,
+          y: qrPos.y,
+          size: qrPos.size,
+        },
         modelUrl: productForm.modelUrl || "/models/lion.glb",
         iosModelUrl: productForm.iosModelUrl || "/models/lion.usdz",
         targetUrl: productForm.targetUrl || "/targets/lion.mind",
@@ -2210,11 +2373,15 @@ export default function ToolsPage() {
           cardElementRef={cardElementRef}
           cardImageSrc={cardImageSrc}
           isPreviewFinal={isPreviewFinal}
+          cardHasBakedQr={cardImageSrc.includes("-card.") || (!cardImageSrc.includes("-template.") && !rawImageUrl && !rawImageBlob)}
           onSetIsPreviewFinal={setIsPreviewFinal}
           onPointerDownQr={handleQrPointerDown}
           onResizePointerDown={handleResizePointerDown}
           onWorkspacePointerMove={handleWorkspacePointerMove}
           onWorkspacePointerUp={handleWorkspacePointerUp}
+          onUploadCleanTemplate={handleLoadCleanTemplate}
+          onCleanOldQrPatch={handleCleanOldQrPatch}
+          onResetQrToStandard={handleResetQrToStandard}
         />
       )}
 

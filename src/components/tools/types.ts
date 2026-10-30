@@ -51,6 +51,7 @@ export interface ProductFormData {
   showOnHome: boolean;
   description: string;
   useCompositeCardImage: boolean;
+  rawImageUrl?: string;
   modelPresetId: string;
   modelUrl: string;
   iosModelUrl: string;
@@ -77,6 +78,7 @@ export interface EditProductFormData {
   showOnHome: boolean;
   description: string;
   imageUrl: string;
+  rawImageUrl?: string;
   modelUrl: string;
   iosModelUrl: string;
   targetUrl: string;

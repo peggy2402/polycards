@@ -4,6 +4,12 @@ export interface AnimalAudio {
   zh?: string;
 }
 
+export interface CardQrPosition {
+  x: number;
+  y: number;
+  size: number;
+}
+
 export interface ProductCategory {
   id: string;
   name: string;
@@ -40,6 +46,8 @@ export interface Animal {
   modelUrl: string;
   iosModelUrl: string;
   posterUrl: string;
+  rawImageUrl?: string;
+  qrPosition?: CardQrPosition;
   animations: string[];
   arEnabled: boolean;
   targetUrl?: string;

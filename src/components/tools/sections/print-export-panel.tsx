@@ -11,6 +11,8 @@ import {
   ShoppingBag,
   Layers,
   Check,
+  Target,
+  RotateCcw,
 } from "lucide-react";
 import { PrintQueueItem, QrPosition } from "../types";
 
@@ -121,12 +123,61 @@ export function PrintExportPanel({
         </div>
 
         {isQrOverlayEnabled && (
-          <div className="space-y-3 pt-1">
+          <div className="space-y-3.5 pt-1">
+            {/* Bộ Phím Tắt Căn Nhanh Vị Trí Ô Vàng */}
+            <div className="p-2.5 rounded-xl bg-black/60 border border-white/10 space-y-2">
+              <span className="text-[10px] font-black uppercase text-stone-400 block tracking-wider">
+                Căn Chỉnh Nhanh Vị Trí Chuẩn:
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onSetQrPos({ x: 6.2, y: 70.8, size: 25.8 })}
+                  className="py-1.5 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-[10px] font-bold text-amber-300 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                  title="Vị trí tiêu chuẩn của thẻ Poly Cards (6.2%, 70.8%, 25.8%)"
+                >
+                  <Target className="h-3 w-3" />
+                  <span>Ô Vàng Chuẩn</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetQrPos({ x: 7.0, y: 72.0, size: 24.5 })}
+                  className="py-1.5 px-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-[10px] font-bold text-emerald-300 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                  title="Căn lùi nhẹ vào giữa tâm của ô bo vàng (7.0%, 72.0%, 24.5%)"
+                >
+                  <span>Giữa Tâm</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onAutoSnap}
+                  className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-[10px] font-bold text-stone-300 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                  title="Khôi phục lại tọa độ mặc định ban đầu"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>Mặc Định</span>
+                </button>
+              </div>
+            </div>
+
             {/* Slider Kích thước QR (1:1) */}
             <div>
-              <div className="flex justify-between text-xs font-bold text-stone-300 mb-1">
+              <div className="flex justify-between items-center text-xs font-bold text-stone-300 mb-1">
                 <span>Cỡ QR (% chiều rộng):</span>
-                <span className="font-mono text-amber-300">{qrPos.size}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="10"
+                    max="60"
+                    step="0.1"
+                    value={qrPos.size}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) onSetQrPos({ ...qrPos, size: val });
+                    }}
+                    className="w-14 px-1.5 py-0.5 rounded bg-black border border-white/20 text-right font-mono text-[11px] text-amber-300"
+                  />
+                  <span className="font-mono text-amber-300 text-xs">%</span>
+                </div>
               </div>
               <input
                 type="range"
@@ -141,9 +192,23 @@ export function PrintExportPanel({
 
             {/* Slider Tọa độ X (Ngang) */}
             <div>
-              <div className="flex justify-between text-xs font-bold text-stone-300 mb-1">
+              <div className="flex justify-between items-center text-xs font-bold text-stone-300 mb-1">
                 <span>Vị trí X (% từ lề trái):</span>
-                <span className="font-mono text-amber-300">{qrPos.x}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="85"
+                    step="0.1"
+                    value={qrPos.x}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) onSetQrPos({ ...qrPos, x: val });
+                    }}
+                    className="w-14 px-1.5 py-0.5 rounded bg-black border border-white/20 text-right font-mono text-[11px] text-amber-300"
+                  />
+                  <span className="font-mono text-amber-300 text-xs">%</span>
+                </div>
               </div>
               <input
                 type="range"
@@ -158,9 +223,23 @@ export function PrintExportPanel({
 
             {/* Slider Tọa độ Y (Dọc) */}
             <div>
-              <div className="flex justify-between text-xs font-bold text-stone-300 mb-1">
+              <div className="flex justify-between items-center text-xs font-bold text-stone-300 mb-1">
                 <span>Vị trí Y (% từ lề trên):</span>
-                <span className="font-mono text-amber-300">{qrPos.y}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="85"
+                    step="0.1"
+                    value={qrPos.y}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) onSetQrPos({ ...qrPos, y: val });
+                    }}
+                    className="w-14 px-1.5 py-0.5 rounded bg-black border border-white/20 text-right font-mono text-[11px] text-amber-300"
+                  />
+                  <span className="font-mono text-amber-300 text-xs">%</span>
+                </div>
               </div>
               <input
                 type="range"
