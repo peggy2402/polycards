@@ -1276,11 +1276,51 @@ export function ProductsTab({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-stone-400 flex items-center gap-1.5 font-mono">
-                              <span>{card.nameEn}</span>
-                              {card.ipa && <span className="text-stone-500">{card.ipa}</span>}
-                              {card.enableZhVi && card.nameZh && (
-                                <span className="text-rose-300 font-sans font-bold">{card.nameZh}</span>
+                            <div className="text-[11px] text-stone-400 flex items-center gap-1.5 flex-wrap">
+                              {card.enableZhVi && !card.enableEnVi ? (
+                                <>
+                                  {card.nameZh && (
+                                    <span
+                                      className="text-rose-300 font-bold text-xs"
+                                      style={{
+                                        fontFamily:
+                                          '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+                                      }}
+                                    >
+                                      {card.nameZh}
+                                    </span>
+                                  )}
+                                  {card.pinyinZh ? (
+                                    <span className="text-amber-300 font-mono font-medium">
+                                      /{card.pinyinZh}/
+                                    </span>
+                                  ) : card.ipa ? (
+                                    <span className="text-stone-500 font-mono">{card.ipa}</span>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-mono">{card.nameEn}</span>
+                                  {card.ipa && (
+                                    <span className="text-stone-500 font-mono">{card.ipa}</span>
+                                  )}
+                                  {card.enableZhVi && card.nameZh && (
+                                    <span
+                                      className="text-rose-300 font-bold"
+                                      style={{
+                                        fontFamily:
+                                          '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+                                      }}
+                                    >
+                                      {card.nameZh}
+                                    </span>
+                                  )}
+                                  {card.enableZhVi && card.pinyinZh && (
+                                    <span className="text-amber-300 font-mono text-[10px]">
+                                      ({card.pinyinZh})
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </div>
                           </td>

@@ -348,6 +348,11 @@ export default function ToolsPage() {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
           setProductsList(json.data);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("poly_custom_products", JSON.stringify(json.data));
+            } catch {}
+          }
           return;
         }
       }

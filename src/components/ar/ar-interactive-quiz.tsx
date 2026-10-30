@@ -114,7 +114,13 @@ export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
         <h4 className="text-lg sm:text-xl font-black text-slate-900">
           Đâu là bạn{" "}
           <span className="text-emerald-700 underline underline-offset-4">
-            &ldquo;{currentAnimal.nameEn}&rdquo;
+            &ldquo;
+            {currentAnimal.enableZhVi && !currentAnimal.enableEnVi && currentAnimal.nameZh
+              ? `${currentAnimal.nameZh}${
+                  currentAnimal.pinyinZh ? ` (${currentAnimal.pinyinZh})` : ""
+                }`
+              : currentAnimal.nameEn}
+            &rdquo;
           </span>{" "}
           ({currentAnimal.nameVi})?
         </h4>
@@ -160,15 +166,27 @@ export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
               </div>
 
               <div className="space-y-0.5">
-                <span className="block text-base font-black leading-tight">
-                  {option.nameEn}
+                <span
+                  className="block text-base font-black leading-tight"
+                  style={{
+                    fontFamily:
+                      option.enableZhVi && !option.enableEnVi
+                        ? '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif'
+                        : undefined,
+                  }}
+                >
+                  {option.enableZhVi && !option.enableEnVi && option.nameZh
+                    ? option.nameZh
+                    : option.nameEn}
                 </span>
                 <span className="block text-xs font-bold text-slate-600">
                   {option.nameVi}
                 </span>
-                {option.ipa && (
+                {(option.pinyinZh || option.ipa) && (
                   <span className="block text-[11px] font-mono text-slate-500">
-                    {option.ipa}
+                    {option.enableZhVi && !option.enableEnVi && option.pinyinZh
+                      ? option.pinyinZh
+                      : option.ipa}
                   </span>
                 )}
               </div>

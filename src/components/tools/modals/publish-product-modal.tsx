@@ -331,9 +331,20 @@ export function PublishProductModal({
                       <input
                         type="text"
                         required={productForm.enableZhVi}
-                        placeholder="VD: 跑步, 狮子..."
+                        placeholder="VD: 跑步, 狮子, 马..."
                         value={productForm.nameZh}
                         onChange={(e) => onChangeForm({ nameZh: e.target.value })}
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData("text/plain");
+                          if (pasted) {
+                            e.preventDefault();
+                            onChangeForm({ nameZh: pasted.trim() });
+                          }
+                        }}
+                        style={{
+                          fontFamily:
+                            '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif',
+                        }}
                         className="w-full bg-black/80 border border-rose-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-rose-400 font-bold"
                       />
                     </div>
@@ -358,10 +369,21 @@ export function PublishProductModal({
                       </label>
                       <input
                         type="text"
-                        placeholder="VD: pǎo bù, shī zi..."
+                        placeholder="VD: pǎo bù, shī zi, mǎ..."
                         value={productForm.pinyinZh}
                         onChange={(e) => onChangeForm({ pinyinZh: e.target.value })}
-                        className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-mono text-rose-300 placeholder-stone-500 focus:outline-hidden focus:border-rose-400"
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData("text/plain");
+                          if (pasted) {
+                            e.preventDefault();
+                            onChangeForm({ pinyinZh: pasted.trim() });
+                          }
+                        }}
+                        style={{
+                          fontFamily:
+                            '"Inter", "PingFang SC", "Arial", sans-serif',
+                        }}
+                        className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-semibold text-rose-300 placeholder-stone-500 focus:outline-hidden focus:border-rose-400"
                       />
                     </div>
                   </div>

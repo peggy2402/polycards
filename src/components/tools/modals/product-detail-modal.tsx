@@ -79,10 +79,20 @@ export function ProductDetailModal({
               {card.category || "Động Vật"}
             </span>
             <h3 className="text-sm sm:text-base font-black text-white truncate">
-              {card.nameVi} ({card.nameEn})
+              {card.nameVi}{" "}
+              <span className="text-stone-300">
+                (
+                {card.enableZhVi && !card.enableEnVi && card.nameZh
+                  ? card.nameZh
+                  : card.nameEn}
+                )
+              </span>
             </h3>
-            <span className="font-mono text-[11px] text-stone-400 hidden sm:inline">
-              /{card.slug}
+            <span className="font-mono text-[11px] text-amber-300 hidden sm:inline">
+              /
+              {card.enableZhVi && !card.enableEnVi && card.pinyinZh
+                ? card.pinyinZh
+                : card.slug}
             </span>
           </div>
 
@@ -281,12 +291,20 @@ export function ProductDetailModal({
                       <span className="font-mono text-[11px] text-amber-300">{card.ipa}</span>
                     </div>
                   )}
-                  {showZh && card.nameZh && (
+                  {showZh && (card.nameZh || card.pinyinZh) && (
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5 col-span-2">
                       <span className="text-[10px] text-stone-400 block">Tiếng Trung (Pinyin):</span>
-                      <strong className="text-rose-300">{card.nameZh}</strong>{" "}
+                      <strong
+                        className="text-rose-300 text-sm"
+                        style={{
+                          fontFamily:
+                            '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+                        }}
+                      >
+                        {card.nameZh || "Chưa nhập chữ Hán"}
+                      </strong>{" "}
                       {card.pinyinZh && (
-                        <span className="font-mono text-[11px] text-stone-300">
+                        <span className="font-mono text-[12px] text-amber-300 font-semibold">
                           ({card.pinyinZh})
                         </span>
                       )}

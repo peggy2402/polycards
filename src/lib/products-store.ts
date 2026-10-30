@@ -242,12 +242,12 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
           resolveValidProductImage(localItem.images?.[0], localItem.posterUrl)
         );
         return {
-          ...(serverMatch || {}),
           ...localItem,
+          ...(serverMatch || {}),
           packCode:
-            localItem.packCode !== undefined
-              ? localItem.packCode
-              : serverMatch?.packCode || "",
+            (serverMatch?.packCode !== undefined && serverMatch.packCode !== "")
+              ? serverMatch.packCode
+              : localItem.packCode || "",
           images: [bestImage],
           posterUrl: bestImage,
           modelUrl: serverMatch?.modelUrl || localItem.modelUrl || `/models/lion.glb`,
