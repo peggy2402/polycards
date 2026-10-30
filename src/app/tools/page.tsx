@@ -1115,63 +1115,61 @@ export default function ToolsPage() {
           typeof window !== "undefined" ? window.location.origin : "https://polycards-one.vercel.app"
         }/ar/${card.slug}?ar=1${effectivePackCode ? `&code=${encodeURIComponent(effectivePackCode)}` : ""}`;
 
-        // Sinh mã QR kèm logo tròn Poly Cards ở trung tâm
+        // Sinh mã QR nét cao chứa đúng mã bộ và logo tròn Poly Cards ở trung tâm
         let qrDataUrl = "";
-        if (!isAlreadyComposite) {
-          const rawDataUrl = await QRCode.toDataURL(targetWebArUrl, {
-            errorCorrectionLevel: "H",
-            margin: 1,
-            width: 1024,
-            color: { dark: "#000000", light: "#FFFFFF" },
-          });
+        const rawDataUrl = await QRCode.toDataURL(targetWebArUrl, {
+          errorCorrectionLevel: "H",
+          margin: 1,
+          width: 1024,
+          color: { dark: "#000000", light: "#FFFFFF" },
+        });
 
-          const qrCanvas = document.createElement("canvas");
-          qrCanvas.width = 1024;
-          qrCanvas.height = 1024;
-          const qrCtx = qrCanvas.getContext("2d");
-          if (qrCtx) {
-            await new Promise<void>((resQr) => {
-              const qrImg = new window.Image();
-              qrImg.crossOrigin = "anonymous";
-              qrImg.onload = () => {
-                qrCtx.drawImage(qrImg, 0, 0, 1024, 1024);
-                const badgeSize = 1024 * 0.22;
-                const center = 1024 / 2;
-                qrCtx.fillStyle = "#FFFFFF";
-                qrCtx.beginPath();
-                qrCtx.arc(center, center, badgeSize / 2 + 10, 0, Math.PI * 2);
-                qrCtx.fill();
-                qrCtx.lineWidth = 6;
-                qrCtx.strokeStyle = "#F59E0B";
-                qrCtx.stroke();
+        const qrCanvas = document.createElement("canvas");
+        qrCanvas.width = 1024;
+        qrCanvas.height = 1024;
+        const qrCtx = qrCanvas.getContext("2d");
+        if (qrCtx) {
+          await new Promise<void>((resQr) => {
+            const qrImg = new window.Image();
+            qrImg.crossOrigin = "anonymous";
+            qrImg.onload = () => {
+              qrCtx.drawImage(qrImg, 0, 0, 1024, 1024);
+              const badgeSize = 1024 * 0.22;
+              const center = 1024 / 2;
+              qrCtx.fillStyle = "#FFFFFF";
+              qrCtx.beginPath();
+              qrCtx.arc(center, center, badgeSize / 2 + 10, 0, Math.PI * 2);
+              qrCtx.fill();
+              qrCtx.lineWidth = 6;
+              qrCtx.strokeStyle = "#F59E0B";
+              qrCtx.stroke();
 
-                const logo = new window.Image();
-                logo.crossOrigin = "anonymous";
-                logo.onload = () => {
-                  const innerSize = badgeSize * 0.8;
-                  qrCtx.drawImage(
-                    logo,
-                    center - innerSize / 2,
-                    center - innerSize / 2,
-                    innerSize,
-                    innerSize
-                  );
-                  qrDataUrl = qrCanvas.toDataURL("image/png");
-                  resQr();
-                };
-                logo.onerror = () => {
-                  qrDataUrl = rawDataUrl;
-                  resQr();
-                };
-                logo.src = "/images/icons/logo.png";
+              const logo = new window.Image();
+              logo.crossOrigin = "anonymous";
+              logo.onload = () => {
+                const innerSize = badgeSize * 0.8;
+                qrCtx.drawImage(
+                  logo,
+                  center - innerSize / 2,
+                  center - innerSize / 2,
+                  innerSize,
+                  innerSize
+                );
+                qrDataUrl = qrCanvas.toDataURL("image/png");
+                resQr();
               };
-              qrImg.onerror = () => {
+              logo.onerror = () => {
                 qrDataUrl = rawDataUrl;
                 resQr();
               };
-              qrImg.src = rawDataUrl;
-            });
-          }
+              logo.src = "/images/icons/logo.png";
+            };
+            qrImg.onerror = () => {
+              qrDataUrl = rawDataUrl;
+              resQr();
+            };
+            qrImg.src = rawDataUrl;
+          });
         }
 
         // Tạo canvas hoàn chỉnh
@@ -1189,8 +1187,8 @@ export default function ToolsPage() {
 
           ctx.drawImage(baseImg, 0, 0, width, height);
 
-          // Nếu chưa có QR hoặc vẽ lại từ phôi sạch, vẽ lớp QR vào vị trí đã lưu của thẻ (mặc định x=4.1%, y=74.2%, size=22.8%)
-          if (!isAlreadyComposite && qrDataUrl) {
+          // Luôn vẽ lớp QR chuẩn xác theo mã bộ vào vị trí chuẩn (mặc định x=4.1%, y=74.2%, size=22.8%)
+          if (qrDataUrl) {
             const qrX = card.qrPosition?.x ?? 4.1;
             const qrY = card.qrPosition?.y ?? 74.2;
             const qrSize = card.qrPosition?.size ?? 22.8;
@@ -1725,7 +1723,14 @@ export default function ToolsPage() {
       setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
     }
 
-    // 3. Nếu có ảnh phôi sạch, BẬT NGAY lớp QR ghép nổi bên trên
+    // 3. Đồng bộ Mã Bộ vào licenseCode và QR URL
+    if (product.packCode && product.packCode.trim() !== "") {
+      setLicenseCode(product.packCode.trim());
+      setIncludeLicense(true);
+      setSelectedPackForCard(product.packCode.trim());
+    }
+
+    // 4. Nếu có ảnh phôi sạch, BẬT NGAY lớp QR ghép nổi bên trên
     if (hasRawTemplate) {
       setIsQrOverlayEnabled(true);
       showToast(
