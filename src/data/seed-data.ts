@@ -25,6 +25,7 @@ export interface SeedOrderItem {
   packCode?: string;
   packTitle: string;
   allowedCategorySlug?: string;
+  allowedCategorySlugs?: string[];
   items?: SeedOrderLineItem[];
   subtotal?: number;
   vatRate?: number; // 0, 5, 8, 10

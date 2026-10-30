@@ -33,11 +33,20 @@ import {
   HelpCircle,
   ArrowRight,
   Info,
+  ShoppingCart,
+  ShoppingBag,
+  PackageCheck,
+  Trash2,
+  Minus,
 } from "lucide-react";
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
 import { Animal, ProductCategory } from "@/types/animal";
 import { getStoredPackCodes, PackCodeItem, PACK_CODES_UPDATED_EVENT } from "@/lib/pack-codes-store";
+import {
+  CatalogPickerModal,
+  InvoiceCartItem,
+} from "@/components/invoices/catalog-picker-modal";
 
 export interface InvoiceLineItem {
   id: string;
@@ -72,6 +81,7 @@ export interface SaleInvoice {
   packTitle: string;
   packCode: string;
   allowedCategorySlug: string;
+  allowedCategorySlugs?: string[];
   directUrl: string;
   note?: string;
   createdAt: string;
@@ -136,28 +146,26 @@ export default function InvoicesPage() {
   const [customerAddress, setCustomerAddress] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>(() => `KH-${Math.floor(1000 + Math.random() * 9000)}`);
 
-  // 2. Chế độ mua hàng: "SINGLE" | "MULTI" | "PACK"
-  const [purchaseMode, setPurchaseMode] = useState<"SINGLE" | "MULTI" | "PACK">("PACK");
+  // 2. GIỎ HÀNG HÓA BÁN HÀNG (Cart Items: Hỗ trợ chọn nhiều bộ và nhiều thẻ lẻ)
+  const [cartItems, setCartItems] = useState<InvoiceCartItem[]>([
+    {
+      id: "pack-hanh-dong",
+      type: "PACK",
+      name: "Bộ 30 Thẻ AR Hành Động",
+      categorySlug: "hanh-dong",
+      categoryName: "Hành Động",
+      packCode: "POLY30-HANHDONG",
+      quantity: 1,
+      unitPrice: 249000,
+    },
+  ]);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState<boolean>(false);
 
-  // Mode 1: Single Card state
-  const [singleCardSlug, setSingleCardSlug] = useState<string>("lion");
-  const [cardSearchQuery, setCardSearchQuery] = useState<string>("");
-
-  // Mode 2: Multi Cards state
-  const [selectedCardSlugs, setSelectedCardSlugs] = useState<string[]>(["lion", "cat"]);
-  const [multiSearchQuery, setMultiSearchQuery] = useState<string>("");
-  const [multiCategoryFilter, setMultiCategoryFilter] = useState<string>("ALL");
-
-  // Mode 3: Pack state theo Danh Mục thực tế từ Kho thẻ bài sản phẩm
+  // Danh mục bộ thẻ theo Danh Mục thực tế từ Kho thẻ bài sản phẩm
   const [categoriesList, setCategoriesList] = useState<ProductCategory[]>([]);
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("hanh-dong");
   const [storedPackCodes, setStoredPackCodes] = useState<PackCodeItem[]>([]);
   const [selectedExistingPackCode, setSelectedExistingPackCode] = useState<string>("POLY30-HANHDONG");
   const [packCodeMode, setPackCodeMode] = useState<"AUTO" | "EXISTING">("EXISTING");
-
-  // Số lượng & Đơn giá
-  const [quantity, setQuantity] = useState<number>(1);
-  const [customUnitPrice, setCustomUnitPrice] = useState<number | null>(null);
 
   // Thuế VAT: 0% / 5% / 8% / 10% (mặc định 0%)
   const [vatRate, setVatRate] = useState<number>(0);
@@ -201,7 +209,6 @@ export default function InvoicesPage() {
         const local = getProductCategories();
         if (local && local.length > 0) {
           setCategoriesList(local);
-          setSelectedCategorySlug(local[0]?.slug || "hanh-dong");
         }
         const res = await fetch("/api/categories");
         if (res.ok) {
@@ -267,54 +274,118 @@ export default function InvoicesPage() {
     }
   }, [customerPhone]);
 
-  // Tìm thẻ đơn được chọn
-  const currentSingleCard = useMemo(() => {
-    return (
-      productsCatalog.find((p) => p.slug === singleCardSlug) ||
-      productsCatalog[0] ||
-      ({
-        id: "lion",
-        slug: "lion",
-        nameVi: "Con Sư Tử",
-        nameEn: "Lion",
-        ipa: "/ˈlaɪ.ən/",
-        description: "Sư tử dũng mãnh",
-        category: "Động Vật",
-        categorySlug: "dong-vat",
-        price: 219000,
-        images: ["/images/cards/lion-template.jpg"],
-        audioUrl: "",
-        modelUrl: "",
-        iosModelUrl: "",
-        posterUrl: "/images/cards/lion-template.jpg",
-        qrCode: "",
-      } as Animal)
-    );
-  }, [productsCatalog, singleCardSlug]);
-
-  // Danh sách thẻ được chọn ở chế độ Multi
-  const selectedCardsList = useMemo(() => {
-    return productsCatalog.filter((p) => selectedCardSlugs.includes(p.slug));
-  }, [productsCatalog, selectedCardSlugs]);
-
-  // Danh mục bộ thẻ được chọn ở chế độ Pack
-  const currentCategoryForPack = useMemo(() => {
-    return (
-      categoriesList.find((c) => c.slug === selectedCategorySlug) ||
-      categoriesList[0] || {
-        id: "cat-actions",
-        name: "Hành Động",
-        slug: "hanh-dong",
+  // Thao tác với Giỏ Hàng Hóa (Cart Operations)
+  const handleAddToCart = useCallback((item: Omit<InvoiceCartItem, "quantity">, qty: number = 1) => {
+    setCartItems((prev) => {
+      const existing = prev.find((it) => it.id === item.id);
+      if (existing) {
+        return prev.map((it) =>
+          it.id === item.id ? { ...it, quantity: it.quantity + qty } : it
+        );
       }
-    );
-  }, [categoriesList, selectedCategorySlug]);
+      return [...prev, { ...item, quantity: qty }];
+    });
+    showToast(`Đã thêm "${item.name}" vào giỏ hàng`, "success");
+  }, [showToast]);
 
-  // Các mã bộ có sẵn trong kho tương ứng với danh mục hoặc tổng thể
+  const handleUpdateCartQty = (id: string, delta: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((it) => {
+          if (it.id === id) {
+            const newQty = it.quantity + delta;
+            return newQty > 0 ? { ...it, quantity: newQty } : null;
+          }
+          return it;
+        })
+        .filter(Boolean) as InvoiceCartItem[]
+    );
+  };
+
+  const handleSetCartQty = (id: string, qty: number) => {
+    if (qty <= 0) {
+      handleRemoveFromCart(id);
+      return;
+    }
+    setCartItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, quantity: qty } : it))
+    );
+  };
+
+  const handleSetCartUnitPrice = (id: string, unitPrice: number) => {
+    setCartItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, unitPrice: Math.max(0, unitPrice) } : it))
+    );
+  };
+
+  const handleRemoveFromCart = (id: string) => {
+    setCartItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const handleQuickAddPack = (cat: ProductCategory) => {
+    handleAddToCart({
+      id: `pack-${cat.slug}`,
+      type: "PACK",
+      name: `Bộ 30 Thẻ AR ${cat.name}`,
+      categorySlug: cat.slug,
+      categoryName: cat.name,
+      packCode: `POLY30-${cat.slug.toUpperCase().replace(/[^A-Z0-9]/g, "")}`,
+      unitPrice: 249000,
+    });
+  };
+
+  // Tính toán số lượng & tổng tiền giỏ hàng
+  const totalItemsCount = useMemo(() => {
+    return cartItems.reduce((acc, it) => acc + it.quantity, 0);
+  }, [cartItems]);
+
+  const totalPacksCount = useMemo(() => {
+    return cartItems
+      .filter((it) => it.type === "PACK")
+      .reduce((acc, it) => acc + it.quantity, 0);
+  }, [cartItems]);
+
+  const totalSinglesCount = useMemo(() => {
+    return cartItems
+      .filter((it) => it.type === "SINGLE")
+      .reduce((acc, it) => acc + it.quantity, 0);
+  }, [cartItems]);
+
+  const totalCardsEstimated = useMemo(() => {
+    return totalPacksCount * 30 + totalSinglesCount;
+  }, [totalPacksCount, totalSinglesCount]);
+
+  // Tạm tính (Subtotal)
+  const subtotal = useMemo(() => {
+    return cartItems.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
+  }, [cartItems]);
+
+  // Tiền thuế VAT
+  const vatAmount = useMemo(() => {
+    if (vatRate <= 0) return 0;
+    return Math.round(subtotal * (vatRate / 100));
+  }, [subtotal, vatRate]);
+
+  // Phát sinh Có = Tổng tiền khách cần trả
+  const creditAmount = useMemo(() => {
+    return subtotal + vatAmount;
+  }, [subtotal, vatAmount]);
+
+  // Tự động gán Phát sinh Nợ = Phát sinh Có khi subtotal / VAT thay đổi
+  useEffect(() => {
+    setDebitAmount(creditAmount);
+  }, [creditAmount]);
+
+  // Tính Còn lại (Phát sinh Nợ - Phát sinh Có)
+  const balance = useMemo(() => {
+    return debitAmount - creditAmount;
+  }, [debitAmount, creditAmount]);
+
+  // Các mã bộ có sẵn trong kho
   const availablePacksForCategory = useMemo(() => {
     const list: Array<{ code: string; label: string }> = [];
     const seen = new Set<string>();
 
-    // 1. Từ stored pack codes
     storedPackCodes.forEach((p) => {
       if (!seen.has(p.code)) {
         seen.add(p.code);
@@ -322,7 +393,6 @@ export default function InvoicesPage() {
       }
     });
 
-    // 2. Từ các thẻ trong kho
     productsCatalog.forEach((prod) => {
       if (prod.packCode && prod.packCode.trim() !== "") {
         const c = prod.packCode.trim().toUpperCase();
@@ -336,64 +406,6 @@ export default function InvoicesPage() {
     return list;
   }, [storedPackCodes, productsCatalog]);
 
-  // Cập nhật selectedExistingPackCode khi chuyển danh mục nếu cần
-  useEffect(() => {
-    const matched = availablePacksForCategory.find(
-      (p) =>
-        p.code.toLowerCase().includes(selectedCategorySlug.toLowerCase()) ||
-        p.label.toLowerCase().includes(selectedCategorySlug.toLowerCase())
-    );
-    if (matched) {
-      setSelectedExistingPackCode(matched.code);
-    } else if (availablePacksForCategory.length > 0) {
-      setSelectedExistingPackCode(availablePacksForCategory[0].code);
-    }
-  }, [selectedCategorySlug, availablePacksForCategory]);
-
-  // Tính đơn giá chuẩn theo chế độ
-  const calculatedUnitPrice = useMemo(() => {
-    if (customUnitPrice !== null && customUnitPrice >= 0) {
-      return customUnitPrice;
-    }
-    if (purchaseMode === "SINGLE") {
-      return currentSingleCard.price || 219000;
-    }
-    if (purchaseMode === "MULTI") {
-      const sum = selectedCardsList.reduce((acc, c) => acc + (c.price || 219000), 0);
-      return sum > 0 ? sum : 219000;
-    }
-    return 249000;
-  }, [purchaseMode, customUnitPrice, currentSingleCard, selectedCardsList]);
-
-  // Tạm tính (Subtotal)
-  const subtotal = useMemo(() => {
-    return Math.round(calculatedUnitPrice * quantity);
-  }, [calculatedUnitPrice, quantity]);
-
-  // Tiền thuế VAT
-  const vatAmount = useMemo(() => {
-    if (vatRate <= 0) return 0;
-    return Math.round(subtotal * (vatRate / 100));
-  }, [subtotal, vatRate]);
-
-  // Phát sinh Có = Tổng tiền khách cần trả
-  const creditAmount = useMemo(() => {
-    return subtotal + vatAmount;
-  }, [subtotal, vatAmount]);
-
-  // Tự động gán Phát sinh Nợ = Phát sinh Có khi người dùng chưa sửa Nợ tùy ý
-  useEffect(() => {
-    setDebitAmount(creditAmount);
-  }, [creditAmount]);
-
-  // Tính Còn lại (Phát sinh Nợ - Phát sinh Có)
-  // âm (< 0): Trả thiếu (Khách trả thêm)
-  // dương (> 0): Trả thừa (Trả lại khách)
-  // 0: Trả đủ
-  const balance = useMemo(() => {
-    return debitAmount - creditAmount;
-  }, [debitAmount, creditAmount]);
-
   // Chuyển loại khách
   const handleToggleCustomerType = (type: "TRUCTIEP" | "ONLINE") => {
     setCustomerType(type);
@@ -404,19 +416,41 @@ export default function InvoicesPage() {
     }
   };
 
-  // Toggle chọn/bỏ chọn thẻ trong chế độ Multi
-  const handleToggleCardSelection = (slug: string) => {
-    setSelectedCardSlugs((prev) => {
-      if (prev.includes(slug)) {
-        if (prev.length <= 1) {
-          showToast("Vui lòng giữ ít nhất 1 thẻ được chọn.", "warning");
-          return prev;
-        }
-        return prev.filter((s) => s !== slug);
+  // Xem trước format mã bản quyền dự kiến
+  const previewLicenseCode = useMemo(() => {
+    const cleanCustCode = customerId.trim() || "KH0000";
+    const purchasedPacks = cartItems.filter((i) => i.type === "PACK");
+    const purchasedSingles = cartItems.filter((i) => i.type === "SINGLE");
+
+    if (purchasedPacks.length > 0 && purchasedSingles.length === 0) {
+      if (purchasedPacks.length === 1 && purchasedPacks[0].quantity === 1) {
+        const p = purchasedPacks[0];
+        const catUpper = (p.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        return packCodeMode === "AUTO"
+          ? `PACK-${catUpper}-${cleanCustCode}-HD...`
+          : selectedExistingPackCode;
       }
-      return [...prev, slug];
-    });
-  };
+      const sumPacks = purchasedPacks.reduce((a, b) => a + b.quantity, 0);
+      return `PACK-COMBO-${sumPacks}BO-${cleanCustCode}-HD...`;
+    }
+
+    if (purchasedPacks.length === 0 && purchasedSingles.length > 0) {
+      if (purchasedSingles.length === 1 && purchasedSingles[0].quantity === 1) {
+        const s = purchasedSingles[0];
+        const catSlug = (s.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const cardSlug = (s.slug || "CARD").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        return `SINGLE-${cardSlug}-${catSlug}-${cleanCustCode}-HD...`;
+      }
+      const sumCards = purchasedSingles.reduce((a, b) => a + b.quantity, 0);
+      return `MULTI-${sumCards}THE-CUSTOM-${cleanCustCode}-HD...`;
+    }
+
+    if (purchasedPacks.length > 0 && purchasedSingles.length > 0) {
+      return `COMBO-${totalPacksCount}BO-${totalSinglesCount}THE-${cleanCustCode}-HD...`;
+    }
+
+    return "CHUA-CHON-HANG";
+  }, [cartItems, customerId, packCodeMode, selectedExistingPackCode, totalPacksCount, totalSinglesCount]);
 
   // Tạo phiếu hóa đơn & sinh mã bản quyền chuẩn hóa
   const handleCreateInvoice = async (e: React.FormEvent) => {
@@ -426,93 +460,88 @@ export default function InvoicesPage() {
       return;
     }
 
+    if (cartItems.length === 0) {
+      showToast("Vui lòng thêm ít nhất 1 sản phẩm vào giỏ hàng.", "warning");
+      return;
+    }
+
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const invoicePrefix = customerType === "TRUCTIEP" ? "HD-DIR" : "HD-ONL";
     const invoiceCode = `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`;
     const cleanCustCode = customerId.trim() || `KH${randomNum}`;
 
+    const purchasedPacks = cartItems.filter((i) => i.type === "PACK");
+    const purchasedSingles = cartItems.filter((i) => i.type === "SINGLE");
+    const allowedCategorySlugs = Array.from(new Set(purchasedPacks.map((i) => i.categorySlug)));
+    const unlockedSlugs = purchasedSingles.map((i) => i.slug).filter(Boolean) as string[];
+
     let licenseCode = "";
-    let directUrl = "";
     let packTitle = "";
+    let codeType: "SINGLE" | "MULTI" | "PACK" = "PACK";
     let allowedCategorySlug = "";
-    let lineItems: InvoiceLineItem[] = [];
-    let unlockedSlug: string | undefined = undefined;
-    let unlockedSlugs: string[] | undefined = undefined;
 
-    if (purchaseMode === "SINGLE") {
-      const catSlug = (currentSingleCard.categorySlug || "DONGVAT")
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "");
-      const cardSlugUpper = currentSingleCard.slug.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      licenseCode = `SINGLE-${cardSlugUpper}-${catSlug}-${cleanCustCode}-${invoiceCode}`;
-      const cardTitle = currentSingleCard.nameVi || currentSingleCard.nameEn || currentSingleCard.slug;
-      packTitle = `Thẻ Lẻ: ${cardTitle} (${currentSingleCard.nameEn || currentSingleCard.slug})`;
-      allowedCategorySlug = currentSingleCard.categorySlug || "dong-vat";
-      directUrl = `https://polycards-one.vercel.app/ar/${currentSingleCard.slug}?ar=1&code=${licenseCode}`;
-      unlockedSlug = currentSingleCard.slug;
-      lineItems = [
-        {
-          id: currentSingleCard.id || currentSingleCard.slug,
-          name: packTitle,
-          packCode: licenseCode,
-          categorySlug: allowedCategorySlug,
-          quantity,
-          unitPrice: calculatedUnitPrice,
-          totalPrice: subtotal,
-        },
-      ];
-    } else if (purchaseMode === "MULTI") {
-      const count = selectedCardsList.length;
-      const catSummaries = Array.from(
-        new Set(selectedCardsList.map((c) => (c.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "")))
-      );
-      const catTag = catSummaries.length === 1 ? catSummaries[0] : "TONGHOP";
-      licenseCode = `MULTI-${count}THE-${catTag}-${cleanCustCode}-${invoiceCode}`;
-      packTitle = `Combo ${count} Thẻ Tùy Chọn (${selectedCardsList.map((c) => c.nameVi || c.nameEn).slice(0, 3).join(", ")}${
-        count > 3 ? "..." : ""
-      })`;
-      allowedCategorySlug = catSummaries[0] || "dong-vat";
-      const firstSlug = selectedCardsList[0]?.slug || "lion";
-      directUrl = `https://polycards-one.vercel.app/ar/${firstSlug}?ar=1&code=${licenseCode}`;
-      unlockedSlugs = selectedCardsList.map((c) => c.slug);
-      lineItems = selectedCardsList.map((card) => ({
-        id: card.id || card.slug,
-        name: card.nameVi || card.nameEn || card.slug,
-        packCode: licenseCode,
-        categorySlug: card.categorySlug || "dong-vat",
-        quantity,
-        unitPrice: card.price || 219000,
-        totalPrice: (card.price || 219000) * quantity,
-      }));
-    } else {
-      // PACK Mode theo Danh Mục thực tế
-      const catUpper = currentCategoryForPack.slug.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (packCodeMode === "AUTO") {
-        licenseCode = `PACK-${catUpper}-${cleanCustCode}-${invoiceCode}`;
+    if (purchasedPacks.length > 0 && purchasedSingles.length === 0) {
+      codeType = "PACK";
+      if (purchasedPacks.length === 1 && purchasedPacks[0].quantity === 1) {
+        const singlePack = purchasedPacks[0];
+        const catUpper = (singlePack.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (packCodeMode === "AUTO") {
+          licenseCode = `PACK-${catUpper}-${cleanCustCode}-${invoiceCode}`;
+        } else {
+          licenseCode = selectedExistingPackCode.trim() || singlePack.packCode || `POLY30-${catUpper}`;
+        }
+        packTitle = singlePack.name;
+        allowedCategorySlug = singlePack.categorySlug;
       } else {
-        licenseCode = selectedExistingPackCode.trim() || `POLY30-${catUpper}`;
+        const sumPacks = purchasedPacks.reduce((a, b) => a + b.quantity, 0);
+        const catCodes = Array.from(
+          new Set(purchasedPacks.map((p) => (p.categorySlug || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4)))
+        ).join("-");
+        licenseCode = `PACK-COMBO-${sumPacks}BO-${catCodes || "ALL"}-${cleanCustCode}-${invoiceCode}`;
+        packTitle = `Combo ${sumPacks} Bộ Thẻ (${purchasedPacks.map((p) => `${p.quantity} ${p.categoryName || p.name}`).join(", ")})`;
+        allowedCategorySlug = purchasedPacks[0]?.categorySlug || "dong-vat";
       }
-      packTitle = `Bộ Thẻ AR ${currentCategoryForPack.name}`;
-      allowedCategorySlug = currentCategoryForPack.slug;
-
-      const sampleCard =
-        productsCatalog.find((p) => p.categorySlug === currentCategoryForPack.slug) ||
-        productsCatalog[0];
-      const sampleSlug = sampleCard?.slug || "jump";
-      directUrl = `https://polycards-one.vercel.app/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(licenseCode)}`;
-
-      lineItems = [
-        {
-          id: `pack-${currentCategoryForPack.slug}`,
-          name: packTitle,
-          packCode: licenseCode,
-          categorySlug: currentCategoryForPack.slug,
-          quantity,
-          unitPrice: calculatedUnitPrice,
-          totalPrice: subtotal,
-        },
-      ];
+    } else if (purchasedPacks.length === 0 && purchasedSingles.length > 0) {
+      if (purchasedSingles.length === 1 && purchasedSingles[0].quantity === 1) {
+        codeType = "SINGLE";
+        const single = purchasedSingles[0];
+        const catSlug = (single.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const cardSlug = (single.slug || "CARD").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        licenseCode = `SINGLE-${cardSlug}-${catSlug}-${cleanCustCode}-${invoiceCode}`;
+        packTitle = `Thẻ Lẻ: ${single.name}`;
+        allowedCategorySlug = single.categorySlug;
+      } else {
+        codeType = "MULTI";
+        const sumCards = purchasedSingles.reduce((a, b) => a + b.quantity, 0);
+        licenseCode = `MULTI-${sumCards}THE-CUSTOM-${cleanCustCode}-${invoiceCode}`;
+        packTitle = `Combo ${sumCards} Thẻ Lẻ (${purchasedSingles.map((s) => s.name).slice(0, 3).join(", ")}${purchasedSingles.length > 3 ? "..." : ""})`;
+        allowedCategorySlug = purchasedSingles[0]?.categorySlug || "dong-vat";
+      }
+    } else {
+      codeType = "PACK";
+      const sumPacks = purchasedPacks.reduce((a, b) => a + b.quantity, 0);
+      const sumCards = purchasedSingles.reduce((a, b) => a + b.quantity, 0);
+      licenseCode = `COMBO-${sumPacks}BO-${sumCards}THE-${cleanCustCode}-${invoiceCode}`;
+      packTitle = `Combo Đặc Biệt: ${sumPacks} Bộ + ${sumCards} Thẻ Lẻ`;
+      allowedCategorySlug = purchasedPacks[0]?.categorySlug || purchasedSingles[0]?.categorySlug || "dong-vat";
     }
+
+    // Chọn thẻ mẫu để mở WebAR
+    const sampleCard = productsCatalog.find(
+      (p) => allowedCategorySlugs.includes(p.categorySlug || "") || (unlockedSlugs.length > 0 && unlockedSlugs.includes(p.slug))
+    ) || productsCatalog[0];
+    const sampleSlug = sampleCard?.slug || "jump";
+    const directUrl = `https://polycards-one.vercel.app/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(licenseCode)}`;
+
+    const lineItems: InvoiceLineItem[] = cartItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      packCode: licenseCode,
+      categorySlug: item.categorySlug,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.quantity * item.unitPrice,
+    }));
 
     const newInvoice: SaleInvoice = {
       id: `INV-${Date.now()}`,
@@ -522,9 +551,9 @@ export default function InvoicesPage() {
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerAddress: customerAddress.trim(),
-      codeType: purchaseMode,
-      unlockedSlug,
-      unlockedSlugs,
+      codeType,
+      unlockedSlug: unlockedSlugs.length === 1 ? unlockedSlugs[0] : undefined,
+      unlockedSlugs: unlockedSlugs.length > 0 ? unlockedSlugs : undefined,
       items: lineItems,
       subtotal,
       vatRate,
@@ -536,7 +565,8 @@ export default function InvoicesPage() {
       paymentMethod,
       packTitle,
       packCode: licenseCode,
-      allowedCategorySlug,
+      allowedCategorySlug: allowedCategorySlug || "dong-vat",
+      allowedCategorySlugs: allowedCategorySlugs.length > 0 ? allowedCategorySlugs : [allowedCategorySlug || "dong-vat"],
       directUrl,
       note: note.trim() || (customerType === "TRUCTIEP" ? "Khách mua trực tiếp tại quầy" : "Đơn hàng online"),
       createdAt: new Date().toLocaleString("vi-VN"),
@@ -599,34 +629,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
     setTimeout(() => setCopiedZalo(false), 2500);
   };
 
-  // Lọc thẻ phục vụ tab Multi
-  const filteredProductsForMulti = useMemo(() => {
-    return productsCatalog.filter((card) => {
-      if (multiCategoryFilter !== "ALL" && card.categorySlug !== multiCategoryFilter) {
-        return false;
-      }
-      if (multiSearchQuery.trim()) {
-        const q = multiSearchQuery.toLowerCase();
-        const matchName = (card.nameVi || "").toLowerCase().includes(q);
-        const matchEn = (card.nameEn || "").toLowerCase().includes(q);
-        const matchSlug = card.slug.toLowerCase().includes(q);
-        if (!matchName && !matchEn && !matchSlug) return false;
-      }
-      return true;
-    });
-  }, [productsCatalog, multiCategoryFilter, multiSearchQuery]);
-
-  // Lọc thẻ phục vụ tab Single
-  const filteredProductsForSingle = useMemo(() => {
-    if (!cardSearchQuery.trim()) return productsCatalog;
-    const q = cardSearchQuery.toLowerCase();
-    return productsCatalog.filter((card) => {
-      const matchName = (card.nameVi || "").toLowerCase().includes(q);
-      const matchEn = (card.nameEn || "").toLowerCase().includes(q);
-      const matchSlug = card.slug.toLowerCase().includes(q);
-      return matchName || matchEn || matchSlug;
-    });
-  }, [productsCatalog, cardSearchQuery]);
 
   return (
     <div className="min-h-screen bg-stone-950 text-white flex flex-col font-sans selection:bg-amber-500 selection:text-stone-950">
@@ -812,359 +814,247 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                 </div>
               </div>
 
-              {/* 2. CHỌN HÌNH THỨC MUA HÀNG (3 CHẾ ĐỘ) */}
+              {/* 2. CHỌN HÀNG HÓA & GIỎ HÀNG (HỖ TRỢ MUA NHIỀU BỘ / NHIỀU THẺ) */}
               <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-black uppercase text-amber-300">
-                    2. Chọn Thẻ Hoặc Bộ Mua *:
-                  </label>
-                  <span className="text-[10px] text-stone-400">
-                    3 hình thức bán linh hoạt
-                  </span>
-                </div>
-
-                {/* TAB CHUYỂN 3 CHẾ ĐỘ: 1 THẺ / NHIỀU THẺ / THEO BỘ */}
-                <div className="grid grid-cols-3 gap-1 bg-stone-950 p-1 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-2">
+                    <label className="block text-xs font-black uppercase text-amber-300">
+                      2. Chọn Thẻ Hoặc Bộ Mua *:
+                    </label>
+                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {totalPacksCount} bộ &bull; {totalSinglesCount} thẻ lẻ
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setPurchaseMode("SINGLE");
-                      setCustomUnitPrice(null);
-                    }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
-                      purchaseMode === "SINGLE"
-                        ? "bg-amber-500 text-stone-950 font-black shadow"
-                        : "text-stone-400 hover:text-white"
-                    }`}
+                    onClick={() => setIsCatalogModalOpen(true)}
+                    className="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition-colors"
                   >
-                    1. Chọn 1 thẻ
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPurchaseMode("MULTI");
-                      setCustomUnitPrice(null);
-                    }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
-                      purchaseMode === "MULTI"
-                        ? "bg-amber-500 text-stone-950 font-black shadow"
-                        : "text-stone-400 hover:text-white"
-                    }`}
-                  >
-                    2. Chọn nhiều thẻ
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPurchaseMode("PACK");
-                      setCustomUnitPrice(null);
-                    }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
-                      purchaseMode === "PACK"
-                        ? "bg-amber-500 text-stone-950 font-black shadow"
-                        : "text-stone-400 hover:text-white"
-                    }`}
-                  >
-                    3. Chọn theo bộ
+                    <PackageCheck className="h-3.5 w-3.5" />
+                    <span>Mở Kho Hàng</span>
                   </button>
                 </div>
 
-                {/* GIAO DIỆN CHẾ ĐỘ 1: CHỌN 1 THẺ */}
-                {purchaseMode === "SINGLE" && (
-                  <div className="space-y-2.5 pt-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-stone-500" />
-                      <input
-                        type="text"
-                        placeholder="Tìm thẻ lẻ theo tên tiếng Việt hoặc tiếng Anh..."
-                        value={cardSearchQuery}
-                        onChange={(e) => setCardSearchQuery(e.target.value)}
-                        className="w-full bg-stone-900 border border-white/15 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                      />
+                {/* THANH CHỌN NHANH CÁC BỘ THẺ PHỔ BIẾN (QUICK ADD PILLS) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-stone-400">
+                    <span className="font-bold text-stone-300">Thêm nhanh trọn bộ (30 thẻ / bộ):</span>
+                    <span className="text-[10px] text-stone-500">Bấm để cộng vào giỏ</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {categoriesList.map((cat) => (
+                      <button
+                        key={cat.id || cat.slug}
+                        type="button"
+                        onClick={() => handleQuickAddPack(cat)}
+                        className="py-1 px-2.5 rounded-lg bg-stone-900 hover:bg-amber-500/20 text-stone-300 hover:text-amber-200 border border-white/10 hover:border-amber-400/50 text-[11px] font-bold transition-all flex items-center gap-1 active:scale-95"
+                      >
+                        <Plus className="h-3 w-3 text-amber-400" />
+                        <span>Bộ {cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* NÚT MỞ MODAL TOÀN DIỆN KHO HÀNG HÓA */}
+                <button
+                  type="button"
+                  onClick={() => setIsCatalogModalOpen(true)}
+                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-purple-500/20 hover:from-amber-500/30 hover:to-purple-500/30 border border-amber-400/40 text-amber-200 text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98"
+                >
+                  <ShoppingCart className="h-4 w-4 text-amber-400" />
+                  <span>Mở Kho Hàng Hóa Chọn Bộ &amp; Thẻ Lẻ (Tìm kiếm &amp; Thêm)</span>
+                </button>
+
+                {/* DANH SÁCH GIỎ HÀNG (CART ITEMS LIST) */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-stone-300">
+                    <span>Danh sách sản phẩm trong hóa đơn ({cartItems.length} dòng):</span>
+                    {cartItems.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCartItems([])}
+                        className="text-[10px] text-rose-400 hover:underline"
+                      >
+                        Xóa tất cả
+                      </button>
+                    )}
+                  </div>
+
+                  {cartItems.length === 0 ? (
+                    <div className="p-6 rounded-2xl bg-black/40 border border-dashed border-white/15 text-center text-stone-500 space-y-2">
+                      <ShoppingBag className="h-8 w-8 mx-auto text-stone-600" />
+                      <p className="text-xs">Chưa có sản phẩm nào trong giỏ hàng.</p>
+                      <button
+                        type="button"
+                        onClick={() => setIsCatalogModalOpen(true)}
+                        className="py-1.5 px-3 rounded-xl bg-amber-500 text-stone-950 font-black text-xs inline-flex items-center gap-1 shadow-sm"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Chọn bộ hoặc thẻ lẻ từ kho</span>
+                      </button>
                     </div>
-
-                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                      {filteredProductsForSingle.slice(0, 15).map((card) => {
-                        const isSelected = singleCardSlug === card.slug;
-                        return (
-                          <div
-                            key={card.slug}
-                            onClick={() => setSingleCardSlug(card.slug)}
-                            className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-all ${
-                              isSelected
-                                ? "bg-amber-500/20 border-amber-400 text-white"
-                                : "bg-black/30 border-white/10 text-stone-300 hover:bg-white/5"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="h-9 w-7 rounded-md bg-stone-800 overflow-hidden shrink-0 border border-white/10">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={card.images?.[0] || card.posterUrl || "/images/cards/lion-template.jpg"}
-                                  alt={card.nameVi || card.nameEn}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {cartItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-2.5 rounded-xl bg-stone-900/90 border border-white/15 space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                                  item.type === "PACK"
+                                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                                    : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                }`}
+                              >
+                                {item.type === "PACK" ? "TRỌN BỘ 30 THẺ" : "THẺ LẺ"}
+                              </span>
                               <div className="min-w-0">
-                                <div className="text-xs font-bold truncate text-white">{card.nameVi || card.nameEn}</div>
-                                <div className="text-[10px] text-stone-400 truncate">
-                                  {card.nameEn || card.slug} &bull; {card.category || "Động Vật"}
-                                </div>
+                                <h4 className="text-xs font-bold text-white truncate">{item.name}</h4>
+                                <span className="text-[10px] text-stone-400 font-mono">
+                                  {item.categoryName || item.categorySlug}
+                                </span>
                               </div>
                             </div>
-                            <span className="font-mono text-xs font-bold text-amber-300 shrink-0">
-                              {formatVndCurrency(card.price || 219000)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
 
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between">
-                      <span>Định dạng mã:</span>
-                      <code className="font-mono text-[10px] text-amber-300 font-bold">
-                        SINGLE-{currentSingleCard.slug.toUpperCase()}-...-{customerId}
-                      </code>
-                    </div>
-                  </div>
-                )}
-
-                {/* GIAO DIỆN CHẾ ĐỘ 2: CHỌN NHIỀU THẺ */}
-                {purchaseMode === "MULTI" && (
-                  <div className="space-y-2.5 pt-1">
-                    <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-stone-500" />
-                        <input
-                          type="text"
-                          placeholder="Tìm thẻ..."
-                          value={multiSearchQuery}
-                          onChange={(e) => setMultiSearchQuery(e.target.value)}
-                          className="w-full bg-stone-900 border border-white/15 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                        />
-                      </div>
-                      <select
-                        value={multiCategoryFilter}
-                        onChange={(e) => setMultiCategoryFilter(e.target.value)}
-                        className="bg-stone-900 border border-white/15 rounded-xl px-2.5 py-1.5 text-xs text-stone-300 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
-                      >
-                        <option value="ALL">Tất cả danh mục</option>
-                        <option value="dong-vat">Động Vật</option>
-                        <option value="hanh-dong">Hành Động</option>
-                        <option value="xe-co">Xe Cộ</option>
-                        <option value="hoa-qua">Hoa Quả</option>
-                      </select>
-                    </div>
-
-                    {/* Chips danh sách thẻ đã chọn */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px] text-stone-400 font-bold">
-                        <span>Đã chọn: <strong className="text-amber-400">{selectedCardSlugs.length}</strong> thẻ</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCardSlugs([])}
-                          className="text-[10px] text-rose-400 hover:underline"
-                        >
-                          Xóa hết
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto p-1.5 rounded-xl bg-black/40 border border-white/10">
-                        {selectedCardsList.map((card) => (
-                          <span
-                            key={card.slug}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 text-[10px] font-bold"
-                          >
-                            <span>{card.nameVi || card.nameEn}</span>
                             <button
                               type="button"
-                              onClick={() => handleToggleCardSelection(card.slug)}
-                              className="text-stone-400 hover:text-white"
+                              onClick={() => handleRemoveFromCart(item.id)}
+                              className="p-1 rounded-lg text-stone-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                              title="Xóa món này"
                             >
-                              <X className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Danh sách thẻ cho phép tick chọn */}
-                    <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
-                      {filteredProductsForMulti.slice(0, 20).map((card) => {
-                        const isChecked = selectedCardSlugs.includes(card.slug);
-                        return (
-                          <div
-                            key={card.slug}
-                            onClick={() => handleToggleCardSelection(card.slug)}
-                            className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-all ${
-                              isChecked
-                                ? "bg-amber-500/15 border-amber-400 text-white"
-                                : "bg-black/30 border-white/10 text-stone-400 hover:text-stone-200"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {isChecked ? (
-                                <CheckSquare className="h-4 w-4 text-amber-400 shrink-0" />
-                              ) : (
-                                <Square className="h-4 w-4 text-stone-500 shrink-0" />
-                              )}
-                              <span className="text-xs font-bold">{card.nameVi || card.nameEn}</span>
-                              <span className="text-[10px] text-stone-500">({card.category})</span>
-                            </div>
-                            <span className="font-mono text-xs font-bold text-amber-300">
-                              {formatVndCurrency(card.price || 219000)}
-                            </span>
                           </div>
-                        );
-                      })}
-                    </div>
 
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between">
-                      <span>Định dạng mã:</span>
-                      <code className="font-mono text-[10px] text-amber-300 font-bold">
-                        MULTI-{selectedCardSlugs.length}THE-...-{customerId}
-                      </code>
-                    </div>
-                  </div>
-                )}
-
-                {/* GIAO DIỆN CHẾ ĐỘ 3: CHỌN THEO BỘ (DỰA TRÊN DANH MỤC THỰC TẾ TRONG KHO) */}
-                {purchaseMode === "PACK" && (
-                  <div className="space-y-2.5 pt-1">
-                    <label className="block text-[11px] font-bold text-stone-300">
-                      Chọn danh mục bộ thẻ cần bán:
-                    </label>
-                    <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                      {categoriesList.map((cat) => {
-                        const countCards = productsCatalog.filter(
-                          (p) => p.categorySlug === cat.slug || p.category === cat.name
-                        ).length;
-                        const isSelected = selectedCategorySlug === cat.slug;
-
-                        return (
-                          <label
-                            key={cat.id || cat.slug}
-                            onClick={() => setSelectedCategorySlug(cat.slug)}
-                            className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
-                              isSelected
-                                ? "bg-amber-500/15 border-amber-400 text-white"
-                                : "bg-black/30 border-white/10 text-stone-400 hover:text-stone-200"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
+                          <div className="grid grid-cols-12 gap-2 items-center pt-1 border-t border-white/5">
+                            {/* Số lượng */}
+                            <div className="col-span-5 flex items-center gap-1 bg-black/60 p-1 rounded-lg border border-white/10">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCartQty(item.id, -1)}
+                                className="h-6 w-6 rounded bg-stone-800 text-stone-300 hover:bg-stone-700 flex items-center justify-center transition-colors"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
                               <input
-                                type="radio"
-                                name="categoryPackSelection"
-                                checked={isSelected}
-                                onChange={() => setSelectedCategorySlug(cat.slug)}
-                                className="text-amber-500 focus:ring-0 h-3.5 w-3.5"
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  handleSetCartQty(item.id, Math.max(1, parseInt(e.target.value) || 1))
+                                }
+                                className="w-full text-center bg-transparent text-xs font-black text-white focus:outline-hidden"
                               />
-                              <span className="text-xs font-bold text-white">
-                                Bộ Thẻ {cat.name}
-                              </span>
-                              <span className="text-[10px] text-stone-400 font-mono">
-                                ({countCards} thẻ trong kho)
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCartQty(item.id, 1)}
+                                className="h-6 w-6 rounded bg-stone-800 text-stone-300 hover:bg-stone-700 flex items-center justify-center transition-colors"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            {/* Đơn giá */}
+                            <div className="col-span-4">
+                              <input
+                                type="number"
+                                value={item.unitPrice}
+                                onChange={(e) =>
+                                  handleSetCartUnitPrice(item.id, Math.max(0, Number(e.target.value) || 0))
+                                }
+                                className="w-full bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-xs text-amber-300 font-mono font-bold text-right focus:outline-hidden focus:border-amber-400"
+                                title="Chỉnh sửa đơn giá nếu cần"
+                              />
+                            </div>
+
+                            {/* Thành tiền */}
+                            <div className="col-span-3 text-right">
+                              <span className="font-mono text-xs font-black text-emerald-400">
+                                {formatVndCurrency(item.quantity * item.unitPrice)}
                               </span>
                             </div>
-                            <span className="font-mono text-xs font-bold text-amber-300">
-                              249.000 đ
-                            </span>
-                          </label>
-                        );
-                      })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  )}
+                </div>
 
-                    {/* 2 TÙY CHỌN: TỰ SINH MÃ HOẶC CHỌN MÃ BỘ CÓ SẴN TRONG KHO */}
-                    <div className="space-y-2 pt-1">
-                      <span className="block text-[11px] font-bold text-stone-300">
-                        Quy tắc cấp mã bản quyền:
-                      </span>
-                      <div className="grid grid-cols-2 gap-2">
+                {/* QUY TẮC CẤP MÃ BẢN QUYỀN WEBAR */}
+                <div className="p-3 rounded-2xl bg-stone-900 border border-amber-400/30 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                    <span className="flex items-center gap-1.5">
+                      <KeyRound className="h-3.5 w-3.5" />
+                      <span>Quy Tắc Bản Quyền WebAR (1 Mã Dùng Chung):</span>
+                    </span>
+                    <span className="text-[10px] text-stone-400 font-normal">
+                      Mở khóa toàn bộ giỏ
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-stone-300 leading-relaxed">
+                    Khách hàng mua nhiều bộ (VD: 2 bộ Động Vật + 1 bộ Hành Động + 1 bộ Xe Cộ = tổng {totalPacksCount} bộ) sẽ được cấp <strong>1 mã bản quyền duy nhất</strong>. Khi quét camera WebAR, mã này mở khóa đồng thời toàn bộ các bộ thẻ trên!
+                  </p>
+
+                  {/* Khi chỉ có 1 bộ thẻ, cho phép chọn mã bộ có sẵn trong kho nếu muốn */}
+                  {totalPacksCount === 1 && cartItems.length === 1 && (
+                    <div className="space-y-1.5 pt-1 border-t border-white/10">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <button
                           type="button"
                           onClick={() => setPackCodeMode("AUTO")}
-                          className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
+                          className={`p-1.5 rounded-lg text-[10px] font-bold border transition-all ${
                             packCodeMode === "AUTO"
-                              ? "bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm"
+                              ? "bg-amber-500/20 border-amber-400 text-amber-200"
                               : "bg-black/40 border-white/10 text-stone-400"
                           }`}
                         >
-                          Tự sinh mã bộ mới
+                          Tự sinh mã mới
                         </button>
                         <button
                           type="button"
                           onClick={() => setPackCodeMode("EXISTING")}
-                          className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
+                          className={`p-1.5 rounded-lg text-[10px] font-bold border transition-all ${
                             packCodeMode === "EXISTING"
-                              ? "bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm"
+                              ? "bg-amber-500/20 border-amber-400 text-amber-200"
                               : "bg-black/40 border-white/10 text-stone-400"
                           }`}
                         >
-                          Chọn mã bộ có sẵn trong kho
+                          Chọn mã bộ có sẵn
                         </button>
                       </div>
 
-                      {/* Dropdown chọn mã bộ có sẵn */}
                       {packCodeMode === "EXISTING" && (
-                        <div className="p-2.5 rounded-xl bg-black/60 border border-purple-400/40 space-y-1.5 animate-in fade-in">
-                          <label className="block text-[10px] font-bold text-purple-300">
-                            Mã bộ có sẵn trong kho thẻ:
-                          </label>
-                          <select
-                            value={selectedExistingPackCode}
-                            onChange={(e) => setSelectedExistingPackCode(e.target.value)}
-                            className="w-full bg-stone-900 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-mono font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
-                          >
-                            {availablePacksForCategory.map((p) => (
-                              <option key={p.code} value={p.code} className="bg-stone-900 text-white">
-                                {p.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        <select
+                          value={selectedExistingPackCode}
+                          onChange={(e) => setSelectedExistingPackCode(e.target.value)}
+                          className="w-full bg-stone-950 border border-purple-400/40 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                        >
+                          {availablePacksForCategory.map((p) => (
+                            <option key={p.code} value={p.code} className="bg-stone-900 text-white">
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
                       )}
-
-                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between">
-                        <span>Định dạng mã:</span>
-                        <code className="font-mono text-[10px] text-amber-300 font-bold">
-                          {packCodeMode === "AUTO"
-                            ? `PACK-${currentCategoryForPack.slug.toUpperCase()}-...-${customerId}`
-                            : selectedExistingPackCode}
-                        </code>
-                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* SỐ LƯỢNG & ĐƠN GIÁ & THUẾ VAT */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-white/10">
-                  <div>
-                    <label className="block text-[10px] text-stone-400 mb-0.5 font-bold">
-                      Số lượng:
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={quantity}
-                      onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-bold text-center focus:outline-hidden focus:border-amber-400"
-                    />
+                  <div className="p-2 rounded-xl bg-black/60 border border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between">
+                    <span className="text-[10px] text-stone-400">Mã xuất ra:</span>
+                    <code className="font-mono text-[11px] text-amber-300 font-black">
+                      {previewLicenseCode}
+                    </code>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-[10px] text-stone-400 mb-0.5 font-bold">
-                      Đơn giá:
-                    </label>
-                    <input
-                      type="number"
-                      value={calculatedUnitPrice}
-                      onChange={(e) => setCustomUnitPrice(Number(e.target.value) || 0)}
-                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
-                    />
-                  </div>
-
+                {/* THUẾ VAT & TẠM TÍNH TỔNG */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-white/10">
                   <div>
                     <label className="block text-[10px] text-stone-400 mb-0.5 font-bold">
                       Thuế VAT:
@@ -1172,28 +1062,27 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                     <select
                       value={vatRate}
                       onChange={(e) => setVatRate(Number(e.target.value))}
-                      className="w-full bg-black/70 border border-white/20 rounded-xl px-2 py-1.5 text-xs text-stone-200 font-bold text-center focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-stone-200 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
                     >
-                      <option value={0}>0% (Không thuế)</option>
+                      <option value={0}>0% (Không chịu thuế)</option>
                       <option value={5}>5% VAT</option>
                       <option value={8}>8% VAT</option>
                       <option value={10}>10% VAT</option>
                     </select>
                   </div>
-                </div>
 
-                {/* HIỂN THỊ TẠM TÍNH & VAT */}
-                <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1 text-xs">
-                  <div className="flex items-center justify-between text-stone-400">
-                    <span>Tạm tính ({quantity} {purchaseMode === "PACK" ? "bộ" : "thẻ"}):</span>
-                    <span className="font-mono font-bold text-stone-300">{formatVndCurrency(subtotal)}</span>
-                  </div>
-                  {vatRate > 0 && (
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1 text-xs">
                     <div className="flex items-center justify-between text-stone-400">
-                      <span>Tiền thuế VAT ({vatRate}%):</span>
-                      <span className="font-mono font-bold text-amber-300">+{formatVndCurrency(vatAmount)}</span>
+                      <span>Tạm tính ({totalItemsCount} món):</span>
+                      <span className="font-mono font-bold text-stone-300">{formatVndCurrency(subtotal)}</span>
                     </div>
-                  )}
+                    {vatRate > 0 && (
+                      <div className="flex items-center justify-between text-stone-400">
+                        <span>Tiền thuế VAT ({vatRate}%):</span>
+                        <span className="font-mono font-bold text-amber-300">+{formatVndCurrency(vatAmount)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1626,6 +1515,16 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
           )}
         </div>
       </main>
+
+      {/* MODAL KHO HÀNG HÓA CHỌN BỘ & THẺ LẺ */}
+      <CatalogPickerModal
+        isOpen={isCatalogModalOpen}
+        categoriesList={categoriesList}
+        productsCatalog={productsCatalog}
+        cartItems={cartItems}
+        onClose={() => setIsCatalogModalOpen(false)}
+        onAddToCart={handleAddToCart}
+      />
 
       {/* TOAST THÔNG BÁO TÙY BIẾN */}
       <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none print:hidden">

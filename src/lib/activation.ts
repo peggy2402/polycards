@@ -360,7 +360,38 @@ export async function activateWithCodeAsync(
           };
         }
 
-        // C. XỬ LÝ MÃ BỘ DANH MỤC (PACK)
+        // C. XỬ LÝ MÃ BỘ DANH MỤC (PACK HOẶC NHIỀU BỘ COMBO)
+        if (Array.isArray(order.allowedCategorySlugs) && order.allowedCategorySlugs.length > 0) {
+          order.allowedCategorySlugs.forEach((cat: string) => {
+            const normalized = normalizeCategorySlug(cat);
+            localStorage.setItem(`polycards_unlocked_category_${normalized}`, "true");
+          });
+          localStorage.setItem(STORAGE_KEY_CODE, clean);
+          notifyActivationChanged();
+
+          const normalizedCurrent = currentCategorySlug ? normalizeCategorySlug(currentCategorySlug) : "";
+          const isAllowed =
+            !normalizedCurrent ||
+            order.allowedCategorySlugs.some((c: string) => normalizeCategorySlug(c) === normalizedCurrent);
+
+          if (!isAllowed) {
+            return {
+              success: false,
+              tier: "pack",
+              unlockedCategory: order.allowedCategorySlugs[0],
+              isWrongCategory: true,
+              message: `Mã [${code}] gồm ${order.allowedCategorySlugs.length} bộ thẻ, nhưng không bao gồm danh mục hiện tại!`,
+            };
+          }
+
+          return {
+            success: true,
+            tier: "pack",
+            unlockedCategory: normalizedCurrent || order.allowedCategorySlugs[0],
+            message: `Chúc mừng bạn! Mã [${code}] đã mở khóa thành công ${order.allowedCategorySlugs.length} bộ thẻ bài tương tác WebAR!`,
+          };
+        }
+
         const allowedCat = normalizeCategorySlug(
           order.allowedCategorySlug || order.packCode || "dong-vat"
         );
