@@ -10,7 +10,14 @@ import {
   RefreshCw,
   Star,
   Sparkles,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  LayoutGrid,
+  List,
+  Sliders,
+  Edit3,
   PackageCheck,
   CheckSquare,
   Square,
@@ -82,6 +89,45 @@ export function ProductsTab({
   const [batchTargetPackCode, setBatchTargetPackCode] = useState<string>("POLY30-HANHDONG");
   const [isApplyingBatch, setIsApplyingBatch] = useState<boolean>(false);
 
+  // Chế độ xem: Dạng Lưới Thẻ (grid) vs Dạng Danh Sách (list)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Phân trang (Pagination): 6, 18, 24, 30, 36, 108
+  const [pageSize, setPageSize] = useState<number>(18);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Tải tùy chọn chế độ xem & page size từ localStorage
+  useEffect(() => {
+    try {
+      const savedView = localStorage.getItem("poly_products_view_mode");
+      if (savedView === "grid" || savedView === "list") {
+        setViewMode(savedView);
+      }
+      const savedPageSize = localStorage.getItem("poly_products_page_size");
+      if (savedPageSize) {
+        const parsed = parseInt(savedPageSize, 10);
+        if ([6, 18, 24, 30, 36, 108].includes(parsed)) {
+          setPageSize(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const handleChangeViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("poly_products_view_mode", mode);
+    } catch {}
+  };
+
+  const handleChangePageSize = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    try {
+      localStorage.setItem("poly_products_page_size", String(size));
+    } catch {}
+  };
+
   // Tự động lọc bỏ các thẻ đã bị xóa khỏi kho thẻ bài
   useEffect(() => {
     setSelectedSlugs((prev) => prev.filter((s) => productsList.some((p) => p.slug === s)));
@@ -141,6 +187,46 @@ export function ProductsTab({
 
     return matchesSearch && matchesCategory && matchesPackCode && matchesHomeFilter;
   });
+
+  // Tự động quay về trang 1 khi thay đổi điều kiện tìm kiếm / lọc
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchCardQuery, filterCardCategory, filterCardPackCode, onlyHomeFeatured]);
+
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  const paginatedProducts = useMemo(() => {
+    return filteredProducts.slice(startIndex, startIndex + pageSize);
+  }, [filteredProducts, startIndex, pageSize]);
+
+  const getPaginationItems = (current: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const items: (number | "...")[] = [];
+    if (current <= 4) {
+      for (let i = 1; i <= 5; i++) items.push(i);
+      items.push("...");
+      items.push(total);
+    } else if (current >= total - 3) {
+      items.push(1);
+      items.push("...");
+      for (let i = total - 4; i <= total; i++) items.push(i);
+    } else {
+      items.push(1);
+      items.push("...");
+      items.push(current - 1);
+      items.push(current);
+      items.push(current + 1);
+      items.push("...");
+      items.push(total);
+    }
+    return items;
+  };
 
   const handleToggleSelectionMode = () => {
     setIsSelectionMode((prev) => {
@@ -466,6 +552,51 @@ export function ProductsTab({
             </select>
           </div>
 
+          {/* Chuyển Đổi Chế Độ Xem: Dạng Thẻ (Grid) vs Dạng Danh Sách (List) */}
+          <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/15">
+            <button
+              type="button"
+              onClick={() => handleChangeViewMode("grid")}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === "grid"
+                  ? "bg-amber-400 text-stone-950 shadow-xs font-bold"
+                  : "text-stone-400 hover:text-white"
+              }`}
+              title="Chuyển sang dạng lưới thẻ bài"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleChangeViewMode("list")}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === "list"
+                  ? "bg-amber-400 text-stone-950 shadow-xs font-bold"
+                  : "text-stone-400 hover:text-white"
+              }`}
+              title="Chuyển sang dạng danh sách chi tiết"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Chọn số thẻ / trang */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+            <span className="text-[11px] font-bold text-stone-400 hidden xl:inline">Hiển thị:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => handleChangePageSize(Number(e.target.value))}
+              className="bg-transparent text-amber-300 font-black text-xs focus:outline-hidden cursor-pointer font-mono"
+              title="Số lượng thẻ hiển thị trên mỗi trang"
+            >
+              {[6, 18, 24, 30, 36, 108].map((size) => (
+                <option key={size} value={size} className="bg-stone-900 text-white font-sans">
+                  {size} thẻ / trang
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Nút Bật/Tắt Chế Độ Chọn Nhiều Thẻ */}
           <button
             type="button"
@@ -672,12 +803,14 @@ export function ProductsTab({
           </button>
         </div>
       ) : (
-        <div
-          ref={gridContainerRef}
-          onPointerDown={handleGridPointerDown}
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 select-none"
-        >
-          {filteredProducts.map((card) => {
+        <div className="space-y-4">
+          {viewMode === "grid" ? (
+            <div
+              ref={gridContainerRef}
+              onPointerDown={handleGridPointerDown}
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 select-none"
+            >
+              {paginatedProducts.map((card) => {
             const key = card.id || card.slug;
             const isPinned = Boolean(card.showOnHome);
             const hasBadge = Boolean(card.badge && card.badge.trim() !== "");
@@ -844,6 +977,301 @@ export function ProductsTab({
               </div>
             );
           })}
+            </div>
+          ) : (
+            <div
+              ref={gridContainerRef}
+              onPointerDown={handleGridPointerDown}
+              className="rounded-2xl bg-stone-900/90 border border-white/10 overflow-hidden shadow-xl select-none"
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-stone-950/80 text-stone-400 font-bold uppercase text-[10px] tracking-wider">
+                      <th className="py-3 px-3 w-10 text-center">
+                        <span className="sr-only">Chọn</span>
+                      </th>
+                      <th className="py-3 px-3 w-16 text-center">Ảnh</th>
+                      <th className="py-3 px-4 min-w-[180px]">Thẻ Bài</th>
+                      <th className="py-3 px-3 min-w-[110px]">Danh Mục</th>
+                      <th className="py-3 px-3 min-w-[130px]">Mã Bộ</th>
+                      <th className="py-3 px-3 min-w-[90px]">Giá Bán</th>
+                      <th className="py-3 px-3 text-center w-20">Trang Chủ</th>
+                      <th className="py-3 px-4 text-right min-w-[170px]">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {paginatedProducts.map((card) => {
+                      const key = card.id || card.slug;
+                      const isPinned = Boolean(card.showOnHome);
+                      const isSelected = selectedSlugs.includes(card.slug);
+
+                      return (
+                        <tr
+                          key={key}
+                          data-card-slug={card.slug}
+                          onClick={() => {
+                            if (isSelectionMode) {
+                              toggleSelectCard(card.slug);
+                            } else {
+                              setSelectedDetailSlug(card.slug);
+                            }
+                          }}
+                          className={`group transition-colors cursor-pointer ${
+                            isSelected
+                              ? "bg-purple-950/40 hover:bg-purple-950/60"
+                              : "hover:bg-white/5"
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!isSelectionMode) setIsSelectionMode(true);
+                                toggleSelectCard(card.slug);
+                              }}
+                              className={`h-6 w-6 rounded-lg flex items-center justify-center transition-all mx-auto cursor-pointer ${
+                                isSelected
+                                  ? "bg-purple-500 text-white shadow-md ring-2 ring-purple-300"
+                                  : "bg-white/5 text-stone-400 hover:text-white border border-white/20"
+                              }`}
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="h-3.5 w-3.5" />
+                              ) : (
+                                <Square className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </td>
+
+                          {/* Ảnh Thumbnail */}
+                          <td className="py-2 px-3 text-center">
+                            <div className="relative h-11 w-11 rounded-xl overflow-hidden bg-stone-950 border border-white/10 mx-auto">
+                              <SubjectFocusImage
+                                primaryUrl={card.images?.[0]}
+                                secondaryUrl={card.posterUrl}
+                                alt={card.nameVi}
+                              />
+                            </div>
+                          </td>
+
+                          {/* Tên Thẻ Bài & Phiên âm */}
+                          <td className="py-2.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-sm text-white group-hover:text-amber-300 transition-colors">
+                                {card.nameVi}
+                              </span>
+                              {card.badge && (
+                                <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                                  {card.badge}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-stone-400 flex items-center gap-1.5 font-mono">
+                              <span>{card.nameEn}</span>
+                              {card.ipa && <span className="text-stone-500">{card.ipa}</span>}
+                              {card.nameZh && <span className="text-amber-300/80 font-sans">{card.nameZh}</span>}
+                            </div>
+                          </td>
+
+                          {/* Danh Mục */}
+                          <td className="py-2.5 px-3">
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-white/5 text-stone-300 border border-white/10 inline-block">
+                              {card.category || "Động Vật"}
+                            </span>
+                          </td>
+
+                          {/* Mã Bộ */}
+                          <td className="py-2.5 px-3">
+                            {card.packCode && card.packCode.trim() !== "" ? (
+                              <span className="text-[10px] font-bold font-mono px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-400/30 inline-block">
+                                {card.packCode}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-stone-500 italic">Chưa có</span>
+                            )}
+                          </td>
+
+                          {/* Giá Bán */}
+                          <td className="py-2.5 px-3 font-mono font-black text-amber-400 text-xs">
+                            {formatVndCurrency(card.price || 219000)}
+                          </td>
+
+                          {/* Ghim Trang Chủ */}
+                          <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => onToggleShowOnHome(card)}
+                              title={isPinned ? "Bỏ ghim #products" : "Ghim lên #products"}
+                              className={`h-7 w-7 rounded-full flex items-center justify-center border transition-all mx-auto cursor-pointer ${
+                                isPinned
+                                  ? "bg-emerald-500 text-stone-950 border-emerald-300 shadow-md"
+                                  : "bg-white/5 text-stone-400 hover:text-amber-300 border-white/10"
+                              }`}
+                            >
+                              <Star className={`h-3.5 w-3.5 ${isPinned ? "fill-stone-950" : ""}`} />
+                            </button>
+                          </td>
+
+                          {/* Thao Tác (Actions) */}
+                          <td className="py-2.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDetailSlug(card.slug)}
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white border border-white/10 transition-colors cursor-pointer"
+                                title="Xem chi tiết thẻ"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onLoadCardToCanvas(card)}
+                                className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/30 transition-colors cursor-pointer"
+                                title="Chế bản & in thẻ này trên Canvas"
+                              >
+                                <Sliders className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenEditProduct(card)}
+                                className="p-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-white border border-sky-400/30 transition-colors cursor-pointer"
+                                title="Chỉnh sửa thông tin thẻ"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </button>
+                              {onAddToPrintQueue && (
+                                <button
+                                  type="button"
+                                  onClick={() => onAddToPrintQueue(card)}
+                                  className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/30 transition-colors cursor-pointer"
+                                  title="+ Hàng đợi in"
+                                >
+                                  <FolderPlus className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {onDownloadSingleCard && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDownloadSingleCard(card)}
+                                  className="p-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-white border border-purple-400/30 transition-colors cursor-pointer"
+                                  title="Tải ảnh in có mã QR"
+                                >
+                                  <FileDown className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onDeleteProduct(card)}
+                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 transition-colors cursor-pointer"
+                                title="Xóa thẻ này"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Thanh Phân Trang Đầy Đủ: << < 1, 2, 3, ... > >> & Thống kê */}
+          <div className="p-3 sm:p-4 rounded-2xl bg-stone-900/90 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-stone-400 font-medium text-center md:text-left">
+              <span>
+                Hiển thị <strong className="text-white">{totalItems === 0 ? 0 : startIndex + 1}</strong> -{" "}
+                <strong className="text-white">{endIndex}</strong> /{" "}
+                <strong className="text-amber-400">{totalItems}</strong> thẻ bài
+              </span>
+              {isSelectionMode && selectedSlugs.length > 0 && (
+                <span className="text-purple-300 font-bold">
+                  (Đang chọn {selectedSlugs.length} thẻ)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+              {/* Về trang đầu << */}
+              <button
+                type="button"
+                disabled={validCurrentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white border border-white/10 transition-all disabled:opacity-25 disabled:pointer-events-none cursor-pointer"
+                title="Trang đầu (<<)"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </button>
+
+              {/* Trang trước < */}
+              <button
+                type="button"
+                disabled={validCurrentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white border border-white/10 transition-all disabled:opacity-25 disabled:pointer-events-none cursor-pointer"
+                title="Trang trước (<)"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              {/* Danh sách các số trang kèm ... */}
+              {getPaginationItems(validCurrentPage, totalPages).map((item, idx) => {
+                if (item === "...") {
+                  return (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="px-2 py-1 text-stone-500 font-bold select-none text-xs"
+                    >
+                      ...
+                    </span>
+                  );
+                }
+
+                const isCurrent = item === validCurrentPage;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCurrentPage(item)}
+                    className={`min-w-8 h-8 px-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                      isCurrent
+                        ? "bg-amber-400 text-stone-950 font-black shadow-md shadow-amber-400/20 scale-105"
+                        : "bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white border border-white/10"
+                    }`}
+                    title={`Trang ${item}`}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+
+              {/* Trang sau > */}
+              <button
+                type="button"
+                disabled={validCurrentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white border border-white/10 transition-all disabled:opacity-25 disabled:pointer-events-none cursor-pointer"
+                title="Trang sau (>)"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+
+              {/* Đến trang cuối >> */}
+              <button
+                type="button"
+                disabled={validCurrentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white border border-white/10 transition-all disabled:opacity-25 disabled:pointer-events-none cursor-pointer"
+                title="Trang cuối (>>)"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
