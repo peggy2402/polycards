@@ -28,6 +28,11 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Info,
+  Edit3,
+  ListTree,
+  Table,
+  KeyRound,
+  ArrowRight,
 } from "lucide-react";
 import { SeedOrderItem } from "@/data/seed-data";
 import { Animal, ProductCategory } from "@/types/animal";
@@ -41,6 +46,7 @@ import {
 } from "@/lib/pack-codes-store";
 import { PackCardsModal } from "../modals/pack-cards-modal";
 import { AddPackCodeModal } from "../modals/add-pack-code-modal";
+import { EditPackCodeModal } from "../modals/edit-pack-code-modal";
 
 interface LicensesTabProps {
   productsList: Animal[];
@@ -79,8 +85,12 @@ export function LicensesTab({
     cards: Animal[];
   } | null>(null);
 
-  // Modal thêm mã bộ mới
+  // Modal thêm / sửa mã bộ
   const [isAddPackModalOpen, setIsAddPackModalOpen] = useState<boolean>(false);
+  const [editingPack, setEditingPack] = useState<PackCodeItem | null>(null);
+
+  // Chế độ xem mã đã cấp: "tree" (Cây phân cấp Cha - Con) | "table" (Bảng truyền thống)
+  const [issuedViewMode, setIssuedViewMode] = useState<"tree" | "table">("tree");
 
   // Modal chi tiết mã đã cấp
   const [selectedIssuedOrder, setSelectedIssuedOrder] = useState<SeedOrderItem | null>(null);
@@ -500,6 +510,15 @@ export function LicensesTab({
 
                               <button
                                 type="button"
+                                onClick={() => setEditingPack(pack)}
+                                className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition-colors"
+                                title="Chỉnh sửa mã bộ này"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
                                 onClick={onNavigateToPOS}
                                 className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition-colors"
                                 title="Lập hóa đơn bán bộ này tại POS"
@@ -602,7 +621,7 @@ export function LicensesTab({
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={filterIssuedType}
                 onChange={(e) => setFilterIssuedType(e.target.value as any)}
@@ -625,10 +644,41 @@ export function LicensesTab({
                 <option value={24}>Hiển thị 24 / trang</option>
                 <option value={48}>Hiển thị 48 / trang</option>
               </select>
+
+              {/* Nút chuyển đổi giao diện: Cây Phân Cấp (Tree) / Bảng (Table) */}
+              <div className="flex items-center gap-1 bg-black/80 p-1 rounded-xl border border-white/15">
+                <button
+                  type="button"
+                  onClick={() => setIssuedViewMode("tree")}
+                  className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    issuedViewMode === "tree"
+                      ? "bg-amber-500 text-stone-950 font-black shadow-sm"
+                      : "text-stone-400 hover:text-white"
+                  }`}
+                  title="Hiển thị theo Cây Phân Cấp (Mã Cha -> Các Mã Con)"
+                >
+                  <ListTree className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Cây Phân Cấp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIssuedViewMode("table")}
+                  className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    issuedViewMode === "table"
+                      ? "bg-amber-500 text-stone-950 font-black shadow-sm"
+                      : "text-stone-400 hover:text-white"
+                  }`}
+                  title="Hiển thị theo Bảng chi tiết"
+                >
+                  <Table className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Dạng Bảng</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* BẢNG MÃ ĐÃ CẤP */}
+          {/* HIỂN THỊ DỮ LIỆU ĐÃ CẤP */}
           {filteredIssuedOrders.length === 0 ? (
             <div className="p-12 text-center text-stone-500 rounded-3xl bg-stone-900/40 border border-white/10 space-y-3">
               <Receipt className="h-12 w-12 text-stone-600 mx-auto" />
@@ -645,13 +695,186 @@ export function LicensesTab({
                 <span>Mở Phân Hệ POS để Lập Phiếu</span>
               </button>
             </div>
+          ) : issuedViewMode === "tree" ? (
+            /* GIAO DIỆN CÂY PHÂN CẤP (HIERARCHY TREE VIEW: NODE CHA -> NODE CON) */
+            <div className="space-y-4">
+              {paginatedIssuedOrders.map((ord) => {
+                const parentCode = (ord as any).codeParent || ord.packCode || ord.code;
+                const items =
+                  ord.items && ord.items.length > 0
+                    ? ord.items
+                    : [
+                        {
+                          id: "default-1",
+                          name: ord.packTitle || "Bộ Thẻ Poly Cards",
+                          packCode: ord.packCode || ord.code,
+                          categorySlug: ord.allowedCategorySlug || "dong-vat",
+                          quantity: 1,
+                          unitPrice: ord.creditAmount || ord.totalPrice || 249000,
+                          totalPrice: ord.creditAmount || ord.totalPrice || 249000,
+                        },
+                      ];
+
+                return (
+                  <div
+                    key={ord.id || ord.code}
+                    className="p-4 sm:p-5 rounded-3xl bg-stone-900/80 border border-white/15 hover:border-amber-400/40 transition-all shadow-xl space-y-4"
+                  >
+                    {/* Header thông tin đơn hàng */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-black text-amber-300 bg-amber-500/15 border border-amber-400/30 px-2.5 py-1 rounded-lg">
+                          {ord.code}
+                        </span>
+                        <strong className="text-xs font-bold text-white">
+                          {ord.customerName}
+                        </strong>
+                        {ord.customerPhone && (
+                          <span className="text-[11px] text-stone-400 font-mono">
+                            &bull; {ord.customerPhone}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-stone-400 font-mono">
+                          ({ord.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-black text-amber-300">
+                          {formatVndCurrency(ord.creditAmount || ord.totalPrice || 0)}
+                        </span>
+                        <span className="text-[10px] text-stone-500">
+                          &bull; {ord.createdAt}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedIssuedOrder(ord)}
+                          className="py-1 px-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white font-bold text-xs inline-flex items-center gap-1 border border-white/10 ml-1"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Chi tiết</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* SƠ ĐỒ CÂY PHÂN CẤP: NODE CHA (BÊN TRÁI) -> TẼ NHÁNH SANG CÁC NODE CON (BÊN PHẢI) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                      {/* NODE CHA (MASTER CODE / CODEPARENT) */}
+                      <div className="lg:col-span-5 p-4 rounded-2xl bg-black/60 border-2 border-amber-400/60 shadow-lg shadow-amber-950/20 space-y-2 relative">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                            <KeyRound className="h-3.5 w-3.5" />
+                            <span>MÃ CHA (codeParent)</span>
+                          </span>
+                          <span className="text-[9px] font-bold bg-amber-400 text-stone-950 px-2 py-0.5 rounded-full uppercase">
+                            Gồm {items.length} Mã Con
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs font-mono font-black text-amber-200 bg-stone-950 px-2.5 py-1.5 rounded-xl border border-amber-400/40 flex-1 truncate">
+                            {parentCode}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(parentCode)}
+                            className="p-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition-colors"
+                            title="Sao chép Mã Cha"
+                          >
+                            {copiedCode === parentCode ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+
+                        <p className="text-[11px] text-stone-300 leading-snug">
+                          {ord.packTitle} &bull; Mở khóa đồng thời tất cả {items.length} bộ/thẻ con bên phải trên WebAR.
+                        </p>
+                      </div>
+
+                      {/* DÂY NỐI CÂY PHÂN CẤP (BRANCH CONNECTOR) */}
+                      <div className="hidden lg:flex lg:col-span-1 items-center justify-center text-amber-400">
+                        <div className="h-0.5 w-full bg-gradient-to-r from-amber-400 to-purple-400" />
+                        <ArrowRight className="h-4 w-4 -ml-2 text-purple-400 shrink-0" />
+                      </div>
+
+                      {/* CÁC NODE CON (CHILD CODES: TỪNG BỘ THẺ & THẺ LẺ) */}
+                      <div className="lg:col-span-6 space-y-2">
+                        {items.map((item, idx) => {
+                          const childCode = item.packCode || `CHILD-${idx + 1}`;
+                          const directArUrl = `https://polycards-one.vercel.app/ar/${
+                            item.categorySlug || "jump"
+                          }?ar=1&code=${encodeURIComponent(childCode)}&codeParent=${encodeURIComponent(
+                            parentCode
+                          )}`;
+
+                          return (
+                            <div
+                              key={item.id || idx}
+                              className="p-2.5 rounded-xl bg-stone-950 border border-purple-400/30 hover:border-purple-400/60 transition-all flex items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0 space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
+                                    MÃ CON #{idx + 1}
+                                  </span>
+                                  <h4 className="text-xs font-bold text-white truncate">
+                                    {item.name}
+                                  </h4>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <code className="text-[11px] font-mono font-bold text-purple-200">
+                                    {childCode}
+                                  </code>
+                                  <span className="text-[10px] text-stone-400 font-mono">
+                                    &bull; SL: {item.quantity} &bull; {formatVndCurrency(item.unitPrice)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(childCode)}
+                                  className="p-1 rounded text-stone-400 hover:text-white"
+                                  title="Sao chép mã con này"
+                                >
+                                  {copiedCode === childCode ? (
+                                    <Check className="h-3 w-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </button>
+                                <a
+                                  href={directArUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="py-1 px-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-[10px] flex items-center gap-1 border border-purple-400/30 transition-colors"
+                                  title="Mở camera WebAR thẻ này"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  <span className="hidden sm:inline">WebAR 3D</span>
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
+            /* GIAO DIỆN BẢNG DANH SÁCH TRUYỀN THỐNG */
             <div className="rounded-3xl bg-stone-900/60 border border-white/10 overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="border-b border-white/10 bg-black/40 text-stone-400 uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[240px]">Mã Bản Quyền</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[240px]">Mã Bản Quyền (Mã Cha)</th>
                       <th className="py-3 px-4 font-black whitespace-nowrap min-w-[110px]">Loại</th>
                       <th className="py-3 px-4 font-black whitespace-nowrap min-w-[160px]">Khách Hàng</th>
                       <th className="py-3 px-4 font-black min-w-[180px]">Sản Phẩm Đã Mua</th>
@@ -675,15 +898,15 @@ export function LicensesTab({
                           <td className="py-3 px-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs font-black text-amber-300">
-                                {ord.packCode || ord.code}
+                                {(ord as any).codeParent || ord.packCode || ord.code}
                               </span>
                               <button
                                 type="button"
-                                onClick={() => handleCopy(ord.packCode || ord.code)}
+                                onClick={() => handleCopy((ord as any).codeParent || ord.packCode || ord.code)}
                                 className="p-1 rounded text-stone-500 hover:text-white"
                                 title="Sao chép mã"
                               >
-                                {copiedCode === (ord.packCode || ord.code) ? (
+                                {copiedCode === ((ord as any).codeParent || ord.packCode || ord.code) ? (
                                   <Check className="h-3.5 w-3.5 text-emerald-400" />
                                 ) : (
                                   <Copy className="h-3.5 w-3.5" />
@@ -823,6 +1046,19 @@ export function LicensesTab({
         onCreated={(newPack) => {
           loadPackCodes();
           showToast(`Đã thêm mã bộ "${newPack.code}" thành công!`);
+        }}
+      />
+
+      {/* MODAL CHỈNH SỬA MÃ BỘ */}
+      <EditPackCodeModal
+        isOpen={Boolean(editingPack)}
+        pack={editingPack}
+        categoriesList={categoriesList}
+        productsList={productsList}
+        onClose={() => setEditingPack(null)}
+        onUpdated={(updatedPack) => {
+          loadPackCodes();
+          showToast(`Đã cập nhật mã bộ "${updatedPack.code}" thành công!`);
         }}
       />
 

@@ -16,11 +16,33 @@ export async function GET(request: NextRequest) {
     const orders = await dbGetOrders();
 
     if (codeParam) {
-      const matched = orders.find(
-        (o) =>
-          o.code.trim().toUpperCase() === codeParam ||
-          (o.packCode && o.packCode.trim().toUpperCase() === codeParam)
-      );
+      const parentParam = searchParams.get("codeParent")?.trim().toUpperCase();
+
+      const matched = orders.find((o) => {
+        const orderCode = o.code.trim().toUpperCase();
+        const packCode = (o.packCode || "").trim().toUpperCase();
+        const codeParent = ((o as any).codeParent || "").trim().toUpperCase();
+        const childCodes: string[] = Array.isArray((o as any).childCodes)
+          ? (o as any).childCodes.map((c: string) => c.trim().toUpperCase())
+          : [];
+        const itemPackCodes: string[] = Array.isArray(o.items)
+          ? o.items.map((i: any) => (i.packCode || "").trim().toUpperCase()).filter(Boolean)
+          : [];
+
+        // Nếu có parentParam, ưu tiên đối chiếu mã cha trước
+        if (parentParam && (orderCode === parentParam || codeParent === parentParam)) {
+          return true;
+        }
+
+        // Đối chiếu mã con hoặc mã đơn hàng trực tiếp
+        return (
+          orderCode === codeParam ||
+          packCode === codeParam ||
+          codeParent === codeParam ||
+          childCodes.includes(codeParam) ||
+          itemPackCodes.includes(codeParam)
+        );
+      });
       if (!matched) {
         return NextResponse.json(
           {

@@ -52,6 +52,7 @@ export interface InvoiceLineItem {
   id: string;
   name: string;
   packCode: string;
+  codeParent?: string;
   categorySlug: string;
   quantity: number;
   unitPrice: number;
@@ -61,6 +62,8 @@ export interface InvoiceLineItem {
 export interface SaleInvoice {
   id: string;
   code: string;
+  codeParent?: string; // Mã Cha (Master code cho combo nhiều bộ / thẻ)
+  childCodes?: string[]; // Danh sách các Mã Con thuộc Mã Cha này
   customerType: "TRUCTIEP" | "ONLINE";
   customerId?: string;
   customerName: string;
@@ -531,21 +534,46 @@ export default function InvoicesPage() {
       (p) => allowedCategorySlugs.includes(p.categorySlug || "") || (unlockedSlugs.length > 0 && unlockedSlugs.includes(p.slug))
     ) || productsCatalog[0];
     const sampleSlug = sampleCard?.slug || "jump";
-    const directUrl = `https://polycards-one.vercel.app/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(licenseCode)}`;
 
-    const lineItems: InvoiceLineItem[] = cartItems.map((item) => ({
-      id: item.id,
-      name: item.name,
-      packCode: licenseCode,
-      categorySlug: item.categorySlug,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.quantity * item.unitPrice,
-    }));
+    // 1. Mã Cha (Master Code / Parent Code)
+    const codeParent = licenseCode;
+
+    // 2. Sinh Mã Con (Child Code) cho từng món hàng trong hóa đơn
+    const childCodes: string[] = [];
+    const lineItems: InvoiceLineItem[] = cartItems.map((item, idx) => {
+      let childCode = "";
+      if (item.type === "PACK") {
+        const catSlugUpper = (item.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        childCode = item.packCode || `POLY30-${catSlugUpper}${cartItems.length > 1 ? `-${idx + 1}` : ""}`;
+      } else {
+        const cardSlug = (item.slug || "CARD").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        childCode = `SINGLE-${cardSlug}-${cleanCustCode}`;
+      }
+      childCodes.push(childCode);
+
+      return {
+        id: item.id,
+        name: item.name,
+        packCode: childCode, // Mã con của sản phẩm này
+        codeParent, // Mã cha liên kết về hóa đơn
+        categorySlug: item.categorySlug,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.quantity * item.unitPrice,
+      };
+    });
+
+    const firstChildCode = childCodes[0] || licenseCode;
+    // URL WebAR chuẩn theo cú pháp ?ar=1&code=ABC&codeParent=XYZ
+    const directUrl = `https://polycards-one.vercel.app/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(
+      firstChildCode
+    )}&codeParent=${encodeURIComponent(codeParent)}`;
 
     const newInvoice: SaleInvoice = {
       id: `INV-${Date.now()}`,
       code: invoiceCode,
+      codeParent,
+      childCodes,
       customerType,
       customerId: cleanCustCode,
       customerName: customerName.trim(),
@@ -608,6 +636,11 @@ export default function InvoicesPage() {
 
   // Soạn tin nhắn Zalo gửi khách
   const handleCopyZaloMessage = (inv: SaleInvoice) => {
+    const childCodesText =
+      inv.childCodes && inv.childCodes.length > 0
+        ? `- Danh Sách Mã Con (in trên từng bộ/thẻ): ${inv.childCodes.join(", ")}\n`
+        : "";
+
     const msg = `Kính chào quý khách ${inv.customerName},
 Poly Cards trân trọng gửi quý khách Hóa Đơn Bán Hàng & Mã Kích Hoạt WebAR:
 - Số Hóa Đơn: ${inv.code}
@@ -617,10 +650,10 @@ Poly Cards trân trọng gửi quý khách Hóa Đơn Bán Hàng & Mã Kích Ho�
 ${inv.vatRate ? `- Thuế VAT (${inv.vatRate}%): ${formatVndCurrency(inv.vatAmount || 0)}\n` : ""}- Tổng thanh toán (Phát sinh Có): ${formatVndCurrency(inv.creditAmount)}
 - Đã thanh toán (Phát sinh Nợ): ${formatVndCurrency(inv.debitAmount)}
 - Hình thức: ${inv.paymentMethod === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản"}
-- Mã Kích Hoạt Bản Quyền: ${inv.packCode}
-- Link mở WebAR 1-chạm: ${inv.directUrl}
+- Mã Kích Hoạt Tổng (Mã Cha - codeParent): ${inv.codeParent || inv.packCode}
+${childCodesText}- Link mở WebAR 1-chạm: ${inv.directUrl}
 
-(Hướng dẫn: Quý khách nhấn vào link trên, camera WebAR sẽ tự động mở và mở khóa thẻ bài tương ứng trên điện thoại của quý khách!).
+(Hướng dẫn: Quý khách nhấn vào link trên, camera WebAR sẽ tự động mở và mở khóa toàn bộ thẻ bài tương ứng trên điện thoại của quý khách!).
 Cảm ơn quý khách đã tin dùng Poly Cards!`;
 
     navigator.clipboard.writeText(msg);
@@ -1461,29 +1494,64 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                   </div>
                 </div>
 
-                {/* Khối Thông Tin Bản Quyền WebAR (Không in QR trên hóa đơn vì thẻ bài đã có QR) */}
-                <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 flex items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block">
-                      MÃ BẢN QUYỀN KÍCH HOẠT WEBAR
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs sm:text-sm font-mono font-black text-amber-950 bg-amber-200/90 px-3 py-1 rounded-lg">
-                        {selectedInvoice.packCode}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyCode(selectedInvoice.packCode)}
-                        className="p-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 shrink-0 print:hidden"
-                        title="Sao chép mã"
+                {/* Khối Thông Tin Bản Quyền WebAR (Mã Cha codeParent & Các Mã Con childCodes) */}
+                <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block">
+                          MÃ CHA KÍCH HOẠT TỔNG (codeParent):
+                        </span>
+                        <span className="text-[9px] font-bold bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded-sm">
+                          Mở khóa toàn bộ giỏ
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs sm:text-sm font-mono font-black text-amber-950 bg-amber-200/90 px-3 py-1 rounded-lg">
+                          {selectedInvoice.codeParent || selectedInvoice.packCode}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCode(selectedInvoice.codeParent || selectedInvoice.packCode)}
+                          className="p-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 shrink-0 print:hidden"
+                          title="Sao chép mã cha"
+                        >
+                          {copiedCode ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right text-[11px] text-slate-600 print:hidden">
+                      <a
+                        href={selectedInvoice.directUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-amber-800 hover:text-amber-950 underline"
                       >
-                        {copiedCode ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      </button>
+                        <ExternalLink className="h-3 w-3" />
+                        <span>Mở Thử WebAR 3D</span>
+                      </a>
                     </div>
                   </div>
-                  <div className="text-right text-[11px] text-slate-500 hidden sm:block">
-                    <span>Mã bản quyền lưu kèm chứng từ bán lẻ</span>
-                  </div>
+
+                  {/* Danh sách các mã con nếu có nhiều bộ */}
+                  {selectedInvoice.childCodes && selectedInvoice.childCodes.length > 0 && (
+                    <div className="pt-2 border-t border-amber-200/80 space-y-1">
+                      <span className="text-[10px] font-bold text-amber-950 block">
+                        Các Mã Con Từng Bộ / Thẻ Lẻ (In trên thẻ bài &amp; vỏ hộp):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedInvoice.childCodes.map((cc, i) => (
+                          <span
+                            key={i}
+                            className="font-mono text-[10px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded-md font-bold"
+                          >
+                            {cc}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Chữ Ký Người Bán & Người Mua */}

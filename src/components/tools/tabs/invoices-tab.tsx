@@ -391,9 +391,16 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
                       {/* Mã bản quyền */}
                       <td className="py-3 px-3">
-                        <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30 truncate max-w-[120px] inline-block">
-                          {inv.code}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30 truncate max-w-[140px] inline-block">
+                            {(inv as any).codeParent || inv.packCode || inv.code}
+                          </span>
+                          {(inv as any).childCodes && (inv as any).childCodes.length > 0 && (
+                            <span className="text-[9px] text-amber-300/80 font-mono">
+                              +{(inv as any).childCodes.length} mã con
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Phát sinh Có */}
@@ -544,21 +551,41 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-200">
-                    <tr>
-                      <td className="py-2">
-                        <strong className="text-stone-900">{selectedInvoice.packTitle}</strong>
-                        <div className="text-[10px] text-stone-500 font-mono">
-                          Mã bản quyền: {selectedInvoice.code}
-                        </div>
-                      </td>
-                      <td className="py-2 text-center font-bold">1</td>
-                      <td className="py-2 text-right font-mono">
-                        {formatVndCurrency(selectedInvoice.creditAmount || selectedInvoice.totalPrice || 249000)}
-                      </td>
-                      <td className="py-2 text-right font-mono font-bold">
-                        {formatVndCurrency(selectedInvoice.creditAmount || selectedInvoice.totalPrice || 249000)}
-                      </td>
-                    </tr>
+                    {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                      selectedInvoice.items.map((item, idx) => (
+                        <tr key={item.id || idx}>
+                          <td className="py-2">
+                            <strong className="text-stone-900">{item.name}</strong>
+                            <div className="text-[10px] text-stone-500 font-mono">
+                              Mã con: {item.packCode || selectedInvoice.code}
+                            </div>
+                          </td>
+                          <td className="py-2 text-center font-bold">{item.quantity}</td>
+                          <td className="py-2 text-right font-mono">
+                            {formatVndCurrency(item.unitPrice)}
+                          </td>
+                          <td className="py-2 text-right font-mono font-bold">
+                            {formatVndCurrency(item.totalPrice)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="py-2">
+                          <strong className="text-stone-900">{selectedInvoice.packTitle}</strong>
+                          <div className="text-[10px] text-stone-500 font-mono">
+                            Mã bản quyền: {selectedInvoice.code}
+                          </div>
+                        </td>
+                        <td className="py-2 text-center font-bold">1</td>
+                        <td className="py-2 text-right font-mono">
+                          {formatVndCurrency(selectedInvoice.creditAmount || selectedInvoice.totalPrice || 249000)}
+                        </td>
+                        <td className="py-2 text-right font-mono font-bold">
+                          {formatVndCurrency(selectedInvoice.creditAmount || selectedInvoice.totalPrice || 249000)}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
 

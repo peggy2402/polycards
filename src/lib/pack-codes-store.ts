@@ -104,6 +104,36 @@ export function saveNewPackCode(item: Omit<PackCodeItem, "createdAt">): PackCode
   return updated;
 }
 
+export function updatePackCode(
+  oldCode: string,
+  updatedData: Partial<PackCodeItem>
+): PackCodeItem[] {
+  if (typeof window === "undefined") return DEFAULT_PACK_CODES;
+  const current = getStoredPackCodes();
+  const cleanOld = oldCode.trim().toUpperCase();
+  const existingIdx = current.findIndex((p) => p.code.toUpperCase() === cleanOld);
+
+  if (existingIdx === -1) {
+    return current;
+  }
+
+  const existing = current[existingIdx];
+  const newCode = (updatedData.code || existing.code).trim().toUpperCase();
+
+  const updatedItem: PackCodeItem = {
+    ...existing,
+    ...updatedData,
+    code: newCode,
+  };
+
+  const updated = [...current];
+  updated[existingIdx] = updatedItem;
+
+  localStorage.setItem(PACK_CODES_STORAGE_KEY, JSON.stringify(updated));
+  window.dispatchEvent(new CustomEvent(PACK_CODES_UPDATED_EVENT, { detail: updated }));
+  return updated;
+}
+
 export function deleteStoredPackCode(code: string): PackCodeItem[] {
   if (typeof window === "undefined") return DEFAULT_PACK_CODES;
   const current = getStoredPackCodes();

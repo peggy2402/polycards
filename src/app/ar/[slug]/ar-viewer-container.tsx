@@ -99,18 +99,27 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
       searchParams.get("mode") === "webar";
 
     const codeParam = searchParams.get("code") || searchParams.get("key");
+    const codeParentParam =
+      searchParams.get("codeParent") ||
+      searchParams.get("parentCode") ||
+      searchParams.get("masterCode");
     const catSlug = normalizeCategorySlug(animal.categorySlug || animal.category);
 
     async function handleDirectScan() {
-      if (codeParam) {
-        await activateWithCodeAsync(codeParam, catSlug, animal.slug);
+      if (codeParam || codeParentParam) {
+        await activateWithCodeAsync(
+          codeParam || "",
+          catSlug,
+          animal.slug,
+          codeParentParam || undefined
+        );
       }
 
       if (!isMounted) return;
       const isAlreadyUnlocked = isAnimalUnlocked(animal.slug, catSlug);
       setUnlocked(isAlreadyUnlocked);
 
-      if (isDirectAr || codeParam) {
+      if (isDirectAr || codeParam || codeParentParam) {
         setIsTrial(!isAlreadyUnlocked);
         setIsWebArOpen(true);
       }

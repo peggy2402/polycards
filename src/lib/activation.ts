@@ -283,34 +283,45 @@ export function activateWithCode(
 export async function activateWithCodeAsync(
   code: string,
   currentCategorySlug?: string,
-  currentCardSlug?: string
+  currentCardSlug?: string,
+  codeParent?: string
 ): Promise<ActivationResult> {
   if (typeof window === "undefined") {
     return { success: false, message: "Môi trường trình duyệt không hợp lệ" };
   }
 
-  const clean = code.trim().toUpperCase();
-  if (!clean || clean.length < 4) {
+  const clean = (code || codeParent || "").trim().toUpperCase();
+  const cleanParent = codeParent ? codeParent.trim().toUpperCase() : undefined;
+
+  if (!clean && !cleanParent) {
     return {
       success: false,
       message: "Vui lòng nhập mã hóa đơn / mã bộ hợp lệ từ hộp thẻ Poly Cards.",
     };
   }
 
-  // 1. Tra cứu trực tiếp mã hóa đơn trên MongoDB Atlas qua API /api/orders?code=...
+  // 1. Tra cứu trực tiếp mã hóa đơn trên MongoDB Atlas qua API /api/orders?code=...&codeParent=...
   try {
-    const res = await fetch(`/api/orders?code=${encodeURIComponent(clean)}`);
+    const queryUrl = `/api/orders?code=${encodeURIComponent(clean)}${
+      cleanParent ? `&codeParent=${encodeURIComponent(cleanParent)}` : ""
+    }`;
+    const res = await fetch(queryUrl);
     if (res.ok) {
       const json = await res.json();
       if (json.success && json.data) {
         const order = json.data;
+
+        // Nếu đơn hàng có mã cha, lưu vào localStorage
+        if (cleanParent || order.codeParent) {
+          localStorage.setItem("polycards_parent_code", cleanParent || order.codeParent);
+        }
 
         // A. XỬ LÝ MÃ THẺ ĐƠN LẺ (SINGLE)
         if (order.codeType === "SINGLE" || clean.startsWith("SINGLE-")) {
           const targetSlug = (order.unlockedSlug || clean.split("-")[1] || "").toLowerCase().trim();
           if (targetSlug) {
             localStorage.setItem(`${STORAGE_KEY_PREFIX}${targetSlug}`, "true");
-            localStorage.setItem(STORAGE_KEY_CODE, clean);
+            localStorage.setItem(STORAGE_KEY_CODE, cleanParent || clean);
             notifyActivationChanged();
 
             if (currentCardSlug && currentCardSlug.toLowerCase() !== targetSlug) {
@@ -340,7 +351,7 @@ export async function activateWithCodeAsync(
           allowedSlugs.forEach((s) => {
             localStorage.setItem(`${STORAGE_KEY_PREFIX}${s}`, "true");
           });
-          localStorage.setItem(STORAGE_KEY_CODE, clean);
+          localStorage.setItem(STORAGE_KEY_CODE, cleanParent || clean);
           notifyActivationChanged();
 
           if (currentCardSlug && !allowedSlugs.includes(currentCardSlug.toLowerCase().trim())) {
@@ -360,13 +371,13 @@ export async function activateWithCodeAsync(
           };
         }
 
-        // C. XỬ LÝ MÃ BỘ DANH MỤC (PACK HOẶC NHIỀU BỘ COMBO)
+        // C. XỬ LÝ MÃ BỘ DANH MỤC (PACK HOẶC NHIỀU BỘ COMBO CÓ MÃ CHA CODEPARENT)
         if (Array.isArray(order.allowedCategorySlugs) && order.allowedCategorySlugs.length > 0) {
           order.allowedCategorySlugs.forEach((cat: string) => {
             const normalized = normalizeCategorySlug(cat);
             localStorage.setItem(`polycards_unlocked_category_${normalized}`, "true");
           });
-          localStorage.setItem(STORAGE_KEY_CODE, clean);
+          localStorage.setItem(STORAGE_KEY_CODE, cleanParent || clean);
           notifyActivationChanged();
 
           const normalizedCurrent = currentCategorySlug ? normalizeCategorySlug(currentCategorySlug) : "";

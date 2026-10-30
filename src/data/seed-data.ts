@@ -4,6 +4,7 @@ export interface SeedOrderLineItem {
   id: string;
   name: string;
   packCode?: string;
+  codeParent?: string;
   categorySlug?: string;
   quantity: number;
   unitPrice: number;
@@ -13,6 +14,8 @@ export interface SeedOrderLineItem {
 export interface SeedOrderItem {
   id: string;
   code: string;
+  codeParent?: string; // Mã Cha (Master code cho combo nhiều bộ / thẻ)
+  childCodes?: string[]; // Danh sách các Mã Con thuộc Mã Cha này
   codeType?: "SINGLE" | "MULTI" | "PACK";
   unlockedSlug?: string;
   unlockedSlugs?: string[];
