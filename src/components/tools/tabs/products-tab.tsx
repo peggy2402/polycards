@@ -31,6 +31,7 @@ import {
   MousePointerClick,
   Trash2,
   Tag,
+  Languages,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -88,6 +89,7 @@ export function ProductsTab({
   const [searchCardQuery, setSearchCardQuery] = useState("");
   const [filterCardCategory, setFilterCardCategory] = useState("all");
   const [filterCardPackCode, setFilterCardPackCode] = useState("all");
+  const [filterCardLanguage, setFilterCardLanguage] = useState<"all" | "en-vi" | "zh-vi">("all");
   const [onlyHomeFeatured, setOnlyHomeFeatured] = useState<boolean>(false);
   const [selectedDetailSlug, setSelectedDetailSlug] = useState<string | null>(null);
 
@@ -171,6 +173,7 @@ export function ProductsTab({
   const [isPackZipModalOpen, setIsPackZipModalOpen] = useState<boolean>(false);
   const [selectedExportPackCode, setSelectedExportPackCode] = useState<string>("all");
   const [zipExportTab, setZipExportTab] = useState<"quick" | "category" | "packCode">("quick");
+  const [zipExportLangFilter, setZipExportLangFilter] = useState<"all" | "en-vi" | "zh-vi">("all");
 
   const pinnedCardsCount = productsList.filter((c) => Boolean(c.showOnHome)).length;
 
@@ -250,6 +253,21 @@ export function ProductsTab({
     return productsList.filter((p) => !p.packCode || p.packCode.trim() === "").length;
   }, [productsList]);
 
+  // Thống kê số lượng thẻ theo chế độ song ngữ
+  const languageStats = useMemo(() => {
+    let enVi = 0;
+    let zhVi = 0;
+    productsList.forEach((card) => {
+      if (card.enableEnVi !== false && Boolean(card.nameEn && card.nameEn.trim())) {
+        enVi++;
+      }
+      if (card.enableZhVi === true || Boolean(card.nameZh && card.nameZh.trim())) {
+        zhVi++;
+      }
+    });
+    return { enVi, zhVi, total: productsList.length };
+  }, [productsList]);
+
   const filteredProducts = productsList.filter((card) => {
     const matchesSearch =
       card.nameVi.toLowerCase().includes(searchCardQuery.toLowerCase()) ||
@@ -268,15 +286,21 @@ export function ProductsTab({
         ? !card.packCode || card.packCode.trim() === ""
         : card.packCode === filterCardPackCode);
 
+    const matchesLanguage =
+      filterCardLanguage === "all" ||
+      (filterCardLanguage === "en-vi"
+        ? card.enableEnVi !== false && Boolean(card.nameEn && card.nameEn.trim())
+        : card.enableZhVi === true || Boolean(card.nameZh && card.nameZh.trim()));
+
     const matchesHomeFilter = !onlyHomeFeatured || Boolean(card.showOnHome);
 
-    return matchesSearch && matchesCategory && matchesPackCode && matchesHomeFilter;
+    return matchesSearch && matchesCategory && matchesPackCode && matchesLanguage && matchesHomeFilter;
   });
 
   // Tự động quay về trang 1 khi thay đổi điều kiện tìm kiếm / lọc
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchCardQuery, filterCardCategory, filterCardPackCode, onlyHomeFeatured]);
+  }, [searchCardQuery, filterCardCategory, filterCardPackCode, filterCardLanguage, onlyHomeFeatured]);
 
   const totalItems = filteredProducts.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -637,6 +661,26 @@ export function ProductsTab({
             </select>
           </div>
 
+          {/* Lọc Theo Song Ngữ (Language) */}
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+            <Languages className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <select
+              value={filterCardLanguage}
+              onChange={(e) => setFilterCardLanguage(e.target.value as "all" | "en-vi" | "zh-vi")}
+              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer"
+            >
+              <option value="all" className="bg-stone-900 text-white">
+                Tất Cả Song Ngữ ({productsList.length})
+              </option>
+              <option value="en-vi" className="bg-stone-900 text-amber-300">
+                Anh - Việt (EN-VI) ({languageStats.enVi})
+              </option>
+              <option value="zh-vi" className="bg-stone-900 text-rose-300">
+                Trung - Việt (ZH-VI) ({languageStats.zhVi})
+              </option>
+            </select>
+          </div>
+
           {/* Chuyển Đổi Chế Độ Xem: Dạng Thẻ (Grid) vs Dạng Danh Sách (List) */}
           <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/15">
             <button
@@ -884,6 +928,7 @@ export function ProductsTab({
               setSearchCardQuery("");
               setFilterCardCategory("all");
               setFilterCardPackCode("all");
+              setFilterCardLanguage("all");
               setOnlyHomeFeatured(false);
             }}
             className="py-2 px-4 rounded-xl bg-white/10 text-xs font-bold text-white hover:bg-white/15 transition-colors cursor-pointer"
@@ -1485,13 +1530,56 @@ export function ProductsTab({
 
                 {/* NỘI DUNG TAB 1: THEO DANH MỤC */}
                 {zipExportTab === "category" && (
-                  <div className="space-y-2 animate-in fade-in duration-150">
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {/* BỘ LỌC SONG NGỮ KÈM THEO DANH MỤC */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-black/40 border border-white/10">
+                      <span className="text-[11px] text-stone-300 font-bold flex items-center gap-1.5">
+                        <Languages className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                        <span>Lọc theo song ngữ trong danh mục:</span>
+                      </span>
+
+                      <div className="flex items-center gap-1 bg-stone-900 p-1 rounded-lg border border-white/10 shrink-0">
+                        {[
+                          { id: "all", label: "Tất Cả" },
+                          { id: "en-vi", label: "Anh - Việt" },
+                          { id: "zh-vi", label: "Trung - Việt" },
+                        ].map((lang) => (
+                          <button
+                            key={lang.id}
+                            type="button"
+                            onClick={() => setZipExportLangFilter(lang.id as any)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                              zipExportLangFilter === lang.id
+                                ? "bg-amber-400 text-stone-950 shadow-xs"
+                                : "text-stone-400 hover:text-white"
+                            }`}
+                          >
+                            {lang.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <p className="text-[11px] text-stone-400">
-                      Chọn 1 danh mục để đóng gói toàn bộ thẻ bài thuộc chủ đề đó vào tệp ZIP:
+                      Chọn 1 danh mục để đóng gói thẻ bài phù hợp:
                     </p>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {categoryStats.map((cat) => {
                         const isSelected = selectedExportPackCode === `cat:${cat.slug}`;
+                        const matchingCount = productsList.filter((p) => {
+                          const matchCat =
+                            p.categorySlug === cat.slug ||
+                            p.category?.toLowerCase() === cat.name.toLowerCase();
+                          const matchLang =
+                            zipExportLangFilter === "all"
+                              ? true
+                              : zipExportLangFilter === "en-vi"
+                              ? p.enableEnVi !== false && Boolean(p.nameEn && p.nameEn.trim())
+                              : p.enableZhVi === true || Boolean(p.nameZh && p.nameZh.trim());
+                          return matchCat && matchLang;
+                        }).length;
+
                         return (
                           <button
                             key={cat.slug}
@@ -1508,11 +1596,11 @@ export function ProductsTab({
                                 {cat.name}
                               </div>
                               <div className="text-[10px] text-stone-400 font-mono truncate">
-                                Slug: {cat.slug}
+                                Slug: {cat.slug} {zipExportLangFilter !== "all" ? `(${zipExportLangFilter.toUpperCase()})` : ""}
                               </div>
                             </div>
                             <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
-                              {cat.count} thẻ
+                              {matchingCount} thẻ
                             </span>
                           </button>
                         );
@@ -1600,7 +1688,7 @@ export function ProductsTab({
                       >
                         <div>
                           <div className="font-black text-xs text-emerald-300">Danh Sách Đang Lọc</div>
-                          <div className="text-[10px] text-stone-400">Theo bộ lọc tìm kiếm & danh mục</div>
+                          <div className="text-[10px] text-stone-400">Theo bộ lọc tìm kiếm & danh mục & song ngữ</div>
                         </div>
                         <span className="font-mono text-xs font-black px-2 py-0.5 rounded-full bg-white/10 shrink-0">
                           {filteredProducts.length} thẻ
@@ -1622,10 +1710,16 @@ export function ProductsTab({
                   : selectedExportPackCode.startsWith("cat:")
                   ? productsList.filter((p) => {
                       const catSlug = selectedExportPackCode.replace("cat:", "");
-                      return (
+                      const matchCat =
                         p.categorySlug === catSlug ||
-                        p.category?.toLowerCase() === catSlug.replace(/-/g, " ")
-                      );
+                        p.category?.toLowerCase() === catSlug.replace(/-/g, " ");
+                      const matchLang =
+                        zipExportLangFilter === "all"
+                          ? true
+                          : zipExportLangFilter === "en-vi"
+                          ? p.enableEnVi !== false && Boolean(p.nameEn && p.nameEn.trim())
+                          : p.enableZhVi === true || Boolean(p.nameZh && p.nameZh.trim());
+                      return matchCat && matchLang;
                     })
                   : selectedExportPackCode.startsWith("pack:")
                   ? productsList.filter(
@@ -1637,9 +1731,11 @@ export function ProductsTab({
                 selectedExportPackCode === "all"
                   ? "polycards-toan-bo-kho-the.zip"
                   : selectedExportPackCode === "filtered"
-                  ? "polycards-the-theo-bo-loc.zip"
+                  ? `polycards-the-theo-bo-loc${filterCardLanguage === "all" ? "" : `-${filterCardLanguage}`}.zip`
                   : selectedExportPackCode.startsWith("cat:")
-                  ? `polycards-danh-muc-${selectedExportPackCode.replace("cat:", "")}.zip`
+                  ? `polycards-danh-muc-${selectedExportPackCode.replace("cat:", "")}${
+                      zipExportLangFilter === "all" ? "" : `-${zipExportLangFilter}`
+                    }.zip`
                   : selectedExportPackCode.startsWith("pack:")
                   ? `polycards-${selectedExportPackCode.replace("pack:", "").toLowerCase()}.zip`
                   : `polycards-${selectedExportPackCode.toLowerCase()}.zip`;

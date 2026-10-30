@@ -30,6 +30,7 @@ import {
   ShoppingBag,
   ShieldCheck,
   CheckCircle2,
+  Languages,
 } from "lucide-react";
 
 type PriceFilterType = "all" | "under220" | "220to250" | "above250";
@@ -45,6 +46,7 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [priceFilter, setPriceFilter] = useState<PriceFilterType>("all");
   const [sortOption, setSortOption] = useState<SortOptionType>("default");
+  const [languageFilter, setLanguageFilter] = useState<"all" | "en-vi" | "zh-vi">("all");
 
   // Đồng bộ thời gian thực khi có sản phẩm hoặc danh mục mới được cập nhật từ Studio /tools
   useEffect(() => {
@@ -168,6 +170,15 @@ export default function ProductsPage() {
         if (priceFilter === "220to250" && (price < 220000 || price > 250000)) return false;
         if (priceFilter === "above250" && price <= 250000) return false;
 
+        // Lọc Song ngữ (Anh - Việt / Trung - Việt)
+        if (languageFilter === "en-vi") {
+          const matchEn = product.enableEnVi !== false && Boolean(product.nameEn && product.nameEn.trim());
+          if (!matchEn) return false;
+        } else if (languageFilter === "zh-vi") {
+          const matchZh = product.enableZhVi === true || Boolean(product.nameZh && product.nameZh.trim());
+          if (!matchZh) return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
@@ -182,7 +193,7 @@ export default function ProductsPage() {
         }
         return 0;
       });
-  }, [products, selectedCategorySlug, searchQuery, priceFilter, sortOption]);
+  }, [products, selectedCategorySlug, searchQuery, priceFilter, sortOption, languageFilter]);
 
   // Đặt lại toàn bộ bộ lọc
   const handleResetFilters = () => {
@@ -190,13 +201,15 @@ export default function ProductsPage() {
     setSearchQuery("");
     setPriceFilter("all");
     setSortOption("default");
+    setLanguageFilter("all");
   };
 
   const hasActiveFilters =
     selectedCategorySlug !== "all" ||
     searchQuery.trim() !== "" ||
     priceFilter !== "all" ||
-    sortOption !== "default";
+    sortOption !== "default" ||
+    languageFilter !== "all";
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#FCFBF7]">
@@ -304,10 +317,10 @@ export default function ProductsPage() {
               })}
             </div>
 
-            {/* HÀNG 2: THANH TÌM KIẾM + BỘ LỌC KHOẢNG GIÁ + SẮP XẾP */}
+            {/* HÀNG 2: THANH TÌM KIẾM + BỘ LỌC SONG NGỮ + KHOẢNG GIÁ + SẮP XẾP */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center rounded-3xl bg-white/95 p-3 sm:p-4 border-2 border-amber-200/80 shadow-md backdrop-blur-md">
               {/* Ô TÌM KIẾM THÔNG MINH */}
-              <div className="relative md:col-span-5 w-full">
+              <div className="relative md:col-span-4 w-full">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <input
                   type="text"
@@ -328,8 +341,25 @@ export default function ProductsPage() {
                 )}
               </div>
 
+              {/* BỘ LỌC SONG NGỮ */}
+              <div className="md:col-span-3 flex items-center gap-2">
+                <Languages className="h-4 w-4 text-amber-600 shrink-0 hidden sm:inline" />
+                <div className="relative w-full">
+                  <select
+                    value={languageFilter}
+                    onChange={(e) => setLanguageFilter(e.target.value as "all" | "en-vi" | "zh-vi")}
+                    className="w-full appearance-none py-2.5 pl-3 pr-8 rounded-2xl bg-stone-50 border-2 border-stone-200 text-xs sm:text-sm font-bold text-stone-800 focus:outline-hidden focus:border-amber-400 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">Tất cả song ngữ</option>
+                    <option value="en-vi">Anh - Việt (EN-VI)</option>
+                    <option value="zh-vi">Trung - Việt (ZH-VI)</option>
+                  </select>
+                  <SlidersHorizontal className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400 pointer-events-none" />
+                </div>
+              </div>
+
               {/* BỘ LỌC KHOẢNG GIÁ */}
-              <div className="md:col-span-4 flex items-center gap-2">
+              <div className="md:col-span-3 flex items-center gap-2">
                 <Tag className="h-4 w-4 text-amber-600 shrink-0 hidden sm:inline" />
                 <div className="relative w-full">
                   <select
@@ -347,7 +377,7 @@ export default function ProductsPage() {
               </div>
 
               {/* SẮP XẾP SẢN PHẨM */}
-              <div className="md:col-span-3 relative w-full">
+              <div className="md:col-span-2 relative w-full">
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as SortOptionType)}
@@ -369,6 +399,11 @@ export default function ProductsPage() {
                 {selectedCategorySlug !== "all" && (
                   <span className="ml-1 text-amber-700 font-bold">
                     • Danh mục: {categories.find((c) => c.slug === selectedCategorySlug)?.name || selectedCategorySlug}
+                  </span>
+                )}
+                {languageFilter !== "all" && (
+                  <span className="ml-1 text-amber-700 font-bold">
+                    • Song ngữ: {languageFilter === "en-vi" ? "Anh - Việt" : "Trung - Việt"}
                   </span>
                 )}
               </div>
