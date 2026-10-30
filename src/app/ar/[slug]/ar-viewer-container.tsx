@@ -103,7 +103,7 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
 
     async function handleDirectScan() {
       if (codeParam) {
-        await activateWithCodeAsync(codeParam, catSlug);
+        await activateWithCodeAsync(codeParam, catSlug, animal.slug);
       }
 
       if (!isMounted) return;

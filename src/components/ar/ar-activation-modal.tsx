@@ -75,7 +75,7 @@ export function ArActivationModal({
       setIsActivating(true);
       setErrorMsg(null);
       const currentCatSlug = normalizeCategorySlug(animal.categorySlug || animal.category);
-      const result = await activateWithCodeAsync(code, currentCatSlug);
+      const result = await activateWithCodeAsync(code, currentCatSlug, animal.slug);
       if (result.success) {
         setSuccessMsg(result.message);
         setErrorMsg(null);

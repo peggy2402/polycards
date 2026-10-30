@@ -109,4 +109,4 @@ export interface ToastItem {
   type: "success" | "error" | "info" | "warning";
 }
 
-export type StudioTab = "editor" | "products" | "categories";
+export type StudioTab = "editor" | "products" | "categories" | "licenses" | "invoices" | "customers";

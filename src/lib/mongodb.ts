@@ -407,15 +407,65 @@ export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<voi
         : [...existing.orders, order.id];
       const updatedSpent = existing.orders.includes(order.id)
         ? existing.totalSpent
-        : existing.totalSpent + (order.totalPrice || 0);
+        : existing.totalSpent + (order.totalPrice || order.creditAmount || 0);
+      const updatedAddress = order.customerAddress || existing.address || "";
       await col.updateOne(
         { _id: existing._id },
-        { $set: { orders: updatedOrders, totalSpent: updatedSpent } }
+        { $set: { orders: updatedOrders, totalSpent: updatedSpent, address: updatedAddress } }
       );
     } else {
-      await col.insertOne({ ...targetCust });
+      await col.insertOne({ ...targetCust, address: order.customerAddress || "" });
     }
   }
+}
+
+export async function dbGetCustomers(): Promise<SeedCustomerItem[]> {
+  const db = await getMongoDb();
+  if (!db) {
+    return getInMemoryStore().customers;
+  }
+  const col = db.collection<SeedCustomerItem>("customers");
+  const list = await col.find({}).sort({ createdAt: -1 }).toArray();
+  return list.map((doc) => {
+    const { _id, ...rest } = doc as any;
+    return rest as SeedCustomerItem;
+  });
+}
+
+export async function dbUpsertCustomer(customer: SeedCustomerItem): Promise<SeedCustomerItem> {
+  const mem = getInMemoryStore();
+  const idx = mem.customers.findIndex((c) => c.id === customer.id || (customer.phone && c.phone === customer.phone));
+  if (idx >= 0) {
+    mem.customers[idx] = { ...mem.customers[idx], ...customer };
+  } else {
+    mem.customers.push(customer);
+  }
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<SeedCustomerItem>("customers");
+    await col.updateOne(
+      { $or: [{ id: customer.id }, ...(customer.phone ? [{ phone: customer.phone }] : [])] },
+      { $set: customer },
+      { upsert: true }
+    );
+  }
+
+  return customer;
+}
+
+export async function dbDeleteCustomer(id: string): Promise<number> {
+  const mem = getInMemoryStore();
+  mem.customers = mem.customers.filter((c) => c.id !== id);
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<SeedCustomerItem>("customers");
+    await col.deleteOne({ id });
+    return await col.countDocuments();
+  }
+
+  return mem.customers.length;
 }
 
 // ============================================================================

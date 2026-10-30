@@ -92,8 +92,8 @@ export function ProductsTab({
   // Chế độ xem: Dạng Lưới Thẻ (grid) vs Dạng Danh Sách (list)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // Phân trang (Pagination): 6, 18, 24, 30, 36, 108
-  const [pageSize, setPageSize] = useState<number>(18);
+  // Phân trang (Pagination): 6, 18, 24, 30, 36, 108 — Mặc định 6 thẻ / trang để tối ưu tốc độ & không giật lag
+  const [pageSize, setPageSize] = useState<number>(6);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Tải tùy chọn chế độ xem & page size từ localStorage

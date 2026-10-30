@@ -177,7 +177,11 @@ function applyCategoryUnlock(
 /**
  * Kích hoạt bản quyền đồng bộ (Dựa trên cấu trúc mã bộ POLY30-<CAT>-XXXX)
  */
-export function activateWithCode(code: string, currentCategorySlug?: string): ActivationResult {
+export function activateWithCode(
+  code: string,
+  currentCategorySlug?: string,
+  currentCardSlug?: string
+): ActivationResult {
   if (typeof window === "undefined") {
     return { success: false, message: "Môi trường trình duyệt không hợp lệ" };
   }
@@ -203,7 +207,34 @@ export function activateWithCode(code: string, currentCategorySlug?: string): Ac
     };
   }
 
-  // 2. Kiểm tra mã Bộ Danh Mục theo tiền tố chuẩn (POLY30-DONGVAT-XXXX, POLY30-HANHDONG-XXXX, POLY30-XECO-XXXX, POLY30-HOAQUA-XXXX)
+  // 2. Kiểm tra mã Thẻ Lẻ Đơn (SINGLE-{{slug}}-{{cat}}-{{cust}}-{{inv}})
+  if (clean.startsWith("SINGLE-")) {
+    const parts = clean.split("-");
+    const targetSlug = parts[1]?.toLowerCase();
+    if (targetSlug) {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${targetSlug}`, "true");
+      localStorage.setItem(STORAGE_KEY_CODE, clean);
+      notifyActivationChanged();
+
+      if (currentCardSlug && currentCardSlug.toLowerCase() !== targetSlug) {
+        return {
+          success: false,
+          tier: "single",
+          unlockedSlug: targetSlug,
+          message: `Mã [${code}] chỉ kích hoạt cho thẻ bài "${targetSlug.toUpperCase()}". Thẻ bài hiện tại chưa được kích hoạt!`,
+        };
+      }
+
+      return {
+        success: true,
+        tier: "single",
+        unlockedSlug: targetSlug,
+        message: `Kích hoạt thành công thẻ bài "${targetSlug.toUpperCase()}"!`,
+      };
+    }
+  }
+
+  // 3. Kiểm tra mã Bộ Danh Mục theo tiền tố chuẩn (POLY30-DONGVAT-XXXX, POLY30-HANHDONG-XXXX, PACK-...)
   const PACK_MAPPINGS: Array<{ keywords: string[]; catSlug: string; title: string }> = [
     {
       keywords: ["DONGVAT", "DONG-VAT", "ANIMAL"],
@@ -243,12 +274,16 @@ export function activateWithCode(code: string, currentCategorySlug?: string): Ac
 /**
  * Kích hoạt bản quyền có đối chiếu trực tiếp với Database MongoDB Atlas (bảng orders)
  * Đảm bảo:
- * 1. Mọi mã hóa đơn tạo từ /invoices hoặc /tools đều được xác thực chuẩn xác trên hệ thống.
- * 2. Khóa chặt phân quyền: Mua bộ nào chỉ mở được đúng bộ đó (allowedCategorySlug).
+ * 1. Mọi mã hóa đơn tạo từ POS / Tools đều được xác thực chuẩn xác trên hệ thống.
+ * 2. Phân loại chuẩn xác:
+ *    - SINGLE: Mở khóa đúng 1 thẻ duy nhất (unlockedSlug).
+ *    - MULTI: Mở khóa đúng danh sách các thẻ mua (unlockedSlugs).
+ *    - PACK: Mở khóa toàn bộ thẻ thuộc danh mục (allowedCategorySlug).
  */
 export async function activateWithCodeAsync(
   code: string,
-  currentCategorySlug?: string
+  currentCategorySlug?: string,
+  currentCardSlug?: string
 ): Promise<ActivationResult> {
   if (typeof window === "undefined") {
     return { success: false, message: "Môi trường trình duyệt không hợp lệ" };
@@ -269,6 +304,63 @@ export async function activateWithCodeAsync(
       const json = await res.json();
       if (json.success && json.data) {
         const order = json.data;
+
+        // A. XỬ LÝ MÃ THẺ ĐƠN LẺ (SINGLE)
+        if (order.codeType === "SINGLE" || clean.startsWith("SINGLE-")) {
+          const targetSlug = (order.unlockedSlug || clean.split("-")[1] || "").toLowerCase().trim();
+          if (targetSlug) {
+            localStorage.setItem(`${STORAGE_KEY_PREFIX}${targetSlug}`, "true");
+            localStorage.setItem(STORAGE_KEY_CODE, clean);
+            notifyActivationChanged();
+
+            if (currentCardSlug && currentCardSlug.toLowerCase() !== targetSlug) {
+              return {
+                success: false,
+                tier: "single",
+                unlockedSlug: targetSlug,
+                message: `Mã [${code}] chỉ kích hoạt cho thẻ bài "${targetSlug.toUpperCase()}". Thẻ bài hiện tại chưa được kích hoạt!`,
+              };
+            }
+
+            return {
+              success: true,
+              tier: "single",
+              unlockedSlug: targetSlug,
+              message: `Chúc mừng bạn! Mã hóa đơn [${code}] đã mở khóa thành công thẻ bài "${targetSlug.toUpperCase()}"!`,
+            };
+          }
+        }
+
+        // B. XỬ LÝ MÃ NHIỀU THẺ (MULTI)
+        if (order.codeType === "MULTI" || clean.startsWith("MULTI-")) {
+          const allowedSlugs: string[] = Array.isArray(order.unlockedSlugs)
+            ? order.unlockedSlugs.map((s: string) => s.toLowerCase().trim())
+            : [];
+
+          allowedSlugs.forEach((s) => {
+            localStorage.setItem(`${STORAGE_KEY_PREFIX}${s}`, "true");
+          });
+          localStorage.setItem(STORAGE_KEY_CODE, clean);
+          notifyActivationChanged();
+
+          if (currentCardSlug && !allowedSlugs.includes(currentCardSlug.toLowerCase().trim())) {
+            return {
+              success: false,
+              tier: "combo6",
+              unlockedSlugs: allowedSlugs,
+              message: `Mã [${code}] gồm ${allowedSlugs.length} thẻ bài, nhưng KHÔNG bao gồm thẻ hiện tại!`,
+            };
+          }
+
+          return {
+            success: true,
+            tier: "combo6",
+            unlockedSlugs: allowedSlugs,
+            message: `Chúc mừng bạn! Mã [${code}] đã mở khóa thành công gói ${allowedSlugs.length} thẻ bài tương tác AR!`,
+          };
+        }
+
+        // C. XỬ LÝ MÃ BỘ DANH MỤC (PACK)
         const allowedCat = normalizeCategorySlug(
           order.allowedCategorySlug || order.packCode || "dong-vat"
         );
@@ -280,8 +372,8 @@ export async function activateWithCodeAsync(
     console.warn("[Activation] Không thể kết nối API kiểm tra đơn hàng, dùng bộ kiểm tra mẫu mã:", err);
   }
 
-  // 2. Fallback kiểm tra theo cấu trúc mã bộ (nếu mã in sẵn theo chuẩn POLY30-<THELOAI>-XXXX)
-  return activateWithCode(clean, currentCategorySlug);
+  // 2. Fallback kiểm tra theo cấu trúc mã bộ hoặc mã single
+  return activateWithCode(clean, currentCategorySlug, currentCardSlug);
 }
 
 /**

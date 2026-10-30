@@ -14,6 +14,9 @@ import {
   Archive,
   FolderArchive,
   ShoppingBag,
+  KeyRound,
+  Users,
+  ExternalLink,
 } from "lucide-react";
 import {
   getProductCategories,
@@ -59,6 +62,9 @@ import { ComboConfigModal } from "@/components/tools/modals/combo-config-modal";
 import { EditorTab } from "@/components/tools/tabs/editor-tab";
 import { ProductsTab } from "@/components/tools/tabs/products-tab";
 import { CategoriesTab } from "@/components/tools/tabs/categories-tab";
+import { LicensesTab } from "@/components/tools/tabs/licenses-tab";
+import { InvoicesTab } from "@/components/tools/tabs/invoices-tab";
+import { CustomersTab } from "@/components/tools/tabs/customers-tab";
 
 export default function ToolsPage() {
   // 1. Quản lý xác thực bảo mật tác giả Poly Cards
@@ -349,7 +355,7 @@ export default function ToolsPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab") as StudioTab;
-        const validTabs: StudioTab[] = ["editor", "products", "categories"];
+        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers"];
         let targetTab: StudioTab | null = null;
 
         if (urlTab && validTabs.includes(urlTab)) {
@@ -394,7 +400,7 @@ export default function ToolsPage() {
       try {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab") as StudioTab;
-        const validTabs: StudioTab[] = ["editor", "products", "categories"];
+        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers"];
         if (urlTab && validTabs.includes(urlTab)) {
           setActiveStudioTab(urlTab);
         }
@@ -450,8 +456,9 @@ export default function ToolsPage() {
     } else if (!productForm.enableEnVi && productForm.enableZhVi) {
       params.set("lang", "zh-vi");
     }
-    if (includeLicense && licenseCode.trim()) {
-      params.set("code", licenseCode.trim());
+    const effectiveCode = (includeLicense && licenseCode.trim()) || productForm.packCode?.trim() || "";
+    if (effectiveCode) {
+      params.set("code", effectiveCode);
     }
     const queryString = params.toString();
     return queryString ? `${url}?${queryString}` : url;
@@ -463,6 +470,7 @@ export default function ToolsPage() {
     directAr,
     productForm.enableEnVi,
     productForm.enableZhVi,
+    productForm.packCode,
     includeLicense,
     licenseCode,
   ]);
@@ -2351,6 +2359,53 @@ export default function ToolsPage() {
               {categoriesList.length}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveStudioTab("licenses")}
+            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
+              activeStudioTab === "licenses"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                : "text-stone-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <KeyRound className="h-4 w-4" />
+            <span>Quản Lý Mã Thẻ/Bộ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveStudioTab("invoices")}
+            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
+              activeStudioTab === "invoices"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                : "text-stone-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Receipt className="h-4 w-4" />
+            <span>Quản Lý Hóa Đơn</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveStudioTab("customers")}
+            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
+              activeStudioTab === "customers"
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
+                : "text-stone-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>Quản Lý Khách Hàng</span>
+          </button>
+
+          <Link
+            href="/invoices"
+            className="py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 text-stone-300 hover:text-amber-400 hover:bg-white/5 border border-dashed border-white/15 transition-all"
+          >
+            <ExternalLink className="h-3.5 w-3.5 text-amber-400" />
+            <span>Điểm Bán Hàng (POS)</span>
+          </Link>
         </div>
 
         {/* Trạng thái hàng đợi in nhanh */}
@@ -2505,7 +2560,36 @@ export default function ToolsPage() {
         />
       )}
 
-      {/* 5. CÁC MODAL HỆ THỐNG */}
+      {/* 5. TAB 4: QUẢN LÝ MÃ THẺ / MÃ BỘ BẢN QUYỀN */}
+      {activeStudioTab === "licenses" && (
+        <LicensesTab
+          productsList={productsList}
+          categoriesList={categoriesList}
+          onNavigateToPOS={() => {
+            window.location.href = "/invoices";
+          }}
+        />
+      )}
+
+      {/* 6. TAB 5: QUẢN LÝ HÓA ĐƠN BÁN HÀNG */}
+      {activeStudioTab === "invoices" && (
+        <InvoicesTab
+          onNavigateToPOS={() => {
+            window.location.href = "/invoices";
+          }}
+        />
+      )}
+
+      {/* 7. TAB 6: QUẢN LÝ KHÁCH HÀNG (CRM) */}
+      {activeStudioTab === "customers" && (
+        <CustomersTab
+          onNavigateToPOS={() => {
+            window.location.href = "/invoices";
+          }}
+        />
+      )}
+
+      {/* 8. CÁC MODAL HỆ THỐNG */}
       <PublishProductModal
         isOpen={isPublishModalOpen}
         slug={slug}

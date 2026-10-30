@@ -70,33 +70,42 @@ export async function POST(request: NextRequest) {
         ? Number(body.debitAmount)
         : creditAmount;
     const remainingAmount = creditAmount - debitAmount;
+    const balanceAmount = debitAmount - creditAmount;
     const paymentMethod = body.paymentMethod === "CHUYEN_KHOAN" ? "CHUYEN_KHOAN" : "TIEN_MAT";
 
     const newOrder: SeedOrderItem = {
       id: body.id || existing?.id || `ORD-${Date.now().toString().slice(-6)}`,
       code: cleanCode,
+      codeType: body.codeType || (cleanCode.startsWith("SINGLE-") ? "SINGLE" : cleanCode.startsWith("MULTI-") ? "MULTI" : "PACK"),
+      unlockedSlug: body.unlockedSlug || (cleanCode.startsWith("SINGLE-") ? cleanCode.split("-")[1]?.toLowerCase() : undefined),
+      unlockedSlugs: Array.isArray(body.unlockedSlugs) ? body.unlockedSlugs : undefined,
       customerType: body.customerType || "TRUCTIEP",
+      customerId: body.customerId || "",
       customerName: body.customerName || "Khách Hàng Trực Tiếp",
       customerPhone: body.customerPhone || "",
       customerAddress: body.customerAddress || "",
       packId: body.packId || "cat-animals",
-      packCode: body.packCode || "POLY30-DONGVAT",
+      packCode: body.packCode || cleanCode,
       packTitle: body.packTitle || "Bộ 30 Thẻ AR Động Vật",
       allowedCategorySlug: body.allowedCategorySlug || "dong-vat",
       items: body.items || [
         {
           id: body.packId || "cat-animals",
           name: body.packTitle || "Bộ 30 Thẻ AR Động Vật",
-          packCode: body.packCode || "POLY30-DONGVAT",
+          packCode: body.packCode || cleanCode,
           categorySlug: body.allowedCategorySlug || "dong-vat",
           quantity: 1,
           unitPrice: creditAmount,
           totalPrice: creditAmount,
         },
       ],
+      subtotal: Number(body.subtotal) || creditAmount,
+      vatRate: Number(body.vatRate) || 0,
+      vatAmount: Number(body.vatAmount) || 0,
       creditAmount,
       debitAmount,
       remainingAmount,
+      balanceAmount,
       paymentMethod,
       totalPrice: creditAmount,
       status: remainingAmount <= 0 ? "PAID" : "PARTIAL",

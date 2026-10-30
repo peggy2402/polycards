@@ -13,7 +13,11 @@ export interface SeedOrderLineItem {
 export interface SeedOrderItem {
   id: string;
   code: string;
+  codeType?: "SINGLE" | "MULTI" | "PACK";
+  unlockedSlug?: string;
+  unlockedSlugs?: string[];
   customerType: "TRUCTIEP" | "ONLINE";
+  customerId?: string;
   customerName: string;
   customerPhone?: string;
   customerAddress?: string;
@@ -22,9 +26,13 @@ export interface SeedOrderItem {
   packTitle: string;
   allowedCategorySlug?: string;
   items?: SeedOrderLineItem[];
-  creditAmount: number;
-  debitAmount: number;
+  subtotal?: number;
+  vatRate?: number; // 0, 5, 8, 10
+  vatAmount?: number;
+  creditAmount: number; // Phát sinh Có: Số tiền khách hàng cần thanh toán
+  debitAmount: number; // Phát sinh Nợ: Số tiền khách hàng đã thanh toán
   remainingAmount?: number;
+  balanceAmount?: number; // debitAmount - creditAmount (dương: trả thừa, âm: trả thiếu)
   paymentMethod: "TIEN_MAT" | "CHUYEN_KHOAN";
   totalPrice?: number;
   status?: string;
@@ -37,6 +45,7 @@ export interface SeedCustomerItem {
   id: string;
   name: string;
   phone?: string;
+  address?: string;
   type: "TRUCTIEP" | "ONLINE";
   orders: string[];
   totalSpent: number;
