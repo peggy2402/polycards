@@ -1,7 +1,13 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import { ArrowLeft, QrCode, Sparkles } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Not Found | Poly Cards",
+  description: "Trang hoặc thẻ bài bạn đang tìm kiếm không tồn tại trên hệ thống Poly Cards.",
+};
 
 export default function NotFound() {
   return (
@@ -33,7 +39,7 @@ export default function NotFound() {
           </h1>
 
           <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-            Trang hoặc con vật bạn đang tìm kiếm không tồn tại hoặc đã được chuyển sang cánh rừng khác.
+            Thẻ bài hoặc trang bạn đang tìm kiếm không tồn tại hoặc đã được chuyển sang danh mục khác.
           </p>
         </div>
 
