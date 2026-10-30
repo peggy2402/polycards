@@ -1111,8 +1111,7 @@ export default function ToolsPage() {
 
       const zipBlob = await zip.generateAsync({
         type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 },
+        compression: "STORE",
       });
 
       const downloadUrl = URL.createObjectURL(zipBlob);
@@ -1460,7 +1459,10 @@ export default function ToolsPage() {
         `============================================================\n`,
       ];
 
-      for (let i = 0; i < cards.length; i++) {
+      const concurrency = 3;
+      let completedCount = 0;
+
+      for (let i = 0; i < cards.length; i += concurrency) {
         // Kiểm tra xem người dùng có bấm hủy không
         if (cancelZipExportRef.current) {
           setIsGeneratingZip(false);
@@ -1474,56 +1476,63 @@ export default function ToolsPage() {
           return;
         }
 
-        const card = cards[i];
-        const orderNum = String(i + 1).padStart(2, "0");
-        const fileName = `${orderNum}-${card.slug}.png`;
+        const batch = cards.slice(i, i + concurrency);
 
-        // Đánh dấu thẻ hiện tại đang vẽ phôi
+        // Đánh dấu các thẻ trong batch là processing
         setZipProgress((prev) => ({
           ...prev,
-          current: i,
-          percent: Math.round((i / cards.length) * 100),
-          currentCardName: card.nameVi,
+          currentCardName: batch.map((b) => b.nameVi).join(", "),
           items: prev.items.map((item, idx) =>
-            idx === i ? { ...item, status: "processing" } : item
+            idx >= i && idx < i + concurrency ? { ...item, status: "processing" } : item
           ),
         }));
 
-        try {
-          const { blob } = await generateCardCompositeBlob(card);
-          zip.file(fileName, blob);
+        await Promise.all(
+          batch.map(async (card, batchIdx) => {
+            const actualIdx = i + batchIdx;
+            const orderNum = String(actualIdx + 1).padStart(2, "0");
+            const fileName = `${orderNum}-${card.slug}.png`;
 
-          const effectivePackCode =
-            card.packCode && card.packCode.trim() !== ""
-              ? card.packCode.trim()
-              : getPackCodeForCategory(card.categorySlug || card.category);
+            try {
+              const { blob } = await generateCardCompositeBlob(card);
+              zip.file(fileName, blob);
 
-          manifestLines.push(
-            `[${fileName}] ${card.nameVi} (${card.nameEn}) | Mã Bộ: ${
-              effectivePackCode || "Chưa có"
-            } | Danh mục: ${card.category} | WebAR: /ar/${card.slug}?ar=1${
-              effectivePackCode ? `&code=${effectivePackCode}` : ""
-            }`
-          );
+              const effectivePackCode =
+                card.packCode && card.packCode.trim() !== ""
+                  ? card.packCode.trim()
+                  : getPackCodeForCategory(card.categorySlug || card.category);
 
-          // Cập nhật thẻ này đã hoàn thành
-          setZipProgress((prev) => ({
-            ...prev,
-            current: i + 1,
-            percent: Math.round(((i + 1) / cards.length) * 100),
-            items: prev.items.map((item, idx) =>
-              idx === i ? { ...item, status: "done" } : item
-            ),
-          }));
-        } catch (cardErr: any) {
-          console.warn(`Lỗi tạo phôi in cho ${card.nameVi}:`, cardErr);
-          setZipProgress((prev) => ({
-            ...prev,
-            items: prev.items.map((item, idx) =>
-              idx === i ? { ...item, status: "error" } : item
-            ),
-          }));
-        }
+              manifestLines.push(
+                `[${fileName}] ${card.nameVi} (${card.nameEn}) | Mã Bộ: ${
+                  effectivePackCode || "Chưa có"
+                } | Danh mục: ${card.category} | WebAR: /ar/${card.slug}?ar=1${
+                  effectivePackCode ? `&code=${effectivePackCode}` : ""
+                }`
+              );
+
+              completedCount++;
+              setZipProgress((prev) => ({
+                ...prev,
+                current: completedCount,
+                percent: Math.round((completedCount / cards.length) * 100),
+                items: prev.items.map((item, idx) =>
+                  idx === actualIdx ? { ...item, status: "done" } : item
+                ),
+              }));
+            } catch (cardErr: any) {
+              console.warn(`Lỗi tạo phôi in cho ${card.nameVi}:`, cardErr);
+              completedCount++;
+              setZipProgress((prev) => ({
+                ...prev,
+                current: completedCount,
+                percent: Math.round((completedCount / cards.length) * 100),
+                items: prev.items.map((item, idx) =>
+                  idx === actualIdx ? { ...item, status: "error" } : item
+                ),
+              }));
+            }
+          })
+        );
       }
 
       // Kiểm tra lại trước khi tiến hành nén file
@@ -1541,7 +1550,7 @@ export default function ToolsPage() {
       setZipProgress((prev) => ({
         ...prev,
         isCompressing: true,
-        currentCardName: "Đang nén dữ liệu và đóng gói file .ZIP...",
+        currentCardName: "Đang đóng gói file .ZIP...",
       }));
 
       manifestLines.push(
@@ -1552,10 +1561,10 @@ export default function ToolsPage() {
       );
       zip.file("danh-sach-the-in.txt", manifestLines.join("\n"));
 
+      // Tối ưu tốc độ: PNG đã được nén sẵn bằng Deflate nội tại nên dùng STORE để đóng gói tức thì không tốn CPU
       const zipBlob = await zip.generateAsync({
         type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 },
+        compression: "STORE",
       });
 
       const downloadUrl = URL.createObjectURL(zipBlob);
