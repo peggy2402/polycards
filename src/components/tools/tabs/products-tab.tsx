@@ -22,6 +22,7 @@ import {
   Download,
   Eye,
   MousePointerClick,
+  Trash2,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -44,6 +45,7 @@ interface ProductsTabProps {
   onBatchAddToPrintQueue?: (cards: Animal[]) => void;
   onDownloadSingleCard?: (card: Animal) => void;
   onDownloadZipForCards?: (cards: Animal[], customZipName?: string) => Promise<void> | void;
+  onBatchDeleteProducts?: (slugs: string[]) => void;
   printQueueCount?: number;
   isGeneratingZip?: boolean;
 }
@@ -64,6 +66,7 @@ export function ProductsTab({
   onBatchAddToPrintQueue,
   onDownloadSingleCard,
   onDownloadZipForCards,
+  onBatchDeleteProducts,
   printQueueCount = 0,
   isGeneratingZip = false,
 }: ProductsTabProps) {
@@ -78,6 +81,11 @@ export function ProductsTab({
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [batchTargetPackCode, setBatchTargetPackCode] = useState<string>("POLY30-HANHDONG");
   const [isApplyingBatch, setIsApplyingBatch] = useState<boolean>(false);
+
+  // Tự động lọc bỏ các thẻ đã bị xóa khỏi kho thẻ bài
+  useEffect(() => {
+    setSelectedSlugs((prev) => prev.filter((s) => productsList.some((p) => p.slug === s)));
+  }, [productsList]);
 
   // Kéo chuột quét vùng chọn nhiều thẻ (Marquee Drag Selection)
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -607,6 +615,20 @@ export function ProductsTab({
                   <Download className="h-3.5 w-3.5" />
                 )}
                 <span>Tải ZIP ({selectedSlugs.length} Thẻ In)</span>
+              </button>
+            )}
+
+            {/* Xóa hàng loạt các thẻ đã chọn */}
+            {onBatchDeleteProducts && (
+              <button
+                type="button"
+                disabled={selectedSlugs.length === 0}
+                onClick={() => onBatchDeleteProducts(selectedSlugs)}
+                className="py-2 px-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                title={`Xóa vĩnh viễn ${selectedSlugs.length} thẻ bài đã chọn khỏi hệ thống`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Xóa ({selectedSlugs.length} Thẻ)</span>
               </button>
             )}
 

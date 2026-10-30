@@ -4,6 +4,7 @@ import {
   dbGetProducts,
   dbUpsertProduct,
   dbDeleteProduct,
+  dbDeleteProducts,
   isMongoConfigured,
 } from "@/lib/mongodb";
 
@@ -256,6 +257,35 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // 1. Kiểm tra nếu có body JSON yêu cầu xóa hàng loạt
+    let body: any = null;
+    try {
+      body = await request.json();
+    } catch {}
+
+    if (body) {
+      const slugsToDelete: string[] = Array.isArray(body)
+        ? body
+        : Array.isArray(body.slugs)
+        ? body.slugs
+        : Array.isArray(body.ids)
+        ? body.ids
+        : [];
+
+      if (slugsToDelete.length > 0) {
+        const deletedCount = await dbDeleteProducts(slugsToDelete);
+        const remaining = await dbGetProducts();
+
+        return NextResponse.json({
+          success: true,
+          message: `Đã xóa thành công ${deletedCount} thẻ bài khỏi MongoDB!`,
+          deletedCount,
+          remainingCount: remaining.length,
+        });
+      }
+    }
+
+    // 2. Xóa đơn lẻ qua query parameters (?id=... hoặc ?slug=...)
     const { searchParams } = new URL(request.url);
     const idOrSlug = searchParams.get("id") || searchParams.get("slug");
 

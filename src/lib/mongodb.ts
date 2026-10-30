@@ -224,6 +224,33 @@ export async function dbDeleteProduct(idOrSlug: string): Promise<Animal | null> 
   return targetInMem;
 }
 
+export async function dbDeleteProducts(idsOrSlugs: string[]): Promise<number> {
+  const cleanList = idsOrSlugs.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+  if (cleanList.length === 0) return 0;
+
+  const mem = getInMemoryStore();
+  const beforeMemCount = mem.products.length;
+  mem.products = mem.products.filter(
+    (p) => !idsOrSlugs.includes(p.id) && !cleanList.includes(p.slug.toLowerCase())
+  );
+  let deletedCount = beforeMemCount - mem.products.length;
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<Animal>("products");
+    const res = await col.deleteMany({
+      $or: [
+        { id: { $in: idsOrSlugs } },
+        { slug: { $in: cleanList } },
+        { slug: { $in: idsOrSlugs } },
+      ],
+    });
+    deletedCount = res.deletedCount;
+  }
+
+  return deletedCount;
+}
+
 // ============================================================================
 // 2. CATEGORIES REPOSITORY (MongoDB Atlas + Fallback)
 // ============================================================================

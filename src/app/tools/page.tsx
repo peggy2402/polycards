@@ -1379,6 +1379,38 @@ export default function ToolsPage() {
     });
   };
 
+  const handleBatchDeleteProducts = (slugs: string[]) => {
+    if (!slugs || slugs.length === 0) return;
+    const count = slugs.length;
+    requestConfirm({
+      title: "Xác Nhận Xóa Hàng Loạt",
+      message: `Bạn có chắc chắn muốn xóa ${count} thẻ bài đã chọn khỏi hệ thống? Thao tác này sẽ gỡ hoàn toàn dữ liệu thẻ khỏi MongoDB và không thể hoàn tác.`,
+      confirmText: `Xóa Vĩnh Viễn (${count} Thẻ)`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch("/api/products", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slugs }),
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            throw new Error(json.message || "Lỗi xóa thẻ hàng loạt");
+          }
+          slugs.forEach((s) => deleteCustomProduct(s));
+          setProductsList((prev) =>
+            prev.filter((p) => !slugs.includes(p.slug) && !slugs.includes(p.id))
+          );
+          await loadStudioProducts(true);
+          showToast(`Đã xóa thành công ${count} thẻ bài khỏi hệ thống!`, "success");
+        } catch (err: any) {
+          showToast(`Lỗi xóa hàng loạt: ${err.message}`, "error");
+        }
+      },
+    });
+  };
+
   const handleToggleShowOnHome = async (product: Animal) => {
     const nextPinned = !product.showOnHome;
 
@@ -2371,6 +2403,7 @@ export default function ToolsPage() {
           onLoadCardToCanvas={handleLoadCardToCanvas}
           onOpenEditProduct={handleOpenEditProduct}
           onDeleteProduct={handleDeleteProduct}
+          onBatchDeleteProducts={handleBatchDeleteProducts}
           onToggleShowOnHome={handleToggleShowOnHome}
           onOpenComboModal={() => setIsComboModalOpen(true)}
           onBatchAssignPackCode={handleBatchAssignPackCode}
