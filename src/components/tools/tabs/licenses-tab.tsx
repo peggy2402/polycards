@@ -411,12 +411,12 @@ export function LicensesTab({
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="border-b border-white/10 bg-black/40 text-stone-400 uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4 font-black">Mã Bộ (Pack Code)</th>
-                      <th className="py-3 px-4 font-black">Tên Bộ Sản Phẩm</th>
-                      <th className="py-3 px-4 font-black">Danh Mục</th>
-                      <th className="py-3 px-4 text-center font-black">Số Thẻ Đang Gắn</th>
-                      <th className="py-3 px-4 font-black">Trạng Thái</th>
-                      <th className="py-3 px-4 text-right font-black">Thao Tác</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[180px]">Mã Bộ (Pack Code)</th>
+                      <th className="py-3 px-4 font-black min-w-[180px]">Tên Bộ Sản Phẩm</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[100px]">Danh Mục</th>
+                      <th className="py-3 px-4 text-center font-black whitespace-nowrap min-w-[120px]">Số Thẻ Đang Gắn</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[140px]">Trạng Thái</th>
+                      <th className="py-3 px-4 text-right font-black whitespace-nowrap min-w-[110px]">Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -651,13 +651,13 @@ export function LicensesTab({
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="border-b border-white/10 bg-black/40 text-stone-400 uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4 font-black">Mã Bản Quyền</th>
-                      <th className="py-3 px-4 font-black">Loại</th>
-                      <th className="py-3 px-4 font-black">Khách Hàng</th>
-                      <th className="py-3 px-4 font-black">Sản Phẩm Đã Mua</th>
-                      <th className="py-3 px-4 text-right font-black">Doanh Thu</th>
-                      <th className="py-3 px-4 font-black">Ngày Cấp</th>
-                      <th className="py-3 px-4 text-right font-black">Thao Tác</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[240px]">Mã Bản Quyền</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[110px]">Loại</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[160px]">Khách Hàng</th>
+                      <th className="py-3 px-4 font-black min-w-[180px]">Sản Phẩm Đã Mua</th>
+                      <th className="py-3 px-4 text-right font-black whitespace-nowrap min-w-[120px]">Doanh Thu</th>
+                      <th className="py-3 px-4 font-black whitespace-nowrap min-w-[120px]">Ngày Cấp</th>
+                      <th className="py-3 px-4 text-right font-black whitespace-nowrap min-w-[90px]">Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -672,7 +672,7 @@ export function LicensesTab({
 
                       return (
                         <tr key={ord.id || ord.code} className="hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs font-black text-amber-300">
                                 {ord.packCode || ord.code}
@@ -692,9 +692,9 @@ export function LicensesTab({
                             </div>
                           </td>
 
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 whitespace-nowrap">
                             <span
-                              className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                              className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                 type === "SINGLE"
                                   ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
                                   : type === "MULTI"
