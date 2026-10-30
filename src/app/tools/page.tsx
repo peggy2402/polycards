@@ -57,6 +57,7 @@ import { PublishProductModal } from "@/components/tools/modals/publish-product-m
 import { EditProductModal } from "@/components/tools/modals/edit-product-modal";
 import { CategoryModal } from "@/components/tools/modals/category-modal";
 import { ComboConfigModal } from "@/components/tools/modals/combo-config-modal";
+import { getPackCodeForCategory } from "@/lib/pack-codes-store";
 
 // Import Tabs
 import { EditorTab } from "@/components/tools/tabs/editor-tab";
@@ -456,7 +457,12 @@ export default function ToolsPage() {
     } else if (!productForm.enableEnVi && productForm.enableZhVi) {
       params.set("lang", "zh-vi");
     }
-    const effectiveCode = (includeLicense && licenseCode.trim()) || productForm.packCode?.trim() || "";
+    const categoryPackCode = getPackCodeForCategory(productForm.category);
+    const effectiveCode =
+      (includeLicense && licenseCode.trim()) ||
+      productForm.packCode?.trim() ||
+      categoryPackCode ||
+      "";
     if (effectiveCode) {
       params.set("code", effectiveCode);
     }
@@ -1737,12 +1743,19 @@ export default function ToolsPage() {
       setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
     }
 
+    const resolvedCategory = resolveCanonicalCategoryName(
+      product.category,
+      product.categorySlug
+    );
+    const effectivePackCode =
+      product.packCode && product.packCode.trim() !== ""
+        ? product.packCode.trim()
+        : getPackCodeForCategory(product.categorySlug || resolvedCategory);
+
     // 3. Đồng bộ Mã Bộ vào licenseCode và QR URL
-    if (product.packCode && product.packCode.trim() !== "") {
-      setLicenseCode(product.packCode.trim());
-      setIncludeLicense(true);
-      setSelectedPackForCard(product.packCode.trim());
-    }
+    setLicenseCode(effectivePackCode);
+    setIncludeLicense(true);
+    setSelectedPackForCard(effectivePackCode);
 
     // 4. Nếu có ảnh phôi sạch, BẬT NGAY lớp QR ghép nổi bên trên
     if (hasRawTemplate) {
@@ -1768,10 +1781,6 @@ export default function ToolsPage() {
     const matchedProductPreset = PRESET_3D_MODELS.find(
       (p) => p.modelUrl === product.modelUrl
     );
-    const resolvedCategory = resolveCanonicalCategoryName(
-      product.category,
-      product.categorySlug
-    );
 
     setProductForm({
       nameEn: product.nameEn,
@@ -1785,7 +1794,7 @@ export default function ToolsPage() {
           ? product.enableZhVi
           : Boolean(product.nameZh && product.nameZh.trim()),
       category: resolvedCategory,
-      packCode: product.packCode || "",
+      packCode: effectivePackCode,
       price: product.price || 219000,
       originalPrice: product.originalPrice || Math.round((product.price || 219000) * 1.3),
       badge: product.badge !== undefined ? product.badge : "Mới ra mắt",
@@ -1817,6 +1826,10 @@ export default function ToolsPage() {
         existingProduct.category,
         existingProduct.categorySlug
       );
+      const effectivePackCode =
+        existingProduct.packCode && existingProduct.packCode.trim() !== ""
+          ? existingProduct.packCode.trim()
+          : getPackCodeForCategory(existingProduct.categorySlug || resolvedCategory);
       const matchedPreset = PRESET_3D_MODELS.find(
         (p) => p.modelUrl === existingProduct.modelUrl
       );
@@ -1833,7 +1846,7 @@ export default function ToolsPage() {
             ? existingProduct.enableZhVi
             : Boolean(existingProduct.nameZh && existingProduct.nameZh.trim()),
         category: resolvedCategory,
-        packCode: existingProduct.packCode || "",
+        packCode: effectivePackCode,
         price: existingProduct.price || 219000,
         originalPrice:
           existingProduct.originalPrice ||
@@ -1903,6 +1916,7 @@ export default function ToolsPage() {
     }
 
     const resolvedDefaultCat = resolveCanonicalCategoryName(defaultCat);
+    const defaultPackCode = getPackCodeForCategory(resolvedDefaultCat);
     const matchedPreset = PRESET_3D_MODELS.find((p) => p.id === cleanSlug);
 
     // Nếu người dùng đã tải file .glb/.usdz/.mind lên trong phiên hiện tại thì giữ nguyên
@@ -1917,7 +1931,7 @@ export default function ToolsPage() {
       enableEnVi: prev.enableEnVi !== undefined ? prev.enableEnVi : true,
       enableZhVi: prev.enableZhVi !== undefined ? prev.enableZhVi : false,
       category: isCurrentSlugSame && prev.category ? prev.category : resolvedDefaultCat,
-      packCode: prev.packCode || "",
+      packCode: isCurrentSlugSame && prev.packCode ? prev.packCode : defaultPackCode,
       price: prev.price || 219000,
       originalPrice: prev.originalPrice || 299000,
       badge: prev.badge !== undefined ? prev.badge : "Mới ra mắt",

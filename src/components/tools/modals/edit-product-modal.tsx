@@ -13,6 +13,7 @@ import {
 import { Animal, ProductCategory } from "@/types/animal";
 import { EditProductFormData } from "../types";
 import { ArResourcePanel } from "../widgets/ar-resource-panel";
+import { getPackCodeForCategory } from "@/lib/pack-codes-store";
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -265,7 +266,11 @@ export function EditProductModal({
               </label>
               <select
                 value={editProductForm.category}
-                onChange={(e) => onChangeForm({ category: e.target.value })}
+                onChange={(e) => {
+                  const newCat = e.target.value;
+                  const newPack = getPackCodeForCategory(newCat);
+                  onChangeForm({ category: newCat, packCode: newPack });
+                }}
                 className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
               >
                 {categoriesList.map((c) => (

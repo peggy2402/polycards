@@ -18,6 +18,7 @@ import { ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { ProductFormData } from "../types";
 import { ArResourcePanel } from "../widgets/ar-resource-panel";
+import { getPackCodeForCategory, getStoredPackCodes } from "@/lib/pack-codes-store";
 
 interface PublishProductModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export function PublishProductModal({
   onShowToast,
 }: PublishProductModalProps) {
   const [showAdvancedFields, setShowAdvancedFields] = useState<boolean>(false);
+  const storedPackCodes = getStoredPackCodes();
 
   if (!isOpen) return null;
 
@@ -104,7 +106,12 @@ export function PublishProductModal({
               <select
                 required
                 value={productForm.category}
-                onChange={(e) => onChangeForm({ category: e.target.value })}
+                onChange={(e) => {
+                  const newCatName = e.target.value;
+                  const matchedCat = categoriesList.find((c) => c.name === newCatName);
+                  const newPackCode = getPackCodeForCategory(matchedCat?.slug || newCatName);
+                  onChangeForm({ category: newCatName, packCode: newPackCode });
+                }}
                 className="w-full bg-black/80 border border-amber-400/60 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-amber-300 focus:outline-hidden focus:border-amber-300 cursor-pointer"
               >
                 {categoriesList.map((cat) => (
@@ -116,6 +123,61 @@ export function PublishProductModal({
               <p className="text-[10px] text-stone-400">
                 Thẻ bài sẽ được xuất bản đồng thời lên Trang chủ <code className="text-amber-300">#products</code> và Kho Thẻ Bài <code className="text-amber-300">/products</code>.
               </p>
+            </div>
+
+            {/* 1.1 GẮN MÃ BỘ BẢN QUYỀN (PACK CODE - THAM SỐ &code=) */}
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-black/60 border border-white/15 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <PackageCheck className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span>Mã Bộ Bản Quyền (Tham số &code= trên QR)</span>
+                </label>
+                <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                  Tự động theo danh mục
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-stone-400 font-bold mb-1">
+                    Chọn nhanh mã bộ có sẵn:
+                  </label>
+                  <select
+                    value={productForm.packCode || ""}
+                    onChange={(e) => onChangeForm({ packCode: e.target.value })}
+                    className="w-full bg-stone-900 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-amber-300 focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                  >
+                    <option value="" className="text-stone-400">
+                      -- Để trống (Chưa gắn mã) --
+                    </option>
+                    {storedPackCodes.map((p) => (
+                      <option key={p.code} value={p.code} className="text-white">
+                        {p.code} ({p.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-stone-400 font-bold mb-1">
+                    Hoặc nhập mã tùy chỉnh:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: POLY30-HOAQUA, POLY30-DONGVAT..."
+                    value={productForm.packCode || ""}
+                    onChange={(e) => onChangeForm({ packCode: e.target.value.toUpperCase().trim() })}
+                    className="w-full bg-stone-900 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1 text-[10px] text-stone-400">
+                <span>Tham số nhúng vào QR:</span>
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-400/30 text-amber-300 font-mono font-bold">
+                  {productForm.packCode ? `&code=${productForm.packCode}` : "(Không có tham số code)"}
+                </span>
+              </div>
             </div>
 
             {/* 2. CHẾ ĐỘ SONG NGỮ (TOGGLE ANH - VIỆT & TRUNG - VIỆT) */}

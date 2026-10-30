@@ -143,3 +143,59 @@ export function deleteStoredPackCode(code: string): PackCodeItem[] {
   return updated;
 }
 
+export function getPackCodeForCategory(categorySlugOrName?: string): string {
+  if (!categorySlugOrName) return "POLY30-DONGVAT";
+  const raw = categorySlugOrName.trim().toLowerCase();
+
+  // 1. Kiểm tra nhanh các chủ đề phổ biến
+  if (
+    raw.includes("hoa-qua") ||
+    raw.includes("hoa qua") ||
+    raw.includes("trái cây") ||
+    raw.includes("trai cay") ||
+    raw.includes("thực vật") ||
+    raw.includes("thuc vat")
+  ) {
+    return "POLY30-HOAQUA";
+  }
+  if (
+    raw.includes("dong-vat") ||
+    raw.includes("dong vat") ||
+    raw.includes("động vật") ||
+    raw.includes("thu cung")
+  ) {
+    return "POLY30-DONGVAT";
+  }
+  if (
+    raw.includes("hanh-dong") ||
+    raw.includes("hanh dong") ||
+    raw.includes("hành động") ||
+    raw.includes("dong tu")
+  ) {
+    return "POLY30-HANHDONG";
+  }
+  if (
+    raw.includes("xe-co") ||
+    raw.includes("xe co") ||
+    raw.includes("giao thông") ||
+    raw.includes("giao thong") ||
+    raw.includes("phương tiện")
+  ) {
+    return "POLY30-XECO";
+  }
+
+  // 2. Tra cứu trong danh sách mã bộ đã lưu trữ
+  const stored = getStoredPackCodes();
+  const found = stored.find(
+    (p) =>
+      p.categorySlug.toLowerCase() === raw ||
+      p.categoryName.toLowerCase() === raw ||
+      p.name.toLowerCase().includes(raw)
+  );
+  if (found) return found.code;
+
+  // 3. Fallback theo chuẩn POLY30-[SLUG]
+  const clean = raw.replace(/[^a-z0-9]/g, "");
+  return clean ? `POLY30-${clean.toUpperCase()}` : "POLY30-DONGVAT";
+}
+
