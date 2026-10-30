@@ -1772,6 +1772,61 @@ export default function ToolsPage() {
     await handleBatchAssignPackCode([card.slug], newPackCode);
   };
 
+  // Cập nhật chế độ Song Ngữ (Anh - Việt / Trung - Việt / Cả hai) hàng loạt cho các thẻ đã chọn
+  const handleBatchUpdateLanguage = async (
+    slugs: string[],
+    langMode: "en-vi" | "zh-vi" | "both"
+  ) => {
+    if (!slugs || slugs.length === 0) return;
+    const updateFields = {
+      enableEnVi: langMode === "en-vi" || langMode === "both",
+      enableZhVi: langMode === "zh-vi" || langMode === "both",
+    };
+
+    // 1. Optimistic update local state ngay lập tức
+    setProductsList((prev) =>
+      prev.map((item) =>
+        slugs.includes(item.slug) ? { ...item, ...updateFields } : item
+      )
+    );
+
+    // 2. Cập nhật localStorage
+    slugs.forEach((slug) => {
+      const existing = productsList.find((p) => p.slug === slug);
+      if (existing) {
+        saveProductToLanding({
+          ...existing,
+          category: existing.category || "Động Vật",
+          price: existing.price || 219000,
+          ...updateFields,
+        });
+      }
+    });
+
+    // 3. Gửi batch update lên MongoDB qua API
+    try {
+      const itemsToUpdate = slugs.map((slug) => ({ slug, ...updateFields }));
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch: itemsToUpdate }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const modeText =
+        langMode === "en-vi"
+          ? "Anh - Việt (EN-VI)"
+          : langMode === "zh-vi"
+          ? "Trung - Việt (ZH-VI)"
+          : "Cả hai (EN & ZH)";
+      showToast(`Đã chuyển ${slugs.length} thẻ sang chế độ "${modeText}" thành công!`, "success");
+    } catch (err: any) {
+      console.warn("Lỗi đồng bộ song ngữ lên server:", err);
+      showToast(`Đã lưu cục bộ nhưng đồng bộ server bị lỗi: ${err.message}`, "warning");
+    }
+  };
+
   const handleOpenEditProduct = (product: Animal) => {
     setEditingProduct(product);
     setEditProductForm({
@@ -2720,6 +2775,7 @@ export default function ToolsPage() {
           onToggleShowOnHome={handleToggleShowOnHome}
           onOpenComboModal={() => setIsComboModalOpen(true)}
           onBatchAssignPackCode={handleBatchAssignPackCode}
+          onBatchUpdateLanguage={handleBatchUpdateLanguage}
           onUpdatePackCode={handleUpdateSinglePackCode}
           onAddToPrintQueue={handleAddCardToPrintQueue}
           onBatchAddToPrintQueue={handleBatchAddToPrintQueue}

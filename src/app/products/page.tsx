@@ -175,7 +175,7 @@ export default function ProductsPage() {
           const matchEn = product.enableEnVi !== false && Boolean(product.nameEn && product.nameEn.trim());
           if (!matchEn) return false;
         } else if (languageFilter === "zh-vi") {
-          const matchZh = product.enableZhVi === true || Boolean(product.nameZh && product.nameZh.trim());
+          const matchZh = Boolean(product.enableZhVi);
           if (!matchZh) return false;
         }
 

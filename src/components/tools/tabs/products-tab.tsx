@@ -56,6 +56,7 @@ interface ProductsTabProps {
   onToggleShowOnHome: (card: Animal) => void;
   onOpenComboModal: () => void;
   onBatchAssignPackCode: (slugs: string[], packCode: string) => Promise<void> | void;
+  onBatchUpdateLanguage?: (slugs: string[], langMode: "en-vi" | "zh-vi" | "both") => Promise<void> | void;
   onUpdatePackCode?: (card: Animal, newPackCode: string) => Promise<void> | void;
   onAddToPrintQueue?: (card: Animal) => void;
   onBatchAddToPrintQueue?: (cards: Animal[]) => void;
@@ -77,6 +78,7 @@ export function ProductsTab({
   onToggleShowOnHome,
   onOpenComboModal,
   onBatchAssignPackCode,
+  onBatchUpdateLanguage,
   onUpdatePackCode,
   onAddToPrintQueue,
   onBatchAddToPrintQueue,
@@ -261,7 +263,7 @@ export function ProductsTab({
       if (card.enableEnVi !== false && Boolean(card.nameEn && card.nameEn.trim())) {
         enVi++;
       }
-      if (card.enableZhVi === true || Boolean(card.nameZh && card.nameZh.trim())) {
+      if (Boolean(card.enableZhVi)) {
         zhVi++;
       }
     });
@@ -290,7 +292,7 @@ export function ProductsTab({
       filterCardLanguage === "all" ||
       (filterCardLanguage === "en-vi"
         ? card.enableEnVi !== false && Boolean(card.nameEn && card.nameEn.trim())
-        : card.enableZhVi === true || Boolean(card.nameZh && card.nameZh.trim()));
+        : Boolean(card.enableZhVi));
 
     const matchesHomeFilter = !onlyHomeFeatured || Boolean(card.showOnHome);
 
@@ -837,6 +839,38 @@ export function ProductsTab({
               )}
             </button>
 
+            {/* Gán Chế Độ Song Ngữ Hàng Loạt */}
+            {onBatchUpdateLanguage && (
+              <div className="flex items-center gap-1.5 bg-black/60 border border-emerald-400/40 rounded-xl px-2.5 py-1.5">
+                <Languages className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <span className="text-[10px] font-bold text-emerald-300">Song ngữ:</span>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const mode = e.target.value as "en-vi" | "zh-vi" | "both";
+                    if (!mode) return;
+                    onBatchUpdateLanguage(selectedSlugs, mode);
+                    e.target.value = "";
+                  }}
+                  disabled={selectedSlugs.length === 0}
+                  className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer max-w-[170px] truncate disabled:opacity-40"
+                >
+                  <option value="" disabled className="bg-stone-900 text-stone-400">
+                    -- Đổi song ngữ ({selectedSlugs.length}) --
+                  </option>
+                  <option value="en-vi" className="bg-stone-900 text-amber-300">
+                    Chuyển sang: Anh - Việt
+                  </option>
+                  <option value="zh-vi" className="bg-stone-900 text-rose-300">
+                    Chuyển sang: Trung - Việt
+                  </option>
+                  <option value="both" className="bg-stone-900 text-emerald-300">
+                    Bật cả hai (EN + ZH)
+                  </option>
+                </select>
+              </div>
+            )}
+
             {/* Thêm hàng loạt vào hàng đợi in */}
             {onBatchAddToPrintQueue && (
               <button
@@ -1081,7 +1115,11 @@ export function ProductsTab({
 
                   <div className="flex items-center justify-between gap-1 text-[11px]">
                     <span className="text-stone-400 font-semibold truncate">
-                      {card.nameEn}
+                      {card.enableZhVi && !card.enableEnVi && card.nameZh
+                        ? `${card.nameZh} (${card.pinyinZh || ""})`
+                        : card.enableZhVi && card.enableEnVi && card.nameZh
+                        ? `${card.nameEn} • ${card.nameZh}`
+                        : card.nameEn}
                     </span>
                     <span className="font-mono font-black text-amber-400 shrink-0">
                       {formatVndCurrency(card.price || 219000)}
@@ -1209,7 +1247,9 @@ export function ProductsTab({
                             <div className="text-[11px] text-stone-400 flex items-center gap-1.5 font-mono">
                               <span>{card.nameEn}</span>
                               {card.ipa && <span className="text-stone-500">{card.ipa}</span>}
-                              {card.nameZh && <span className="text-amber-300/80 font-sans">{card.nameZh}</span>}
+                              {card.enableZhVi && card.nameZh && (
+                                <span className="text-rose-300 font-sans font-bold">{card.nameZh}</span>
+                              )}
                             </div>
                           </td>
 
@@ -1576,7 +1616,7 @@ export function ProductsTab({
                               ? true
                               : zipExportLangFilter === "en-vi"
                               ? p.enableEnVi !== false && Boolean(p.nameEn && p.nameEn.trim())
-                              : p.enableZhVi === true || Boolean(p.nameZh && p.nameZh.trim());
+                              : Boolean(p.enableZhVi);
                           return matchCat && matchLang;
                         }).length;
 
@@ -1718,7 +1758,7 @@ export function ProductsTab({
                           ? true
                           : zipExportLangFilter === "en-vi"
                           ? p.enableEnVi !== false && Boolean(p.nameEn && p.nameEn.trim())
-                          : p.enableZhVi === true || Boolean(p.nameZh && p.nameZh.trim());
+                          : Boolean(p.enableZhVi);
                       return matchCat && matchLang;
                     })
                   : selectedExportPackCode.startsWith("pack:")
