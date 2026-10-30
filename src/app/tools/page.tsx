@@ -202,6 +202,7 @@ export default function ToolsPage() {
 
   // 13. Tabs phân hệ Studio
   const [activeStudioTab, setActiveStudioTab] = useState<StudioTab>("editor");
+  const isTabInitializedRef = useRef<boolean>(false);
 
   // 14. Hàng Đợi Xuất File In Ấn (Print Queue) & Đóng gói ZIP
   const [printQueue, setPrintQueue] = useState<PrintQueueItem[]>([]);
@@ -341,6 +342,67 @@ export default function ToolsPage() {
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleUpdate);
     };
   }, [loadStudioProducts]);
+
+  // Khôi phục tab khi tải lại trang (Ưu tiên từ URL searchParams ?tab=..., sau đó đến localStorage)
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get("tab") as StudioTab;
+        const validTabs: StudioTab[] = ["editor", "products", "categories"];
+        let targetTab: StudioTab | null = null;
+
+        if (urlTab && validTabs.includes(urlTab)) {
+          targetTab = urlTab;
+        } else {
+          const savedTab = localStorage.getItem("poly_studio_active_tab") as StudioTab;
+          if (savedTab && validTabs.includes(savedTab)) {
+            targetTab = savedTab;
+          }
+        }
+
+        if (targetTab) {
+          setActiveStudioTab(targetTab);
+          if (targetTab === "products") {
+            loadStudioProducts(true);
+          }
+        }
+      }
+    } catch {} finally {
+      isTabInitializedRef.current = true;
+    }
+  }, [loadStudioProducts]);
+
+  // Đồng bộ tab đang chọn vào URL query và localStorage để khi F5 / reload không bị mất trạng thái
+  useEffect(() => {
+    if (!isTabInitializedRef.current) return;
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("poly_studio_active_tab", activeStudioTab);
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("tab") !== activeStudioTab) {
+          url.searchParams.set("tab", activeStudioTab);
+          window.history.replaceState(null, "", url.toString());
+        }
+      }
+    } catch {}
+  }, [activeStudioTab]);
+
+  // Lắng nghe nút Back / Forward trên trình duyệt để chuyển tab tương ứng
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get("tab") as StudioTab;
+        const validTabs: StudioTab[] = ["editor", "products", "categories"];
+        if (urlTab && validTabs.includes(urlTab)) {
+          setActiveStudioTab(urlTab);
+        }
+      } catch {}
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Nhận diện session bảo mật
   useEffect(() => {
