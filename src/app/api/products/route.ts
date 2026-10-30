@@ -1,14 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GridFSBucket } from "mongodb";
 import { Animal } from "@/types/animal";
 import {
   dbGetProducts,
   dbUpsertProduct,
   dbDeleteProduct,
   dbDeleteProducts,
+  getMongoDb,
   isMongoConfigured,
 } from "@/lib/mongodb";
 
 const KNOWN_GLB_SLUGS = new Set(["cat", "deer", "dog", "elephant", "lion", "panda"]);
+
+/**
+ * Tự động chuyển chuỗi Data URL Base64 thành tệp trong GridFS, tránh phình to document MongoDB
+ */
+async function persistBase64Image(base64Data: string, prefix: string): Promise<string> {
+  if (!base64Data || !base64Data.startsWith("data:image/")) {
+    return base64Data;
+  }
+  try {
+    const db = await getMongoDb();
+    if (!db) return base64Data;
+    const match = base64Data.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!match) return base64Data;
+    const ext = match[1] === "jpeg" ? "jpg" : match[1];
+    const buffer = Buffer.from(match[2], "base64");
+    const bucket = new GridFSBucket(db, { bucketName: "assets" });
+    const fileName = `${prefix}.${ext}`;
+
+    const existing = await bucket.find({ filename: fileName }).toArray();
+    for (const old of existing) {
+      await bucket.delete(old._id).catch(() => {});
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const stream = bucket.openUploadStream(fileName, {
+        metadata: {
+          fileType: "image",
+          contentType: `image/${match[1]}`,
+          size: buffer.length,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      stream.on("error", reject);
+      stream.on("finish", () => resolve());
+      stream.end(buffer);
+    });
+
+    return `/api/tools/upload?file=${encodeURIComponent(fileName)}`;
+  } catch (err) {
+    console.error("Lỗi chuyển đổi base64 lên GridFS:", err);
+    return base64Data;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -117,15 +162,41 @@ export async function POST(request: NextRequest) {
     const defaultModelGlb = hasStaticModel ? `/models/${cleanSlug}.glb` : "/models/lion.glb";
     const defaultModelUsdz = hasStaticModel ? `/models/${cleanSlug}.usdz` : "/models/lion.usdz";
 
-    const finalImageUrl =
+    let finalImageUrl =
       body.posterUrl ||
       (Array.isArray(body.images) && body.images.length > 0 ? body.images[0] : "") ||
       existingItem?.posterUrl ||
       "/images/cards/jump-template.jpg";
 
-    const defaultImages = finalImageUrl
-      ? [finalImageUrl]
-      : existingItem?.images || ["/images/cards/jump-template.jpg"];
+    if (typeof finalImageUrl === "string" && finalImageUrl.startsWith("data:image/")) {
+      finalImageUrl = await persistBase64Image(finalImageUrl, `${cleanSlug}-card`);
+    }
+
+    let defaultImages = [finalImageUrl];
+    if (Array.isArray(body.images) && body.images.length > 0) {
+      defaultImages = await Promise.all(
+        body.images.map(async (img: string, idx: number) => {
+          if (typeof img === "string" && img.startsWith("data:image/")) {
+            return await persistBase64Image(
+              img,
+              idx === 0 ? `${cleanSlug}-card` : `${cleanSlug}-card-${idx}`
+            );
+          }
+          return img;
+        })
+      );
+    } else if (existingItem?.images) {
+      defaultImages = existingItem.images;
+    }
+
+    let finalRawImageUrl =
+      body.rawImageUrl !== undefined
+        ? String(body.rawImageUrl).trim()
+        : existingItem?.rawImageUrl || "";
+
+    if (finalRawImageUrl.startsWith("data:image/")) {
+      finalRawImageUrl = await persistBase64Image(finalRawImageUrl, `${cleanSlug}-raw`);
+    }
 
     const rawCategory = String(body.category || "Động Vật").trim();
     let computedCategorySlug = body.categorySlug;
@@ -205,10 +276,7 @@ export async function POST(request: NextRequest) {
         `Thẻ học thông minh AR Poly Cards: ${body.nameVi} (${body.nameEn}).`,
       images: defaultImages,
       posterUrl: finalImageUrl,
-      rawImageUrl:
-        body.rawImageUrl !== undefined
-          ? String(body.rawImageUrl).trim()
-          : existingItem?.rawImageUrl || "",
+      rawImageUrl: finalRawImageUrl,
       qrPosition:
         body.qrPosition && typeof body.qrPosition.x === "number"
           ? {

@@ -653,7 +653,37 @@ export default function ToolsPage() {
     img.onload = () => {
       setCardImageSrc(objectUrl);
       setRawImageUrl(objectUrl);
-      setRawImageBlob(file);
+
+      // Tối ưu dung lượng ảnh phôi bằng canvas (max 1440px, jpeg 0.85) để tiết kiệm dung lượng MongoDB Atlas
+      const maxDim = 1440;
+      let w = img.naturalWidth || 709;
+      let h = img.naturalHeight || 1024;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (compressedBlob) => {
+            setRawImageBlob(compressedBlob || file);
+          },
+          "image/jpeg",
+          0.85
+        );
+      } else {
+        setRawImageBlob(file);
+      }
+
       setCardDimensions({
         width: img.naturalWidth || 709,
         height: img.naturalHeight || 1024,
@@ -683,7 +713,37 @@ export default function ToolsPage() {
     img.onload = () => {
       setCardImageSrc(objectUrl);
       setRawImageUrl(objectUrl);
-      setRawImageBlob(file);
+
+      // Tối ưu dung lượng ảnh phôi bằng canvas (max 1440px, jpeg 0.85) để tiết kiệm dung lượng MongoDB Atlas
+      const maxDim = 1440;
+      let w = img.naturalWidth || 709;
+      let h = img.naturalHeight || 1024;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (compressedBlob) => {
+            setRawImageBlob(compressedBlob || file);
+          },
+          "image/jpeg",
+          0.85
+        );
+      } else {
+        setRawImageBlob(file);
+      }
+
       setCardDimensions({
         width: img.naturalWidth || 709,
         height: img.naturalHeight || 1024,
