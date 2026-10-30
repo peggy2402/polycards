@@ -132,18 +132,18 @@ export function PrintExportPanel({
               <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => onSetQrPos({ x: 6.2, y: 70.8, size: 25.8 })}
+                  onClick={() => onSetQrPos({ x: 4.1, y: 74.2, size: 22.8 })}
                   className="py-1.5 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-[10px] font-bold text-amber-300 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                  title="Vị trí tiêu chuẩn của thẻ Poly Cards (6.2%, 70.8%, 25.8%)"
+                  title="Vị trí tiêu chuẩn vàng của Poly Cards (X: 4.1%, Y: 74.2%, Cỡ: 22.8%)"
                 >
                   <Target className="h-3 w-3" />
                   <span>Ô Vàng Chuẩn</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => onSetQrPos({ x: 7.0, y: 72.0, size: 24.5 })}
+                  onClick={() => onSetQrPos({ x: 4.1, y: 74.2, size: 22.8 })}
                   className="py-1.5 px-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-[10px] font-bold text-emerald-300 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                  title="Căn lùi nhẹ vào giữa tâm của ô bo vàng (7.0%, 72.0%, 24.5%)"
+                  title="Căn chuẩn xác vào giữa tâm của ô bo vàng (X: 4.1%, Y: 74.2%, Cỡ: 22.8%)"
                 >
                   <span>Giữa Tâm</span>
                 </button>

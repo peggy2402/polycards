@@ -1,4 +1,10 @@
-import { CardPreset, Preset3DModel } from "./types";
+import { CardPreset, Preset3DModel, QrPosition } from "./types";
+
+export const DEFAULT_QR_POS: QrPosition = {
+  x: 4.1,
+  y: 74.2,
+  size: 22.8,
+};
 
 export const CARD_PRESETS: CardPreset[] = [
   {
@@ -9,7 +15,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/cards/jump-template.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
   {
     id: "lion-animal",
@@ -19,7 +25,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/animals/lion.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
   {
     id: "cat-animal",
@@ -29,7 +35,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/animals/cat.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
   {
     id: "dog-animal",
@@ -39,7 +45,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/animals/dog.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
   {
     id: "deer-animal",
@@ -49,7 +55,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/animals/deer.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
   {
     id: "elephant-animal",
@@ -59,7 +65,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/animals/elephant.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
   {
     id: "panda-animal",
@@ -69,7 +75,7 @@ export const CARD_PRESETS: CardPreset[] = [
     imageSrc: "/images/animals/panda.jpg",
     width: 709,
     height: 1024,
-    defaultQr: { x: 6.2, y: 70.8, size: 25.8 },
+    defaultQr: { x: 4.1, y: 74.2, size: 22.8 },
   },
 ];
 

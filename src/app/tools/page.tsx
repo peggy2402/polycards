@@ -96,11 +96,11 @@ export default function ToolsPage() {
   const [rawImageUrl, setRawImageUrl] = useState<string>("");
   const [rawImageBlob, setRawImageBlob] = useState<Blob | null>(null);
 
-  // 5. Tọa độ & Kích thước QR trên Thẻ (% để chuẩn xác trên mọi kích thước ảnh)
+  // 5. Tọa độ & Kích thước QR trên Thẻ (% chuẩn xác theo ô vàng thực tế: Cỡ 22.8%, X: 4.1%, Y: 74.2%)
   const [qrPos, setQrPos] = useState<QrPosition>({
-    x: 6.2,
-    y: 70.8,
-    size: 25.8,
+    x: 4.1,
+    y: 74.2,
+    size: 22.8,
   });
   const [isQrOverlayEnabled, setIsQrOverlayEnabled] = useState<boolean>(true);
 
@@ -512,7 +512,7 @@ export default function ToolsPage() {
     setIncludeLicense(true);
     setDirectAr(true);
     setPackGeneratedCode(newCode);
-    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+    setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
 
     try {
       await fetch("/api/orders", {
@@ -597,7 +597,7 @@ export default function ToolsPage() {
       });
       setCardFileName(file.name);
       setIsQrOverlayEnabled(true);
-      setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+      setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
       showToast(
         "Đã nạp ảnh phôi sạch mới thành công! Mã QR giờ đây đã nổi bên trên, bạn có thể tự do căn chỉnh lại sắc nét.",
         "success"
@@ -632,19 +632,19 @@ export default function ToolsPage() {
         size: existing.qrPosition.size,
       });
     } else {
-      setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+      setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
     }
 
     showToast("Đã khôi phục lại ảnh nguyên bản của thẻ bài!", "info");
   };
 
   const handleAutoSnap = () => {
-    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+    setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
   };
 
   const handleResetQrToStandard = () => {
-    setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
-    showToast("Đã căn mã QR vào vị trí ô vàng tiêu chuẩn (X: 6.2%, Y: 70.8%, Cỡ: 25.8%).", "info");
+    setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
+    showToast("Đã căn mã QR vào vị trí ô vàng tiêu chuẩn (Cỡ: 22.8%, X: 4.1%, Y: 74.2%).", "info");
   };
 
   const handleToggleQrOverlay = () => {
@@ -1127,11 +1127,11 @@ export default function ToolsPage() {
 
           ctx.drawImage(baseImg, 0, 0, width, height);
 
-          // Nếu chưa có QR hoặc vẽ lại từ phôi sạch, vẽ lớp QR vào vị trí đã lưu của thẻ (mặc định x=6.2%, y=70.8%, size=25.8%)
+          // Nếu chưa có QR hoặc vẽ lại từ phôi sạch, vẽ lớp QR vào vị trí đã lưu của thẻ (mặc định x=4.1%, y=74.2%, size=22.8%)
           if (!isAlreadyComposite && qrDataUrl) {
-            const qrX = card.qrPosition?.x ?? 6.2;
-            const qrY = card.qrPosition?.y ?? 70.8;
-            const qrSize = card.qrPosition?.size ?? 25.8;
+            const qrX = card.qrPosition?.x ?? 4.1;
+            const qrY = card.qrPosition?.y ?? 74.2;
+            const qrSize = card.qrPosition?.size ?? 22.8;
 
             const realQrX = (qrX / 100) * width;
             const realQrY = (qrY / 100) * height;
@@ -1628,7 +1628,7 @@ export default function ToolsPage() {
         size: product.qrPosition.size,
       });
     } else {
-      setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
+      setQrPos({ x: 4.1, y: 74.2, size: 22.8 });
     }
 
     // 3. Nếu có ảnh phôi sạch, BẬT NGAY lớp QR ghép nổi bên trên
