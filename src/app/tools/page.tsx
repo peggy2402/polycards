@@ -1119,9 +1119,11 @@ export default function ToolsPage() {
             ? "POLY30-HOAQUA"
             : "";
 
-        const targetWebArUrl = `${
-          typeof window !== "undefined" ? window.location.origin : "https://polycards-one.vercel.app"
-        }/ar/${card.slug}?ar=1${effectivePackCode ? `&code=${encodeURIComponent(effectivePackCode)}` : ""}`;
+        // Luôn sử dụng domain chính thức cho file in ấn xưởng để điện thoại quét trúng production kèm code
+        const baseUrl = "https://polycards-one.vercel.app";
+        const targetWebArUrl = `${baseUrl}/ar/${card.slug}?ar=1${
+          effectivePackCode ? `&code=${encodeURIComponent(effectivePackCode)}` : ""
+        }`;
 
         // Sinh mã QR nét cao chứa đúng mã bộ và logo tròn Poly Cards ở trung tâm
         let qrDataUrl = "";
@@ -1204,6 +1206,10 @@ export default function ToolsPage() {
             const realQrX = (qrX / 100) * width;
             const realQrY = (qrY / 100) * height;
             const realQrSize = (qrSize / 100) * width;
+
+            // Tự động che sạch vùng QR cũ trước khi dán mã QR mới độ nét cao
+            ctx.fillStyle = "#FFFBEB";
+            ctx.fillRect(realQrX - 4, realQrY - 4, realQrSize + 8, realQrSize + 8);
 
             const qrEl = new window.Image();
             qrEl.crossOrigin = "anonymous";

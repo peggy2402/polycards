@@ -307,14 +307,19 @@ export async function dbDeleteCategory(id: string): Promise<boolean> {
 // 3. ORDERS & CUSTOMERS REPOSITORY (MongoDB Atlas + Fallback)
 // ============================================================================
 
+const MOCK_ORDER_IDS = new Set(["ORD-505718", "ORD-001", "ORD-002", "SEED-001"]);
+const MOCK_CUSTOMER_IDS = new Set(["CUST-001", "CUST-002"]);
+
 export async function dbGetOrders(): Promise<SeedOrderItem[]> {
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().orders;
+    return getInMemoryStore().orders.filter((o) => !MOCK_ORDER_IDS.has(o.id));
   }
 
   const docs = await db.collection<SeedOrderItem>("orders").find({}).toArray();
-  return docs.map((d) => stripMongoId(d));
+  return docs
+    .map((d) => stripMongoId(d))
+    .filter((o) => !MOCK_ORDER_IDS.has(o.id) && !o.code.startsWith("SEED-"));
 }
 
 export async function dbUpsertOrder(order: SeedOrderItem): Promise<SeedOrderItem> {
@@ -422,14 +427,16 @@ export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<voi
 export async function dbGetCustomers(): Promise<SeedCustomerItem[]> {
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().customers;
+    return getInMemoryStore().customers.filter((c) => !MOCK_CUSTOMER_IDS.has(c.id));
   }
   const col = db.collection<SeedCustomerItem>("customers");
   const list = await col.find({}).sort({ createdAt: -1 }).toArray();
-  return list.map((doc) => {
-    const { _id, ...rest } = doc as any;
-    return rest as SeedCustomerItem;
-  });
+  return list
+    .map((doc) => {
+      const { _id, ...rest } = doc as any;
+      return rest as SeedCustomerItem;
+    })
+    .filter((c) => !MOCK_CUSTOMER_IDS.has(c.id));
 }
 
 export async function dbUpsertCustomer(customer: SeedCustomerItem): Promise<SeedCustomerItem> {

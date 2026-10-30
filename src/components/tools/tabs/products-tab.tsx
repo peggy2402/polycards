@@ -35,6 +35,13 @@ import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { SubjectFocusImage } from "@/components/common/subject-focus-image";
 import { ProductDetailModal } from "../modals/product-detail-modal";
+import {
+  getStoredPackCodes,
+  PackCodeItem,
+  PACK_CODES_UPDATED_EVENT,
+} from "@/lib/pack-codes-store";
+import { PackCardsModal } from "../modals/pack-cards-modal";
+import { AddPackCodeModal } from "../modals/add-pack-code-modal";
 
 interface ProductsTabProps {
   productsList: Animal[];
@@ -88,6 +95,21 @@ export function ProductsTab({
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [batchTargetPackCode, setBatchTargetPackCode] = useState<string>("POLY30-HANHDONG");
   const [isApplyingBatch, setIsApplyingBatch] = useState<boolean>(false);
+
+  // Quản lý danh sách mã bộ trong kho & modal
+  const [storedPackCodes, setStoredPackCodes] = useState<PackCodeItem[]>([]);
+  const [selectedPackForCards, setSelectedPackForCards] = useState<{
+    code: string;
+    cards: Animal[];
+  } | null>(null);
+  const [isAddPackCodeModalOpen, setIsAddPackCodeModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    setStoredPackCodes(getStoredPackCodes());
+    const handleUpdate = () => setStoredPackCodes(getStoredPackCodes());
+    window.addEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate);
+    return () => window.removeEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate);
+  }, []);
 
   // Chế độ xem: Dạng Lưới Thẻ (grid) vs Dạng Danh Sách (list)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -160,6 +182,34 @@ export function ProductsTab({
     });
     return Array.from(set).sort();
   }, [productsList]);
+
+  // Tổng hợp toàn bộ mã bộ trong kho & trên thẻ bài
+  const allAvailablePackCodes = useMemo(() => {
+    const list: Array<{ code: string; label: string }> = [];
+    const seen = new Set<string>();
+
+    storedPackCodes.forEach((p) => {
+      seen.add(p.code);
+      list.push({ code: p.code, label: `${p.code} (${p.categoryName || p.name})` });
+    });
+
+    uniquePackCodes.forEach((code) => {
+      if (!seen.has(code)) {
+        seen.add(code);
+        list.push({ code, label: code });
+      }
+    });
+
+    return list;
+  }, [storedPackCodes, uniquePackCodes]);
+
+  const handleOpenPackCardsModal = (packCode: string) => {
+    if (!packCode || !packCode.trim()) return;
+    const matched = productsList.filter(
+      (p) => p.packCode && p.packCode.trim().toUpperCase() === packCode.trim().toUpperCase()
+    );
+    setSelectedPackForCards({ code: packCode, cards: matched });
+  };
 
   const cardsWithoutPackCodeCount = useMemo(() => {
     return productsList.filter((p) => !p.packCode || p.packCode.trim() === "").length;
@@ -662,27 +712,31 @@ export function ProductsTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Dropdown chọn mã bộ đích */}
+            {/* Dropdown chọn mã bộ đích & Nút tạo mã mới */}
             <div className="flex items-center gap-1.5 bg-black/60 border border-purple-400/40 rounded-xl px-2.5 py-1.5">
               <span className="text-[10px] font-bold text-purple-300">Gán mã bộ:</span>
               <select
                 value={batchTargetPackCode}
                 onChange={(e) => setBatchTargetPackCode(e.target.value)}
-                className="bg-transparent text-white font-mono font-bold text-xs focus:outline-hidden cursor-pointer"
+                className="bg-transparent text-white font-mono font-bold text-xs focus:outline-hidden cursor-pointer max-w-[200px] truncate"
               >
-                <option value="POLY30-DONGVAT" className="bg-stone-900 text-white">POLY30-DONGVAT (Động Vật)</option>
-                <option value="POLY30-HANHDONG" className="bg-stone-900 text-white">POLY30-HANHDONG (Hành Động)</option>
-                <option value="POLY30-XECO" className="bg-stone-900 text-white">POLY30-XECO (Xe Cộ)</option>
-                <option value="POLY30-HOAQUA" className="bg-stone-900 text-white">POLY30-HOAQUA (Hoa Quả)</option>
-                <option value="POLY120-COMBOVIP" className="bg-stone-900 text-white">POLY120-COMBOVIP (Trọn Bộ VIP)</option>
-                {uniquePackCodes
-                  .filter((c) => !["POLY30-DONGVAT", "POLY30-HANHDONG", "POLY30-XECO", "POLY30-HOAQUA", "POLY120-COMBOVIP"].includes(c))
-                  .map((c) => (
-                    <option key={c} value={c} className="bg-stone-900 text-white">{c}</option>
-                  ))
-                }
-                <option value="" className="bg-stone-900 text-rose-300">-- Xóa mã bộ (Đặt về Chưa có) --</option>
+                {allAvailablePackCodes.map((p) => (
+                  <option key={p.code} value={p.code} className="bg-stone-900 text-white">
+                    {p.label}
+                  </option>
+                ))}
+                <option value="" className="bg-stone-900 text-rose-300">
+                  -- Xóa mã bộ (Đặt về Chưa có) --
+                </option>
               </select>
+              <button
+                type="button"
+                onClick={() => setIsAddPackCodeModalOpen(true)}
+                className="p-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 hover:text-white transition-colors"
+                title="Tạo thêm mã bộ mới"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
             </div>
 
             <button
@@ -959,8 +1013,12 @@ export function ProductsTab({
                     <span className="text-stone-500 font-medium">Mã bộ:</span>
                     {card.packCode && card.packCode.trim() !== "" ? (
                       <span
-                        className="font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/25 text-purple-300 border border-purple-400/40 text-[9px] truncate max-w-[110px]"
-                        title={`Mã bộ: ${card.packCode}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenPackCardsModal(card.packCode!);
+                        }}
+                        className="font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/25 hover:bg-purple-500/40 text-purple-300 hover:text-white border border-purple-400/40 text-[9px] truncate max-w-[110px] cursor-pointer transition-colors"
+                        title={`Bấm để xem tất cả thẻ thuộc bộ: ${card.packCode}`}
                       >
                         {card.packCode}
                       </span>
@@ -1085,7 +1143,14 @@ export function ProductsTab({
                           {/* Mã Bộ */}
                           <td className="py-2.5 px-3">
                             {card.packCode && card.packCode.trim() !== "" ? (
-                              <span className="text-[10px] font-bold font-mono px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-400/30 inline-block">
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPackCardsModal(card.packCode!);
+                                }}
+                                className="text-[10px] font-bold font-mono px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 hover:text-white border border-purple-400/30 inline-block cursor-pointer transition-colors"
+                                title={`Bấm để xem tất cả thẻ thuộc bộ: ${card.packCode}`}
+                              >
                                 {card.packCode}
                               </span>
                             ) : (
@@ -1486,6 +1551,27 @@ export function ProductsTab({
           }}
         />
       )}
+
+      {/* Modal xem danh sách thẻ trong bộ */}
+      {selectedPackForCards && (
+        <PackCardsModal
+          isOpen={Boolean(selectedPackForCards)}
+          packCode={selectedPackForCards.code}
+          cards={selectedPackForCards.cards}
+          onClose={() => setSelectedPackForCards(null)}
+          onLoadCardToCanvas={onLoadCardToCanvas}
+        />
+      )}
+
+      {/* Modal thêm mã bộ mới */}
+      <AddPackCodeModal
+        isOpen={isAddPackCodeModalOpen}
+        categoriesList={categoriesList}
+        onClose={() => setIsAddPackCodeModalOpen(false)}
+        onCreated={(newPack) => {
+          setBatchTargetPackCode(newPack.code);
+        }}
+      />
     </div>
   );
 }

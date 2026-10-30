@@ -641,3 +641,4 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
     </div>
   );
 }
+

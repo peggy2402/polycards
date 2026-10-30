@@ -617,3 +617,4 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     </div>
   );
 }
+

@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
-import { Animal } from "@/types/animal";
+import { Animal, ProductCategory } from "@/types/animal";
+import { getStoredPackCodes, PackCodeItem, PACK_CODES_UPDATED_EVENT } from "@/lib/pack-codes-store";
 
 export interface InvoiceLineItem {
   id: string;
@@ -147,9 +148,12 @@ export default function InvoicesPage() {
   const [multiSearchQuery, setMultiSearchQuery] = useState<string>("");
   const [multiCategoryFilter, setMultiCategoryFilter] = useState<string>("ALL");
 
-  // Mode 3: Pack state
-  const [selectedPackId, setSelectedPackId] = useState<string>("cat-animals");
-  const [packCodeMode, setPackCodeMode] = useState<"AUTO" | "EXISTING">("AUTO");
+  // Mode 3: Pack state theo Danh Mục thực tế từ Kho thẻ bài sản phẩm
+  const [categoriesList, setCategoriesList] = useState<ProductCategory[]>([]);
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("hanh-dong");
+  const [storedPackCodes, setStoredPackCodes] = useState<PackCodeItem[]>([]);
+  const [selectedExistingPackCode, setSelectedExistingPackCode] = useState<string>("POLY30-HANHDONG");
+  const [packCodeMode, setPackCodeMode] = useState<"AUTO" | "EXISTING">("EXISTING");
 
   // Số lượng & Đơn giá
   const [quantity, setQuantity] = useState<number>(1);
@@ -174,7 +178,7 @@ export default function InvoicesPage() {
     }, 3500);
   }, []);
 
-  // Tải danh mục sản phẩm hợp nhất
+  // Tải danh mục sản phẩm hợp nhất & mã bộ trong kho
   useEffect(() => {
     const loadCatalog = async () => {
       try {
@@ -191,7 +195,31 @@ export default function InvoicesPage() {
         // Giữ fallback local
       }
     };
+
+    const loadCategories = async () => {
+      try {
+        const local = getProductCategories();
+        if (local && local.length > 0) {
+          setCategoriesList(local);
+          setSelectedCategorySlug(local[0]?.slug || "hanh-dong");
+        }
+        const res = await fetch("/api/categories");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            setCategoriesList(json.data);
+          }
+        }
+      } catch {}
+    };
+
     loadCatalog();
+    loadCategories();
+    setStoredPackCodes(getStoredPackCodes());
+
+    const handlePackCodesUpdate = () => setStoredPackCodes(getStoredPackCodes());
+    window.addEventListener(PACK_CODES_UPDATED_EVENT, handlePackCodesUpdate);
+    return () => window.removeEventListener(PACK_CODES_UPDATED_EVENT, handlePackCodesUpdate);
   }, []);
 
   // Tải danh sách hóa đơn từ API
@@ -269,10 +297,58 @@ export default function InvoicesPage() {
     return productsCatalog.filter((p) => selectedCardSlugs.includes(p.slug));
   }, [productsCatalog, selectedCardSlugs]);
 
-  // Tìm bộ thẻ được chọn ở chế độ Pack
-  const currentPack = useMemo(() => {
-    return DEFAULT_PACK_CATALOG.find((p) => p.id === selectedPackId) || DEFAULT_PACK_CATALOG[0];
-  }, [selectedPackId]);
+  // Danh mục bộ thẻ được chọn ở chế độ Pack
+  const currentCategoryForPack = useMemo(() => {
+    return (
+      categoriesList.find((c) => c.slug === selectedCategorySlug) ||
+      categoriesList[0] || {
+        id: "cat-actions",
+        name: "Hành Động",
+        slug: "hanh-dong",
+      }
+    );
+  }, [categoriesList, selectedCategorySlug]);
+
+  // Các mã bộ có sẵn trong kho tương ứng với danh mục hoặc tổng thể
+  const availablePacksForCategory = useMemo(() => {
+    const list: Array<{ code: string; label: string }> = [];
+    const seen = new Set<string>();
+
+    // 1. Từ stored pack codes
+    storedPackCodes.forEach((p) => {
+      if (!seen.has(p.code)) {
+        seen.add(p.code);
+        list.push({ code: p.code, label: `${p.code} (${p.categoryName || p.name})` });
+      }
+    });
+
+    // 2. Từ các thẻ trong kho
+    productsCatalog.forEach((prod) => {
+      if (prod.packCode && prod.packCode.trim() !== "") {
+        const c = prod.packCode.trim().toUpperCase();
+        if (!seen.has(c)) {
+          seen.add(c);
+          list.push({ code: c, label: `${c} (${prod.category || "Trong kho"})` });
+        }
+      }
+    });
+
+    return list;
+  }, [storedPackCodes, productsCatalog]);
+
+  // Cập nhật selectedExistingPackCode khi chuyển danh mục nếu cần
+  useEffect(() => {
+    const matched = availablePacksForCategory.find(
+      (p) =>
+        p.code.toLowerCase().includes(selectedCategorySlug.toLowerCase()) ||
+        p.label.toLowerCase().includes(selectedCategorySlug.toLowerCase())
+    );
+    if (matched) {
+      setSelectedExistingPackCode(matched.code);
+    } else if (availablePacksForCategory.length > 0) {
+      setSelectedExistingPackCode(availablePacksForCategory[0].code);
+    }
+  }, [selectedCategorySlug, availablePacksForCategory]);
 
   // Tính đơn giá chuẩn theo chế độ
   const calculatedUnitPrice = useMemo(() => {
@@ -286,8 +362,8 @@ export default function InvoicesPage() {
       const sum = selectedCardsList.reduce((acc, c) => acc + (c.price || 219000), 0);
       return sum > 0 ? sum : 219000;
     }
-    return currentPack.price || 249000;
-  }, [purchaseMode, customUnitPrice, currentSingleCard, selectedCardsList, currentPack]);
+    return 249000;
+  }, [purchaseMode, customUnitPrice, currentSingleCard, selectedCardsList]);
 
   // Tạm tính (Subtotal)
   const subtotal = useMemo(() => {
@@ -409,22 +485,28 @@ export default function InvoicesPage() {
         totalPrice: (card.price || 219000) * quantity,
       }));
     } else {
-      // PACK Mode
-      const catUpper = currentPack.slug.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      // PACK Mode theo Danh Mục thực tế
+      const catUpper = currentCategoryForPack.slug.toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (packCodeMode === "AUTO") {
         licenseCode = `PACK-${catUpper}-${cleanCustCode}-${invoiceCode}`;
       } else {
-        licenseCode = `${currentPack.packCode}-${randomNum}`;
+        licenseCode = selectedExistingPackCode.trim() || `POLY30-${catUpper}`;
       }
-      packTitle = currentPack.name;
-      allowedCategorySlug = currentPack.slug;
-      directUrl = `https://polycards-one.vercel.app/ar/${currentPack.sampleSlug}?ar=1&code=${licenseCode}`;
+      packTitle = `Bộ Thẻ AR ${currentCategoryForPack.name}`;
+      allowedCategorySlug = currentCategoryForPack.slug;
+
+      const sampleCard =
+        productsCatalog.find((p) => p.categorySlug === currentCategoryForPack.slug) ||
+        productsCatalog[0];
+      const sampleSlug = sampleCard?.slug || "jump";
+      directUrl = `https://polycards-one.vercel.app/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(licenseCode)}`;
+
       lineItems = [
         {
-          id: currentPack.id,
-          name: currentPack.name,
+          id: `pack-${currentCategoryForPack.slug}`,
+          name: packTitle,
           packCode: licenseCode,
-          categorySlug: currentPack.slug,
+          categorySlug: currentCategoryForPack.slug,
           quantity,
           unitPrice: calculatedUnitPrice,
           totalPrice: subtotal,
@@ -947,70 +1029,110 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                   </div>
                 )}
 
-                {/* GIAO DIỆN CHẾ ĐỘ 3: CHỌN THEO BỘ */}
+                {/* GIAO DIỆN CHẾ ĐỘ 3: CHỌN THEO BỘ (DỰA TRÊN DANH MỤC THỰC TẾ TRONG KHO) */}
                 {purchaseMode === "PACK" && (
                   <div className="space-y-2.5 pt-1">
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {DEFAULT_PACK_CATALOG.map((pack) => (
-                        <label
-                          key={pack.id}
-                          onClick={() => setSelectedPackId(pack.id)}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
-                            selectedPackId === pack.id
-                              ? "bg-amber-500/15 border-amber-400 text-white"
-                              : "bg-black/30 border-white/10 text-stone-400 hover:text-stone-200"
+                    <label className="block text-[11px] font-bold text-stone-300">
+                      Chọn danh mục bộ thẻ cần bán:
+                    </label>
+                    <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {categoriesList.map((cat) => {
+                        const countCards = productsCatalog.filter(
+                          (p) => p.categorySlug === cat.slug || p.category === cat.name
+                        ).length;
+                        const isSelected = selectedCategorySlug === cat.slug;
+
+                        return (
+                          <label
+                            key={cat.id || cat.slug}
+                            onClick={() => setSelectedCategorySlug(cat.slug)}
+                            className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? "bg-amber-500/15 border-amber-400 text-white"
+                                : "bg-black/30 border-white/10 text-stone-400 hover:text-stone-200"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="categoryPackSelection"
+                                checked={isSelected}
+                                onChange={() => setSelectedCategorySlug(cat.slug)}
+                                className="text-amber-500 focus:ring-0 h-3.5 w-3.5"
+                              />
+                              <span className="text-xs font-bold text-white">
+                                Bộ Thẻ {cat.name}
+                              </span>
+                              <span className="text-[10px] text-stone-400 font-mono">
+                                ({countCards} thẻ trong kho)
+                              </span>
+                            </div>
+                            <span className="font-mono text-xs font-bold text-amber-300">
+                              249.000 đ
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {/* 2 TÙY CHỌN: TỰ SINH MÃ HOẶC CHỌN MÃ BỘ CÓ SẴN TRONG KHO */}
+                    <div className="space-y-2 pt-1">
+                      <span className="block text-[11px] font-bold text-stone-300">
+                        Quy tắc cấp mã bản quyền:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPackCodeMode("AUTO")}
+                          className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
+                            packCodeMode === "AUTO"
+                              ? "bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm"
+                              : "bg-black/40 border-white/10 text-stone-400"
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="packSelection"
-                              checked={selectedPackId === pack.id}
-                              onChange={() => setSelectedPackId(pack.id)}
-                              className="text-amber-500 focus:ring-0 h-3.5 w-3.5"
-                            />
-                            <span className="text-xs font-bold">{pack.name}</span>
-                          </div>
-                          <span className="font-mono text-xs font-bold text-amber-300">
-                            {formatVndCurrency(pack.price)}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                          Tự sinh mã bộ mới
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPackCodeMode("EXISTING")}
+                          className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
+                            packCodeMode === "EXISTING"
+                              ? "bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm"
+                              : "bg-black/40 border-white/10 text-stone-400"
+                          }`}
+                        >
+                          Chọn mã bộ có sẵn trong kho
+                        </button>
+                      </div>
 
-                    {/* Tùy chọn sinh mã bộ */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setPackCodeMode("AUTO")}
-                        className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
-                          packCodeMode === "AUTO"
-                            ? "bg-amber-500/20 border-amber-400 text-amber-200"
-                            : "bg-black/40 border-white/10 text-stone-400"
-                        }`}
-                      >
-                        Tự sinh mã bộ mới
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPackCodeMode("EXISTING")}
-                        className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
-                          packCodeMode === "EXISTING"
-                            ? "bg-amber-500/20 border-amber-400 text-amber-200"
-                            : "bg-black/40 border-white/10 text-stone-400"
-                        }`}
-                      >
-                        Dùng mã bộ có sẵn ({currentPack.packCode})
-                      </button>
-                    </div>
+                      {/* Dropdown chọn mã bộ có sẵn */}
+                      {packCodeMode === "EXISTING" && (
+                        <div className="p-2.5 rounded-xl bg-black/60 border border-purple-400/40 space-y-1.5 animate-in fade-in">
+                          <label className="block text-[10px] font-bold text-purple-300">
+                            Mã bộ có sẵn trong kho thẻ:
+                          </label>
+                          <select
+                            value={selectedExistingPackCode}
+                            onChange={(e) => setSelectedExistingPackCode(e.target.value)}
+                            className="w-full bg-stone-900 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-mono font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                          >
+                            {availablePacksForCategory.map((p) => (
+                              <option key={p.code} value={p.code} className="bg-stone-900 text-white">
+                                {p.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between">
-                      <span>Định dạng mã:</span>
-                      <code className="font-mono text-[10px] text-amber-300 font-bold">
-                        {packCodeMode === "AUTO"
-                          ? `PACK-${currentPack.slug.toUpperCase()}-...-${customerId}`
-                          : `${currentPack.packCode}-...`}
-                      </code>
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-center justify-between">
+                        <span>Định dạng mã:</span>
+                        <code className="font-mono text-[10px] text-amber-300 font-bold">
+                          {packCodeMode === "AUTO"
+                            ? `PACK-${currentCategoryForPack.slug.toUpperCase()}-...-${customerId}`
+                            : selectedExistingPackCode}
+                        </code>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1450,14 +1572,14 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                   </div>
                 </div>
 
-                {/* Khối Thông Tin Kích Hoạt Bản Quyền WebAR 1-Chạm */}
-                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 flex items-center justify-between gap-4">
-                  <div className="space-y-1 flex-1 min-w-0">
+                {/* Khối Thông Tin Bản Quyền WebAR (Không in QR trên hóa đơn vì thẻ bài đã có QR) */}
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300 flex items-center justify-between gap-3">
+                  <div className="space-y-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block">
-                      MÃ BẢN QUYỀN WEBAR KÍCH HOẠT ĐI KÈM
+                      MÃ BẢN QUYỀN KÍCH HOẠT WEBAR
                     </span>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs sm:text-sm font-mono font-black text-amber-950 bg-amber-200/80 px-2.5 py-1 rounded-lg break-all">
+                      <code className="text-xs sm:text-sm font-mono font-black text-amber-950 bg-amber-200/90 px-3 py-1 rounded-lg">
                         {selectedInvoice.packCode}
                       </code>
                       <button
@@ -1469,22 +1591,10 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                         {copiedCode ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
-                    <p className="text-[10px] text-amber-800 leading-relaxed">
-                      Quét mã QR bên cạnh để mở khóa tự động camera WebAR cho các thẻ thuộc hóa đơn này.
-                    </p>
                   </div>
-
-                  {/* QR Image */}
-                  {selectedInvoiceQrUrl && (
-                    <div className="h-24 w-24 rounded-xl bg-white p-1 border-2 border-amber-300 shrink-0 shadow-sm flex items-center justify-center">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedInvoiceQrUrl}
-                        alt="QR Kích Hoạt 1-Chạm"
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  )}
+                  <div className="text-right text-[11px] text-slate-500 hidden sm:block">
+                    <span>Mã bản quyền lưu kèm chứng từ bán lẻ</span>
+                  </div>
                 </div>
 
                 {/* Chữ Ký Người Bán & Người Mua */}
