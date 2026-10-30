@@ -606,60 +606,36 @@ export default function ToolsPage() {
     img.src = objectUrl;
   };
 
-  // Vá / Tẩy vùng mã QR cũ bị in chết trên thẻ bài bằng màu nền chuẩn của khung thẻ
-  const handleCleanOldQrPatch = () => {
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = cardDimensions.width;
-      canvas.height = cardDimensions.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+  // Khôi phục lại ảnh ban đầu của thẻ bài từ hệ thống
+  const handleRestoreOriginalCardImage = () => {
+    const existing =
+      productsList.find((p) => p.slug.toLowerCase() === slug.toLowerCase()) ||
+      getMergedProducts().find((p) => p.slug.toLowerCase() === slug.toLowerCase());
 
-      const img = new window.Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, cardDimensions.width, cardDimensions.height);
+    const origImg =
+      existing?.rawImageUrl ||
+      existing?.posterUrl ||
+      (Array.isArray(existing?.images) && existing.images[0]) ||
+      `/images/cards/${slug}-template.jpg`;
 
-        // Vùng QR cũ thường nằm trong khoảng x: 5% đến 44%, y: 58% đến 90%
-        const patchX = 0.05 * cardDimensions.width;
-        const patchY = 0.58 * cardDimensions.height;
-        const patchW = 0.42 * cardDimensions.width;
-        const patchH = 0.32 * cardDimensions.height;
-        const radius = 0.02 * cardDimensions.width;
+    setCardImageSrc(origImg);
+    setRawImageUrl(existing?.rawImageUrl || "");
+    setRawImageBlob(null);
 
-        ctx.save();
-        ctx.fillStyle = "#FEF6D8"; // Màu nền vàng kem ấm áp chuẩn khung thẻ Poly Cards
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(patchX, patchY, patchW, patchH, radius);
-        } else {
-          ctx.rect(patchX, patchY, patchW, patchH);
-        }
-        ctx.fill();
-        ctx.restore();
+    const isAlreadyHasQr = origImg.includes("-card.") || !origImg.includes("-template.");
+    setIsQrOverlayEnabled(!isAlreadyHasQr);
 
-        const cleanDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-        setCardImageSrc(cleanDataUrl);
-        setRawImageUrl(cleanDataUrl);
-        setIsQrOverlayEnabled(true);
-        setQrPos({ x: 6.8, y: 71.5, size: 25.0 });
-
-        canvas.toBlob((b) => {
-          if (b) setRawImageBlob(b);
-        }, "image/jpeg", 0.92);
-
-        showToast(
-          "Đã tẩy sạch mã QR cũ bị lệch trên thẻ! Mã QR mới đã được căn giữa ô vàng chuẩn đẹp.",
-          "success"
-        );
-      };
-      img.onerror = () => {
-        showToast("Không thể tải ảnh nền hiện tại để tẩy QR. Vui lòng tải file phôi sạch mới từ máy tính.", "warning");
-      };
-      img.src = cardImageSrc;
-    } catch (err: any) {
-      showToast(`Không thể tẩy mã QR cũ: ${err.message}`, "error");
+    if (existing?.qrPosition && typeof existing.qrPosition.x === "number") {
+      setQrPos({
+        x: existing.qrPosition.x,
+        y: existing.qrPosition.y,
+        size: existing.qrPosition.size,
+      });
+    } else {
+      setQrPos({ x: 6.2, y: 70.8, size: 25.8 });
     }
+
+    showToast("Đã khôi phục lại ảnh nguyên bản của thẻ bài!", "info");
   };
 
   const handleAutoSnap = () => {
@@ -2380,7 +2356,7 @@ export default function ToolsPage() {
           onWorkspacePointerMove={handleWorkspacePointerMove}
           onWorkspacePointerUp={handleWorkspacePointerUp}
           onUploadCleanTemplate={handleLoadCleanTemplate}
-          onCleanOldQrPatch={handleCleanOldQrPatch}
+          onRestoreOriginalImage={handleRestoreOriginalCardImage}
           onResetQrToStandard={handleResetQrToStandard}
         />
       )}

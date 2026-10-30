@@ -8,10 +8,9 @@ import {
   CheckCircle2,
   Sparkles,
   Check,
-  Upload,
-  Eraser,
   Target,
   ImagePlus,
+  RotateCcw,
   AlertTriangle,
 } from "lucide-react";
 import { QrPosition } from "../types";
@@ -33,7 +32,7 @@ interface CanvasWorkbenchProps {
   onWorkspacePointerMove: (e: React.PointerEvent) => void;
   onWorkspacePointerUp: (e: React.PointerEvent) => void;
   onUploadCleanTemplate?: (file: File) => void;
-  onCleanOldQrPatch?: () => void;
+  onRestoreOriginalImage?: () => void;
   onResetQrToStandard?: () => void;
 }
 
@@ -54,7 +53,7 @@ export function CanvasWorkbench({
   onWorkspacePointerMove,
   onWorkspacePointerUp,
   onUploadCleanTemplate,
-  onCleanOldQrPatch,
+  onRestoreOriginalImage,
   onResetQrToStandard,
 }: CanvasWorkbenchProps) {
   const cleanFileInputRef = useRef<HTMLInputElement>(null);
@@ -130,29 +129,17 @@ export function CanvasWorkbench({
             </button>
           </div>
 
-          {/* Nhóm Nút Khắc Phục Lỗi Phôi Thẻ: Nạp Phôi Sạch Mới & Vá QR Cũ */}
+          {/* Nhóm Nút Công Cụ Phôi Thẻ: Tải Phôi Gốc Sạch & Khôi Phục */}
           <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-stone-900/90 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
             {onUploadCleanTemplate && (
               <button
                 type="button"
                 onClick={() => cleanFileInputRef.current?.click()}
-                className="py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-blue-500/20 text-blue-300 border border-blue-400/40 hover:bg-blue-500/30 cursor-pointer shadow-sm"
-                title="Tải ảnh phôi sạch (chưa gắn mã QR) từ máy tính để mã QR mới nổi bên trên sắc nét, không bị đè"
+                className="py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-400/40 hover:bg-amber-500/30 cursor-pointer shadow-sm"
+                title="Tải ảnh phôi gốc (chưa có mã QR) từ máy tính để mã QR mới nổi bên trên sắc nét, không bị đè"
               >
                 <ImagePlus className="h-3.5 w-3.5" />
-                <span>Thay Phôi Sạch Mới</span>
-              </button>
-            )}
-
-            {onCleanOldQrPatch && (
-              <button
-                type="button"
-                onClick={onCleanOldQrPatch}
-                className="py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-purple-500/20 text-purple-300 border border-purple-400/40 hover:bg-purple-500/30 cursor-pointer shadow-sm"
-                title="Tự động tẩy sạch vùng mã QR cũ bị lệch trên thẻ bài bằng màu nền ô vàng chuẩn, đưa thẻ về trạng thái phôi sạch"
-              >
-                <Eraser className="h-3.5 w-3.5" />
-                <span>Tẩy QR Cũ Bị Lệch</span>
+                <span>Nạp Phôi Gốc Sạch</span>
               </button>
             )}
 
@@ -160,11 +147,23 @@ export function CanvasWorkbench({
               <button
                 type="button"
                 onClick={onResetQrToStandard}
-                className="py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-400/40 hover:bg-amber-500/30 cursor-pointer shadow-sm"
+                className="py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 hover:bg-emerald-500/30 cursor-pointer shadow-sm"
                 title="Căn mã QR vào vị trí trung tâm ô vàng chuẩn của thẻ bài Poly Cards"
               >
                 <Target className="h-3.5 w-3.5" />
                 <span>Ô Vàng Chuẩn</span>
+              </button>
+            )}
+
+            {onRestoreOriginalImage && (
+              <button
+                type="button"
+                onClick={onRestoreOriginalImage}
+                className="py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-white/10 text-stone-300 border border-white/20 hover:bg-white/20 cursor-pointer shadow-sm"
+                title="Hoàn tác và nạp lại ảnh ban đầu của thẻ bài từ hệ thống"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Hoàn Tác Ảnh</span>
               </button>
             )}
           </div>
@@ -176,29 +175,19 @@ export function CanvasWorkbench({
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
               <span>
-                Ảnh này <strong>đã bị in sẵn mã QR</strong>. Nếu mã QR cũ bị to hoặc lệch, hãy dùng:
+                Ảnh thẻ hiện tại <strong>đã bị in dính mã QR</strong>. Để thẻ đẹp không bị đè hai mã, hãy bấm <strong>Nạp Phôi Gốc Sạch</strong> để chọn file ảnh chưa có QR từ máy tính.
               </span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {onUploadCleanTemplate && (
-                <button
-                  type="button"
-                  onClick={() => cleanFileInputRef.current?.click()}
-                  className="px-2 py-1 rounded-lg bg-amber-400 text-stone-950 font-black text-[11px] hover:bg-amber-300 transition-colors cursor-pointer"
-                >
-                  Tải Phôi Sạch
-                </button>
-              )}
-              {onCleanOldQrPatch && (
-                <button
-                  type="button"
-                  onClick={onCleanOldQrPatch}
-                  className="px-2 py-1 rounded-lg bg-purple-500 text-white font-black text-[11px] hover:bg-purple-400 transition-colors cursor-pointer"
-                >
-                  Tẩy QR Cũ
-                </button>
-              )}
-            </div>
+            {onUploadCleanTemplate && (
+              <button
+                type="button"
+                onClick={() => cleanFileInputRef.current?.click()}
+                className="px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-black text-[11px] hover:bg-amber-300 transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+              >
+                <ImagePlus className="h-3 w-3" />
+                <span>Nạp Phôi Gốc Sạch</span>
+              </button>
+            )}
           </div>
         )}
 

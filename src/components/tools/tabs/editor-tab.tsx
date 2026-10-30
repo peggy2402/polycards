@@ -84,7 +84,7 @@ interface EditorTabProps {
   onWorkspacePointerMove: (e: React.PointerEvent) => void;
   onWorkspacePointerUp: (e: React.PointerEvent) => void;
   onUploadCleanTemplate?: (file: File) => void;
-  onCleanOldQrPatch?: () => void;
+  onRestoreOriginalImage?: () => void;
   onResetQrToStandard?: () => void;
 }
 
@@ -156,7 +156,7 @@ export function EditorTab({
   onWorkspacePointerMove,
   onWorkspacePointerUp,
   onUploadCleanTemplate,
-  onCleanOldQrPatch,
+  onRestoreOriginalImage,
   onResetQrToStandard,
 }: EditorTabProps) {
   return (
@@ -272,7 +272,7 @@ export function EditorTab({
         onWorkspacePointerMove={onWorkspacePointerMove}
         onWorkspacePointerUp={onWorkspacePointerUp}
         onUploadCleanTemplate={onUploadCleanTemplate}
-        onCleanOldQrPatch={onCleanOldQrPatch}
+        onRestoreOriginalImage={onRestoreOriginalImage}
         onResetQrToStandard={onResetQrToStandard}
       />
     </main>
