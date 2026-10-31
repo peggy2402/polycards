@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   ShoppingBag,
   X,
@@ -13,6 +13,8 @@ import {
   Languages,
   Star,
   PackageCheck,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -48,9 +50,21 @@ export function PublishProductModal({
   onShowToast,
 }: PublishProductModalProps) {
   const [showAdvancedFields, setShowAdvancedFields] = useState<boolean>(false);
+  const [isAssetUploading, setIsAssetUploading] = useState<boolean>(false);
+  const [showModalAbortConfirm, setShowModalAbortConfirm] = useState<boolean>(false);
+  const abortUploadRef = useRef<(() => void) | null>(null);
+
   const storedPackCodes = getStoredPackCodes();
 
   if (!isOpen) return null;
+
+  const handleModalClose = () => {
+    if (isAssetUploading) {
+      setShowModalAbortConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
@@ -73,9 +87,9 @@ export function PublishProductModal({
 
           <button
             type="button"
-            onClick={onClose}
-            className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors shrink-0 ml-2"
-            title="Đóng modal"
+            onClick={handleModalClose}
+            className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors shrink-0 ml-2 cursor-pointer"
+            title={isAssetUploading ? "Đang tải tệp lên..." : "Đóng modal"}
           >
             <X className="h-4 w-4" />
           </button>
@@ -556,6 +570,10 @@ export function PublishProductModal({
                 });
               }}
               onShowToast={onShowToast}
+              onUploadingChange={(uploading, cancelFn) => {
+                setIsAssetUploading(uploading);
+                if (cancelFn) abortUploadRef.current = cancelFn;
+              }}
             />
 
             {/* 7. THÔNG TIN NÂNG CAO (MÔ TẢ CHI TIẾT) */}
@@ -602,24 +620,81 @@ export function PublishProductModal({
           <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-t border-white/10 shrink-0 bg-stone-900/95 flex items-center justify-end gap-2.5">
             <button
               type="button"
-              onClick={onClose}
-              className="h-10 sm:h-11 px-4 rounded-xl hover:bg-white/10 text-stone-400 hover:text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer"
+              onClick={handleModalClose}
+              disabled={isAssetUploading}
+              className={`h-10 sm:h-11 px-4 rounded-xl font-bold text-xs sm:text-sm transition-colors ${
+                isAssetUploading
+                  ? "bg-white/5 text-stone-500 cursor-not-allowed opacity-50"
+                  : "hover:bg-white/10 text-stone-400 hover:text-white cursor-pointer"
+              }`}
             >
               Hủy Bỏ
             </button>
 
             <button
               type="submit"
-              disabled={isPublishing}
-              className="h-10 sm:h-11 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2 cursor-pointer"
+              disabled={isPublishing || isAssetUploading}
+              className={`h-10 sm:h-11 px-5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition-all ${
+                isPublishing || isAssetUploading
+                  ? "bg-amber-400/50 text-stone-900 cursor-not-allowed opacity-60 shadow-none"
+                  : "bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 active:scale-95 shadow-lg shadow-amber-500/25 cursor-pointer"
+              }`}
             >
-              <Check className="h-4 w-4 text-stone-950 shrink-0" />
-              <span>
-                {isPublishing ? "Đang Xuất Bản..." : "Xác Nhận Xuất Bản Thẻ Bài"}
-              </span>
+              {isAssetUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-stone-950" />
+                  <span>Đang Tải Tệp Lên...</span>
+                </>
+              ) : isPublishing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-stone-950" />
+                  <span>Đang Xuất Bản...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 text-stone-950 shrink-0" />
+                  <span>Xác Nhận Xuất Bản Thẻ Bài</span>
+                </>
+              )}
             </button>
           </div>
         </form>
+
+        {/* Modal Xác Nhận Hủy Khi Bấm Đóng Trong Khi Đang Tải Lên */}
+        {showModalAbortConfirm && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in">
+            <div className="max-w-sm w-full bg-stone-900 border-2 border-rose-500/80 rounded-2xl p-4 text-white shadow-2xl space-y-3">
+              <div className="flex items-center gap-2 text-rose-400">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                <h4 className="text-sm font-black text-white">Xác Nhận Hủy Tiến Trình?</h4>
+              </div>
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Tệp tài nguyên đang được truyền tải lên Cloudflare R2 CDN. Bạn có chắc chắn muốn hủy tải lên và đóng cửa sổ này không?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowModalAbortConfirm(false)}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-stone-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  Tiếp Tục Tải
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (abortUploadRef.current) abortUploadRef.current();
+                    setShowModalAbortConfirm(false);
+                    setIsAssetUploading(false);
+                    onClose();
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-black text-white shadow-md transition-colors cursor-pointer"
+                >
+                  Hủy Tải Lên & Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

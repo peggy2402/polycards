@@ -327,11 +327,19 @@ export function WebArCardView({
           }
         }
 
-        // 2. Nạp GLTFLoader nếu chưa có
+        // 2. Nạp GLTFLoader và DRACOLoader nếu chưa có
         if (!(window.THREE && window.THREE.GLTFLoader)) {
           await loadScript("/lib/GLTFLoader.js");
           if (!window.THREE && (window as any).THREE) {
             window.THREE = (window as any).THREE;
+          }
+        }
+
+        if (!(window.THREE && window.THREE.DRACOLoader)) {
+          try {
+            await loadScript("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/DRACOLoader.js");
+          } catch {
+            // Không ảnh hưởng nếu offline
           }
         }
 
@@ -421,6 +429,11 @@ export function WebArCardView({
 
         // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker và Tự động Fallback sang lion.glb
         const loader = new THREE.GLTFLoader();
+        if (THREE.DRACOLoader) {
+          const dracoLoader = new THREE.DRACOLoader();
+          dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+          loader.setDRACOLoader(dracoLoader);
+        }
         const primaryModelUrl = animal.modelUrl || "/models/lion.glb";
         const fallbackModelUrl = "/models/lion.glb";
 

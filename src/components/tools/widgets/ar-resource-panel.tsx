@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Box,
   FileUp,
@@ -9,8 +9,23 @@ import {
   CheckCircle2,
   ExternalLink,
   Play,
+  X,
+  AlertTriangle,
+  Loader2,
+  CloudUpload,
 } from "lucide-react";
 import { PRESET_3D_MODELS } from "../constants";
+
+export interface UploadTaskState {
+  fileName: string;
+  fileSizeStr: string;
+  fileType: "model" | "target" | "audio";
+  chunkIndex: number;
+  totalChunks: number;
+  progress: number;
+  status: "uploading" | "assembling" | "success" | "error";
+  message: string;
+}
 
 interface ArResourcePanelProps {
   slug: string;
@@ -32,6 +47,7 @@ interface ArResourcePanelProps {
   onChangeAudioZhUrl?: (url: string) => void;
   onSelectPreset?: (preset: typeof PRESET_3D_MODELS[0]) => void;
   onShowToast: (msg: string, type: "success" | "error" | "info" | "warning") => void;
+  onUploadingChange?: (isUploading: boolean, abortFn?: () => void) => void;
 }
 
 export function ArResourcePanel({
@@ -54,9 +70,13 @@ export function ArResourcePanel({
   onChangeAudioZhUrl,
   onSelectPreset,
   onShowToast,
+  onUploadingChange,
 }: ArResourcePanelProps) {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadTask, setUploadTask] = useState<UploadTaskState | null>(null);
+  const [showConfirmAbort, setShowConfirmAbort] = useState<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Phát thử file âm thanh ngay trong form
   const handlePreviewAudioUrl = (url: string, label: string) => {
@@ -83,18 +103,51 @@ export function ArResourcePanel({
     type: "model" | "target" | "audio",
     audioTarget?: "en" | "vi" | "zh" | "sfx"
   ) => {
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB / mảnh
+    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+    const uploadId = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const sizeStr =
+      file.size >= 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const cancelFn = () => {
+      controller.abort();
+      setIsUploading(false);
+      setUploadTask(null);
+      if (onUploadingChange) onUploadingChange(false);
+      onShowToast("Đã hủy tiến trình tải lên tệp.", "info");
+    };
+
+    setIsUploading(true);
+    setUploadProgress(5);
+    setUploadTask({
+      fileName: file.name,
+      fileSizeStr: sizeStr,
+      fileType: type,
+      chunkIndex: 0,
+      totalChunks,
+      progress: 5,
+      status: "uploading",
+      message: totalChunks > 1 ? `Đang gửi mảnh 1/${totalChunks}...` : "Đang tải lên Cloudflare R2 CDN...",
+    });
+
+    if (onUploadingChange) {
+      onUploadingChange(true, cancelFn);
+    }
+
     try {
-      setIsUploading(true);
-      setUploadProgress(5);
-
-      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB / mảnh
-      const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
-      const uploadId = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
       let finalUrl = "";
       let savedFileName = file.name;
 
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
         const start = chunkIndex * CHUNK_SIZE;
         const end = Math.min(file.size, start + CHUNK_SIZE);
         const chunkBlob = file.slice(start, end, file.type || "application/octet-stream");
@@ -103,15 +156,33 @@ export function ArResourcePanel({
         fd.append("file", chunkBlob, file.name);
         fd.append("originalFileName", file.name);
         fd.append("type", type);
-        // Không ghi đè name bằng slug để bảo toàn chính xác tên tệp tải lên (ví dụ: b_run.glb, b_run.usdz)
+        // Không ghi đè name bằng slug để bảo toàn chính xác tên tệp tải lên (ví dụ: captreo.glb, b_run.usdz)
         fd.append("uploadId", uploadId);
         fd.append("chunkIndex", String(chunkIndex));
         fd.append("totalChunks", String(totalChunks));
         fd.append("totalSize", String(file.size));
 
+        const isLastChunk = chunkIndex === totalChunks - 1;
+        const currentProgress = Math.min(98, Math.round(((chunkIndex + 0.5) / totalChunks) * 100));
+        setUploadProgress(currentProgress);
+        setUploadTask((prev) =>
+          prev
+            ? {
+                ...prev,
+                chunkIndex,
+                progress: currentProgress,
+                status: isLastChunk ? "assembling" : "uploading",
+                message: isLastChunk
+                  ? "Đang hoàn tất ghép mảnh trên Cloudflare R2..."
+                  : `Đang gửi mảnh ${chunkIndex + 1}/${totalChunks}...`,
+              }
+            : null
+        );
+
         const res = await fetch("/api/tools/upload", {
           method: "POST",
           body: fd,
+          signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -128,7 +199,17 @@ export function ArResourcePanel({
           throw new Error(data.message || "Tải lên thất bại");
         }
 
-        setUploadProgress(Math.round(((chunkIndex + 1) / totalChunks) * 100));
+        const completedPercent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+        setUploadProgress(completedPercent);
+        setUploadTask((prev) =>
+          prev
+            ? {
+                ...prev,
+                chunkIndex,
+                progress: completedPercent,
+              }
+            : null
+        );
 
         if (data.url) {
           finalUrl = data.url;
@@ -164,29 +245,53 @@ export function ArResourcePanel({
         }
       }
 
-      const sizeStr =
-        file.size >= 1024 * 1024
-          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-          : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+      setUploadTask({
+        fileName: savedFileName,
+        fileSizeStr: sizeStr,
+        fileType: type,
+        chunkIndex: totalChunks - 1,
+        totalChunks,
+        progress: 100,
+        status: "success",
+        message: "Tải lên Cloudflare R2 CDN thành công 100%!",
+      });
+
+      if (onUploadingChange) {
+        onUploadingChange(false);
+      }
 
       onShowToast(
-        `Đã tải lên tệp "${savedFileName}" (${sizeStr}) thành công!`,
+        `Đã tải lên tệp "${savedFileName}" (${sizeStr}) lên Cloudflare R2 thành công!`,
         "success"
       );
+
+      // Tự động đóng popup thành công sau 4 giây
+      setTimeout(() => {
+        setUploadTask((curr) => (curr?.status === "success" ? null : curr));
+      }, 4000);
     } catch (err: unknown) {
+      if (controller.signal.aborted) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Lỗi không xác định";
+      setUploadTask((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "error",
+              progress: 0,
+              message: `Lỗi: ${msg}`,
+            }
+          : null
+      );
+      if (onUploadingChange) {
+        onUploadingChange(false);
+      }
       onShowToast(`Lỗi tải tệp: ${msg}`, "error");
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
-    }
-  };
-
-  // Helper upload đồng thời cả 2 tệp model 3D (.glb và .usdz)
-  const handleUploadModels = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    for (const file of Array.from(files)) {
-      await handleUploadFile(file, "model");
+      abortControllerRef.current = null;
     }
   };
 
@@ -276,32 +381,9 @@ export function ArResourcePanel({
               <span>Tải Lên Tệp 3D Riêng (.glb / .usdz)</span>
             </span>
             <p className="text-[9px] text-stone-400">
-              Có thể chọn tải cùng lúc cả 2 file (.glb và .usdz) hoặc tải riêng từng định dạng bên dưới.
+              Chọn tệp .glb cho Android/WebAR hoặc .usdz cho iPhone Quick Look bên dưới.
             </p>
           </div>
-
-          <label className="cursor-pointer inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-amber-400 text-stone-950 font-black text-[10px] hover:bg-amber-300 active:scale-95 transition-all shrink-0 shadow-md">
-            <Upload className="h-3 w-3 shrink-0" />
-            <span>
-              {isUploading
-                ? `Đang Tải (${uploadProgress}%)...`
-                : "Chọn Cả 2 File (.glb & .usdz)"}
-            </span>
-            <input
-              type="file"
-              multiple
-              accept=".glb,.gltf,.usdz"
-              disabled={isUploading}
-              className="hidden"
-              onChange={(e) => {
-                const files = e.target.files;
-                e.target.value = "";
-                if (files && files.length > 0) {
-                  handleUploadModels(files);
-                }
-              }}
-            />
-          </label>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
@@ -608,6 +690,143 @@ export function ArResourcePanel({
           )}
         </div>
       </div>
+
+      {/* 4. Khối tiến trình tải lên nổi góc dưới bên phải (Floating Bottom-Right Upload Box) */}
+      {uploadTask && (
+        <div className="fixed bottom-5 right-5 z-[9999] max-w-sm w-[calc(100vw-32px)] sm:w-96 rounded-2xl bg-stone-900/95 border-2 border-amber-400/80 p-4 text-white shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-5 duration-300">
+          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-white/10">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {uploadTask.status === "uploading" && (
+                <div className="h-8 w-8 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-400/30">
+                  <CloudUpload className="h-4 w-4 animate-bounce" />
+                </div>
+              )}
+              {uploadTask.status === "assembling" && (
+                <div className="h-8 w-8 rounded-xl bg-sky-400/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-400/30">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              )}
+              {uploadTask.status === "success" && (
+                <div className="h-8 w-8 rounded-xl bg-emerald-400/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-400/30">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                </div>
+              )}
+              {uploadTask.status === "error" && (
+                <div className="h-8 w-8 rounded-xl bg-rose-400/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-400/30">
+                  <AlertTriangle className="h-4 w-4 text-rose-400" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <h5 className="text-xs font-black text-amber-300 truncate">
+                  {uploadTask.status === "success"
+                    ? "Tải Lên Thành Công!"
+                    : uploadTask.status === "error"
+                    ? "Tải Lên Thất Bại"
+                    : "Đang Tải Tệp Lên R2 CDN"}
+                </h5>
+                <span className="text-[10px] text-stone-400 font-mono">
+                  Dung lượng: {uploadTask.fileSizeStr}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (uploadTask.status === "uploading" || uploadTask.status === "assembling") {
+                  setShowConfirmAbort(true);
+                } else {
+                  setUploadTask(null);
+                }
+              }}
+              className="h-6 w-6 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-stone-400 hover:text-white transition-colors cursor-pointer shrink-0"
+              title="Đóng / Hủy"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="mt-2.5 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-stone-200 truncate max-w-[220px]" title={uploadTask.fileName}>
+                {uploadTask.fileName}
+              </span>
+              <span className="font-black text-amber-400 font-mono shrink-0 ml-2">
+                {uploadTask.progress}%
+              </span>
+            </div>
+
+            {/* Thanh tiến trình Progress Bar */}
+            <div className="w-full h-2 rounded-full bg-stone-800 overflow-hidden p-0.5 border border-white/10">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  uploadTask.status === "success"
+                    ? "bg-emerald-400 shadow-xs shadow-emerald-400/50"
+                    : uploadTask.status === "error"
+                    ? "bg-rose-500"
+                    : "bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300 shadow-xs shadow-amber-400/50"
+                }`}
+                style={{ width: `${uploadTask.progress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-stone-400">
+              <span className="truncate">{uploadTask.message}</span>
+              {uploadTask.totalChunks > 1 && (
+                <span className="shrink-0 font-mono ml-2">
+                  Mảnh {uploadTask.chunkIndex + 1}/{uploadTask.totalChunks}
+                </span>
+              )}
+            </div>
+
+            {(uploadTask.status === "uploading" || uploadTask.status === "assembling") && (
+              <p className="text-[9px] text-amber-300/80 font-medium pt-0.5">
+                Đang truyền tải dữ liệu. Các nút lưu và đóng bị khóa cho đến khi tải xong.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Xác Nhận Hủy Tiến Trình Khi Bấm Nút X */}
+      {showConfirmAbort && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in">
+          <div className="max-w-sm w-full bg-stone-900 border-2 border-rose-500/80 rounded-2xl p-4 text-white shadow-2xl space-y-3">
+            <div className="flex items-center gap-2 text-rose-400">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <h4 className="text-sm font-black text-white">Xác Nhận Hủy Tải Lên?</h4>
+            </div>
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Tiến trình tải lên tệp <span className="font-bold text-amber-300 font-mono">{uploadTask?.fileName}</span> đang diễn ra ({uploadTask?.progress}%). Nếu bạn hủy bây giờ, dữ liệu đang truyền tải sẽ bị ngắt kết nối.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowConfirmAbort(false)}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-stone-300 hover:text-white transition-colors cursor-pointer"
+              >
+                Tiếp Tục Tải
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                  }
+                  setIsUploading(false);
+                  setUploadTask(null);
+                  setShowConfirmAbort(false);
+                  if (onUploadingChange) onUploadingChange(false);
+                  onShowToast("Đã hủy tiến trình tải lên tệp.", "info");
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-black text-white shadow-md transition-colors cursor-pointer"
+              >
+                Hủy Tải Lên
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef } from "react";
 import {
   Edit3,
   X,
@@ -9,6 +9,8 @@ import {
   Languages,
   Star,
   PackageCheck,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { EditProductFormData } from "../types";
@@ -38,7 +40,19 @@ export function EditProductModal({
   onSubmit,
   onShowToast,
 }: EditProductModalProps) {
+  const [isAssetUploading, setIsAssetUploading] = useState<boolean>(false);
+  const [showModalAbortConfirm, setShowModalAbortConfirm] = useState<boolean>(false);
+  const abortUploadRef = useRef<(() => void) | null>(null);
+
   if (!isOpen || !editingProduct) return null;
+
+  const handleModalClose = () => {
+    if (isAssetUploading) {
+      setShowModalAbortConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
@@ -61,8 +75,9 @@ export function EditProductModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleModalClose}
             className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors cursor-pointer"
+            title={isAssetUploading ? "Đang tải tệp lên..." : "Đóng"}
           >
             <X className="h-4 w-4" />
           </button>
@@ -481,6 +496,10 @@ export function EditProductModal({
               });
             }}
             onShowToast={onShowToast}
+            onUploadingChange={(uploading, cancelFn) => {
+              setIsAssetUploading(uploading);
+              if (cancelFn) abortUploadRef.current = cancelFn;
+            }}
           />
 
           <div>
@@ -500,20 +519,34 @@ export function EditProductModal({
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
             <button
               type="button"
-              onClick={onClose}
-              className="py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+              onClick={handleModalClose}
+              disabled={isAssetUploading}
+              className={`py-2.5 px-4 rounded-xl font-bold text-xs transition-colors ${
+                isAssetUploading
+                  ? "bg-white/5 text-stone-500 cursor-not-allowed opacity-50"
+                  : "bg-white/10 hover:bg-white/15 text-stone-300 hover:text-white cursor-pointer"
+              }`}
             >
               Hủy Bỏ
             </button>
 
             <button
               type="submit"
-              disabled={isSaving}
-              className="py-2.5 px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              disabled={isSaving || isAssetUploading}
+              className={`py-2.5 px-5 rounded-xl font-black text-xs shadow-lg flex items-center gap-1.5 transition-all ${
+                isSaving || isAssetUploading
+                  ? "bg-amber-400/50 text-stone-900 cursor-not-allowed opacity-60 shadow-none"
+                  : "bg-amber-400 hover:bg-amber-300 text-stone-950 shadow-amber-500/20 active:scale-95 cursor-pointer"
+              }`}
             >
-              {isSaving ? (
+              {isAssetUploading ? (
                 <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-stone-950" />
+                  <span>Đang Tải Tệp Lên...</span>
+                </>
+              ) : isSaving ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin text-stone-950" />
                   <span>Đang Lưu...</span>
                 </>
               ) : (
@@ -525,6 +558,42 @@ export function EditProductModal({
             </button>
           </div>
         </form>
+
+        {/* Modal Xác Nhận Hủy Khi Người Dùng Bấm Nút Đóng Modal Trong Khi Đang Tải Lên */}
+        {showModalAbortConfirm && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in">
+            <div className="max-w-sm w-full bg-stone-900 border-2 border-rose-500/80 rounded-2xl p-4 text-white shadow-2xl space-y-3">
+              <div className="flex items-center gap-2 text-rose-400">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                <h4 className="text-sm font-black text-white">Xác Nhận Hủy Tiến Trình?</h4>
+              </div>
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Tệp tài nguyên đang được truyền tải lên Cloudflare R2 CDN. Bạn có chắc chắn muốn hủy tải lên và đóng cửa sổ này không?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowModalAbortConfirm(false)}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-stone-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  Tiếp Tục Tải
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (abortUploadRef.current) abortUploadRef.current();
+                    setShowModalAbortConfirm(false);
+                    setIsAssetUploading(false);
+                    onClose();
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-black text-white shadow-md transition-colors cursor-pointer"
+                >
+                  Hủy Tải Lên & Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
