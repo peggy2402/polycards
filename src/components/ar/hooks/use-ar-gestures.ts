@@ -150,32 +150,21 @@ export function useArGestures({
   );
 
   /**
-   * Tính toán dịch chuyển không gian 3D 1:1 qua Raycast Unproject Plane
+   * Tính toán dịch chuyển không gian 3D 1:1 mượt mà và an toàn
+   * Chuẩn hóa theo tỉ lệ màn hình, không dùng hệ số thô tránh làm model văng mất
    */
   const projectScreenDeltaTo3D = useCallback(
     (dxScreen: number, dyScreen: number): { dx: number; dy: number } => {
-      const THREE = ensureThreeHelpers();
-      const camera = cameraRef.current;
-      const pivot = pivotGroupRef.current;
-      if (!THREE || !camera || !pivot) {
-        return { dx: dxScreen * 0.003, dy: -dyScreen * 0.003 };
-      }
-
-      // Lấy khoảng cách từ camera đến mô hình
-      pivot.getWorldPosition(threeModelWorldPosRef.current);
-      const dist = camera.position.distanceTo(threeModelWorldPosRef.current) || 1000;
-      const vFOV = (camera.fov * Math.PI) / 180;
-      const viewportHeight = 2 * Math.tan(vFOV / 2) * dist;
       const rect = containerRef.current?.getBoundingClientRect();
-      const screenH = rect ? rect.height : window.innerHeight;
-
-      const worldUnitsPerPixel = viewportHeight / screenH;
+      const screenDim = Math.min(rect?.width || window.innerWidth, rect?.height || window.innerHeight) || 800;
+      // Chuẩn hóa: vuốt toàn màn hình tương ứng ~0.75 đơn vị không gian local
+      const sensitivity = 0.75;
       return {
-        dx: dxScreen * worldUnitsPerPixel,
-        dy: -dyScreen * worldUnitsPerPixel,
+        dx: (dxScreen / screenDim) * sensitivity,
+        dy: (-dyScreen / screenDim) * sensitivity,
       };
     },
-    [cameraRef, containerRef, ensureThreeHelpers, pivotGroupRef]
+    [containerRef]
   );
 
   /**
@@ -283,18 +272,18 @@ export function useArGestures({
         if (isHoldingModelRef.current || e.shiftKey || e.buttons === 2) {
           // 1 ngón đang nhấn giữ vào con vật (hoặc desktop Shift/chuột phải): Di chuyển 1:1 trong không gian
           const { dx: worldDx, dy: worldDy } = projectScreenDeltaTo3D(dx, dy);
-          targetPosRef.current.x = Math.max(-1.8, Math.min(1.8, targetPosRef.current.x + worldDx));
-          targetPosRef.current.y = Math.max(-1.8, Math.min(1.8, targetPosRef.current.y + worldDy));
+          targetPosRef.current.x = Math.max(-0.6, Math.min(0.6, targetPosRef.current.x + worldDx));
+          targetPosRef.current.y = Math.max(-0.6, Math.min(0.6, targetPosRef.current.y + worldDy));
         } else {
-          // 1 ngón vuốt tự do: Xoay 360 quanh trục Y và nghiêng trục X (±35°)
+          // 1 ngón vuốt tự do: Xoay 360 quanh hình cầu (trục Y 360° tự do + trục X nghiêng rộng ±80°)
           const rotSpeed = 0.009;
           targetRotYRef.current += dx * rotSpeed;
 
-          // Giới hạn góc nghiêng dọc X trong khoảng ±35° (~±0.61 rad)
-          const tiltLimit = 35 * (Math.PI / 180);
+          // Góc nghiêng dọc X mở rộng ±80° (~±1.4 rad) xem trọn vẹn từ đỉnh đầu xuống chân
+          const tiltLimit = 80 * (Math.PI / 180);
           targetRotXRef.current = Math.max(
             -tiltLimit,
-            Math.min(tiltLimit, targetRotXRef.current + dy * (rotSpeed * 0.7))
+            Math.min(tiltLimit, targetRotXRef.current + dy * (rotSpeed * 0.8))
           );
 
           // Đo tốc độ vuốt để tính quán tính xoay (Inertia)
@@ -305,24 +294,17 @@ export function useArGestures({
           lastMoveDeltaXRef.current = dx;
         }
       } else if (activePointers.length === 2) {
-        // Cử chỉ 2 ngón tay:
-        // A. Pinch to Zoom mượt mà từ 15% đến 300%
+        // Cử chỉ 2 ngón tay: Pinch to Zoom mượt mà, độc lập, không làm văng mô hình
         const p1 = activePointers[0];
         const p2 = activePointers[1];
         const currentDist = Math.hypot(p1.currentX - p2.currentX, p1.currentY - p2.currentY);
 
-        if (pinchStartDistRef.current > 0) {
+        if (pinchStartDistRef.current > 10 && currentDist > 10) {
           const factor = currentDist / pinchStartDistRef.current;
-          const newScale = Math.max(0.15, Math.min(3.0, pinchStartScaleRef.current * factor));
+          // Giới hạn tỉ lệ zoom trong khoảng an toàn 20% - 250%
+          const newScale = Math.max(0.2, Math.min(2.5, pinchStartScaleRef.current * factor));
           targetScaleRef.current = newScale;
         }
-
-        // B. 2 ngón kéo cùng chiều: Di chuyển mô hình
-        const avgDx = (dx + (p1.id === e.pointerId ? 0 : p2.currentX - prevX)) / 2;
-        const avgDy = (dy + (p1.id === e.pointerId ? 0 : p2.currentY - prevY)) / 2;
-        const { dx: worldDx, dy: worldDy } = projectScreenDeltaTo3D(avgDx, avgDy);
-        targetPosRef.current.x = Math.max(-1.8, Math.min(1.8, targetPosRef.current.x + worldDx * 0.5));
-        targetPosRef.current.y = Math.max(-1.8, Math.min(1.8, targetPosRef.current.y + worldDy * 0.5));
       }
     },
     [projectScreenDeltaTo3D]
@@ -502,3 +484,4 @@ export function useArGestures({
     isHoldingModelRef,
   };
 }
+

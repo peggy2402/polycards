@@ -107,8 +107,9 @@ export function WebArCardView({
   // Menu More "⋯" & Bottom Action Sheet
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isActionSheetOpen, setIsActionSheetOpen] = useState<boolean>(false);
+  const [isActionSelectorOpen, setIsActionSelectorOpen] = useState<boolean>(true);
+  const actionSelectorTimerRef = useRef<any>(null);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
-  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
 
   // Auto-hide UI (sau 4s không chạm thì mờ dần để xem toàn cảnh)
   const [isUiFaded, setIsUiFaded] = useState<boolean>(false);
@@ -122,6 +123,16 @@ export function WebArCardView({
   const [availableClips, setAvailableClips] = useState<string[]>([]);
   const [isFreeArMode, setIsFreeArMode] = useState<boolean>(false);
   const [isUsingFallbackModel, setIsUsingFallbackModel] = useState<boolean>(false);
+
+  // Quản lý timer tự động đóng bảng chọn động tác 3D sau 4 giây
+  const resetActionSelectorTimer = useCallback(() => {
+    if (actionSelectorTimerRef.current) {
+      clearTimeout(actionSelectorTimerRef.current);
+    }
+    actionSelectorTimerRef.current = setTimeout(() => {
+      setIsActionSelectorOpen(false);
+    }, 4000);
+  }, []);
 
   // Song Ngữ EN-VI hoặc ZH-VI
   const isEnViEnabled = animal.enableEnVi !== false;
@@ -460,6 +471,10 @@ export function WebArCardView({
                   clipNames.push(clip.name);
                 });
                 setAvailableClips(clipNames);
+                if (clipNames.length > 1) {
+                  setIsActionSelectorOpen(true);
+                  resetActionSelectorTimer();
+                }
 
                 if (animal.slug !== "cat") {
                   let matchedClip = gltf.animations[0];
@@ -647,6 +662,7 @@ export function WebArCardView({
       isCancelled = true;
       if (uiActivityTimerRef.current) clearTimeout(uiActivityTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (actionSelectorTimerRef.current) clearTimeout(actionSelectorTimerRef.current);
       if (reactionSystemRef.current) {
         reactionSystemRef.current.dispose();
       }
@@ -729,16 +745,6 @@ export function WebArCardView({
     );
   };
 
-  // Chụp ảnh AR
-  const handleTakePhoto = () => {
-    wakeUi();
-    if (!containerRef.current) return;
-    const dataUrl = capturePhoto(containerRef.current, facingMode === "user");
-    if (dataUrl) {
-      setCapturedPhotoUrl(dataUrl);
-    }
-  };
-
   // Chuyển đổi clip animation
   const handleSwitchClip = (clipName: string) => {
     wakeUi();
@@ -781,7 +787,7 @@ export function WebArCardView({
 
       {/* 4. Top Bar Mảnh & Thanh Thoát (Tự ẩn sau 4s không chạm) */}
       <div
-        className={`absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-3.5 pb-2 pointer-events-none transition-opacity duration-500 ${
+        className={`absolute top-0 inset-x-0 z-40 flex items-center justify-between px-3.5 pt-3.5 pb-2 pointer-events-none transition-opacity duration-500 ${
           isUiFaded ? "opacity-15 hover:opacity-100" : "opacity-100"
         }`}
         style={{ paddingTop: "max(0.875rem, env(safe-area-inset-top))" }}
@@ -796,37 +802,19 @@ export function WebArCardView({
           <X className="h-5 w-5" />
         </button>
 
-        {/* Nút Đổi Camera + Menu More "⋯" */}
-        <div className="pointer-events-auto flex items-center gap-2">
-          {/* Nút đổi camera trước/sau */}
-          {hasMultipleCameras && (
-            <button
-              type="button"
-              onClick={handleToggleCamera}
-              className={`flex h-10 w-10 items-center justify-center rounded-2xl border backdrop-blur-md active:scale-90 transition-transform shadow-lg cursor-pointer ${
-                facingMode === "user"
-                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-amber-400/30"
-                  : "bg-black/60 text-white border-white/20 hover:bg-black/80"
-              }`}
-              title="Đổi Camera trước / sau"
-            >
-              <SwitchCamera className="h-5 w-5" />
-            </button>
-          )}
+        {/* Menu More "⋯" (Chứa Reset, Debug HUD, Hướng Dẫn, Cảm Biến) - Đảm bảo z-index cao không bị đè */}
+        <div className="pointer-events-auto relative z-50">
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg cursor-pointer"
+            title="Tùy chọn khác"
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
 
-          {/* Menu More "⋯" (Chứa Reset, Debug HUD, Hướng Dẫn, Cảm Biến) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen((prev) => !prev)}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg cursor-pointer"
-              title="Tùy chọn khác"
-            >
-              <MoreVertical className="h-5 w-5" />
-            </button>
-
-            {isMenuOpen && (
-              <div className="absolute right-0 top-12 w-48 rounded-2xl bg-stone-950/90 border border-white/20 p-1.5 backdrop-blur-xl shadow-2xl space-y-1 text-xs text-white z-40 animate-in fade-in zoom-in-95 duration-150">
+          {isMenuOpen && (
+            <div className="absolute right-0 top-12 w-52 rounded-2xl bg-stone-950/95 border border-white/20 p-1.5 backdrop-blur-xl shadow-2xl space-y-1 text-xs text-white z-[60] animate-in fade-in zoom-in-95 duration-150">
                 <button
                   type="button"
                   onClick={() => {
@@ -889,7 +877,6 @@ export function WebArCardView({
             )}
           </div>
         </div>
-      </div>
 
       {/* 5. AR Debug HUD */}
       <ArHud
@@ -947,11 +934,11 @@ export function WebArCardView({
         onToggle={() => setIsActionSheetOpen((prev) => !prev)}
       />
 
-      {/* 8. KHUNG ĐIỀU KHIỂN CHÍNH P3 (Tối Giản, Chiều Cao <= 72px, Hỗ Trợ Cả Dọc Lẫn Ngang) */}
+      {/* 8. KHUNG ĐIỀU KHIỂN CHÍNH (Song Ngữ EN-VI + Chọn Động Tác Tự Ẩn 4s + Lật Camera Trước/Sau) */}
       <div
         className={`absolute z-30 pointer-events-none transition-all duration-500 ${
           isLandscape
-            ? "right-3.5 inset-y-0 flex flex-col items-center justify-center py-4"
+            ? "right-3.5 top-16 bottom-4 flex flex-col items-center justify-center py-2"
             : "bottom-0 inset-x-0 flex flex-col items-center px-3.5 pb-4 pt-1"
         } ${isUiFaded ? "opacity-15 hover:opacity-100" : "opacity-100"}`}
         style={
@@ -960,113 +947,250 @@ export function WebArCardView({
             : { paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }
         }
       >
-        <div
-          className={`pointer-events-auto rounded-3xl bg-stone-950/75 border border-white/20 p-2 backdrop-blur-xl shadow-2xl flex items-center ${
-            isLandscape ? "flex-col gap-3 py-3 w-16" : "flex-row gap-2 max-w-md w-full justify-between"
-          }`}
-        >
-          {/* A. Chip Ngôn Ngữ Nhỏ Gọn (Word + Phonetic 1 dòng) */}
-          <button
-            type="button"
-            onClick={() => {
-              if (languageTrack === "en-vi") {
-                handleSpeak(activeLang === "en" ? "vi" : "en");
-              } else {
-                handleSpeak(activeLang === "zh" ? "vi" : "zh");
-              }
-            }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border transition-all active:scale-95 cursor-pointer ${
-              activeLang
-                ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md scale-102"
-                : "bg-white/10 text-white border-white/15 hover:bg-white/20"
-            } ${isLandscape ? "flex-col text-center px-1 py-2 w-full" : "flex-1 min-w-0"}`}
-            title="Nhấn để nghe phát âm"
-          >
-            <Languages className="h-4 w-4 text-amber-300 shrink-0" />
-            <div className="flex flex-col text-left min-w-0 overflow-hidden leading-tight">
-              <span className="text-xs font-black truncate">
-                {languageTrack === "zh-vi"
-                  ? animal.nameZh || animal.nameEn
-                  : animal.nameEn}
-              </span>
-              <span className="text-[10px] text-amber-200/90 font-mono truncate">
-                {languageTrack === "zh-vi"
-                  ? animal.pinyinZh || "pīnyīn"
-                  : animal.ipa || "/ipa/"}
-              </span>
-            </div>
-          </button>
-
-          {/* B. Nút Phát Tiếng Kêu (Chỉ Icon, Tiết kiệm diện tích) */}
-          <button
-            type="button"
-            onClick={handleAnimalSound}
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
-              isPlayingSound
-                ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md"
-                : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20"
-            }`}
-            title={`Phát tiếng kêu ${animal.nameVi}`}
-          >
-            <Volume2 className="h-5 w-5" />
-          </button>
-
-          {/* C. Nút Mic Nhận Diện Giọng Nói (P4.3 Voice Quiz, ẩn nếu không hỗ trợ) */}
-          {isVoiceSupported && (
+        {isLandscape ? (
+          /* Giao diện khi xoay ngang: Cột điều khiển dọc né vùng Top Bar */
+          <div className="pointer-events-auto rounded-3xl bg-stone-950/80 border border-white/20 p-2 backdrop-blur-xl shadow-2xl flex flex-col gap-2.5 items-center w-16">
+            {/* Nút phát âm EN/ZH */}
             <button
               type="button"
-              onClick={() => {
-                if (isListening) return;
-                startListening(
-                  {
-                    en: animal.nameEn,
-                    vi: animal.nameVi,
-                    zh: animal.nameZh,
-                    pinyin: animal.pinyinZh,
-                  },
-                  languageTrack === "zh-vi" ? "zh" : "en"
-                );
-              }}
-              className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
-                isListening
-                  ? "bg-rose-500 text-white border-rose-300 shadow-rose-500/50 animate-pulse scale-105"
+              onClick={() => handleSpeak(languageTrack === "zh-vi" ? "zh" : "en")}
+              className={`flex flex-col items-center justify-center h-11 w-11 rounded-2xl border transition-all active:scale-95 cursor-pointer ${
+                activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
+                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md"
+                  : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20"
+              }`}
+              title={`Nghe ${languageTrack === "zh-vi" ? "Tiếng Trung" : "Tiếng Anh"}`}
+            >
+              <Languages className="h-4 w-4" />
+              <span className="text-[9px] font-black">{languageTrack === "zh-vi" ? "ZH" : "EN"}</span>
+            </button>
+
+            {/* Nút phát âm Tiếng Việt */}
+            <button
+              type="button"
+              onClick={() => handleSpeak("vi")}
+              className={`flex flex-col items-center justify-center h-11 w-11 rounded-2xl border transition-all active:scale-95 cursor-pointer ${
+                activeLang === "vi"
+                  ? "bg-emerald-400 text-stone-950 border-emerald-300 font-black shadow-md"
                   : "bg-white/10 text-emerald-300 border-white/15 hover:bg-white/20"
               }`}
-              title="Luyện nói cùng bé (Nhận diện giọng nói)"
+              title="Nghe Tiếng Việt"
             >
-              <Mic className="h-5 w-5" />
-              {isListening && (
-                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-400 animate-ping" />
-              )}
+              <Languages className="h-4 w-4" />
+              <span className="text-[9px] font-black">VI</span>
             </button>
-          )}
 
-          {/* D. Nút Chụp Ảnh Tròn Lớn Ở Giữa */}
-          <button
-            type="button"
-            onClick={handleTakePhoto}
-            className="flex h-13 w-13 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 to-amber-300 text-stone-950 font-black shadow-lg shadow-amber-400/40 active:scale-90 transition-transform shrink-0 cursor-pointer ring-3 ring-black/40"
-            title="Chụp ảnh AR"
-          >
-            <Camera className="h-6 w-6" />
-          </button>
-
-          {/* E. Nút Mở Bottom Sheet Động Tác (nếu model có >1 animation clip) */}
-          {availableClips.length > 1 && (
+            {/* Nút phát tiếng kêu */}
             <button
               type="button"
-              onClick={() => setIsActionSheetOpen((prev) => !prev)}
-              className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
-                isActionSheetOpen
-                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black"
-                  : "bg-white/10 text-white border-white/15 hover:bg-white/20"
+              onClick={handleAnimalSound}
+              className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 cursor-pointer ${
+                isPlayingSound
+                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md"
+                  : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20"
               }`}
-              title="Chọn động tác nhân vật"
+              title={`Phát tiếng kêu ${animal.nameVi}`}
             >
-              <Activity className="h-5 w-5" />
+              <Volume2 className="h-5 w-5" />
             </button>
-          )}
-        </div>
+
+            {/* Nút mở chọn động tác */}
+            {availableClips.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setIsActionSheetOpen((prev) => !prev)}
+                className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 cursor-pointer ${
+                  isActionSheetOpen
+                    ? "bg-amber-400 text-stone-950 border-amber-300 font-black"
+                    : "bg-white/10 text-white border-white/15 hover:bg-white/20"
+                }`}
+                title="Chọn động tác nhân vật"
+              >
+                <Activity className="h-5 w-5" />
+              </button>
+            )}
+
+            {/* Nút lật camera trước/sau */}
+            <button
+              type="button"
+              onClick={handleToggleCamera}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-400 text-stone-950 font-black shadow-lg shadow-amber-400/30 active:scale-90 transition-transform cursor-pointer border border-amber-300"
+              title="Đổi camera trước / sau"
+            >
+              <SwitchCamera className="h-5 w-5" />
+            </button>
+          </div>
+        ) : (
+          /* Giao diện chuẩn khi màn hình dọc (Portrait) */
+          <div className="w-full max-w-md pointer-events-auto rounded-3xl bg-stone-950/85 border border-white/20 p-2.5 backdrop-blur-xl shadow-2xl flex flex-col gap-2">
+            {/* 1. KHỐI SONG NGỮ (EN/ZH & VI) */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* Thẻ Tiếng Anh (hoặc Tiếng Trung) */}
+              <button
+                type="button"
+                onClick={() => handleSpeak(languageTrack === "zh-vi" ? "zh" : "en")}
+                className={`flex flex-col items-start p-2 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 ${
+                  activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
+                    ? "bg-amber-400/25 border-amber-400 shadow-md shadow-amber-400/25 scale-[1.02]"
+                    : "bg-white/10 border-white/15 hover:bg-white/15"
+                }`}
+                title={`Nhấn để nghe phát âm ${languageTrack === "zh-vi" ? "Tiếng Trung" : "Tiếng Anh"}`}
+              >
+                <div className="flex items-center justify-between w-full mb-0.5">
+                  <span className="text-[10px] font-bold text-amber-300 tracking-wider flex items-center gap-1">
+                    <Languages className="h-3 w-3" />
+                    {languageTrack === "zh-vi" ? "TIẾNG TRUNG (ZH)" : "TIẾNG ANH (EN)"}
+                  </span>
+                  <Volume2
+                    className={`h-3.5 w-3.5 ${
+                      activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
+                        ? "text-amber-300 animate-pulse"
+                        : "text-stone-400"
+                    }`}
+                  />
+                </div>
+                <span className="text-sm font-black text-white truncate max-w-full">
+                  {languageTrack === "zh-vi" ? animal.nameZh || animal.nameEn : animal.nameEn}
+                </span>
+                <span className="text-[10px] text-amber-200/90 font-mono truncate max-w-full">
+                  {languageTrack === "zh-vi" ? animal.pinyinZh || "pīnyīn" : animal.ipa || "/ipa/"}
+                </span>
+              </button>
+
+              {/* Thẻ Tiếng Việt */}
+              <button
+                type="button"
+                onClick={() => handleSpeak("vi")}
+                className={`flex flex-col items-start p-2 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 ${
+                  activeLang === "vi"
+                    ? "bg-emerald-500/25 border-emerald-400 shadow-md shadow-emerald-400/25 scale-[1.02]"
+                    : "bg-white/10 border-white/15 hover:bg-white/15"
+                }`}
+                title="Nhấn để nghe phát âm Tiếng Việt"
+              >
+                <div className="flex items-center justify-between w-full mb-0.5">
+                  <span className="text-[10px] font-bold text-emerald-300 tracking-wider flex items-center gap-1">
+                    <Languages className="h-3 w-3" />
+                    TIẾNG VIỆT (VI)
+                  </span>
+                  <Volume2
+                    className={`h-3.5 w-3.5 ${
+                      activeLang === "vi" ? "text-emerald-300 animate-pulse" : "text-stone-400"
+                    }`}
+                  />
+                </div>
+                <span className="text-sm font-black text-white truncate max-w-full">
+                  {animal.nameVi}
+                </span>
+                <span className="text-[10px] text-emerald-200/80 truncate max-w-full">
+                  Tiếng Mẹ Đẻ
+                </span>
+              </button>
+            </div>
+
+            {/* 2. CHỌN ĐỘNG TÁC 3D (Tự Động Ẩn Sau 4 Giây) */}
+            {availableClips.length > 1 && isActionSelectorOpen && (
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 px-1 border-t border-white/10 pt-2 animate-in fade-in duration-200">
+                <span className="text-[11px] font-black text-amber-300 shrink-0">Động tác:</span>
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                  {availableClips.map((clip) => {
+                    const isSelected = playingClipName === clip;
+                    return (
+                      <button
+                        key={clip}
+                        type="button"
+                        onClick={() => {
+                          handleSwitchClip(clip);
+                          resetActionSelectorTimer();
+                        }}
+                        className={`px-3 py-1 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-amber-400 text-stone-950 shadow-md shadow-amber-400/30 scale-102"
+                            : "bg-white/10 text-stone-200 hover:bg-white/20"
+                        }`}
+                      >
+                        {getClipFriendlyLabel(clip)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 3. HÀNG ĐIỀU KHIỂN DƯỚI CÙNG: Phát Tiếng Kêu + Mở Lại Động Tác + Lật Camera */}
+            <div className="flex items-center gap-2 pt-0.5">
+              {/* Nút phát tiếng kêu */}
+              <button
+                type="button"
+                onClick={handleAnimalSound}
+                className={`flex-1 flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border transition-all active:scale-98 cursor-pointer ${
+                  isPlayingSound
+                    ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-lg shadow-amber-400/30"
+                    : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20 font-bold"
+                }`}
+              >
+                <Volume2 className="h-4 w-4" />
+                <span className="text-xs">Phát Tiếng Kêu {animal.nameVi}</span>
+              </button>
+
+              {/* Nút Mic Voice Quiz (nếu có hỗ trợ) */}
+              {isVoiceSupported && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isListening) return;
+                    startListening(
+                      {
+                        en: animal.nameEn,
+                        vi: animal.nameVi,
+                        zh: animal.nameZh,
+                        pinyin: animal.pinyinZh,
+                      },
+                      languageTrack === "zh-vi" ? "zh" : "en"
+                    );
+                  }}
+                  className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
+                    isListening
+                      ? "bg-rose-500 text-white border-rose-300 shadow-rose-500/50 animate-pulse scale-105"
+                      : "bg-white/10 text-emerald-300 border-white/15 hover:bg-white/20"
+                  }`}
+                  title="Luyện nói cùng bé (Nhận diện giọng nói)"
+                >
+                  <Mic className="h-4 w-4" />
+                  {isListening && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-400 animate-ping" />
+                  )}
+                </button>
+              )}
+
+              {/* Nút mở lại động tác nếu đã tự đóng sau 4s */}
+              {availableClips.length > 1 && !isActionSelectorOpen && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionSelectorOpen(true);
+                    resetActionSelectorTimer();
+                  }}
+                  className="flex h-11 px-3 items-center justify-center gap-1 rounded-2xl bg-white/10 text-amber-300 border border-white/15 hover:bg-white/20 active:scale-95 transition-all text-xs font-bold cursor-pointer shrink-0"
+                  title="Chọn động tác 3D"
+                >
+                  <Activity className="h-4 w-4" />
+                  <span>Động tác</span>
+                </button>
+              )}
+
+              {/* Nút LẬT CAMERA MẶT TRƯỚC / SAU (thay thế nút chụp ảnh) */}
+              <button
+                type="button"
+                onClick={handleToggleCamera}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-400 text-stone-950 font-black shadow-lg shadow-amber-400/30 active:scale-90 transition-transform shrink-0 cursor-pointer border border-amber-300"
+                title={facingMode === "user" ? "Chuyển sang Camera sau" : "Chuyển sang Camera trước (Selfie)"}
+              >
+                <SwitchCamera className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 9. Loading State */}
@@ -1174,51 +1298,7 @@ export function WebArCardView({
         </div>
       )}
 
-      {/* 12. Modal Xem & Tải Ảnh Đã Chụp (Đảm bảo ảnh selfie không bị ngược gương) */}
-      {capturedPhotoUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-          <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-400/60 p-4 shadow-2xl flex flex-col items-center">
-            <button
-              type="button"
-              onClick={() => setCapturedPhotoUrl(null)}
-              className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 mb-3">
-              <Sparkles className="h-4 w-4" />
-              <span>Ảnh Chụp AR Poly Cards</span>
-            </div>
-            <div className="relative w-full rounded-2xl overflow-hidden border border-white/20 bg-black aspect-3/4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={capturedPhotoUrl}
-                alt={`Ảnh AR ${animal.nameEn}`}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="mt-3.5 flex items-center gap-2.5 w-full">
-              <a
-                href={capturedPhotoUrl}
-                download={`polycards-${animal.slug}-ar.jpg`}
-                className="flex flex-1 min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-xs font-black text-white active:scale-95 transition-transform shadow-lg cursor-pointer"
-              >
-                <Download className="h-4 w-4" />
-                <span>Tải Ảnh Về Máy</span>
-              </a>
-              <button
-                type="button"
-                onClick={() => setCapturedPhotoUrl(null)}
-                className="min-h-[44px] px-4 rounded-2xl bg-white/10 text-xs font-bold text-white border border-white/20 active:scale-95 transition-transform cursor-pointer"
-              >
-                Chụp Tiếp
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 13. Modal Hướng Dẫn Cử Chỉ Mới Chuẩn Trẻ Em & Phụ Huynh */}
+      {/* 12. Modal Hướng Dẫn Cử Chỉ Mới Chuẩn Trẻ Em & Phụ Huynh */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-300/60 p-5 shadow-2xl text-white">

@@ -313,7 +313,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
       "Thẻ học thông minh AR Poly Cards: Bé tập nhảy và vận động vui tươi phát triển thể chất.",
     price: 219000,
     originalPrice: 299000,
-    images: ["/images/animals/lion.jpg"],
+    images: ["/images/cards/jump-template.jpg"],
     audioUrl: "/audio/en/jump.mp3",
     audios: {
       en: "/audio/en/jump.mp3",
@@ -322,7 +322,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     },
     modelUrl: "/models/lion.glb",
     iosModelUrl: "/models/lion.usdz",
-    posterUrl: "/images/posters/lion-poster.jpg",
+    posterUrl: "/images/cards/jump-template.jpg",
     animations: ["Idle", "Walk"],
     arEnabled: true,
     buyUrl: "/order?animal=jump",

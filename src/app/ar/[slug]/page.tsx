@@ -41,13 +41,36 @@ export async function generateMetadata({ params }: ArPageProps): Promise<Metadat
     };
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://polycards-one.vercel.app";
+  const rawImage = animal.posterUrl || animal.images?.[0] || "/images/cards/jump-template.jpg";
+  const ogImageUrl = rawImage.startsWith("http://") || rawImage.startsWith("https://")
+    ? rawImage
+    : `${siteUrl.replace(/\/$/, "")}${rawImage.startsWith("/") ? "" : "/"}${rawImage}`;
+
   return {
     title: `${animal.nameEn} (${animal.nameVi}) - Trải Nghiệm Thực Tế Ảo AR`,
     description: `${animal.nameEn} trong thế giới Poly Cards. Quét mã để xem mô hình 3D AR sống động và nghe phát âm tiếng Anh, tiếng Việt chuẩn bản xứ.`,
     openGraph: {
       title: `${animal.nameEn} (${animal.nameVi}) - Poly Cards AR Live`,
-      description: animal.description,
-      images: [animal.images[0] || "/images/animals/lion.jpg"],
+      description: animal.description || `${animal.nameEn} trong thế giới Poly Cards.`,
+      url: `${siteUrl}/ar/${animal.slug}`,
+      siteName: "Poly Cards",
+      locale: "vi_VN",
+      type: "website",
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${animal.nameEn} (${animal.nameVi}) - Poly Cards`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${animal.nameEn} (${animal.nameVi}) - Poly Cards AR Live`,
+      description: animal.description || `${animal.nameEn} trong thế giới Poly Cards.`,
+      images: [ogImageUrl],
     },
   };
 }

@@ -134,3 +134,4 @@ export function useArCamera({ onShowToast }: UseArCameraOptions = {}) {
     capturePhoto,
   };
 }
+

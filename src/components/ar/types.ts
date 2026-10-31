@@ -22,3 +22,4 @@ export interface ArVoiceQuizResult {
   isCorrect: boolean;
   confidence: number;
 }
+
