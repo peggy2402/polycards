@@ -2096,6 +2096,10 @@ export default function ToolsPage() {
         (p) => p.modelUrl === existingProduct.modelUrl
       );
 
+      const isCanvasMatchingThisCard =
+        slug.toLowerCase() === cleanSlug &&
+        cardImageSrc !== "/images/cards/jump-template.jpg";
+
       setProductForm({
         nameEn: existingProduct.nameEn || cleanSlug.charAt(0).toUpperCase() + cleanSlug.slice(1),
         nameVi: existingProduct.nameVi || existingProduct.nameEn,
@@ -2118,7 +2122,7 @@ export default function ToolsPage() {
         description:
           existingProduct.description ||
           `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${existingProduct.nameVi} (${existingProduct.nameEn}).`,
-        useCompositeCardImage: true,
+        useCompositeCardImage: isCanvasMatchingThisCard,
         modelPresetId: matchedPreset ? matchedPreset.id : "custom",
         modelUrl: existingProduct.modelUrl || "/models/lion.glb",
         iosModelUrl: existingProduct.iosModelUrl || "/models/lion.usdz",
@@ -2268,7 +2272,12 @@ export default function ToolsPage() {
         }
       }
 
-      let imageToSave = cardImageSrc;
+      const existingTargetProduct =
+        productsList.find((p) => p.slug.toLowerCase() === slug.toLowerCase()) ||
+        getMergedProducts().find((p) => p.slug.toLowerCase() === slug.toLowerCase());
+
+      let imageToSave =
+        existingTargetProduct?.images?.[0] || existingTargetProduct?.posterUrl || cardImageSrc;
       if (productForm.useCompositeCardImage) {
         try {
           const canvas = await generateCompositeCanvas();
