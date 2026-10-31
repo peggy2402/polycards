@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GridFSBucket } from "mongodb";
 import { Animal } from "@/types/animal";
+import { normalizeCategorySlug } from "@/lib/activation";
 import {
   dbGetProducts,
   dbUpsertProduct,
@@ -63,15 +64,24 @@ export async function GET(request: NextRequest) {
 
     const rawList = await dbGetProducts();
 
-    let list = rawList.map((a) => ({
-      ...a,
-      category: a.category || "Động Vật",
-      categorySlug: a.categorySlug || "dong-vat",
-    }));
+    let list = rawList.map((a) => {
+      const rawCategory = a.category || "Động Vật";
+      const normalizedSlug = normalizeCategorySlug(a.categorySlug || rawCategory);
+      return {
+        ...a,
+        category: rawCategory,
+        categorySlug: normalizedSlug,
+      };
+    });
 
     if (category && category !== "all") {
+      const normQuery = normalizeCategorySlug(category);
       list = list.filter(
-        (item) => item.categorySlug === category || item.category === category
+        (item) =>
+          item.categorySlug === category ||
+          item.categorySlug === normQuery ||
+          item.category === category ||
+          normalizeCategorySlug(item.category) === normQuery
       );
     }
 
@@ -199,29 +209,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rawCategory = String(body.category || "Động Vật").trim();
-    let computedCategorySlug = body.categorySlug;
-    if (!computedCategorySlug || computedCategorySlug === cleanSlug) {
-      const catLower = rawCategory.toLowerCase();
-      if (catLower.includes("hành động") || catLower.includes("hanh-dong")) {
-        computedCategorySlug = "hanh-dong";
-      } else if (
-        catLower.includes("phương tiện") ||
-        catLower.includes("xe cộ") ||
-        catLower.includes("phuong-tien") ||
-        catLower.includes("xe-co")
-      ) {
-        computedCategorySlug = "xe-co";
-      } else if (
-        catLower.includes("trái cây") ||
-        catLower.includes("hoa quả") ||
-        catLower.includes("trai-cay") ||
-        catLower.includes("hoa-qua")
-      ) {
-        computedCategorySlug = "hoa-qua";
-      } else {
-        computedCategorySlug = "dong-vat";
-      }
-    }
+    const computedCategorySlug = normalizeCategorySlug(body.categorySlug || rawCategory);
 
     const computedCategoryId = body.categoryId || `cat-${computedCategorySlug}`;
     const computedPackCode =
@@ -326,7 +314,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // 1. Kiểm tra nếu có body JSON yêu cầu xóa hàng loạt
-    let body: any = null;
+    let body: Record<string, unknown> | string[] | null = null;
     try {
       body = await request.json();
     } catch {}

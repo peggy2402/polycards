@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Animal, ProductCategory } from "@/types/animal";
 import { getAllAnimals } from "@/lib/animals";
+import { normalizeCategorySlug } from "@/lib/activation";
 import { ProductCard } from "@/components/landing/product-card";
 import { ProductListItem } from "@/components/landing/product-list-item";
 import { Navbar } from "@/components/common/navbar";
@@ -156,25 +157,45 @@ export default function ProductsPage() {
     }
   };
 
-  // Tính số lượng thẻ bài trong từng danh mục
+  // Tính số lượng thẻ bài trong từng danh mục chuẩn xác (hỗ trợ cả slug chuẩn, slug biến thể và tên danh mục)
   const categoryCounts = useMemo(() => {
     const counts: { [slug: string]: number } = { all: products.length };
-    products.forEach((p) => {
-      const catSlug = p.categorySlug || "dong-vat";
-      counts[catSlug] = (counts[catSlug] || 0) + 1;
+    categories.forEach((cat) => {
+      const targetSlug = cat.slug;
+      const targetNorm = normalizeCategorySlug(cat.slug);
+      const count = products.filter((p) => {
+        const pSlugNorm = normalizeCategorySlug(p.categorySlug);
+        const pCatNorm = normalizeCategorySlug(p.category);
+        return (
+          p.categorySlug === targetSlug ||
+          pSlugNorm === targetNorm ||
+          pCatNorm === targetNorm ||
+          (p.category && p.category.toLowerCase() === cat.name.toLowerCase())
+        );
+      }).length;
+      counts[targetSlug] = count;
     });
     return counts;
-  }, [products]);
+  }, [products, categories]);
 
   // Lọc và Sắp xếp danh sách sản phẩm
   const filteredProducts = useMemo(() => {
     return products
       .filter((product) => {
-        // Lọc Danh mục
+        // Lọc Danh mục chuẩn hóa
         if (selectedCategorySlug !== "all") {
-          const matchSlug = product.categorySlug === selectedCategorySlug;
-          const matchName = product.category?.toLowerCase() === selectedCategorySlug.toLowerCase();
-          if (!matchSlug && !matchName) return false;
+          const selectedCat = categories.find((c) => c.slug === selectedCategorySlug);
+          const targetNorm = normalizeCategorySlug(selectedCategorySlug);
+          const pSlugNorm = normalizeCategorySlug(product.categorySlug);
+          const pCatNorm = normalizeCategorySlug(product.category);
+
+          const matchesCategory =
+            product.categorySlug === selectedCategorySlug ||
+            pSlugNorm === targetNorm ||
+            pCatNorm === targetNorm ||
+            (selectedCat && product.category?.toLowerCase() === selectedCat.name.toLowerCase());
+
+          if (!matchesCategory) return false;
         }
 
         // Lọc Tìm kiếm (EN, VI, ZH, IPA, Description)
@@ -217,7 +238,7 @@ export default function ProductsPage() {
         }
         return 0;
       });
-  }, [products, selectedCategorySlug, searchQuery, priceFilter, sortOption, languageFilter]);
+  }, [products, categories, selectedCategorySlug, searchQuery, priceFilter, sortOption, languageFilter]);
 
   // Xử lý thay đổi các bộ lọc kết hợp đặt lại về trang 1
   const handleSelectCategory = (slug: string) => {

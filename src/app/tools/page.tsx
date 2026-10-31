@@ -33,6 +33,7 @@ import {
   PRODUCTS_UPDATED_EVENT,
   COMBO_UPDATED_EVENT,
 } from "@/lib/products-store";
+import { normalizeCategorySlug } from "@/lib/activation";
 import { Animal, ProductCategory } from "@/types/animal";
 import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 
@@ -1953,7 +1954,9 @@ export default function ToolsPage() {
         enableEnVi: editProductForm.enableEnVi,
         enableZhVi: editProductForm.enableZhVi,
         category: editProductForm.category.trim(),
-        categorySlug: slugify(editProductForm.category),
+        categorySlug:
+          categoriesList.find((c) => c.name === editProductForm.category.trim())?.slug ||
+          normalizeCategorySlug(editProductForm.category),
         packCode:
           editProductForm.packCode !== undefined
             ? editProductForm.packCode.trim()

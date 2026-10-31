@@ -1,6 +1,7 @@
 import { Animal, ProductCategory } from "@/types/animal";
 import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from "@/data/seed-data";
+import { normalizeCategorySlug } from "./activation";
 
 export const DEFAULT_CATEGORIES: ProductCategory[] = INITIAL_CATEGORIES;
 
@@ -200,12 +201,14 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
         item.images?.[0],
         item.posterUrl
       );
+      const normCat = item.category || "Động Vật";
+      const normSlug = normalizeCategorySlug(item.categorySlug || normCat);
       return {
         ...item,
         images: [validImg],
         posterUrl: validImg,
-        category: item.category || "Động Vật",
-        categorySlug: item.categorySlug || "dong-vat",
+        category: normCat,
+        categorySlug: normSlug,
         originalPrice: item.originalPrice || Math.round((item.price || 249000) * 1.3),
       };
     });
@@ -352,7 +355,7 @@ export function saveProductToLanding(productData: Partial<Animal> & {
   }
 
   const cleanSlug = (productData.slug || slugify(productData.nameEn)).toLowerCase();
-  const categorySlug = productData.categorySlug || slugify(productData.category);
+  const categorySlug = normalizeCategorySlug(productData.categorySlug || productData.category);
 
   const existingIndex = customList.findIndex(
     (item) => item.id === productData.id || item.slug.toLowerCase() === cleanSlug

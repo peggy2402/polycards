@@ -61,6 +61,9 @@ export function normalizeCategorySlug(raw?: string | null): string {
   if (clean.includes("dongvat") || clean.includes("animal")) {
     return "dong-vat";
   }
+  if (clean.includes("nghenghiep") || clean.includes("career") || clean.includes("job")) {
+    return "nghe-nghiep";
+  }
 
   return raw
     .toLowerCase()
