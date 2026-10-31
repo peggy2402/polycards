@@ -28,6 +28,7 @@ import {
   SwitchCamera,
   Compass,
   Activity,
+  Check,
 } from "lucide-react";
 import { ArReactionSystem } from "./effects/ar-reaction-system";
 import { useArGestures } from "./hooks/use-ar-gestures";
@@ -56,6 +57,22 @@ interface WebArCardViewProps {
   isTrial?: boolean;
   onOpenOrder?: () => void;
   onOpenActivate?: () => void;
+}
+
+/**
+ * Helper giải phóng triệt để Texture và Material của Three.js tránh memory leak WebGL
+ */
+function disposeMaterial(mat: any) {
+  if (!mat) return;
+  try {
+    mat.dispose?.();
+    for (const key of Object.keys(mat)) {
+      const val = mat[key];
+      if (val && typeof val.dispose === "function") {
+        val.dispose();
+      }
+    }
+  } catch {}
 }
 
 export function WebArCardView({
@@ -171,8 +188,9 @@ export function WebArCardView({
     capturePhoto,
   } = useArCamera({ onShowToast: showToast });
 
-  // P4.2 Motion Gyro Hook (World Lock 3DoF)
-  const [isMotionEnabled, setIsMotionEnabled] = useState<boolean>(false);
+  // P4.2 Motion Gyro Hook (World Lock 3DoF & Orbit-Lite)
+  const [isMotionEnabled, setIsMotionEnabled] = useState<boolean>(true);
+  const [motionMode, setMotionMode] = useState<"orbit-lite" | "world-lock">("orbit-lite");
   const {
     isMotionSupported,
     isPermissionGranted: isMotionPermissionGranted,
@@ -181,6 +199,42 @@ export function WebArCardView({
     gyroQuatRef,
     resetBasePose,
   } = useArMotion({ enabled: isMotionEnabled });
+
+  // REFS CẬP NHẬT MỖI RENDER: Cho phép render loop và handler đọc giá trị mới nhất
+  // mà TUYỆT ĐỐI KHÔNG làm re-trigger effect khởi tạo AR (ngăn chặn crash OOM trên iOS)
+  const isMotionEnabledRef = useRef(isMotionEnabled);
+  isMotionEnabledRef.current = isMotionEnabled;
+
+  const motionModeRef = useRef(motionMode);
+  motionModeRef.current = motionMode;
+
+  const isMotionPermissionGrantedRef = useRef(isMotionPermissionGranted);
+  isMotionPermissionGrantedRef.current = isMotionPermissionGranted;
+
+  const gyroQuatRefLatest = useRef(gyroQuatRef);
+  gyroQuatRefLatest.current = gyroQuatRef;
+
+  const facingModeRef = useRef(facingMode);
+  facingModeRef.current = facingMode;
+
+  // Đếm số lần effect startAR chạy để kiểm chứng không bị tải lại (chỉ 1 lần mỗi con vật)
+  const startArCallCountRef = useRef(0);
+
+  // Hỗ trợ Apple AR Quick Look (iOS .usdz) & WebXR (Android) cho Bước 4
+  const [supportsAppleAr, setSupportsAppleAr] = useState<boolean>(false);
+  const [supportsWebXr, setSupportsWebXr] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      const a = document.createElement("a");
+      setSupportsAppleAr(Boolean(a.relList && a.relList.supports && a.relList.supports("ar")));
+    }
+    if (typeof navigator !== "undefined" && (navigator as any).xr?.isSessionSupported) {
+      (navigator as any).xr.isSessionSupported("immersive-ar").then((sup: boolean) => {
+        setSupportsWebXr(sup);
+      }).catch(() => {});
+    }
+  }, []);
 
   // Phản ứng khi chạm vào con vật (P2: Squash & stretch, parabolic jump, floating stars, audio)
   const handleTapModel = useCallback(() => {
@@ -217,6 +271,12 @@ export function WebArCardView({
       showToast("Đã đặt lại vị trí & kích thước ban đầu", "info");
     },
   });
+
+  const updatePhysicsRef = useRef(updatePhysics);
+  updatePhysicsRef.current = updatePhysics;
+
+  const stopFrontStreamRef = useRef(stopFrontStream);
+  stopFrontStreamRef.current = stopFrontStream;
 
   // P4.3 Voice Recognition Quiz Hook
   const { isSupported: isVoiceSupported, isListening, startListening } = useVoiceQuiz({
@@ -322,6 +382,11 @@ export function WebArCardView({
 
     async function startAR() {
       try {
+        startArCallCountRef.current++;
+        console.warn(
+          `[PolyCards WebAR Engine] startAR() khởi chạy lần ${startArCallCountRef.current} cho thẻ "${animal.slug}". (Yêu cầu kiểm chứng: chỉ chạy đúng 1 lần khi mở thẻ, không reload khi đổi Gyro/Camera/Ngôn ngữ)`
+        );
+
         setIsLoading(true);
         setDownloadProgress(8);
         setLoadError(null);
@@ -550,10 +615,25 @@ export function WebArCardView({
                   if (isCancelled) return;
                   setIsLoading(false);
 
-                  // Vector tái sử dụng trong vòng render
-                  const fallbackPos = new THREE.Vector3();
-                  const fallbackQuat = new THREE.Quaternion();
-                  const fallbackScale = new THREE.Vector3();
+                  // Đối tượng toán học tái sử dụng cho Render Loop (Không cấp phát object trong frame)
+                  const worldPointW = new THREE.Vector3();
+                  const anchorPosTarget = new THREE.Vector3();
+                  const anchorQuatTarget = new THREE.Quaternion();
+                  const anchorScaleTarget = new THREE.Vector3();
+                  const qCamInv = new THREE.Quaternion();
+                  const eulerYaw = new THREE.Euler(0, 0, 0, "YXZ");
+                  const orbitQuat = new THREE.Quaternion();
+                  const axisY = new THREE.Vector3(0, 1, 0);
+
+                  // Chuyển tiếp mượt giữa Thẻ bài và Fallback / Gyro (300ms easing)
+                  const lastTrackingMatrix = new THREE.Matrix4();
+                  const savedWorldMatrix = new THREE.Matrix4();
+                  const smoothedMatrix = new THREE.Matrix4();
+                  const qCamMatrix = new THREE.Matrix4();
+                  const qCamInvMatrix = new THREE.Matrix4();
+                  let hasSavedWorldPose = false;
+                  let trackingEaseTime = 1.0;
+                  let wasTargetFoundLastFrame = false;
 
                   // RENDER LOOP CHUẨN HIỆU NĂNG CAO (Không cấp phát object trong frame)
                   renderer.setAnimationLoop(() => {
@@ -573,45 +653,110 @@ export function WebArCardView({
                       mixerRef.current.update(dt);
                     }
 
-                    // Cập nhật hệ thống cử chỉ Damping vật lý (P0 & P1)
-                    updatePhysics(dt);
+                    // Cập nhật hệ thống cử chỉ Damping vật lý (đọc qua ref, không re-run effect)
+                    if (updatePhysicsRef.current) {
+                      updatePhysicsRef.current(dt);
+                    }
 
                     // Cập nhật hệ thống phản ứng 3D lò xo (P2)
                     if (reactionSystemRef.current) {
                       reactionSystemRef.current.update(dt);
                     }
 
-                    // Tự động neo giữ không gian (World-lock & Fallback khi chưa thấy thẻ)
-                    if (hasScannedOnceRef.current && anchorGroupRef.current) {
-                      anchorGroupRef.current.visible = true;
+                    // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Fallback Gyro
+                    const isTargetFoundNow = isTargetFoundRef.current;
+                    const isMotionActive =
+                      isMotionEnabledRef.current &&
+                      isMotionPermissionGrantedRef.current &&
+                      gyroQuatRefLatest.current?.current;
+                    const qCam = isMotionActive ? gyroQuatRefLatest.current.current : null;
 
-                      if (!isTargetFoundRef.current) {
-                        const camNear = camera.near && camera.near > 0 ? camera.near : 10;
-                        const camFar = camera.far && camera.far > camNear ? camera.far : 10000;
-                        const dist = Math.min(Math.max(camNear * 6, 1000), camFar * 0.4);
-                        const fovDeg = camera.fov && camera.fov > 0 ? camera.fov : 45;
-                        const fovRad = (fovDeg * Math.PI) / 180;
-                        const visibleHeight = 2 * dist * Math.tan(fovRad / 2);
+                    if (isTargetFoundNow) {
+                      // 1. Khi đang nhận diện thẻ bài vật lý:
+                      lastTrackingMatrix.copy(anchorGroupRef.current.matrix);
+                      hasSavedWorldPose = false;
 
-                        // Khi có cảm biến Gyro 3DoF, bù trừ góc xoay
-                        if (isMotionEnabled && isMotionPermissionGranted && gyroQuatRef.current) {
-                          fallbackQuat.copy(gyroQuatRef.current);
-                        } else {
-                          fallbackQuat.set(0, 0, 0, 1);
-                        }
-
-                        fallbackPos.set(0, -visibleHeight * 0.05, -dist);
-                        fallbackScale.set(visibleHeight, visibleHeight, visibleHeight);
-
-                        anchorGroupRef.current.matrix.compose(
-                          fallbackPos,
-                          fallbackQuat,
-                          fallbackScale
+                      // Nối mượt 300ms khi thẻ vừa xuất hiện lại
+                      if (!wasTargetFoundLastFrame) {
+                        trackingEaseTime = 0.0;
+                      }
+                      if (trackingEaseTime < 1.0) {
+                        trackingEaseTime = Math.min(1.0, trackingEaseTime + dt / 0.3);
+                        // Ease-out cubic: 1 - (1 - t)^3
+                        const tEase = 1 - Math.pow(1 - trackingEaseTime, 3);
+                        anchorGroupRef.current.matrix.lerpMatrices(
+                          smoothedMatrix,
+                          anchorGroupRef.current.matrix,
+                          tEase
                         );
                         anchorGroupRef.current.matrixWorldNeedsUpdate = true;
                       }
+                    } else if (hasScannedOnceRef.current && anchorGroupRef.current) {
+                      // 2. Khi chưa quét thẻ hoặc thẻ vừa bị che khuất (Fallback / Free AR):
+                      anchorGroupRef.current.visible = true;
+
+                      const camNear = camera.near && camera.near > 0 ? camera.near : 10;
+                      const camFar = camera.far && camera.far > camNear ? camera.far : 10000;
+                      const dist = Math.min(Math.max(camNear * 6, 1000), camFar * 0.4);
+                      const fovDeg = camera.fov && camera.fov > 0 ? camera.fov : 45;
+                      const fovRad = (fovDeg * Math.PI) / 180;
+                      const visibleHeight = 2 * dist * Math.tan(fovRad / 2);
+
+                      worldPointW.set(0, -visibleHeight * 0.05, -dist);
+                      anchorScaleTarget.set(visibleHeight, visibleHeight, visibleHeight);
+
+                      // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới Mw = qCam * Mc
+                      if (wasTargetFoundLastFrame && qCam) {
+                        qCamMatrix.makeRotationFromQuaternion(qCam);
+                        savedWorldMatrix.multiplyMatrices(qCamMatrix, lastTrackingMatrix);
+                        hasSavedWorldPose = true;
+                      }
+
+                      if (qCam) {
+                        qCamInv.copy(qCam).invert();
+
+                        if (motionModeRef.current === "orbit-lite") {
+                          // BƯỚC 3 (P2): Chế độ "Đi quanh model" (orbit-lite) - MẶC ĐỊNH
+                          // Model luôn ở giữa màn hình (W), nhưng xoay ngược lại quanh trục Y theo yaw của thiết bị
+                          anchorPosTarget.copy(worldPointW);
+                          eulerYaw.setFromQuaternion(qCam, "YXZ");
+                          const yaw = eulerYaw.y;
+                          // orbitQuat = angleAxis(Y, -yawDelta)
+                          orbitQuat.setFromAxisAngle(axisY, -yaw);
+                          anchorQuatTarget.copy(orbitQuat);
+                        } else {
+                          // BƯỚC 2 (P1): Chế độ "Đứng yên trong phòng" (World-lock 3DoF)
+                          // LƯU Ý KỸ THUẬT: Đây là 3DoF (Orientation only), chỉ bù góc xoay, KHÔNG bù tịnh tiến
+                          if (hasSavedWorldPose) {
+                            // Dùng ma trận thế giới đã lưu: Mc' = qInv * Mw
+                            qCamInvMatrix.makeRotationFromQuaternion(qCamInv);
+                            anchorGroupRef.current.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
+                            smoothedMatrix.copy(anchorGroupRef.current.matrix);
+                            anchorGroupRef.current.matrixWorldNeedsUpdate = true;
+                            wasTargetFoundLastFrame = isTargetFoundNow;
+                            renderer.render(scene, camera);
+                            return;
+                          } else {
+                            anchorPosTarget.copy(worldPointW).applyQuaternion(qCamInv);
+                            anchorQuatTarget.copy(qCamInv);
+                          }
+                        }
+                      } else {
+                        // Không kích hoạt Gyro: Cố định thẳng trước mặt camera
+                        anchorPosTarget.copy(worldPointW);
+                        anchorQuatTarget.set(0, 0, 0, 1);
+                      }
+
+                      anchorGroupRef.current.matrix.compose(
+                        anchorPosTarget,
+                        anchorQuatTarget,
+                        anchorScaleTarget
+                      );
+                      smoothedMatrix.copy(anchorGroupRef.current.matrix);
+                      anchorGroupRef.current.matrixWorldNeedsUpdate = true;
                     }
 
+                    wasTargetFoundLastFrame = isTargetFoundNow;
                     renderer.render(scene, camera);
                   });
                 })
@@ -666,11 +811,31 @@ export function WebArCardView({
       if (reactionSystemRef.current) {
         reactionSystemRef.current.dispose();
       }
-      stopFrontStream();
+
+      // Giải phóng triệt để Three.js Scene, Materials, Textures, Geometries
+      if (sceneRef.current) {
+        sceneRef.current.traverse((child: any) => {
+          if (child.geometry) child.geometry.dispose?.();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m: any) => disposeMaterial(m));
+            } else {
+              disposeMaterial(child.material);
+            }
+          }
+        });
+      }
+
+      if (stopFrontStreamRef.current) {
+        stopFrontStreamRef.current();
+      }
+
       if (mindarRef.current) {
         try {
           if (mindarRef.current.renderer) {
             mindarRef.current.renderer.setAnimationLoop(null);
+            mindarRef.current.renderer.dispose?.();
+            mindarRef.current.renderer.forceContextLoss?.();
           }
           if (mindarRef.current.controller) {
             mindarRef.current.controller.stopProcessVideo();
@@ -685,7 +850,7 @@ export function WebArCardView({
         containerRef.current.innerHTML = "";
       }
     };
-  }, [animal.slug, animal.modelUrl, animal.targetUrl, loadScript, stopFrontStream, updatePhysics, isMotionEnabled, isMotionPermissionGranted, gyroQuatRef]);
+  }, [animal.slug, animal.modelUrl, animal.targetUrl, loadScript]);
 
   // Xử lý chuyển đổi Camera Trước / Sau
   const handleToggleCamera = useCallback(async () => {
@@ -852,26 +1017,112 @@ export function WebArCardView({
                   <span>{isDebugOpen ? "Tắt Debug HUD" : "Bật Debug HUD"}</span>
                 </button>
 
+                {/* Tùy chọn Cảm biến chuyển động Gyroscope (3DoF) */}
                 {isMotionSupported && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (needsMotionPrompt) {
-                        await requestMotionPermission();
-                      }
-                      setIsMotionEnabled((prev) => !prev);
-                      resetBasePose();
-                      setIsMenuOpen(false);
-                      showToast(
-                        !isMotionEnabled ? "Đã bật cảm biến xoay phòng (Gyro 3DoF)" : "Đã tắt cảm biến xoay",
-                        "info"
-                      );
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 text-stone-200 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <Compass className="h-4 w-4 text-emerald-400" />
-                    <span>{isMotionEnabled ? "Tắt Gyro 3DoF" : "Bật Gyro Đứng Yên"}</span>
-                  </button>
+                  <div className="pt-1 border-t border-white/10 space-y-1">
+                    {/* Nút bật/tắt Gyro */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        // BẮT BUỘC: requestMotionPermission() trên iOS Safari phải được gọi trực tiếp trong click handler
+                        if (needsMotionPrompt && !isMotionPermissionGranted) {
+                          const granted = await requestMotionPermission();
+                          if (!granted) {
+                            showToast("Quyền cảm biến chuyển động đã bị từ chối", "warning");
+                            return;
+                          }
+                        }
+                        setIsMotionEnabled((prev) => {
+                          const next = !prev;
+                          showToast(
+                            next
+                              ? motionMode === "orbit-lite"
+                                ? "Đã bật chế độ 'Đi quanh model'"
+                                : "Đã bật chế độ 'Đứng yên trong phòng'"
+                              : "Đã tắt cảm biến xoay",
+                            "info"
+                          );
+                          return next;
+                        });
+                        resetBasePose();
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-white/10 text-stone-200 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Compass className={`h-4 w-4 ${isMotionEnabled ? "text-emerald-400" : "text-stone-400"}`} />
+                        <span>Cảm biến xoay (Gyro)</span>
+                      </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isMotionEnabled ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-stone-400"}`}>
+                        {isMotionEnabled ? "BẬT" : "TẮT"}
+                      </span>
+                    </button>
+
+                    {/* Bộ 2 lựa chọn: "Đi quanh model" (Orbit) vs "Đứng yên trong phòng" (World-Lock) */}
+                    {isMotionEnabled && (
+                      <div className="px-1.5 py-1 rounded-xl bg-white/5 space-y-1">
+                        <div className="text-[10px] text-amber-300 font-bold px-1.5">Chế độ hiển thị:</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMotionMode("orbit-lite");
+                            resetBasePose();
+                            showToast("Chế độ: Đi quanh model (Model xoay theo bước chân)", "info");
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            motionMode === "orbit-lite"
+                              ? "bg-amber-400 text-stone-950 shadow-md"
+                              : "text-stone-300 hover:bg-white/10"
+                          }`}
+                        >
+                          <span>Đi quanh model</span>
+                          {motionMode === "orbit-lite" && <Check className="h-3.5 w-3.5" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMotionMode("world-lock");
+                            resetBasePose();
+                            showToast("Chế độ: Đứng yên trong phòng (World-Lock 3DoF)", "info");
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            motionMode === "world-lock"
+                              ? "bg-amber-400 text-stone-950 shadow-md"
+                              : "text-stone-300 hover:bg-white/10"
+                          }`}
+                        >
+                          <span>Đứng yên trong phòng</span>
+                          {motionMode === "world-lock" && <Check className="h-3.5 w-3.5" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetBasePose();
+                            showToast("Đã đặt lại hướng nhìn mốc ban đầu", "info");
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 py-1 rounded-lg text-[10px] text-amber-300 hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span>Đặt lại hướng nhìn</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* BƯỚC 4: Apple AR Quick Look (.usdz) trên iPhone / iPad */}
+                {supportsAppleAr && (animal.iosModelUrl || animal.modelUrl) && (
+                  <div className="pt-1 border-t border-white/10">
+                    <a
+                      href={animal.iosModelUrl || `/models/${animal.slug}.usdz`}
+                      rel="ar"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-teal-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                      <span>Xem AR Apple (3D phòng thật)</span>
+                    </a>
+                  </div>
                 )}
               </div>
             )}

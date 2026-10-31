@@ -1,7 +1,8 @@
 /**
- * Poly Cards - AR Motion Sensor Hook (3DoF Gyroscope World-Lock)
- * Bù trừ chuyển động xoay của điện thoại để mô hình 3D đứng cố định trong phòng (Free AR Mode).
- * Hỗ trợ DeviceOrientation API, lọc nhiễu low-pass/slerp, bù góc xoay màn hình, và cấp quyền trên iOS Safari.
+ * Poly Cards - AR Motion Sensor Hook (3DoF Gyroscope World-Lock & Orbit-Lite)
+ * Cung cấp quaternion qCam (hướng xoay của camera trong thế giới so với pose mốc ban đầu).
+ * Tối ưu hiệu năng: tái sử dụng Vector/Quaternion/Euler cố định, không cấp phát object trong event listener.
+ * Tích hợp bộ lọc slerp low-pass chống rung tay và hỗ trợ đầy đủ quyền truy cập iOS 13+ Safari.
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -15,21 +16,33 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
   const [isPermissionGranted, setIsPermissionGranted] = useState<boolean>(false);
   const [needsPermissionPrompt, setNeedsPermissionPrompt] = useState<boolean>(false);
 
-  // Quaternion góc quay hiện tại của con quay hồi chuyển
-  const gyroQuatRef = useRef<any>(null);
+  // Quaternion qCam ổn định biểu diễn hướng xoay camera trong thế giới
+  const qCamRef = useRef<any>(null);
   const initialQuatRef = useRef<any>(null);
   const hasBasePoseRef = useRef<boolean>(false);
 
-  // Góc bù trừ khi xoay ngang / dọc điện thoại
+  // Đối tượng tái sử dụng tránh cấp phát trong vòng lặp cảm biến (60-120Hz)
+  const eulerRef = useRef<any>(null);
+  const rawQuatRef = useRef<any>(null);
+  const qScreenRef = useRef<any>(null);
+  const targetQuatRef = useRef<any>(null);
+  const axisZRef = useRef<any>(null);
+
+  // Góc bù trừ xoay màn hình (orientation angle)
   const screenAngleRef = useRef<number>(0);
 
-  // Khởi tạo Three.js objects
-  const ensureThreeMotionHelpers = useCallback(() => {
+  // Khởi tạo các helper toán học Three.js một lần duy nhất
+  const ensureMotionMath = useCallback(() => {
     if (typeof window === "undefined" || !window.THREE) return null;
     const THREE = window.THREE;
-    if (!gyroQuatRef.current) {
-      gyroQuatRef.current = new THREE.Quaternion();
+    if (!qCamRef.current) {
+      qCamRef.current = new THREE.Quaternion();
       initialQuatRef.current = new THREE.Quaternion();
+      eulerRef.current = new THREE.Euler();
+      rawQuatRef.current = new THREE.Quaternion();
+      qScreenRef.current = new THREE.Quaternion();
+      targetQuatRef.current = new THREE.Quaternion();
+      axisZRef.current = new THREE.Vector3(0, 0, 1);
     }
     return THREE;
   }, []);
@@ -72,7 +85,8 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
   }, []);
 
   /**
-   * Xin quyền truy cập cảm biến chuyển động trên iPhone Safari
+   * Xin quyền truy cập cảm biến chuyển động trên iPhone Safari.
+   * QUAN TRỌNG: Phải gọi trực tiếp trong onClick handler đồng bộ, không await trước đó.
    */
   const requestMotionPermission = useCallback(async (): Promise<boolean> => {
     if (
@@ -85,56 +99,57 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
           setIsPermissionGranted(true);
           setNeedsPermissionPrompt(false);
           return true;
+        } else {
+          setIsPermissionGranted(false);
+          return false;
         }
       } catch (err) {
         console.warn("[Motion Sensor Permission]:", err);
+        return false;
       }
-      return false;
     }
     return true;
   }, []);
 
-  // Lắng nghe sự kiện deviceorientation
+  // Lắng nghe sự kiện deviceorientation khi enabled = true
   useEffect(() => {
     if (!enabled || !isPermissionGranted) return;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      const THREE = ensureThreeMotionHelpers();
-      if (!THREE) return;
+      const THREE = ensureMotionMath();
+      if (!THREE || !qCamRef.current) return;
 
       const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // [0, 360]
       const beta = e.beta ? THREE.MathUtils.degToRad(e.beta) : 0;   // [-180, 180]
       const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // [-90, 90]
-
       const orient = THREE.MathUtils.degToRad(screenAngleRef.current || 0);
 
-      const euler = new THREE.Euler();
-      euler.set(beta, alpha, -gamma, "YXZ");
+      // Chuẩn Euler DeviceOrientation: YXZ
+      eulerRef.current.set(beta, alpha, -gamma, "YXZ");
+      rawQuatRef.current.setFromEuler(eulerRef.current);
 
-      const rawQuat = new THREE.Quaternion();
-      rawQuat.setFromEuler(euler);
+      // Bù góc xoay màn hình (Portrait / Landscape)
+      qScreenRef.current.setFromAxisAngle(axisZRef.current, -orient);
+      rawQuatRef.current.multiply(qScreenRef.current);
 
-      // Bù trừ góc xoay màn hình
-      const qScreen = new THREE.Quaternion();
-      qScreen.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -orient);
-      rawQuat.multiply(qScreen);
-
-      // Lấy pose mốc ban đầu (Reset pose)
+      // Thiết lập pose mốc ban đầu (khi bắt đầu hoặc khi resetBasePose)
       if (!hasBasePoseRef.current) {
-        initialQuatRef.current.copy(rawQuat).invert();
+        initialQuatRef.current.copy(rawQuatRef.current).invert();
         hasBasePoseRef.current = true;
       }
 
-      // Lọc nhiễu chuyển động slerp mượt mà (low-pass filter)
-      const targetQuat = rawQuat.clone().multiply(initialQuatRef.current);
-      gyroQuatRef.current.slerp(targetQuat, 0.2);
+      // targetQuat = rawQuat * initialQuat (hướng xoay tương đối so với pose gốc)
+      targetQuatRef.current.copy(rawQuatRef.current).multiply(initialQuatRef.current);
+
+      // Lọc nhiễu slerp chống rung tay (low-pass filter)
+      qCamRef.current.slerp(targetQuatRef.current, 0.25);
     };
 
     window.addEventListener("deviceorientation", handleOrientation, true);
     return () => {
       window.removeEventListener("deviceorientation", handleOrientation, true);
     };
-  }, [enabled, ensureThreeMotionHelpers, isPermissionGranted]);
+  }, [enabled, ensureMotionMath, isPermissionGranted]);
 
   const resetBasePose = useCallback(() => {
     hasBasePoseRef.current = false;
@@ -145,8 +160,7 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
     isPermissionGranted,
     needsPermissionPrompt,
     requestMotionPermission,
-    gyroQuatRef,
+    gyroQuatRef: qCamRef, // qCam: Quaternion hướng camera trong thế giới
     resetBasePose,
   };
 }
-
