@@ -294,3 +294,93 @@ function playSynthSoundEffect(slug: string, onEnd?: () => void): void {
     if (onEnd) onEnd();
   }
 }
+
+/**
+ * Âm thanh chúc mừng trong trẻo khi bé trả lời đúng hoặc chạm trúng con vật (Web Audio Synth)
+ */
+export function playCheerfulCelebrationSound(onEnd?: () => void): void {
+  if (!isBrowser) {
+    if (onEnd) onEnd();
+    return;
+  }
+  try {
+    const AudioContextClass =
+      window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) {
+      if (onEnd) onEnd();
+      return;
+    }
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6 (Rạng rỡ)
+
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const startTime = now + idx * 0.08;
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.28);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 0.3);
+    });
+
+    setTimeout(() => {
+      if (onEnd) onEnd();
+    }, 600);
+  } catch {
+    if (onEnd) onEnd();
+  }
+}
+
+/**
+ * Âm thanh động viên nhẹ nhàng khi bé phát âm chưa khớp
+ */
+export function playGentleEncourageSound(onEnd?: () => void): void {
+  if (!isBrowser) {
+    if (onEnd) onEnd();
+    return;
+  }
+  try {
+    const AudioContextClass =
+      window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) {
+      if (onEnd) onEnd();
+      return;
+    }
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    const notes = [440, 554.37]; // A4, C#5
+
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const startTime = now + idx * 0.12;
+
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(0.2, startTime + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 0.38);
+    });
+
+    setTimeout(() => {
+      if (onEnd) onEnd();
+    }, 550);
+  } catch {
+    if (onEnd) onEnd();
+  }
+}

@@ -5,13 +5,13 @@ import { Animal } from "@/types/animal";
 import {
   playCardLanguageAudio,
   playAnimalSoundEffect,
+  playCheerfulCelebrationSound,
 } from "@/lib/speech-audio";
 import {
   Camera,
   X,
   Volume2,
   Sparkles,
-  CheckCircle2,
   Scan,
   RotateCcw,
   Languages,
@@ -21,12 +21,22 @@ import {
   ShoppingBag,
   KeyRound,
   Clock,
-  ZoomIn,
-  ZoomOut,
   Wrench,
-  Check,
-  Radio,
+  MoreVertical,
+  Mic,
+  MicOff,
+  SwitchCamera,
+  Compass,
+  Activity,
 } from "lucide-react";
+import { ArReactionSystem } from "./effects/ar-reaction-system";
+import { useArGestures } from "./hooks/use-ar-gestures";
+import { useArCamera } from "./hooks/use-ar-camera";
+import { useArMotion } from "./hooks/use-ar-motion";
+import { useVoiceQuiz } from "./hooks/use-voice-quiz";
+import { ArHud } from "./components/ar-hud";
+import { ArGestureHint } from "./components/ar-gesture-hint";
+import { ArActionSheet, getClipFriendlyLabel } from "./components/ar-action-sheet";
 
 declare global {
   interface Window {
@@ -63,25 +73,22 @@ export function WebArCardView({
   const actionsRef = useRef<{ [name: string]: any }>({});
   const clockRef = useRef<any>(null);
 
-  // Vị trí dời tương đối do người dùng kéo thả trên thẻ bài / không gian AR
-  const userPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  // Nhóm điều khiển vị trí, tỉ lệ và xoay 3D
+  // Group điều phối chính (Pivot Group chứa Reaction Group)
   const pivotGroupRef = useRef<any>(null);
+  const reactionSystemRef = useRef<ArReactionSystem | null>(null);
   const maxDimRef = useRef<number>(1.0);
-  const userScaleRef = useRef<number>(1.0);
-  const userRotYRef = useRef<number>(0);
-  const userRotXRef = useRef<number>(0);
+  const cameraRef = useRef<any>(null);
+  const rendererRef = useRef<any>(null);
+  const sceneRef = useRef<any>(null);
 
-  const [zoomPercent, setZoomPercent] = useState<number>(100);
-  const [tapFeedback, setTapFeedback] = useState<string | null>(null);
-  const tapFeedbackTimeoutRef = useRef<any>(null);
-
-  // Đã quét thẻ thành công ít nhất 1 lần & trạng thái bắt dính thẻ thời gian thực
+  // Trạng thái theo dõi thẻ (Tracking States)
   const hasScannedOnceRef = useRef<boolean>(false);
   const isTargetFoundRef = useRef<boolean>(false);
+  const [isTargetFound, setIsTargetFound] = useState<boolean>(false);
+  const [hasScannedOnce, setHasScannedOnce] = useState<boolean>(false);
+  const [targetHitCount, setTargetHitCount] = useState<number>(0);
 
-  // Loading & Download Progress
+  // Loading & Error States
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadStats, setDownloadStats] = useState<{ loadedMb: string; totalMb: string }>({
@@ -90,28 +97,33 @@ export function WebArCardView({
   });
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Tracking States
-  const [isTargetFound, setIsTargetFound] = useState<boolean>(false);
-  const [hasScannedOnce, setHasScannedOnce] = useState<boolean>(false);
-  const [targetHitCount, setTargetHitCount] = useState<number>(0);
+  // Debug HUD & UI States
+  const [isDebugOpen, setIsDebugOpen] = useState<boolean>(false);
+  const [fps, setFps] = useState<number>(60);
+  const [zoomPercent, setZoomPercent] = useState<number>(100);
+  const lastFpsTimeRef = useRef<number>(performance.now());
+  const frameCountRef = useRef<number>(0);
+
+  // Menu More "⋯" & Bottom Action Sheet
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+  const [isActionSheetOpen, setIsActionSheetOpen] = useState<boolean>(false);
+  const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+
+  // Auto-hide UI (sau 4s không chạm thì mờ dần để xem toàn cảnh)
+  const [isUiFaded, setIsUiFaded] = useState<boolean>(false);
+  const uiActivityTimerRef = useRef<any>(null);
+
+  // Phát hiện chế độ xoay ngang (Landscape Mode)
+  const [isLandscape, setIsLandscape] = useState<boolean>(false);
+
+  // Animation Clips & Models
   const [playingClipName, setPlayingClipName] = useState<string | null>(null);
   const [availableClips, setAvailableClips] = useState<string[]>([]);
   const [isFreeArMode, setIsFreeArMode] = useState<boolean>(false);
   const [isUsingFallbackModel, setIsUsingFallbackModel] = useState<boolean>(false);
 
-  // Debug HUD State
-  const [isDebugOpen, setIsDebugOpen] = useState<boolean>(false);
-  const [fps, setFps] = useState<number>(60);
-  const lastFpsTimeRef = useRef<number>(Date.now());
-  const frameCountRef = useRef<number>(0);
-
-  // Audio / Speech / Photo States
-  const [activeLang, setActiveLang] = useState<"en" | "vi" | "zh" | null>(null);
-  const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
-  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
-  const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
-
-  // Phân hệ 2 Luồng Song Ngữ: EN-VI (Anh - Việt) hoặc ZH-VI (Trung - Việt)
+  // Song Ngữ EN-VI hoặc ZH-VI
   const isEnViEnabled = animal.enableEnVi !== false;
   const isZhViEnabled =
     animal.enableZhVi !== undefined
@@ -122,148 +134,159 @@ export function WebArCardView({
   const [languageTrack, setLanguageTrack] = useState<"en-vi" | "zh-vi">(
     !isEnViEnabled && isZhViEnabled ? "zh-vi" : "en-vi"
   );
+  const [activeLang, setActiveLang] = useState<"en" | "vi" | "zh" | null>(null);
+  const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const queryLang = params.get("lang");
-      if (queryLang === "en-vi" || queryLang === "zh-vi") {
-        setUrlLockedTrack(queryLang);
-        setLanguageTrack(queryLang);
-        return;
-      }
+  // Toast nhẹ thông báo
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: string } | null>(null);
+  const toastTimerRef = useRef<any>(null);
+  const showToast = useCallback((text: string, type: "info" | "warning" | "error" | "success" = "info") => {
+    setToastMsg({ text, type });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMsg(null), 3000);
+  }, []);
 
-      if (isEnViEnabled && !isZhViEnabled) {
-        setLanguageTrack("en-vi");
-        return;
-      }
-      if (!isEnViEnabled && isZhViEnabled) {
-        setLanguageTrack("zh-vi");
-        return;
-      }
-
-      const saved = localStorage.getItem("polycards_lang_track");
-      if (saved === "zh-vi" || saved === "en-vi") {
-        setLanguageTrack(saved);
-      }
-    }
-  }, [isEnViEnabled, isZhViEnabled]);
-
-  const showBothTracksSwitcher =
-    !urlLockedTrack && isEnViEnabled && isZhViEnabled;
-
-  // Bộ đếm thời gian dùng thử (3s trial cho khách chưa mua)
+  // 3s Trial Timer
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 3 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
 
-  // Refs bắt cử chỉ cảm ứng đa điểm Apple AR (1-finger pan, 2-finger rotate & pinch)
-  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const touchStartTimeRef = useRef<number>(0);
-  const lastTouchPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const hasTouchMovedRef = useRef<boolean>(false);
+  // P4.1 Camera Hook (Chuyển đổi Camera Trước / Sau)
+  const {
+    facingMode,
+    setFacingMode,
+    hasMultipleCameras,
+    startFrontCamera,
+    stopFrontStream,
+    capturePhoto,
+  } = useArCamera({ onShowToast: showToast });
 
-  const initialTouchDistRef = useRef<number>(0);
-  const initialTouchAngleRef = useRef<number>(0);
-  const initialUserScaleRef = useRef<number>(1.0);
-  const initialUserRotYRef = useRef<number>(0);
+  // P4.2 Motion Gyro Hook (World Lock 3DoF)
+  const [isMotionEnabled, setIsMotionEnabled] = useState<boolean>(false);
+  const {
+    isMotionSupported,
+    isPermissionGranted: isMotionPermissionGranted,
+    needsPermissionPrompt: needsMotionPrompt,
+    requestMotionPermission,
+    gyroQuatRef,
+    resetBasePose,
+  } = useArMotion({ enabled: isMotionEnabled });
 
-  // Refs bắt cử chỉ chuột máy tính (Desktop Gestures)
-  const isMouseDownRef = useRef<boolean>(false);
-  const mouseButtonRef = useRef<number>(0);
-  const mouseStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const mouseStartTimeRef = useRef<number>(0);
-  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const hasMouseMovedRef = useRef<boolean>(false);
+  // Phản ứng khi chạm vào con vật (P2: Squash & stretch, parabolic jump, floating stars, audio)
+  const handleTapModel = useCallback(() => {
+    playAnimalSoundEffect(animal.slug, undefined, animal.audioUrl);
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate([25, 30, 25]);
+      } catch {}
+    }
+    if (reactionSystemRef.current) {
+      reactionSystemRef.current.triggerTapReaction(
+        animal.animations,
+        actionsRef.current,
+        playingClipName
+      );
+    }
+  }, [animal.slug, animal.audioUrl, animal.animations, playingClipName]);
 
-  // Kiểm tra tham số ?debug=1 trên URL khi khởi động
+  // P0 & P1 Gestures Hook (Pointer Events + 60FPS Physics Damping)
+  const {
+    pointerHandlers,
+    resetTransform,
+    adjustZoom,
+    updatePhysics,
+    currentPosRef,
+  } = useArGestures({
+    containerRef,
+    pivotGroupRef,
+    maxDimRef,
+    cameraRef,
+    onTapModel: handleTapModel,
+    onZoomChange: setZoomPercent,
+    onDoubleTapEmpty: () => {
+      showToast("Đã đặt lại vị trí & kích thước ban đầu", "info");
+    },
+  });
+
+  // P4.3 Voice Recognition Quiz Hook
+  const { isSupported: isVoiceSupported, isListening, startListening } = useVoiceQuiz({
+    onSuccess: (transcript) => {
+      showToast(`Chính xác: "${transcript}"! Bé giỏi quá!`, "success");
+      handleTapModel();
+    },
+    onIncorrect: (transcript) => {
+      showToast(`Bé vừa nói: "${transcript}". Bé hãy thử lại nhé!`, "info");
+      if (reactionSystemRef.current) {
+        reactionSystemRef.current.triggerAudioRipple();
+      }
+      playCardLanguageAudio(animal, languageTrack === "zh-vi" ? "zh" : "en");
+    },
+    onShowToast: showToast,
+  });
+
+  // Reset timer auto-hide UI mỗi khi người dùng tương tác
+  const wakeUi = useCallback(() => {
+    setIsUiFaded(false);
+    if (uiActivityTimerRef.current) clearTimeout(uiActivityTimerRef.current);
+    uiActivityTimerRef.current = setTimeout(() => {
+      setIsUiFaded(true);
+      setIsMenuOpen(false);
+    }, 4000);
+  }, []);
+
+  // Lắng nghe kích thước và hướng xoay màn hình (Portrait vs Landscape)
+  useEffect(() => {
+    const handleResize = () => {
+      const isLand = window.innerWidth > window.innerHeight;
+      setIsLandscape(isLand);
+
+      if (cameraRef.current && rendererRef.current) {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(w, h);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
+  }, []);
+
+  // Kiểm tra tham số ?debug=1 trên URL
   useEffect(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       if (sp.get("debug") === "1" || sp.get("debug") === "true") {
         setIsDebugOpen(true);
       }
-    }
-  }, []);
-
-  // Cập nhật ma trận biến đổi (Scale + Rotation + Position) cho Pivot Group
-  const applyTransform = useCallback(() => {
-    const pivot = pivotGroupRef.current;
-    if (!pivot) return;
-
-    pivot.rotation.y = userRotYRef.current;
-    pivot.rotation.x = userRotXRef.current;
-
-    // Tỉ lệ chuẩn 0.34 giúp toàn bộ cơ thể mô hình 3D (từ đầu đến chân) nằm gọn giữa khung hình camera
-    const baseDim = 0.34;
-    const s = (baseDim / (maxDimRef.current || 1)) * userScaleRef.current;
-    pivot.scale.set(s, s, s);
-    pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
-  }, []);
-
-  // Nút bấm tăng / giảm tỉ lệ mô hình 3D (Cho phép thu nhỏ sâu tới 5% và phóng to tới 300%)
-  const handleZoom = useCallback(
-    (delta: number) => {
-      const current = userScaleRef.current;
-      const effectiveDelta =
-        current <= 0.4 && delta < 0
-          ? -0.08
-          : current < 0.4 && delta > 0
-            ? 0.08
-            : delta;
-      const next = Math.max(
-        0.05,
-        Math.min(3.0, Math.round((current + effectiveDelta) * 100) / 100)
-      );
-      userScaleRef.current = next;
-      setZoomPercent(Math.round(next * 100));
-      applyTransform();
-    },
-    [applyTransform]
-  );
-
-  // Đặt lại góc nhìn, vị trí và tỉ lệ mô hình về chuẩn 100%
-  const handleResetTransform = useCallback(() => {
-    userScaleRef.current = 1.0;
-    userRotYRef.current = 0;
-    userRotXRef.current = 0;
-    userPosRef.current = { x: 0, y: 0 };
-    setZoomPercent(100);
-    applyTransform();
-  }, [applyTransform]);
-
-  // Hiệu ứng tương tác: Mô hình nhún nhảy tinh nghịch khi chạm
-  const triggerModelReaction = useCallback(() => {
-    if (!pivotGroupRef.current) return;
-    const pivot = pivotGroupRef.current;
-    const baseY = pivot.position.y;
-    let step = 0;
-    const interval = setInterval(() => {
-      step++;
-      pivot.position.y = baseY + Math.sin(step * 0.5) * 0.22;
-      if (step >= 12) {
-        clearInterval(interval);
-        pivot.position.y = baseY;
+      const queryLang = sp.get("lang");
+      if (queryLang === "en-vi" || queryLang === "zh-vi") {
+        setUrlLockedTrack(queryLang);
+        setLanguageTrack(queryLang);
       }
-    }, 25);
+    }
   }, []);
 
-  // Xử lý chạm tương tác trực tiếp lên con vật
-  const triggerTapInteraction = useCallback(() => {
-    playAnimalSoundEffect(animal.slug, undefined, animal.audioUrl);
-    triggerModelReaction();
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      try {
-        navigator.vibrate([30, 40, 30]);
-      } catch {}
-    }
-    setTapFeedback(`Bé vừa tương tác với ${animal.nameVi}!`);
-    if (tapFeedbackTimeoutRef.current) {
-      clearTimeout(tapFeedbackTimeoutRef.current);
-    }
-    tapFeedbackTimeoutRef.current = setTimeout(() => {
-      setTapFeedback(null);
-    }, 1800);
-  }, [animal.slug, animal.audioUrl, animal.nameVi, triggerModelReaction]);
+  // Countdown timer dùng thử 3s
+  useEffect(() => {
+    if (!isTrial || isLoading || isTrialExpired) return;
+    const timer = setInterval(() => {
+      setTrialTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsTrialExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTrial, isLoading, isTrialExpired]);
 
   // Dynamic script loader utility
   const loadScript = useCallback((src: string): Promise<void> => {
@@ -282,43 +305,25 @@ export function WebArCardView({
     });
   }, []);
 
-  // Countdown timer cho bản dùng thử
-  useEffect(() => {
-    if (!isTrial || isLoading || isTrialExpired) return;
-
-    const timer = setInterval(() => {
-      setTrialTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setIsTrialExpired(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isTrial, isLoading, isTrialExpired]);
-
-  // Initialize MindAR and Three.js scene
+  // KHỞI ĐỘNG AR ENGINE (MindAR Three.js + Instant 3D View + P2 Lighting)
   useEffect(() => {
     let isCancelled = false;
 
     async function startAR() {
       try {
         setIsLoading(true);
-        setDownloadProgress(5);
+        setDownloadProgress(8);
         setLoadError(null);
 
-        // 1. Nạp bộ thư viện MindAR Three UMD nếu chưa có
+        // 1. Nạp MindAR Three UMD
         if (!window.MINDAR || !window.MINDAR.IMAGE || !window.MINDAR.IMAGE.MindARThree) {
           await loadScript("/lib/mindar-image-three.prod.js");
         }
 
         if (isCancelled) return;
-        setDownloadProgress(15);
+        setDownloadProgress(20);
 
-        // Gán Three.js toàn cục để tương thích GLTFLoader
+        // Gán Three.js
         if (!window.THREE) {
           if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.THREE) {
             window.THREE = window.MINDAR.IMAGE.THREE;
@@ -327,43 +332,29 @@ export function WebArCardView({
           }
         }
 
-        // 2. Nạp GLTFLoader và DRACOLoader nếu chưa có
+        // 2. Nạp GLTFLoader và DRACOLoader
         if (!(window.THREE && window.THREE.GLTFLoader)) {
           await loadScript("/lib/GLTFLoader.js");
-          if (!window.THREE && (window as any).THREE) {
-            window.THREE = (window as any).THREE;
-          }
         }
-
         if (!(window.THREE && window.THREE.DRACOLoader)) {
           try {
             await loadScript("/lib/DRACOLoader.js");
-            if (!window.THREE && (window as any).THREE) {
-              window.THREE = (window as any).THREE;
-            }
-          } catch (dracoErr) {
-            console.warn("Lỗi nạp DRACOLoader cục bộ:", dracoErr);
-          }
+          } catch {}
         }
 
         if (isCancelled || !containerRef.current) return;
-        setDownloadProgress(25);
-
-        if (!window.THREE) {
-          throw new Error("Không thể khởi tạo thư viện Three.js WebAR. Vui lòng tải lại trang.");
-        }
+        setDownloadProgress(35);
 
         const THREE = window.THREE;
         const { MindARThree } = window.MINDAR!.IMAGE;
 
-        // 3. Xác thực & Chuẩn bị file Target MindAR (.mind) với cơ chế Fallback thông minh
+        // 3. Chuẩn bị Target MindAR với fallback thông minh
         let resolvedTargetSrc = animal.targetUrl || `/targets/${animal.slug}.mind`;
         let isFallbackTarget = false;
 
         try {
           const checkRes = await fetch(resolvedTargetSrc, { method: "HEAD" });
           if (!checkRes.ok) {
-            console.warn(`[WebAR] Target "${resolvedTargetSrc}" chưa sẵn sàng (HTTP ${checkRes.status}). Kích hoạt Fallback Target & Free AR View.`);
             resolvedTargetSrc = "/targets/polycards.mind";
             isFallbackTarget = true;
           }
@@ -376,7 +367,7 @@ export function WebArCardView({
           setIsFreeArMode(true);
         }
 
-        // Dọn sạch container trước khi khởi tạo MindAR để tránh chồng lặp canvas/video trên iPhone Safari
+        // Dọn container
         if (containerRef.current) {
           containerRef.current.innerHTML = "";
         }
@@ -393,24 +384,32 @@ export function WebArCardView({
         mindarRef.current = mindarThree;
 
         const { renderer, scene, camera } = mindarThree;
+        cameraRef.current = camera;
+        rendererRef.current = renderer;
+        sceneRef.current = scene;
 
-        // Thêm ánh sáng môi trường cho mô hình 3D rực rỡ
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
-        scene.add(ambientLight);
+        // Giới hạn PixelRatio tối đa 2 để tối ưu FPS và nhiệt độ máy
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        if (renderer.outputColorSpace !== undefined) {
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+        }
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
-        dirLight.position.set(0, 10, 5);
+        // 4. Cải thiện Ánh Sáng P2 (Khối chân thực, tránh overexposed)
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.1);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.3);
+        dirLight.position.set(0, 10, 8);
         scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0xffedd5, 0.8);
-        fillLight.position.set(0, -5, 5);
+        const fillLight = new THREE.DirectionalLight(0xfef3c7, 0.45);
+        fillLight.position.set(-5, -3, 5);
         scene.add(fillLight);
 
-        // A. Anchor bám theo thẻ bài vật lý
+        // A. Anchor bám theo thẻ bài
         const anchor = mindarThree.addAnchor(0);
         anchorGroupRef.current = anchor.group;
 
-        // Bắt sự kiện nhận diện thẻ bài
         anchor.onTargetFound = () => {
           if (!isCancelled) {
             isTargetFoundRef.current = true;
@@ -426,17 +425,17 @@ export function WebArCardView({
           if (!isCancelled) {
             isTargetFoundRef.current = false;
             setIsTargetFound(false);
-            // KHÔNG ẩn con vật! Vẫn duy trì hiển thị tại tọa độ 3D trong không gian phòng
           }
         };
 
-        // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker và Tự động Fallback sang polycards.glb
+        // 5. Nạp mô hình 3D GLTF với DRACOLoader và fallback polycards.glb
         const loader = new THREE.GLTFLoader();
         if (THREE.DRACOLoader) {
           const dracoLoader = new THREE.DRACOLoader();
           dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
           loader.setDRACOLoader(dracoLoader);
         }
+
         const primaryModelUrl = animal.modelUrl || "/models/polycards.glb";
         const fallbackModelUrl = "/models/polycards.glb";
 
@@ -449,7 +448,7 @@ export function WebArCardView({
 
               const rawModel = gltf.scene;
 
-              // Khởi tạo Animations trước khi đo Bounding Box để lấy đúng kích thước thật của nhân vật có khung xương (SkinnedMesh / Mixamo / Sketchfab)
+              // Khởi tạo Animations
               if (gltf.animations && gltf.animations.length > 0) {
                 const mixer = new THREE.AnimationMixer(rawModel);
                 mixerRef.current = mixer;
@@ -463,69 +462,18 @@ export function WebArCardView({
                 setAvailableClips(clipNames);
 
                 if (animal.slug !== "cat") {
-                  // 1. Thử khớp theo animal.animations nếu có
-                  let matchedClip = gltf.animations.find((clip: any) =>
-                    animal.animations?.some((a) => a.toLowerCase() === clip.name.toLowerCase())
-                  );
-
-                  // 2. Tự động nhận diện animation thông minh theo Slug / Hành động của Thẻ
-                  const slugLower = (animal.slug || "").toLowerCase();
-                  const nameEnLower = (animal.nameEn || "").toLowerCase();
-                  const nameViLower = (animal.nameVi || "").toLowerCase();
-
-                  if (!matchedClip) {
-                    if (
-                      slugLower.includes("jump") ||
-                      nameEnLower.includes("jump") ||
-                      nameViLower.includes("nhảy")
-                    ) {
-                      matchedClip = gltf.animations.find((clip: any) => {
-                        const n = clip.name.toLowerCase();
-                        return (
-                          n.includes("jump") ||
-                          n.includes("spin") ||
-                          n.includes("nhay") ||
-                          n.startsWith("_01a")
-                        );
-                      });
-                    } else if (
-                      slugLower.includes("walk") ||
-                      nameEnLower.includes("walk") ||
-                      nameViLower.includes("đi bộ")
-                    ) {
-                      matchedClip = gltf.animations.find((clip: any) => {
-                        const n = clip.name.toLowerCase();
-                        return n.includes("walk") || n.includes("di") || n.includes("buoc");
-                      });
-                    } else if (
-                      slugLower.includes("run") ||
-                      nameEnLower.includes("run") ||
-                      nameViLower.includes("chạy")
-                    ) {
-                      matchedClip = gltf.animations.find((clip: any) => {
-                        const n = clip.name.toLowerCase();
-                        return n.includes("run") || n.includes("chay");
-                      });
-                    }
-                  }
-
-                  // 3. Fallback mặc định về clip đầu tiên
-                  if (!matchedClip) {
-                    matchedClip = gltf.animations[0];
-                  }
-
+                  let matchedClip = gltf.animations[0];
                   if (matchedClip && actionsRef.current[matchedClip.name]) {
                     actionsRef.current[matchedClip.name].play();
                     setPlayingClipName(matchedClip.name);
                   }
                 }
-                // Cập nhật frame đầu tiên của animation để các Bone nhận đúng tọa độ thế giới
                 mixer.update(0.016);
               }
 
               rawModel.updateMatrixWorld(true);
 
-              // Tính Bounding Box chuẩn xác cho cả Static Mesh lẫn Animated SkinnedMesh (Armature Scale 100x)
+              // Tính Bounding Box chuẩn xác cho SkinnedMesh
               const bbox = new THREE.Box3().setFromObject(rawModel);
               const boneBox = new THREE.Box3();
               const tempVec = new THREE.Vector3();
@@ -537,32 +485,11 @@ export function WebArCardView({
                   boneBox.expandByPoint(tempVec);
                   boneCount++;
                 }
-                if (child.isSkinnedMesh && child.skeleton && Array.isArray(child.skeleton.bones)) {
-                  child.skeleton.bones.forEach((bone: any) => {
-                    if (bone && bone.matrixWorld) {
-                      tempVec.setFromMatrixPosition(bone.matrixWorld);
-                      boneBox.expandByPoint(tempVec);
-                      boneCount++;
-                    }
-                  });
-                }
               });
 
               if (boneCount >= 2 && !boneBox.isEmpty()) {
-                const boneSize = boneBox.getSize(new THREE.Vector3());
-                const boneMaxSpan = Math.max(boneSize.x, boneSize.y, boneSize.z);
-                const meshSize = bbox.getSize(new THREE.Vector3());
-                const meshMaxSpan = Math.max(meshSize.x, meshSize.y, meshSize.z);
-
-                // Mở rộng thêm 18% cho phần đầu/bàn chân vượt quá khớp xương cuối
-                boneBox.expandByScalar(boneMaxSpan * 0.18);
-
-                // Trong Three.js r13x (MindAR), Box3.setFromObject trên SkinnedMesh thường trả về kích thước bind-pose rất nhỏ (0.01) trong khi khung xương thật cao 1.8 - 180 đơn vị
-                if (boneMaxSpan > meshMaxSpan * 1.25 || meshMaxSpan === 0 || !isFinite(meshMaxSpan)) {
-                  bbox.copy(boneBox);
-                } else {
-                  bbox.union(boneBox);
-                }
+                boneBox.expandByScalar(boneBox.getSize(new THREE.Vector3()).y * 0.18);
+                bbox.union(boneBox);
               }
 
               const center = bbox.getCenter(new THREE.Vector3());
@@ -570,33 +497,36 @@ export function WebArCardView({
               const maxDim = Math.max(size.x, size.y, size.z) || 1;
               maxDimRef.current = maxDim;
 
-              // CĂN TÂM CHUẨN XÁC: Tạo modelHolder đưa tâm cơ thể về (0,0,0) để hiển thị trọn vẹn từ đầu tới chân
+              // Căn tâm cơ thể về (0,0,0)
               const modelHolder = new THREE.Group();
               modelHolder.position.set(-center.x, -center.y, -center.z);
               modelHolder.add(rawModel);
 
-              // Tạo Pivot Group làm tâm điều phối xoay 360 và di chuyển
-              const pivot = new THREE.Group();
-              pivot.add(modelHolder);
+              // Tích hợp P2 Reaction System (Squash/stretch, blob shadow, particles, ripples)
+              const reactionSystem = new ArReactionSystem(THREE, maxDim);
+              reactionSystemRef.current = reactionSystem;
+              reactionSystem.reactionGroup.add(modelHolder);
 
-              // Gắn vào anchor.group
+              // Pivot Group điều phối transform từ ngón tay người dùng
+              const pivot = new THREE.Group();
+              pivot.name = "ArPivotGroup";
+              pivot.add(reactionSystem.reactionGroup);
+
               anchor.group.add(pivot);
 
               const baseDim = 0.34;
-              const initialScale = (baseDim / maxDim) * userScaleRef.current;
+              const initialScale = baseDim / maxDim;
               pivot.scale.set(initialScale, initialScale, initialScale);
-              pivot.position.set(userPosRef.current.x, userPosRef.current.y, 0);
-              pivot.rotation.set(0, 0, 0);
+              pivot.position.set(0, 0, 0);
 
               pivotGroupRef.current = pivot;
               modelRef.current = rawModel;
 
-              // ĐẶC BIỆT: HIỂN THỊ TỨC THÌ (Instant AR)
               hasScannedOnceRef.current = true;
               setHasScannedOnce(true);
               anchor.group.visible = true;
 
-              // 5. Khởi động Camera và Video stream tracking
+              // 6. Khởi động Camera stream
               clockRef.current = new THREE.Clock();
 
               mindarThree
@@ -605,31 +535,38 @@ export function WebArCardView({
                   if (isCancelled) return;
                   setIsLoading(false);
 
-                  // Vector tạm tái sử dụng trong vòng lặp render để tối ưu 60FPS trên iPhone
+                  // Vector tái sử dụng trong vòng render
                   const fallbackPos = new THREE.Vector3();
                   const fallbackQuat = new THREE.Quaternion();
                   const fallbackScale = new THREE.Vector3();
 
-                  // Khởi chạy vòng lặp render và tính FPS
+                  // RENDER LOOP CHUẨN HIỆU NĂNG CAO (Không cấp phát object trong frame)
                   renderer.setAnimationLoop(() => {
                     // Đo FPS
                     frameCountRef.current++;
-                    const now = Date.now();
+                    const now = performance.now();
                     if (now - lastFpsTimeRef.current >= 1000) {
                       setFps(frameCountRef.current);
                       frameCountRef.current = 0;
                       lastFpsTimeRef.current = now;
                     }
 
-                    if (clockRef.current && mixerRef.current) {
-                      const delta = clockRef.current.getDelta();
-                      mixerRef.current.update(delta);
+                    const dt = clockRef.current ? Math.min(0.1, clockRef.current.getDelta()) : 0.016;
+
+                    // Cập nhật AnimationMixer của mô hình
+                    if (mixerRef.current) {
+                      mixerRef.current.update(dt);
                     }
 
-                    // ĐẢM BẢO MÔ HÌNH 3D HIỂN THỊ TỨC THÌ TRÊN IPHONE & ANDROID:
-                    // Trong MindARThree, khi chưa nhận diện được thẻ .mind (isTargetFoundRef = false),
-                    // anchor.group.matrix mặc định là ma trận đơn vị ở tọa độ (0,0,0) - nằm phía sau mặt cắt camera.near
-                    // khiến mô hình bị cắt khuất hoàn toàn. Ta đặt ma trận fallback ngay chính giữa khung nhìn Camera!
+                    // Cập nhật hệ thống cử chỉ Damping vật lý (P0 & P1)
+                    updatePhysics(dt);
+
+                    // Cập nhật hệ thống phản ứng 3D lò xo (P2)
+                    if (reactionSystemRef.current) {
+                      reactionSystemRef.current.update(dt);
+                    }
+
+                    // Tự động neo giữ không gian (World-lock & Fallback khi chưa thấy thẻ)
                     if (hasScannedOnceRef.current && anchorGroupRef.current) {
                       anchorGroupRef.current.visible = true;
 
@@ -641,8 +578,14 @@ export function WebArCardView({
                         const fovRad = (fovDeg * Math.PI) / 180;
                         const visibleHeight = 2 * dist * Math.tan(fovRad / 2);
 
+                        // Khi có cảm biến Gyro 3DoF, bù trừ góc xoay
+                        if (isMotionEnabled && isMotionPermissionGranted && gyroQuatRef.current) {
+                          fallbackQuat.copy(gyroQuatRef.current);
+                        } else {
+                          fallbackQuat.set(0, 0, 0, 1);
+                        }
+
                         fallbackPos.set(0, -visibleHeight * 0.05, -dist);
-                        fallbackQuat.set(0, 0, 0, 1);
                         fallbackScale.set(visibleHeight, visibleHeight, visibleHeight);
 
                         anchorGroupRef.current.matrix.compose(
@@ -668,7 +611,7 @@ export function WebArCardView({
             (xhr: any) => {
               if (xhr.lengthComputable && xhr.total > 0) {
                 const percent = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
-                setDownloadProgress(25 + Math.round(percent * 0.7));
+                setDownloadProgress(35 + Math.round(percent * 0.6));
                 setDownloadStats({
                   loadedMb: (xhr.loaded / (1024 * 1024)).toFixed(1),
                   totalMb: (xhr.total / (1024 * 1024)).toFixed(1),
@@ -676,17 +619,13 @@ export function WebArCardView({
               }
             },
             (err: any) => {
-              console.error(`[GLTF Loader Error] URL: ${urlToLoad}`, err);
               if (!isFallbackAttempt && urlToLoad !== fallbackModelUrl) {
-                console.warn(`[GLTF Fallback] Thử nạp mô hình mẫu thay thế: ${fallbackModelUrl}`);
-                if (!isCancelled) {
-                  setIsUsingFallbackModel(true);
-                }
+                if (!isCancelled) setIsUsingFallbackModel(true);
                 loadModelWithFallback(fallbackModelUrl, true);
                 return;
               }
               if (!isCancelled) {
-                setLoadError("Không thể tải mô hình 3D con vật. Vui lòng thử lại sau.");
+                setLoadError("Không thể tải mô hình 3D. Vui lòng thử lại sau.");
                 setIsLoading(false);
               }
             }
@@ -695,7 +634,6 @@ export function WebArCardView({
 
         loadModelWithFallback(primaryModelUrl);
       } catch (err: any) {
-        console.error("[WebAR Init Error]:", err);
         if (!isCancelled) {
           setLoadError(err.message || "Lỗi khởi tạo AR Engine.");
           setIsLoading(false);
@@ -707,9 +645,12 @@ export function WebArCardView({
 
     return () => {
       isCancelled = true;
-      if (tapFeedbackTimeoutRef.current) {
-        clearTimeout(tapFeedbackTimeoutRef.current);
+      if (uiActivityTimerRef.current) clearTimeout(uiActivityTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (reactionSystemRef.current) {
+        reactionSystemRef.current.dispose();
       }
+      stopFrontStream();
       if (mindarRef.current) {
         try {
           if (mindarRef.current.renderer) {
@@ -719,222 +660,88 @@ export function WebArCardView({
             mindarRef.current.controller.stopProcessVideo();
           }
           if (mindarRef.current.video && mindarRef.current.video.srcObject) {
-            mindarRef.current.video.srcObject
-              .getTracks()
-              .forEach((t: MediaStreamTrack) => t.stop());
+            mindarRef.current.video.srcObject.getTracks().forEach((t: MediaStreamTrack) => t.stop());
             mindarRef.current.video.remove();
           }
-        } catch (e) {
-          console.warn("[MindAR Stop]:", e);
-        }
+        } catch {}
       }
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }
     };
-  }, [animal.slug, animal.modelUrl, animal.targetUrl, loadScript]);
+  }, [animal.slug, animal.modelUrl, animal.targetUrl, loadScript, stopFrontStream, updatePhysics, isMotionEnabled, isMotionPermissionGranted, gyroQuatRef]);
 
-  // CỬ CHỈ CẢM ỨNG ĐA ĐIỂM TỰ NHIÊN CHUẨN APPLE AR (Simultaneous Multi-touch Gestures)
-  // - 1 ngón tay kéo: Di chuyển vị trí (Pan)
-  // - 2 ngón tay xoay: Xoay 360 độ (Two-finger twist)
-  // - 2 ngón tay chụm/mở: Thu phóng to nhỏ (Pinch zoom)
-  // - Chạm 1 ngón tay: Tương tác âm thanh & nhún nhảy
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 1) {
-      touchStartPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      touchStartTimeRef.current = Date.now();
-      hasTouchMovedRef.current = false;
-    } else if (e.touches.length === 2) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
+  // Xử lý chuyển đổi Camera Trước / Sau
+  const handleToggleCamera = useCallback(async () => {
+    wakeUi();
+    const nextMode = facingMode === "environment" ? "user" : "environment";
 
-      // Khoảng cách và góc ban đầu giữa 2 ngón tay
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const angle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
-
-      initialTouchDistRef.current = dist;
-      initialTouchAngleRef.current = angle;
-      initialUserScaleRef.current = userScaleRef.current;
-      initialUserRotYRef.current = userRotYRef.current;
-      hasTouchMovedRef.current = true;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 1) {
-      const clientX = e.touches[0].clientX;
-      const clientY = e.touches[0].clientY;
-      const dx = clientX - lastTouchPosRef.current.x;
-      const dy = clientY - lastTouchPosRef.current.y;
-      const totalDist = Math.hypot(
-        clientX - touchStartPosRef.current.x,
-        clientY - touchStartPosRef.current.y
-      );
-      if (totalDist > 8) {
-        hasTouchMovedRef.current = true;
+    if (nextMode === "user") {
+      // Chuyển sang Camera Trước (Selfie Mode)
+      if (mindarRef.current?.video) {
+        const videoEl = containerRef.current?.querySelector("video") as HTMLVideoElement | null;
+        if (videoEl) {
+          const stream = await startFrontCamera(videoEl);
+          if (stream) {
+            setFacingMode("user");
+            showToast("Đã chuyển sang Camera trước (Selfie Mode)", "info");
+          }
+        }
       }
-
-      // 1 ngón tay kéo: Luôn di chuyển vị trí mượt mà
-      userPosRef.current.x += dx * 0.003;
-      userPosRef.current.y -= dy * 0.003;
-      userPosRef.current.x = Math.max(-1.8, Math.min(1.8, userPosRef.current.x));
-      userPosRef.current.y = Math.max(-1.8, Math.min(1.8, userPosRef.current.y));
-
-      applyTransform();
-      lastTouchPosRef.current = { x: clientX, y: clientY };
-    } else if (e.touches.length === 2 && initialTouchDistRef.current > 0) {
-      hasTouchMovedRef.current = true;
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-
-      const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const currentAngle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX);
-
-      // 1. Pinch to Zoom (Cho phép thu phóng tự do từ 5% đến 300%)
-      const factor = currentDist / initialTouchDistRef.current;
-      const nextScale = Math.max(
-        0.05,
-        Math.min(3.0, Math.round(initialUserScaleRef.current * factor * 100) / 100)
-      );
-      userScaleRef.current = nextScale;
-      setZoomPercent(Math.round(nextScale * 100));
-
-      // 2. Two-finger Twist to Rotate 360°
-      const angleDelta = currentAngle - initialTouchAngleRef.current;
-      userRotYRef.current = initialUserRotYRef.current + angleDelta * 1.5;
-
-      applyTransform();
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 0) {
-      const elapsed = Date.now() - touchStartTimeRef.current;
-      if (!hasTouchMovedRef.current && elapsed < 350) {
-        triggerTapInteraction();
-      }
-      initialTouchDistRef.current = 0;
-    } else if (e.touches.length === 1) {
-      lastTouchPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      initialTouchDistRef.current = 0;
-    }
-  };
-
-  // Cử chỉ chuột dự phòng (Desktop Mouse Controls)
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    isMouseDownRef.current = true;
-    mouseButtonRef.current = e.button;
-    mouseStartPosRef.current = { x: e.clientX, y: e.clientY };
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-    mouseStartTimeRef.current = Date.now();
-    hasMouseMovedRef.current = false;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMouseDownRef.current) return;
-    const dx = e.clientX - lastMousePosRef.current.x;
-    const dy = e.clientY - lastMousePosRef.current.y;
-    const totalDist = Math.hypot(
-      e.clientX - mouseStartPosRef.current.x,
-      e.clientY - mouseStartPosRef.current.y
-    );
-    if (totalDist > 6) {
-      hasMouseMovedRef.current = true;
-    }
-
-    if (mouseButtonRef.current === 2 || e.shiftKey) {
-      // Chuột phải hoặc Shift: Xoay 360 độ
-      userRotYRef.current += dx * 0.015;
-      userRotXRef.current = Math.max(-0.4, Math.min(0.6, userRotXRef.current + dy * 0.008));
     } else {
-      // Chuột trái: Di chuyển vị trí
-      userPosRef.current.x += dx * 0.003;
-      userPosRef.current.y -= dy * 0.003;
-      userPosRef.current.x = Math.max(-1.8, Math.min(1.8, userPosRef.current.x));
-      userPosRef.current.y = Math.max(-1.8, Math.min(1.8, userPosRef.current.y));
+      // Chuyển về Camera Sau (Marker Mode)
+      stopFrontStream();
+      if (mindarRef.current?.video) {
+        const videoEl = containerRef.current?.querySelector("video") as HTMLVideoElement | null;
+        if (videoEl && (mindarRef.current.video as HTMLVideoElement).srcObject) {
+          videoEl.srcObject = (mindarRef.current.video as HTMLVideoElement).srcObject;
+          await videoEl.play();
+        }
+      }
+      setFacingMode("environment");
+      showToast("Đã chuyển về Camera sau", "info");
     }
+  }, [facingMode, showToast, startFrontCamera, stopFrontStream, wakeUi]);
 
-    applyTransform();
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const handleMouseUp = () => {
-    if (!isMouseDownRef.current) return;
-    isMouseDownRef.current = false;
-    const elapsed = Date.now() - mouseStartTimeRef.current;
-    if (!hasMouseMovedRef.current && elapsed < 350) {
-      triggerTapInteraction();
-    }
-  };
-
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.12 : -0.12;
-    handleZoom(delta);
-  };
-
-  // Xử lý phát âm đa ngữ khi chạm vào các nút bấm (Ưu tiên file MP3 tải lên cho ngôn ngữ đó, fallback Web Speech AI)
+  // Xử lý phát âm đa ngữ
   const handleSpeak = (lang: "en" | "vi" | "zh") => {
+    wakeUi();
     setActiveLang(lang);
-    triggerModelReaction();
-
+    if (reactionSystemRef.current) {
+      reactionSystemRef.current.triggerAudioRipple();
+    }
     playCardLanguageAudio(animal, lang, () => {
       setActiveLang(null);
     });
   };
 
-  // Xử lý phát tiếng kêu con vật / hành động
+  // Xử lý phát tiếng kêu con vật
   const handleAnimalSound = () => {
+    wakeUi();
     setIsPlayingSound(true);
-    triggerModelReaction();
+    if (reactionSystemRef.current) {
+      reactionSystemRef.current.triggerAudioRipple();
+    }
     playAnimalSoundEffect(
       animal.slug,
-      () => {
-        setIsPlayingSound(false);
-      },
+      () => setIsPlayingSound(false),
       animal.audioUrl
     );
   };
 
-  // Chụp ảnh kỷ niệm AR
-  const handleCapturePhoto = () => {
-    if (!mindarRef.current || !containerRef.current) return;
-    try {
-      const videoEl = containerRef.current.querySelector("video") as HTMLVideoElement | null;
-      const canvasEl = containerRef.current.querySelector("canvas") as HTMLCanvasElement | null;
-
-      if (!videoEl || !canvasEl) return;
-
-      const captureCanvas = document.createElement("canvas");
-      captureCanvas.width = videoEl.videoWidth || canvasEl.width;
-      captureCanvas.height = videoEl.videoHeight || canvasEl.height;
-      const ctx = captureCanvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.drawImage(videoEl, 0, 0, captureCanvas.width, captureCanvas.height);
-      ctx.drawImage(canvasEl, 0, 0, captureCanvas.width, captureCanvas.height);
-
-      const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.92);
+  // Chụp ảnh AR
+  const handleTakePhoto = () => {
+    wakeUi();
+    if (!containerRef.current) return;
+    const dataUrl = capturePhoto(containerRef.current, facingMode === "user");
+    if (dataUrl) {
       setCapturedPhotoUrl(dataUrl);
-    } catch (e) {
-      console.error("[Capture Photo Error]:", e);
     }
   };
 
-  const getClipFriendlyLabel = (name: string): string => {
-    const n = name.toLowerCase();
-    if (n.includes("highjump") || n.startsWith("_01a")) return "Nhảy Cao";
-    if (n.includes("spin") || n.includes("360")) return "Nhảy Xoay";
-    if (n.includes("jump") || n.includes("nhay")) return "Nhảy";
-    if (n.includes("run") || n.includes("chay")) return "Chạy";
-    if (n.includes("walk") || n.includes("di")) return "Đi bộ";
-    if (n.includes("roar") || n.includes("gam")) return "Gầm";
-    if (n.includes("idle") || n.includes("stand")) return "Đứng yên";
-    return name;
-  };
-
+  // Chuyển đổi clip animation
   const handleSwitchClip = (clipName: string) => {
+    wakeUi();
     if (!actionsRef.current || !actionsRef.current[clipName]) return;
     if (playingClipName && actionsRef.current[playingClipName] && playingClipName !== clipName) {
       actionsRef.current[playingClipName].fadeOut(0.25);
@@ -948,285 +755,339 @@ export function WebArCardView({
     <div
       className="fixed inset-0 z-50 w-full h-[100dvh] bg-black select-none overflow-hidden touch-none"
       onContextMenu={(e) => e.preventDefault()}
+      onPointerDown={wakeUi}
     >
-      {/* 1. Camera Viewport: Ép full màn hình 100dvh loại bỏ hoàn toàn khoảng đen */}
+      {/* 1. Camera Viewport: Ép full màn hình 100dvh, lật gương khi ở Selfie mode */}
       <div
         ref={containerRef}
         id="webar-camera-viewport"
-        className="absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none"
+        className={`absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none transition-transform duration-300 ${
+          facingMode === "user" ? "scale-x-[-1]" : ""
+        }`}
       />
 
-      {/* 2. Lớp bắt cử chỉ cảm ứng tương tác Apple AR (Kéo 1 ngón, Xoay 2 ngón, Thu phóng 2 ngón, Chạm để chơi) */}
+      {/* 2. Lớp bắt cử chỉ cảm ứng Pointer Events (Xoay 360, Giữ để kéo 1:1, Pinch Zoom, Tap hit test) */}
       <div
         className="absolute inset-0 z-10 touch-none cursor-grab active:cursor-grabbing"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
+        style={{ touchAction: "none" }}
+        {...pointerHandlers}
       />
 
-      {/* 3. Top Navigation Bar (Nút Đóng, Cụm huy hiệu, Nút Debug HUD, Trợ giúp) */}
-      <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-3.5 pb-2 pointer-events-none">
-        {/* Nút thoát AR */}
+      {/* 3. Thanh Gợi Ý Cử Chỉ Tự Động Ẩn Sau 4.5 Giây */}
+      <ArGestureHint
+        isFreeArMode={isFreeArMode}
+        isUsingFallbackModel={isUsingFallbackModel}
+      />
+
+      {/* 4. Top Bar Mảnh & Thanh Thoát (Tự ẩn sau 4s không chạm) */}
+      <div
+        className={`absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-3.5 pb-2 pointer-events-none transition-opacity duration-500 ${
+          isUiFaded ? "opacity-15 hover:opacity-100" : "opacity-100"
+        }`}
+        style={{ paddingTop: "max(0.875rem, env(safe-area-inset-top))" }}
+      >
+        {/* Nút đóng AR (luôn hiển thị rõ ràng) */}
         <button
           type="button"
           onClick={onClose}
-          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg"
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg cursor-pointer"
           title="Đóng Camera AR"
         >
           <X className="h-5 w-5" />
         </button>
 
-        {/* Cụm thông tin huy hiệu Poly Cards AR */}
-        <div className="pointer-events-auto flex flex-col items-center gap-1">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/65 border border-white/25 backdrop-blur-md shadow-lg">
-            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-[11px] font-black text-amber-300">
-              Poly Cards 3D AR
-            </span>
-          </div>
-
-          {/* Huy hiệu đếm ngược nếu là bản dùng thử 30s */}
-          {isTrial && (
-            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/90 text-stone-950 font-black text-[10px] shadow-sm">
-              <Clock className="h-3 w-3" />
-              <span>Dùng thử: {trialTimeLeft}s</span>
-            </div>
+        {/* Nút Đổi Camera + Menu More "⋯" */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {/* Nút đổi camera trước/sau */}
+          {hasMultipleCameras && (
+            <button
+              type="button"
+              onClick={handleToggleCamera}
+              className={`flex h-10 w-10 items-center justify-center rounded-2xl border backdrop-blur-md active:scale-90 transition-transform shadow-lg cursor-pointer ${
+                facingMode === "user"
+                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-amber-400/30"
+                  : "bg-black/60 text-white border-white/20 hover:bg-black/80"
+              }`}
+              title="Đổi Camera trước / sau"
+            >
+              <SwitchCamera className="h-5 w-5" />
+            </button>
           )}
-        </div>
 
-        {/* Cụm nút Debug HUD và Nút Hướng Dẫn */}
-        <div className="pointer-events-auto flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setIsDebugOpen((prev) => !prev)}
-            className={`flex h-10 w-10 items-center justify-center rounded-2xl border backdrop-blur-md active:scale-90 transition-all shadow-lg ${
-              isDebugOpen
-                ? "bg-amber-500 border-amber-300 text-stone-950 font-black shadow-amber-500/40"
-                : "bg-black/60 text-stone-300 border-white/20 hover:text-white"
+          {/* Menu More "⋯" (Chứa Reset, Debug HUD, Hướng Dẫn, Cảm Biến) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen((prev) => !prev)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg cursor-pointer"
+              title="Tùy chọn khác"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+
+            {isMenuOpen && (
+              <div className="absolute right-0 top-12 w-48 rounded-2xl bg-stone-950/90 border border-white/20 p-1.5 backdrop-blur-xl shadow-2xl space-y-1 text-xs text-white z-40 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetTransform();
+                    setIsMenuOpen(false);
+                    showToast("Đã đặt lại góc nhìn & vị trí 100%", "info");
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 text-stone-200 hover:text-white transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="h-4 w-4 text-amber-400" />
+                  <span>Đặt lại góc nhìn</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGuideModal(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 text-stone-200 hover:text-white transition-colors cursor-pointer"
+                >
+                  <HelpCircle className="h-4 w-4 text-sky-400" />
+                  <span>Hướng dẫn cử chỉ</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDebugOpen((prev) => !prev);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 text-stone-200 hover:text-white transition-colors cursor-pointer"
+                >
+                  <Wrench className="h-4 w-4 text-amber-400" />
+                  <span>{isDebugOpen ? "Tắt Debug HUD" : "Bật Debug HUD"}</span>
+                </button>
+
+                {isMotionSupported && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (needsMotionPrompt) {
+                        await requestMotionPermission();
+                      }
+                      setIsMotionEnabled((prev) => !prev);
+                      resetBasePose();
+                      setIsMenuOpen(false);
+                      showToast(
+                        !isMotionEnabled ? "Đã bật cảm biến xoay phòng (Gyro 3DoF)" : "Đã tắt cảm biến xoay",
+                        "info"
+                      );
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 text-stone-200 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <Compass className="h-4 w-4 text-emerald-400" />
+                    <span>{isMotionEnabled ? "Tắt Gyro 3DoF" : "Bật Gyro Đứng Yên"}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 5. AR Debug HUD */}
+      <ArHud
+        isOpen={isDebugOpen}
+        fps={fps}
+        slug={animal.slug}
+        isFreeArMode={isFreeArMode}
+        isUsingFallbackModel={isUsingFallbackModel}
+        isTargetFound={isTargetFound}
+        targetHitCount={targetHitCount}
+        playingClipName={playingClipName}
+        animalSlug={animal.slug}
+        posX={currentPosRef.current.x}
+        posY={currentPosRef.current.y}
+        zoomPercent={zoomPercent}
+        facingMode={facingMode}
+        onClose={() => setIsDebugOpen(false)}
+        onForceShow={() => {
+          hasScannedOnceRef.current = true;
+          setHasScannedOnce(true);
+          if (anchorGroupRef.current) anchorGroupRef.current.visible = true;
+        }}
+        onResetTransform={resetTransform}
+        onTestSound={handleAnimalSound}
+      />
+
+      {/* 6. Toast thông báo nhẹ nhàng */}
+      {toastMsg && (
+        <div className="absolute top-20 inset-x-0 z-35 flex justify-center pointer-events-none px-4 animate-in fade-in zoom-in duration-150">
+          <div
+            className={`flex items-center gap-2 rounded-2xl font-black px-4 py-1.5 shadow-xl text-xs backdrop-blur-md ${
+              toastMsg.type === "success"
+                ? "bg-emerald-500 text-stone-950 shadow-emerald-500/30"
+                : toastMsg.type === "warning"
+                ? "bg-rose-500 text-white shadow-rose-500/30"
+                : "bg-amber-400 text-stone-950 shadow-amber-400/30"
             }`}
-            title="Bật/Tắt AR Debug HUD"
-            aria-label="AR Debug HUD"
           >
-            <Wrench className="h-4 w-4" />
-          </button>
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span>{toastMsg.text}</span>
+          </div>
+        </div>
+      )}
 
+      {/* 7. Action Sheet (Bottom Sheet cho Động Tác 3D) */}
+      <ArActionSheet
+        isOpen={isActionSheetOpen}
+        isLandscape={isLandscape}
+        clips={availableClips}
+        activeClip={playingClipName}
+        onSelectClip={(clip) => {
+          handleSwitchClip(clip);
+          setIsActionSheetOpen(false);
+        }}
+        onToggle={() => setIsActionSheetOpen((prev) => !prev)}
+      />
+
+      {/* 8. KHUNG ĐIỀU KHIỂN CHÍNH P3 (Tối Giản, Chiều Cao <= 72px, Hỗ Trợ Cả Dọc Lẫn Ngang) */}
+      <div
+        className={`absolute z-30 pointer-events-none transition-all duration-500 ${
+          isLandscape
+            ? "right-3.5 inset-y-0 flex flex-col items-center justify-center py-4"
+            : "bottom-0 inset-x-0 flex flex-col items-center px-3.5 pb-4 pt-1"
+        } ${isUiFaded ? "opacity-15 hover:opacity-100" : "opacity-100"}`}
+        style={
+          isLandscape
+            ? { paddingRight: "max(0.875rem, env(safe-area-inset-right))" }
+            : { paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }
+        }
+      >
+        <div
+          className={`pointer-events-auto rounded-3xl bg-stone-950/75 border border-white/20 p-2 backdrop-blur-xl shadow-2xl flex items-center ${
+            isLandscape ? "flex-col gap-3 py-3 w-16" : "flex-row gap-2 max-w-md w-full justify-between"
+          }`}
+        >
+          {/* A. Chip Ngôn Ngữ Nhỏ Gọn (Word + Phonetic 1 dòng) */}
           <button
             type="button"
-            onClick={() => setShowGuideModal(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/60 text-white border border-white/20 backdrop-blur-md active:scale-90 transition-transform shadow-lg"
-            title="Hướng dẫn sử dụng"
+            onClick={() => {
+              if (languageTrack === "en-vi") {
+                handleSpeak(activeLang === "en" ? "vi" : "en");
+              } else {
+                handleSpeak(activeLang === "zh" ? "vi" : "zh");
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border transition-all active:scale-95 cursor-pointer ${
+              activeLang
+                ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md scale-102"
+                : "bg-white/10 text-white border-white/15 hover:bg-white/20"
+            } ${isLandscape ? "flex-col text-center px-1 py-2 w-full" : "flex-1 min-w-0"}`}
+            title="Nhấn để nghe phát âm"
           >
-            <HelpCircle className="h-5 w-5 text-amber-300" />
+            <Languages className="h-4 w-4 text-amber-300 shrink-0" />
+            <div className="flex flex-col text-left min-w-0 overflow-hidden leading-tight">
+              <span className="text-xs font-black truncate">
+                {languageTrack === "zh-vi"
+                  ? animal.nameZh || animal.nameEn
+                  : animal.nameEn}
+              </span>
+              <span className="text-[10px] text-amber-200/90 font-mono truncate">
+                {languageTrack === "zh-vi"
+                  ? animal.pinyinZh || "pīnyīn"
+                  : animal.ipa || "/ipa/"}
+              </span>
+            </div>
           </button>
-        </div>
-      </div>
 
-      {/* 4. Thanh Gợi Ý Cử Chỉ Tự Nhiên Chuẩn Apple AR */}
-      <div className="absolute top-15 inset-x-0 z-30 flex flex-col items-center gap-1.5 pointer-events-none px-4">
-        <div className="flex items-center gap-2 rounded-full bg-stone-950/75 border border-white/20 px-3.5 py-1 backdrop-blur-md text-[11px] font-medium text-amber-200/95 shadow-xl">
-          <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <span>Kéo 1 ngón di chuyển • Xoay 2 ngón 360° • Chụm 2 ngón thu phóng</span>
-        </div>
-        {isFreeArMode && (
-          <div className="flex items-center gap-1.5 rounded-full bg-emerald-950/85 border border-emerald-400/40 px-3 py-0.5 backdrop-blur-md text-[10px] font-bold text-emerald-200 shadow-md animate-in fade-in slide-in-from-top-1 duration-200">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-            <span>Chế Độ AR Tương Tác Trực Tiếp (Không cần thẻ bài vật lý)</span>
-          </div>
-        )}
-        {isUsingFallbackModel && (
-          <div className="flex items-center gap-1.5 rounded-full bg-amber-950/90 border border-amber-400/60 px-3 py-0.5 backdrop-blur-md text-[10px] font-bold text-amber-300 shadow-md animate-in fade-in slide-in-from-top-1 duration-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-            <span>Mô hình chính tải thất bại (chưa cấu hình CORS R2). Đang hiển thị mẫu sư tử.</span>
-          </div>
-        )}
-      </div>
+          {/* B. Nút Phát Tiếng Kêu (Chỉ Icon, Tiết kiệm diện tích) */}
+          <button
+            type="button"
+            onClick={handleAnimalSound}
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
+              isPlayingSound
+                ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md"
+                : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20"
+            }`}
+            title={`Phát tiếng kêu ${animal.nameVi}`}
+          >
+            <Volume2 className="h-5 w-5" />
+          </button>
 
-      {/* 5. AR Diagnostic Debug HUD Modal (Trực quan hóa nhận diện thẻ, FPS, tọa độ) */}
-      {isDebugOpen && (
-        <div className="absolute top-26 left-3.5 z-35 max-w-xs w-[calc(100vw-28px)] rounded-2xl bg-stone-950/90 border border-amber-400/50 p-3 backdrop-blur-lg shadow-2xl text-white font-mono text-[11px] space-y-2 pointer-events-auto animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between pb-1 border-b border-white/10">
-            <div className="flex items-center gap-1.5 font-sans font-black text-amber-400">
-              <Radio className="h-3.5 w-3.5 animate-pulse text-emerald-400" />
-              <span>AR Inspector HUD</span>
-            </div>
-            <span className="text-[10px] text-stone-400 font-sans">FPS: {fps}</span>
-          </div>
-
-          <div className="space-y-1 text-stone-300 text-[10px]">
-            <div className="flex justify-between items-center">
-              <span>Target:</span>
-              <span className="font-bold text-amber-300">
-                {animal.slug}.mind {isFreeArMode ? "(Fallback Free AR)" : ""}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Mô hình 3D:</span>
-              <span className="font-bold text-amber-300">
-                {isUsingFallbackModel ? "polycards.glb (Mẫu dự phòng)" : "Chính thức"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Trạng thái quét:</span>
-              <span
-                className={`px-1.5 py-0.5 rounded text-[9px] font-black font-sans uppercase ${
-                  isTargetFound
-                    ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/50"
-                    : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                }`}
-              >
-                {isTargetFound ? "Đã Bắt Dính Thẻ" : "Đang Tìm Thẻ"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Số lần nhận diện:</span>
-              <span className="font-bold text-white">{targetHitCount} lần</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Animation:</span>
-              <span className="font-bold text-sky-300 truncate max-w-[140px]">
-                {playingClipName || (animal.slug === "cat" ? "Static (Protected)" : "Default")}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Vị trí (X, Y):</span>
-              <span className="text-stone-300">
-                {userPosRef.current.x.toFixed(2)}, {userPosRef.current.y.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Tỉ lệ (Scale):</span>
-              <span className="text-amber-300">{zoomPercent}%</span>
-            </div>
-          </div>
-
-          <div className="pt-1 flex gap-1.5 border-t border-white/10 font-sans">
+          {/* C. Nút Mic Nhận Diện Giọng Nói (P4.3 Voice Quiz, ẩn nếu không hỗ trợ) */}
+          {isVoiceSupported && (
             <button
               type="button"
               onClick={() => {
-                hasScannedOnceRef.current = true;
-                setHasScannedOnce(true);
-                if (anchorGroupRef.current) anchorGroupRef.current.visible = true;
+                if (isListening) return;
+                startListening(
+                  {
+                    en: animal.nameEn,
+                    vi: animal.nameVi,
+                    zh: animal.nameZh,
+                    pinyin: animal.pinyinZh,
+                  },
+                  languageTrack === "zh-vi" ? "zh" : "en"
+                );
               }}
-              className="flex-1 py-1 px-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-[10px] font-bold text-white text-center"
+              className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
+                isListening
+                  ? "bg-rose-500 text-white border-rose-300 shadow-rose-500/50 animate-pulse scale-105"
+                  : "bg-white/10 text-emerald-300 border-white/15 hover:bg-white/20"
+              }`}
+              title="Luyện nói cùng bé (Nhận diện giọng nói)"
             >
-              Ép Hiện 3D
+              <Mic className="h-5 w-5" />
+              {isListening && (
+                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-400 animate-ping" />
+              )}
             </button>
+          )}
+
+          {/* D. Nút Chụp Ảnh Tròn Lớn Ở Giữa */}
+          <button
+            type="button"
+            onClick={handleTakePhoto}
+            className="flex h-13 w-13 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 to-amber-300 text-stone-950 font-black shadow-lg shadow-amber-400/40 active:scale-90 transition-transform shrink-0 cursor-pointer ring-3 ring-black/40"
+            title="Chụp ảnh AR"
+          >
+            <Camera className="h-6 w-6" />
+          </button>
+
+          {/* E. Nút Mở Bottom Sheet Động Tác (nếu model có >1 animation clip) */}
+          {availableClips.length > 1 && (
             <button
               type="button"
-              onClick={handleResetTransform}
-              className="py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-stone-200"
+              onClick={() => setIsActionSheetOpen((prev) => !prev)}
+              className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
+                isActionSheetOpen
+                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black"
+                  : "bg-white/10 text-white border-white/15 hover:bg-white/20"
+              }`}
+              title="Chọn động tác nhân vật"
             >
-              Về Tâm
+              <Activity className="h-5 w-5" />
             </button>
-            <button
-              type="button"
-              onClick={triggerTapInteraction}
-              className="py-1 px-2 rounded-lg bg-amber-500/80 hover:bg-amber-500 text-[10px] font-bold text-stone-950"
-            >
-              Test Kêu
-            </button>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* 6. Toast phản hồi khi bé chạm tương tác vào con vật */}
-      {tapFeedback && (
-        <div className="absolute top-24 inset-x-0 z-30 flex justify-center pointer-events-none px-4 animate-in fade-in zoom-in duration-150">
-          <div className="flex items-center gap-2 rounded-2xl bg-amber-500 text-stone-950 font-black px-4 py-1.5 shadow-xl shadow-amber-500/30 text-xs">
-            <Sparkles className="h-4 w-4 shrink-0" />
-            <span>{tapFeedback}</span>
-          </div>
-        </div>
-      )}
-
-      {/* 7. Cụm nút công cụ thu phóng & đặt lại kích thước 3D nổi cạnh phải */}
-      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-black/65 border border-white/20 backdrop-blur-md shadow-2xl pointer-events-auto">
-        <button
-          type="button"
-          onClick={() => handleZoom(0.15)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
-          title="Phóng to 3D (+15%)"
-          aria-label="Phóng to 3D"
-        >
-          <ZoomIn className="h-4 w-4 text-amber-300" />
-        </button>
-
-        <span className="text-[10px] font-black text-amber-200/90 py-0.5 select-none font-mono tracking-tighter">
-          {zoomPercent}%
-        </span>
-
-        <button
-          type="button"
-          onClick={() => handleZoom(-0.15)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
-          title="Thu nhỏ 3D (-15%)"
-          aria-label="Thu nhỏ 3D"
-        >
-          <ZoomOut className="h-4 w-4 text-amber-300" />
-        </button>
-
-        <div className="w-5 h-px bg-white/15 my-0.5" />
-
-        <button
-          type="button"
-          onClick={handleResetTransform}
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
-          title="Đặt lại kích thước và góc xoay chuẩn"
-          aria-label="Đặt lại góc nhìn 3D"
-        >
-          <RotateCcw className="h-3.5 w-3.5 text-stone-300" />
-        </button>
       </div>
 
-      {/* 8. Khung ngắm định vị thẻ bài (Chỉ hiện khi chưa từng nhận diện được thẻ) */}
-      {!isLoading && !loadError && !isTargetFound && !hasScannedOnce && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-6">
-          <div className="relative w-64 h-80 max-w-[70vw] max-h-[45vh] rounded-3xl border-2 border-dashed border-amber-300/80 shadow-[0_0_25px_rgba(251,191,36,0.35)] bg-black/10">
-            <div className="absolute -top-1.5 -left-1.5 h-6 w-6 border-t-4 border-l-4 border-amber-400 rounded-tl-xl" />
-            <div className="absolute -top-1.5 -right-1.5 h-6 w-6 border-t-4 border-r-4 border-amber-400 rounded-tr-xl" />
-            <div className="absolute -bottom-1.5 -left-1.5 h-6 w-6 border-b-4 border-l-4 border-amber-400 rounded-bl-xl" />
-            <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 border-b-4 border-r-4 border-amber-400 rounded-br-xl" />
-
-            <div className="absolute -top-10 inset-x-0 flex justify-center">
-              <div className="flex items-center gap-2 rounded-full bg-amber-500/95 px-4 py-1.5 text-xs font-black text-stone-950 shadow-xl backdrop-blur-md animate-pulse">
-                <Scan className="h-4 w-4 animate-spin" />
-                <span>Hướng camera vào thẻ {animal.nameVi}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 9. Loading State Skeleton Với Thanh % Tiến Độ Tải Trực Quan */}
+      {/* 9. Loading State */}
       {isLoading && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-stone-950/90 backdrop-blur-md px-6 text-center">
-          <div className="relative flex h-18 w-18 items-center justify-center mb-2">
+          <div className="relative flex h-16 w-16 items-center justify-center mb-2">
             <div className="absolute inset-0 rounded-full border-4 border-amber-500/20 border-t-amber-400 animate-spin" />
             <Sparkles className="h-8 w-8 text-amber-400 animate-pulse" />
           </div>
-
-          <h3 className="text-base font-black text-white">
-            Đang Khởi Động AR Poly Cards...
-          </h3>
-
+          <h3 className="text-base font-black text-white">Khởi Động AR Poly Cards...</h3>
           <p className="mt-1 text-xs text-amber-200/80 max-w-xs leading-relaxed">
-            Đang kết nối camera và nạp mô hình 3D {animal.nameVi}
+            Đang nạp mô hình 3D {animal.nameVi}
           </p>
-
-          {/* Progress Bar & Percentage */}
           <div className="mt-5 w-full max-w-xs space-y-1.5">
             <div className="flex justify-between text-[11px] font-bold text-amber-300">
-              <span>Tiến độ tải AR:</span>
+              <span>Tiến độ tải:</span>
               <span className="font-mono">{downloadProgress}%</span>
             </div>
             <div className="w-full h-2 rounded-full bg-stone-800 overflow-hidden p-0.5 border border-white/10">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-200 shadow-[0_0_12px_rgba(251,191,36,0.5)]"
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-200"
                 style={{ width: `${Math.max(5, downloadProgress)}%` }}
               />
             </div>
@@ -1246,234 +1107,38 @@ export function WebArCardView({
             <AlertCircle className="h-7 w-7" />
           </div>
           <h3 className="text-base font-black text-white">Chưa thể bật Camera AR</h3>
-          <p className="mt-1.5 text-xs text-stone-300 max-w-xs leading-relaxed">
-            {loadError}
-          </p>
+          <p className="mt-1.5 text-xs text-stone-300 max-w-xs leading-relaxed">{loadError}</p>
           <div className="mt-5 flex flex-col gap-2 w-full max-w-xs">
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-xs font-black text-stone-950 active:scale-95 transition-transform shadow-lg"
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-xs font-black text-stone-950 active:scale-95 transition-transform shadow-lg cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              <span>Thử Lại Lần Nữa</span>
+              <span>Thử Lại</span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 text-xs font-bold text-white border border-white/20 active:scale-95 transition-transform"
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 text-xs font-bold text-white border border-white/20 active:scale-95 transition-transform cursor-pointer"
             >
-              <span>Quay Lại Chế Độ 3D</span>
+              <span>Quay Lại</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* 11. Floating Control Island (Trong suốt, chuẩn công thái học) */}
-      <div className="absolute bottom-0 inset-x-0 z-30 flex flex-col items-center px-3.5 pb-5 pt-2 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md rounded-3xl bg-stone-950/70 border border-white/20 p-3 backdrop-blur-md shadow-2xl flex flex-col items-center gap-2.5">
-          {/* Nút Chuyển Đổi Gói Học Song Ngữ Chuyên Biệt (Chỉ hiển thị khi cả 2 chế độ Anh-Việt và Trung-Việt cùng bật) */}
-          {showBothTracksSwitcher && (
-            <div className="flex items-center p-1 rounded-full bg-black/60 border border-white/20 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => {
-                  setLanguageTrack("en-vi");
-                  if (typeof window !== "undefined") {
-                    localStorage.setItem("polycards_lang_track", "en-vi");
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                  languageTrack === "en-vi"
-                    ? "bg-amber-400 text-stone-950 font-black shadow-md"
-                    : "text-stone-300 hover:text-white"
-                }`}
-              >
-                <Languages className="h-3 w-3" />
-                <span>Song Ngữ Anh - Việt</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLanguageTrack("zh-vi");
-                  if (typeof window !== "undefined") {
-                    localStorage.setItem("polycards_lang_track", "zh-vi");
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                  languageTrack === "zh-vi"
-                    ? "bg-rose-500 text-white font-black shadow-md"
-                    : "text-stone-300 hover:text-white"
-                }`}
-              >
-                <Languages className="h-3 w-3" />
-                <span>Song Ngữ Trung - Việt</span>
-              </button>
-            </div>
-          )}
-
-          {/* Hàng 2 Nút Phát Âm To Rõ Công Thái Học Chuẩn Bé Học (EN-VI hoặc ZH-VI) */}
-          {languageTrack === "en-vi" ? (
-            <div className="grid grid-cols-2 gap-2.5 w-full">
-              {/* NÚT TIẾNG ANH (EN) */}
-              <button
-                type="button"
-                onClick={() => handleSpeak("en")}
-                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                  activeLang === "en"
-                    ? "bg-amber-500 border-amber-300 text-stone-950 scale-105 shadow-amber-500/40"
-                    : "bg-black/50 border-amber-400/50 text-white hover:border-amber-400"
-                }`}
-              >
-                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-300">
-                  <Languages className="h-3.5 w-3.5" />
-                  <span>TIẾNG ANH (EN)</span>
-                </div>
-                <span className="text-sm font-black truncate max-w-full">
-                  {animal.nameEn}
-                </span>
-                <span className="text-[10px] font-mono text-amber-200/90 font-bold">
-                  {animal.ipa}
-                </span>
-              </button>
-
-              {/* NÚT TIẾNG VIỆT (VI) */}
-              <button
-                type="button"
-                onClick={() => handleSpeak("vi")}
-                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                  activeLang === "vi"
-                    ? "bg-emerald-500 border-emerald-300 text-white scale-105 shadow-emerald-500/40"
-                    : "bg-black/50 border-emerald-400/50 text-white hover:border-emerald-400"
-                }`}
-              >
-                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                  <Languages className="h-3.5 w-3.5" />
-                  <span>TIẾNG VIỆT (VI)</span>
-                </div>
-                <span className="text-sm font-black truncate max-w-full">
-                  {animal.nameVi}
-                </span>
-                <span className="text-[10px] text-emerald-200/90 font-bold">
-                  Tiếng Mẹ Đẻ
-                </span>
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2.5 w-full">
-              {/* NÚT TIẾNG TRUNG (ZH) */}
-              <button
-                type="button"
-                onClick={() => handleSpeak("zh")}
-                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                  activeLang === "zh"
-                    ? "bg-rose-500 border-rose-300 text-white scale-105 shadow-rose-500/40"
-                    : "bg-black/50 border-rose-400/50 text-white hover:border-rose-400"
-                }`}
-              >
-                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-rose-300">
-                  <Languages className="h-3.5 w-3.5" />
-                  <span>TIẾNG TRUNG (ZH)</span>
-                </div>
-                <span className="text-sm font-black truncate max-w-full">
-                  {animal.nameZh || animal.nameEn}
-                </span>
-                <span className="text-[10px] font-mono text-rose-200/90 font-bold">
-                  {animal.pinyinZh || "zhōngwén"}
-                </span>
-              </button>
-
-              {/* NÚT TIẾNG VIỆT (VI) */}
-              <button
-                type="button"
-                onClick={() => handleSpeak("vi")}
-                className={`relative flex flex-col items-center justify-center py-2.5 px-2 rounded-2xl border-2 backdrop-blur-md active:scale-95 transition-all shadow-md ${
-                  activeLang === "vi"
-                    ? "bg-emerald-500 border-emerald-300 text-white scale-105 shadow-emerald-500/40"
-                    : "bg-black/50 border-emerald-400/50 text-white hover:border-emerald-400"
-                }`}
-              >
-                <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                  <Languages className="h-3.5 w-3.5" />
-                  <span>TIẾNG VIỆT (VI)</span>
-                </div>
-                <span className="text-sm font-black truncate max-w-full">
-                  {animal.nameVi}
-                </span>
-                <span className="text-[10px] text-emerald-200/90 font-bold">
-                  Tiếng Mẹ Đẻ
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* Hàng chọn Động Tác Nhân Vật 3D khi mô hình có nhiều Animation */}
-          {availableClips.length > 1 && (
-            <div className="flex items-center gap-1.5 w-full overflow-x-auto py-1 scrollbar-none justify-center">
-              <span className="text-[10px] font-bold text-stone-400 shrink-0">Động tác:</span>
-              {availableClips.map((clip) => {
-                const isSelected = playingClipName === clip;
-                const label = getClipFriendlyLabel(clip);
-                return (
-                  <button
-                    key={clip}
-                    type="button"
-                    onClick={() => handleSwitchClip(clip)}
-                    className={`px-2.5 py-1 rounded-xl text-[10px] font-black border transition-all active:scale-95 shrink-0 cursor-pointer ${
-                      isSelected
-                        ? "bg-amber-400 text-stone-950 border-amber-300 shadow-md shadow-amber-400/30 scale-102"
-                        : "bg-black/60 text-stone-300 border-white/15 hover:bg-white/10"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Hàng Tiếng Kêu & Chụp Ảnh */}
-          <div className="flex items-center justify-between gap-2 w-full">
-            <button
-              type="button"
-              onClick={handleAnimalSound}
-              className={`flex flex-1 min-h-[42px] items-center justify-center gap-2 rounded-2xl px-3 text-xs font-bold border transition-all active:scale-95 shadow-md ${
-                isPlayingSound
-                  ? "bg-amber-400 text-stone-950 border-amber-300"
-                  : "bg-stone-900/80 text-amber-300 border-amber-500/30 hover:bg-stone-800"
-              }`}
-            >
-              <Volume2 className="h-4 w-4" />
-              <span>Phát Tiếng Kêu {animal.nameVi}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCapturePhoto}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 font-black shadow-lg shadow-amber-500/30 active:scale-90 transition-transform shrink-0"
-              title="Chụp ảnh AR"
-            >
-              <Camera className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 12. Modal Hết Giờ Dùng Thử (Trial Expired Paywall) */}
+      {/* 11. Modal Hết Giờ Dùng Thử (3s Trial Paywall) */}
       {isTrialExpired && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-400/80 p-5 shadow-2xl text-center text-white">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 mb-3">
               <Sparkles className="h-7 w-7" />
             </div>
-
-            <h3 className="text-lg font-black text-white">
-              Hết 3 Giây Quét Thử Miễn Phí!
-            </h3>
+            <h3 className="text-lg font-black text-white">Hết 3 Giây Quét Thử Miễn Phí!</h3>
             <p className="mt-2 text-xs text-stone-300 leading-relaxed">
               Khách chưa mua thẻ chỉ được quét thử <strong>3 giây</strong>. Để mở khóa không giới hạn trọn bộ 30 thẻ thuộc thể loại này, bạn vui lòng:
             </p>
-
             <div className="mt-5 space-y-2.5">
               <button
                 type="button"
@@ -1481,53 +1146,49 @@ export function WebArCardView({
                   onClose();
                   if (onOpenOrder) onOpenOrder();
                 }}
-                className="w-full flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-xs font-black text-white shadow-lg shadow-emerald-500/25 active:scale-95 transition-transform"
+                className="w-full flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-xs font-black text-white shadow-lg active:scale-95 transition-transform cursor-pointer"
               >
                 <ShoppingBag className="h-4 w-4" />
                 <span>Đặt Mua Trọn Bộ Thẻ Bài AR</span>
               </button>
-
               <button
                 type="button"
                 onClick={() => {
                   onClose();
                   if (onOpenActivate) onOpenActivate();
                 }}
-                className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 text-xs font-bold text-amber-300 border border-amber-400/30 active:scale-95 transition-transform"
+                className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 text-xs font-bold text-amber-300 border border-amber-400/30 active:scale-95 transition-transform cursor-pointer"
               >
                 <KeyRound className="h-3.5 w-3.5" />
                 <span>Tôi Đã Có Thẻ (Nhập Mã Bản Quyền)</span>
               </button>
-
               <button
                 type="button"
                 onClick={onClose}
-                className="text-[11px] text-stone-400 underline pt-1"
+                className="text-[11px] text-stone-400 underline pt-1 cursor-pointer"
               >
-                Quay lại trang chi tiết
+                Quay lại
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 13. Modal Xem & Tải Ảnh Đã Chụp */}
+      {/* 12. Modal Xem & Tải Ảnh Đã Chụp (Đảm bảo ảnh selfie không bị ngược gương) */}
       {capturedPhotoUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-400/60 p-4 shadow-2xl flex flex-col items-center">
             <button
               type="button"
               onClick={() => setCapturedPhotoUrl(null)}
-              className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"
+              className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
-
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 mb-3">
               <Sparkles className="h-4 w-4" />
               <span>Ảnh Chụp AR Poly Cards</span>
             </div>
-
             <div className="relative w-full rounded-2xl overflow-hidden border border-white/20 bg-black aspect-3/4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -1536,12 +1197,11 @@ export function WebArCardView({
                 className="w-full h-full object-cover"
               />
             </div>
-
             <div className="mt-3.5 flex items-center gap-2.5 w-full">
               <a
                 href={capturedPhotoUrl}
                 download={`polycards-${animal.slug}-ar.jpg`}
-                className="flex flex-1 min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-xs font-black text-white active:scale-95 transition-transform shadow-lg"
+                className="flex flex-1 min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-xs font-black text-white active:scale-95 transition-transform shadow-lg cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 <span>Tải Ảnh Về Máy</span>
@@ -1549,7 +1209,7 @@ export function WebArCardView({
               <button
                 type="button"
                 onClick={() => setCapturedPhotoUrl(null)}
-                className="min-h-[44px] px-4 rounded-2xl bg-white/10 text-xs font-bold text-white border border-white/20 active:scale-95 transition-transform"
+                className="min-h-[44px] px-4 rounded-2xl bg-white/10 text-xs font-bold text-white border border-white/20 active:scale-95 transition-transform cursor-pointer"
               >
                 Chụp Tiếp
               </button>
@@ -1558,30 +1218,28 @@ export function WebArCardView({
         </div>
       )}
 
-      {/* 14. Modal Hướng Dẫn Sử Dụng AR */}
+      {/* 13. Modal Hướng Dẫn Cử Chỉ Mới Chuẩn Trẻ Em & Phụ Huynh */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="relative max-w-sm w-full rounded-3xl bg-stone-900 border-2 border-amber-300/60 p-5 shadow-2xl text-white">
             <button
               type="button"
               onClick={() => setShowGuideModal(false)}
-              className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white active:scale-90"
+              className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white active:scale-90 cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
-
             <div className="flex items-center gap-2 text-amber-400 mb-2">
               <Sparkles className="h-5 w-5" />
-              <h3 className="text-base font-black">Hướng Dẫn Quét AR Thẻ Bài</h3>
+              <h3 className="text-base font-black">Hướng Dẫn Tương Tác AR</h3>
             </div>
-
             <div className="mt-3 space-y-2.5 text-xs leading-relaxed text-stone-300">
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500 font-bold text-stone-950 text-[10px]">
                   1
                 </span>
                 <span>
-                  <strong>Xuất hiện tức thì:</strong> Mô hình 3D sẽ xuất hiện ngay trước mắt bạn. Nếu có thẻ bài <strong>{animal.nameVi}</strong>, hãy hướng camera vào ảnh để con vật tự động bắt dính lên thẻ!
+                  <strong>1 ngón vuốt:</strong> Xoay 360 độ quanh trục để ngắm mọi góc cạnh con vật với quán tính mượt mà.
                 </span>
               </div>
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
@@ -1589,7 +1247,7 @@ export function WebArCardView({
                   2
                 </span>
                 <span>
-                  <strong>Cử chỉ chuẩn Apple AR:</strong> Dùng <strong>1 ngón tay kéo</strong> để di chuyển vị trí, <strong>2 ngón tay xoay</strong> để quay 360 độ, <strong>2 ngón chụm/mở</strong> để phóng to/thu nhỏ!
+                  <strong>Nhấn giữ vào con vật:</strong> Rung nhẹ nhấc con vật lên và kéo di chuyển bất kỳ đâu trên sàn nhà!
                 </span>
               </div>
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
@@ -1597,7 +1255,7 @@ export function WebArCardView({
                   3
                 </span>
                 <span>
-                  <strong>Chạm tương tác sống động:</strong> Chạm trực tiếp vào con vật để nghe tiếng kêu đặc trưng và xem con vật nhún nhảy vui mừng!
+                  <strong>2 ngón chụm/mở:</strong> Thu phóng to nhỏ từ 15% đến 300%. Chạm đúp vào vùng trống để reset về chuẩn.
                 </span>
               </div>
               <div className="flex items-start gap-2.5 rounded-xl bg-white/5 p-2.5">
@@ -1605,15 +1263,14 @@ export function WebArCardView({
                   4
                 </span>
                 <span>
-                  Chạm vào các nút <strong>EN</strong>, <strong>VI</strong>, <strong>ZH</strong> để luyện phát âm đa ngữ chuẩn quốc tế.
+                  <strong>Chạm trực tiếp vào con vật:</strong> Xem con vật nhún nhảy tinh nghịch và bắn chùm sao rực rỡ!
                 </span>
               </div>
             </div>
-
             <button
               type="button"
               onClick={() => setShowGuideModal(false)}
-              className="mt-4 w-full min-h-[42px] rounded-2xl bg-amber-500 text-xs font-black text-stone-950 active:scale-95 transition-transform"
+              className="mt-4 w-full min-h-[42px] rounded-2xl bg-amber-500 text-xs font-black text-stone-950 active:scale-95 transition-transform cursor-pointer"
             >
               Đã Hiểu, Bắt Đầu Khám Phá
             </button>
