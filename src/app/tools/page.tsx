@@ -663,35 +663,8 @@ export default function ToolsPage() {
       setCardImageSrc(objectUrl);
       setRawImageUrl(objectUrl);
 
-      // Tối ưu dung lượng ảnh phôi bằng canvas (max 1440px, jpeg 0.85) để tiết kiệm dung lượng MongoDB Atlas
-      const maxDim = 1440;
-      let w = img.naturalWidth || 709;
-      let h = img.naturalHeight || 1024;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) {
-          h = Math.round((h * maxDim) / w);
-          w = maxDim;
-        } else {
-          w = Math.round((w * maxDim) / h);
-          h = maxDim;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob(
-          (compressedBlob) => {
-            setRawImageBlob(compressedBlob || file);
-          },
-          "image/jpeg",
-          0.85
-        );
-      } else {
-        setRawImageBlob(file);
-      }
+      // Giữ nguyên file phôi gốc nguyên bản (100% độ nét, không nén JPEG) để file in ấn luôn sắc nét
+      setRawImageBlob(file);
 
       setCardDimensions({
         width: img.naturalWidth || 709,
@@ -723,35 +696,8 @@ export default function ToolsPage() {
       setCardImageSrc(objectUrl);
       setRawImageUrl(objectUrl);
 
-      // Tối ưu dung lượng ảnh phôi bằng canvas (max 1440px, jpeg 0.85) để tiết kiệm dung lượng MongoDB Atlas
-      const maxDim = 1440;
-      let w = img.naturalWidth || 709;
-      let h = img.naturalHeight || 1024;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) {
-          h = Math.round((h * maxDim) / w);
-          w = maxDim;
-        } else {
-          w = Math.round((w * maxDim) / h);
-          h = maxDim;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob(
-          (compressedBlob) => {
-            setRawImageBlob(compressedBlob || file);
-          },
-          "image/jpeg",
-          0.85
-        );
-      } else {
-        setRawImageBlob(file);
-      }
+      // Giữ nguyên file phôi gốc nguyên bản (100% độ nét, không nén JPEG) để file in ấn luôn sắc nét
+      setRawImageBlob(file);
 
       setCardDimensions({
         width: img.naturalWidth || 709,
@@ -937,32 +883,38 @@ export default function ToolsPage() {
     } catch {}
   };
 
-  // Tạo ảnh thẻ thành phẩm full-res
+  // Tạo ảnh thẻ thành phẩm full-res (Giữ 100% độ nét của ảnh gốc)
   const generateCompositeCanvas = useCallback((): Promise<HTMLCanvasElement> => {
     return new Promise((resolve, reject) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = cardDimensions.width;
-      canvas.height = cardDimensions.height;
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        reject(new Error("Không thể khởi tạo Canvas 2D"));
-        return;
-      }
-
       const cardImg = new window.Image();
       cardImg.crossOrigin = "anonymous";
       cardImg.onload = () => {
-        ctx.drawImage(cardImg, 0, 0, cardDimensions.width, cardDimensions.height);
+        // Lấy kích thước thực tế lớn nhất của ảnh gốc để không bị suy giảm độ phân giải
+        const width = cardImg.naturalWidth || cardDimensions.width;
+        const height = cardImg.naturalHeight || cardDimensions.height;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Không thể khởi tạo Canvas 2D"));
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(cardImg, 0, 0, width, height);
 
         if (!isQrOverlayEnabled || !qrDataUrl) {
           resolve(canvas);
           return;
         }
 
-        const realQrX = (qrPos.x / 100) * cardDimensions.width;
-        const realQrY = (qrPos.y / 100) * cardDimensions.height;
-        const realQrSize = (qrPos.size / 100) * cardDimensions.width;
+        const realQrX = (qrPos.x / 100) * width;
+        const realQrY = (qrPos.y / 100) * height;
+        const realQrSize = (qrPos.size / 100) * width;
 
         const qrImg = new window.Image();
         qrImg.crossOrigin = "anonymous";
@@ -1326,6 +1278,8 @@ export default function ToolsPage() {
           canvas.width = width;
           canvas.height = height;
 
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
           ctx.drawImage(baseImg, 0, 0, width, height);
 
           // Luôn vẽ lớp QR chuẩn xác theo mã bộ vào vị trí chuẩn (mặc định x=4.1%, y=74.2%, size=22.8%)
@@ -2318,16 +2272,16 @@ export default function ToolsPage() {
       if (productForm.useCompositeCardImage) {
         try {
           const canvas = await generateCompositeCanvas();
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+          const dataUrl = canvas.toDataURL("image/png");
           imageToSave = dataUrl;
 
-          // Tải ảnh thẻ đã gộp lên MongoDB GridFS để có URL ngắn gọn, bền vững trên mọi thiết bị
+          // Tải ảnh thẻ đã gộp lên Storage với chất lượng sắc nét 100% PNG (không nén mờ JPEG)
           const blob: Blob | null = await new Promise((resolve) =>
-            canvas.toBlob((b) => resolve(b), "image/jpeg", 0.82)
+            canvas.toBlob((b) => resolve(b), "image/png", 1.0)
           );
           if (blob) {
             const formData = new FormData();
-            formData.append("file", blob, `${slug}-card.jpg`);
+            formData.append("file", blob, `${slug}-card.png`);
             formData.append("type", "image");
             formData.append("name", `${slug}-card`);
             const uploadRes = await fetch("/api/tools/upload", {
