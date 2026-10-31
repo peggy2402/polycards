@@ -11,7 +11,6 @@ import {
   Sparkles,
   ShoppingBag,
   Smartphone,
-  ExternalLink,
   Volume2,
 } from "lucide-react";
 
@@ -82,7 +81,7 @@ export function ProductCard({ animal }: ProductCardProps) {
             ? "transform 0.1s ease-out"
             : "transform 0.5s ease-out, box-shadow 0.5s ease-out",
         }}
-        className="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-amber-200/90 bg-white p-5 shadow-lg shadow-amber-900/5 transition-all duration-300 hover:border-amber-400 hover:shadow-2xl hover:shadow-amber-500/15"
+        className="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-amber-200/90 bg-white p-3.5 sm:p-4 shadow-md shadow-amber-900/5 transition-all duration-300 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/15"
       >
         {/* Holographic Sheen/Glare Overlay on 3D Tilt */}
         {tilt.active && (
@@ -100,11 +99,11 @@ export function ProductCard({ animal }: ProductCardProps) {
         <div className="relative">
           <Link
             href={`/ar/${animal.slug}`}
-            className="group/img relative block aspect-[4/3.6] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 border border-amber-200/80 shadow-inner cursor-pointer"
+            className="group/img relative block aspect-[4/3.2] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 border border-amber-200/80 shadow-inner cursor-pointer"
           >
             <div
               style={{
-                transform: tilt.active ? "translateZ(30px)" : "translateZ(0)",
+                transform: tilt.active ? "translateZ(24px)" : "translateZ(0)",
                 transition: "transform 0.2s ease-out",
               }}
               className="relative h-full w-full"
@@ -118,15 +117,15 @@ export function ProductCard({ animal }: ProductCardProps) {
             </div>
 
             {/* Floating Top-Left Badges */}
-            <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 flex-wrap pointer-events-none">
+            <div className="absolute top-2 left-2 z-10 flex items-center gap-1 flex-wrap pointer-events-none">
               {animal.category && (
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/70 text-white backdrop-blur-md border border-white/20 shadow-xs">
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/75 text-white backdrop-blur-md border border-white/20 shadow-xs">
                   {animal.category}
                 </span>
               )}
               {animal.arEnabled && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600/90 text-white backdrop-blur-md shadow-xs border border-white/20">
-                  <Sparkles className="h-3 w-3" />
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-600/90 text-white backdrop-blur-md shadow-xs border border-white/20">
+                  <Sparkles className="h-2.5 w-2.5" />
                   <span>AR 3D</span>
                 </span>
               )}
@@ -134,51 +133,81 @@ export function ProductCard({ animal }: ProductCardProps) {
 
             {/* Floating Top-Right Badge */}
             {animal.badge && (
-              <span className="absolute top-2.5 right-2.5 z-10 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-stone-950 shadow-md border border-amber-300 pointer-events-none">
+              <span className="absolute top-2 right-2 z-10 text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 shadow-md border border-amber-300 pointer-events-none">
                 {animal.badge}
               </span>
             )}
 
             {/* Floating Bottom-Right Hint */}
-            <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[10px] font-black text-amber-300 shadow-sm border border-white/20 backdrop-blur-md">
-              <Sparkles className="h-2.5 w-2.5 text-amber-400" />
+            <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-black text-amber-300 shadow-sm border border-white/20 backdrop-blur-md">
+              <Sparkles className="h-2 w-2 text-amber-400" />
               <span>Xem 3D</span>
             </div>
           </Link>
         </div>
 
         {/* Info Area: Compact & Proportional */}
-        <div className="relative z-10 flex flex-1 flex-col pt-3 pb-1 space-y-2">
+        <div className="relative z-10 flex flex-1 flex-col pt-2.5 pb-0.5 space-y-2">
           {/* Multilingual Animal Name Header */}
-          <div className="flex items-start justify-between gap-2">
-            <Link href={`/ar/${animal.slug}`} className="group/title block min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h3 className="text-lg font-black tracking-tight text-slate-900 group-hover/title:text-emerald-700 transition-colors truncate">
-                  {animal.nameEn}
-                </h3>
-                <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 shrink-0">
-                  {animal.ipa}
-                </span>
-              </div>
-              <div className="text-xs font-bold text-amber-700 mt-0.5">
-                {animal.nameVi}
-              </div>
+          <div className="flex items-start justify-between gap-1.5">
+            <Link href={`/ar/${animal.slug}`} className="group/title block min-w-0 flex-1">
+              {showZh && !showEn ? (
+                <div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <h3
+                      className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover/title:text-emerald-700 transition-colors truncate"
+                      style={{ fontFamily: '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif' }}
+                    >
+                      {animal.nameZh || animal.nameEn}
+                    </h3>
+                    {animal.pinyinZh && (
+                      <span className="font-mono text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/60 shrink-0">
+                        {animal.pinyinZh}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs font-bold text-amber-700 mt-0.5">
+                    {animal.nameVi}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover/title:text-emerald-700 transition-colors truncate">
+                      {animal.nameEn}
+                    </h3>
+                    {animal.ipa && (
+                      <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60 shrink-0">
+                        {animal.ipa}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs font-bold text-amber-700 mt-0.5">
+                    {animal.nameVi}
+                  </div>
+                </div>
+              )}
             </Link>
 
-            {showZh && animal.nameZh && animal.nameZh.trim() !== "" && (
+            {showZh && showEn && animal.nameZh && animal.nameZh.trim() !== "" && (
               <div className="text-right shrink-0">
-                <span className="text-sm font-bold text-slate-800">{animal.nameZh}</span>
+                <span
+                  className="text-sm font-bold text-slate-800 block"
+                  style={{ fontFamily: '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif' }}
+                >
+                  {animal.nameZh}
+                </span>
                 {animal.pinyinZh && (
-                  <span className="block text-[10px] text-slate-500 font-medium">{animal.pinyinZh}</span>
+                  <span className="block text-[9px] text-slate-500 font-medium font-mono">{animal.pinyinZh}</span>
                 )}
               </div>
             )}
           </div>
 
           {/* Multilingual Audio Listen Buttons - Compact Bar */}
-          <div className="flex items-center justify-between gap-1.5 py-1 px-2.5 rounded-xl bg-amber-50/90 border border-amber-200/70 text-xs">
-            <span className="text-[10px] font-bold text-amber-950 flex items-center gap-1 shrink-0">
-              <Volume2 className="h-3 w-3 text-amber-600" />
+          <div className="flex items-center justify-between gap-1 py-1 px-2 rounded-xl bg-amber-50/90 border border-amber-200/70 text-xs">
+            <span className="text-[9px] font-bold text-amber-950 flex items-center gap-0.5 shrink-0">
+              <Volume2 className="h-2.5 w-2.5 text-amber-600" />
               <span>Nghe:</span>
             </span>
 
@@ -187,7 +216,7 @@ export function ProductCard({ animal }: ProductCardProps) {
                 <button
                   type="button"
                   onClick={() => playAudio("en")}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
+                  className={`px-1.5 py-0.2 rounded text-[9px] font-black transition-all cursor-pointer ${
                     playingLang === "en"
                       ? "bg-amber-500 text-white shadow-xs animate-pulse"
                       : "bg-white text-stone-700 hover:bg-amber-200/60 border border-amber-200"
@@ -200,7 +229,7 @@ export function ProductCard({ animal }: ProductCardProps) {
               <button
                 type="button"
                 onClick={() => playAudio("vi")}
-                className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
+                className={`px-1.5 py-0.2 rounded text-[9px] font-black transition-all cursor-pointer ${
                   playingLang === "vi"
                     ? "bg-emerald-600 text-white shadow-xs animate-pulse"
                     : "bg-white text-stone-700 hover:bg-emerald-100 border border-emerald-200"
@@ -213,7 +242,7 @@ export function ProductCard({ animal }: ProductCardProps) {
                 <button
                   type="button"
                   onClick={() => playAudio("zh")}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${
+                  className={`px-1.5 py-0.2 rounded text-[9px] font-black transition-all cursor-pointer ${
                     playingLang === "zh"
                       ? "bg-rose-500 text-white shadow-xs animate-pulse"
                       : "bg-white text-stone-700 hover:bg-rose-100 border border-rose-200"
@@ -229,42 +258,42 @@ export function ProductCard({ animal }: ProductCardProps) {
           {/* Price Tag with Original Price and Discount */}
           <div className="pt-1 flex items-center justify-between border-t border-amber-100/80">
             <div>
-              <span className="text-[10px] font-medium text-stone-500 block leading-tight">Giá thẻ lẻ:</span>
+              <span className="text-[9px] font-medium text-stone-500 block leading-tight">Giá thẻ lẻ:</span>
               {animal.originalPrice && animal.originalPrice > animal.price ? (
                 <span className="text-[10px] text-stone-400 line-through font-mono">
                   {formatVndCurrency(animal.originalPrice)}
                 </span>
               ) : null}
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-black text-amber-950">
+            <div className="flex items-center gap-1">
+              <span className="text-sm sm:text-base font-black text-amber-950">
                 {formatVndCurrency(animal.price)}
               </span>
               {animal.originalPrice && animal.originalPrice > animal.price ? (
-                <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200">
+                <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-200">
                   -{Math.round(((animal.originalPrice - animal.price) / animal.originalPrice) * 100)}%
                 </span>
               ) : null}
             </div>
           </div>
 
-          {/* Action Buttons: Touch Target >= 44px */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          {/* Action Buttons: Touch Target >= 38px */}
+          <div className="grid grid-cols-2 gap-1.5 pt-0.5">
             <Link
-              href={`/ar/${animal.slug}`}
-              className="btn-toy-3d inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 px-2 py-2 text-xs font-black text-slate-950 shadow-sm transition-all hover:scale-102 active:scale-95"
+              href={targetScanUrl}
+              className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 px-2 py-1.5 text-[11px] font-black text-slate-950 shadow-sm transition-all hover:scale-102 active:scale-95"
               aria-label={`Trải nghiệm 3D và AR cho ${animal.nameEn}`}
             >
-              <Smartphone className="h-3.5 w-3.5" />
+              <Smartphone className="h-3 w-3" />
               <span>Thử AR 3D</span>
             </Link>
 
             <Link
-              href={`/order?animal=${animal.slug}`}
-              className="btn-toy-3d inline-flex min-h-[44px] items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-2 py-2 text-xs font-black text-white shadow-sm shadow-emerald-600/25 transition-all hover:scale-102 active:scale-95"
+              href={buyUrl}
+              className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-2 py-1.5 text-[11px] font-black text-white shadow-sm shadow-emerald-600/25 transition-all hover:scale-102 active:scale-95"
               aria-label={`Đặt mua bộ thẻ ${animal.nameEn}`}
             >
-              <ShoppingBag className="h-3.5 w-3.5" />
+              <ShoppingBag className="h-3 w-3" />
               <span>Mua Thẻ</span>
             </Link>
           </div>

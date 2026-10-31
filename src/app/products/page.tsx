@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Animal, ProductCategory } from "@/types/animal";
 import { getAllAnimals } from "@/lib/animals";
 import { ProductCard } from "@/components/landing/product-card";
+import { ProductListItem } from "@/components/landing/product-list-item";
 import { Navbar } from "@/components/common/navbar";
 import { Footer } from "@/components/common/footer";
 import {
@@ -27,19 +28,26 @@ import {
   Car,
   Apple,
   ArrowLeft,
-  ShoppingBag,
-  ShieldCheck,
-  CheckCircle2,
   Languages,
+  LayoutGrid,
+  List,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 type PriceFilterType = "all" | "under220" | "220to250" | "above250";
 type SortOptionType = "default" | "price-asc" | "price-desc" | "name-az";
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Animal[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [products, setProducts] = useState<Animal[]>(() => {
+    if (typeof window !== "undefined") {
+      return getMergedProducts(getAllAnimals());
+    }
+    return getAllAnimals();
+  });
+  const [categories, setCategories] = useState<ProductCategory[]>(() => getProductCategories());
 
   // Bộ lọc danh mục & Tìm kiếm & Giá & Sắp xếp
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("all");
@@ -48,15 +56,30 @@ export default function ProductsPage() {
   const [sortOption, setSortOption] = useState<SortOptionType>("default");
   const [languageFilter, setLanguageFilter] = useState<"all" | "en-vi" | "zh-vi">("all");
 
+  // Chế độ xem: Dạng Lưới 4 thẻ 1 hàng ("grid") hoặc Dạng Danh Sách ("list")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Phân trang
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(16);
+  const resultsTopRef = useRef<HTMLDivElement>(null);
+
   // Đồng bộ thời gian thực khi có sản phẩm hoặc danh mục mới được cập nhật từ Studio /tools
   useEffect(() => {
-    setIsMounted(true);
-    const initialAnimals = getAllAnimals();
-    setProducts(getMergedProducts(initialAnimals));
-    setCategories(getProductCategories());
+    // Khôi phục tùy chọn chế độ xem và URL params trên client
+    const frameId = requestAnimationFrame(() => {
+      try {
+        const savedView = localStorage.getItem("poly_products_page_view_mode");
+        if (savedView === "grid" || savedView === "list") {
+          setViewMode(savedView);
+        }
+        const savedPageSize = localStorage.getItem("poly_products_page_size");
+        if (savedPageSize && !isNaN(Number(savedPageSize))) {
+          setPageSize(Number(savedPageSize));
+        }
+      } catch {}
 
-    // Đọc URL search params để tự động chọn đúng danh mục hoặc từ khóa khi chuyển hướng từ trang chủ
-    if (typeof window !== "undefined") {
+      // Đọc URL search params để tự động chọn đúng danh mục hoặc từ khóa khi chuyển hướng từ trang chủ
       const params = new URLSearchParams(window.location.search);
       const categoryParam = params.get("category");
       const searchParam = params.get("search");
@@ -66,7 +89,7 @@ export default function ProductsPage() {
       if (searchParam) {
         setSearchQuery(searchParam);
       }
-    }
+    });
 
     const fetchServerProducts = async () => {
       try {
@@ -97,7 +120,7 @@ export default function ProductsPage() {
 
     const handleProductsUpdated = () => {
       fetchServerProducts();
-      setProducts(getMergedProducts(initialAnimals));
+      setProducts(getMergedProducts(getAllAnimals()));
     };
 
     const handleCategoriesUpdated = () => {
@@ -110,6 +133,7 @@ export default function ProductsPage() {
     window.addEventListener("storage", handleProductsUpdated);
 
     return () => {
+      cancelAnimationFrame(frameId);
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleProductsUpdated);
       window.removeEventListener(CATEGORIES_UPDATED_EVENT, handleCategoriesUpdated);
       window.removeEventListener("storage", handleProductsUpdated);
@@ -195,6 +219,80 @@ export default function ProductsPage() {
       });
   }, [products, selectedCategorySlug, searchQuery, priceFilter, sortOption, languageFilter]);
 
+  // Xử lý thay đổi các bộ lọc kết hợp đặt lại về trang 1
+  const handleSelectCategory = (slug: string) => {
+    setSelectedCategorySlug(slug);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
+
+  const handleLanguageChange = (lang: "all" | "en-vi" | "zh-vi") => {
+    setLanguageFilter(lang);
+    setCurrentPage(1);
+  };
+
+  const handlePriceFilterChange = (filter: PriceFilterType) => {
+    setPriceFilter(filter);
+    setCurrentPage(1);
+  };
+
+  const handleSortChange = (sort: SortOptionType) => {
+    setSortOption(sort);
+    setCurrentPage(1);
+  };
+
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, safeCurrentPage, pageSize]);
+
+  const startItemIndex = totalItems === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const endItemIndex = Math.min(safeCurrentPage * pageSize, totalItems);
+
+  const pageNumbers = useMemo(() => {
+    const pages: (number | "dots")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (safeCurrentPage > 3) pages.push("dots");
+    const start = Math.max(2, safeCurrentPage - 1);
+    const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (safeCurrentPage < totalPages - 2) pages.push("dots");
+    pages.push(totalPages);
+    return pages;
+  }, [totalPages, safeCurrentPage]);
+
+  const handleChangeViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("poly_products_page_view_mode", mode);
+    } catch {}
+  };
+
+  const handleChangePageSize = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    try {
+      localStorage.setItem("poly_products_page_size", String(size));
+    } catch {}
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   // Đặt lại toàn bộ bộ lọc
   const handleResetFilters = () => {
     setSelectedCategorySlug("all");
@@ -202,6 +300,7 @@ export default function ProductsPage() {
     setPriceFilter("all");
     setSortOption("default");
     setLanguageFilter("all");
+    setCurrentPage(1);
   };
 
   const hasActiveFilters =
@@ -262,7 +361,7 @@ export default function ProductsPage() {
               {/* Nút "Tất cả" */}
               <button
                 type="button"
-                onClick={() => setSelectedCategorySlug("all")}
+                onClick={() => handleSelectCategory("all")}
                 className={`group flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-black transition-all shadow-sm active:scale-95 ${
                   selectedCategorySlug === "all"
                     ? "bg-gradient-to-r from-amber-500 to-amber-400 text-stone-950 shadow-amber-500/25 shadow-md scale-102 border-2 border-amber-300"
@@ -291,7 +390,7 @@ export default function ProductsPage() {
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setSelectedCategorySlug(cat.slug)}
+                    onClick={() => handleSelectCategory(cat.slug)}
                     className={`group flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-black transition-all shadow-sm active:scale-95 ${
                       isSelected
                         ? "bg-gradient-to-r from-amber-500 to-amber-400 text-stone-950 shadow-amber-500/25 shadow-md scale-102 border-2 border-amber-300"
@@ -325,14 +424,14 @@ export default function ProductsPage() {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   placeholder="Tìm thẻ (Sư tử, Lion, Jump, 狮子, /dɪr/...)"
                   className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-stone-50 border-2 border-stone-200 text-xs sm:text-sm text-stone-900 placeholder-stone-400 font-medium focus:outline-hidden focus:border-amber-400 focus:bg-white transition-all shadow-inner"
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => handleSearchChange("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-stone-200 text-stone-500 transition-colors"
                     title="Xóa tìm kiếm"
                   >
@@ -347,7 +446,7 @@ export default function ProductsPage() {
                 <div className="relative w-full">
                   <select
                     value={languageFilter}
-                    onChange={(e) => setLanguageFilter(e.target.value as "all" | "en-vi" | "zh-vi")}
+                    onChange={(e) => handleLanguageChange(e.target.value as "all" | "en-vi" | "zh-vi")}
                     className="w-full appearance-none py-2.5 pl-3 pr-8 rounded-2xl bg-stone-50 border-2 border-stone-200 text-xs sm:text-sm font-bold text-stone-800 focus:outline-hidden focus:border-amber-400 focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="all">Tất cả song ngữ</option>
@@ -364,7 +463,7 @@ export default function ProductsPage() {
                 <div className="relative w-full">
                   <select
                     value={priceFilter}
-                    onChange={(e) => setPriceFilter(e.target.value as PriceFilterType)}
+                    onChange={(e) => handlePriceFilterChange(e.target.value as PriceFilterType)}
                     className="w-full appearance-none py-2.5 pl-3 pr-8 rounded-2xl bg-stone-50 border-2 border-stone-200 text-xs sm:text-sm font-bold text-stone-800 focus:outline-hidden focus:border-amber-400 focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="all">Tất cả mức giá</option>
@@ -380,7 +479,7 @@ export default function ProductsPage() {
               <div className="md:col-span-2 relative w-full">
                 <select
                   value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOptionType)}
+                  onChange={(e) => handleSortChange(e.target.value as SortOptionType)}
                   className="w-full appearance-none py-2.5 pl-3 pr-8 rounded-2xl bg-stone-50 border-2 border-stone-200 text-xs sm:text-sm font-bold text-stone-800 focus:outline-hidden focus:border-amber-400 focus:bg-white transition-all cursor-pointer"
                 >
                   <option value="default">Sắp xếp: Mặc định</option>
@@ -392,43 +491,188 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* HÀNG 3: BÁO CÁO KẾT QUẢ & RESET */}
-            <div className="flex items-center justify-between text-xs text-stone-600 px-2">
-              <div className="font-medium">
-                Hiển thị <strong className="text-amber-950 font-black">{filteredProducts.length}</strong> / {products.length} thẻ bài học thông minh
+            {/* HÀNG 3: THANH CÔNG CỤ HIỂN THỊ (VIEW MODE, SỐ THẺ TRÊN TRANG, KẾT QUẢ, RESET) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-stone-600 px-1 pt-1">
+              <div className="font-medium flex items-center flex-wrap gap-x-2 gap-y-1">
+                <span>
+                  Hiển thị <strong className="text-amber-950 font-black">{startItemIndex} - {endItemIndex}</strong> trên tổng số <strong className="text-amber-950 font-black">{totalItems}</strong> thẻ bài
+                </span>
                 {selectedCategorySlug !== "all" && (
-                  <span className="ml-1 text-amber-700 font-bold">
-                    • Danh mục: {categories.find((c) => c.slug === selectedCategorySlug)?.name || selectedCategorySlug}
+                  <span className="text-amber-700 font-bold bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                    {categories.find((c) => c.slug === selectedCategorySlug)?.name || selectedCategorySlug}
                   </span>
                 )}
                 {languageFilter !== "all" && (
-                  <span className="ml-1 text-amber-700 font-bold">
-                    • Song ngữ: {languageFilter === "en-vi" ? "Anh - Việt" : "Trung - Việt"}
+                  <span className="text-amber-700 font-bold bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                    {languageFilter === "en-vi" ? "Anh - Việt" : "Trung - Việt"}
                   </span>
                 )}
               </div>
 
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="flex items-center gap-1 font-bold text-amber-700 hover:text-amber-900 bg-amber-100/80 px-2.5 py-1 rounded-full transition-colors active:scale-95"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Đặt lại bộ lọc</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2.5 flex-wrap self-end sm:self-auto">
+                {/* Bộ chọn số lượng thẻ trên 1 trang */}
+                <div className="flex items-center gap-1.5 text-stone-600">
+                  <span className="hidden sm:inline font-bold text-[11px] text-stone-500">Mỗi trang:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handleChangePageSize(Number(e.target.value))}
+                    className="py-1.5 px-2 rounded-xl bg-white border border-stone-300 text-xs font-bold text-stone-800 focus:outline-hidden focus:border-amber-400 cursor-pointer shadow-2xs"
+                  >
+                    <option value={12}>12 thẻ</option>
+                    <option value={16}>16 thẻ</option>
+                    <option value={24}>24 thẻ</option>
+                    <option value={32}>32 thẻ</option>
+                    <option value={48}>48 thẻ</option>
+                  </select>
+                </div>
+
+                {/* Nút chuyển đổi View Mode: Lưới 4 thẻ vs Danh Sách */}
+                <div className="flex items-center bg-stone-200/80 p-0.5 rounded-xl border border-stone-300/80 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => handleChangeViewMode("grid")}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                      viewMode === "grid"
+                        ? "bg-white text-stone-900 shadow-xs scale-102"
+                        : "text-stone-600 hover:text-stone-900"
+                    }`}
+                    title="Hiển thị dạng lưới 4 thẻ 1 hàng"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5 text-amber-600" />
+                    <span className="hidden md:inline">Lưới 4</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChangeViewMode("list")}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                      viewMode === "list"
+                        ? "bg-white text-stone-900 shadow-xs scale-102"
+                        : "text-stone-600 hover:text-stone-900"
+                    }`}
+                    title="Hiển thị dạng danh sách chi tiết"
+                  >
+                    <List className="h-3.5 w-3.5 text-amber-600" />
+                    <span className="hidden md:inline">Danh sách</span>
+                  </button>
+                </div>
+
+                {/* Nút Reset bộ lọc */}
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="flex items-center gap-1 font-bold text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200/80 px-2.5 py-1.5 rounded-xl border border-amber-300 transition-colors active:scale-95 shadow-2xs"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Đặt lại</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
+          {/* ANCHOR CUỘN TRANG LÊN ĐẦU KHI CHUYỂN TRANG */}
+          <div ref={resultsTopRef} className="-mt-4 scroll-mt-24" />
+
           {/* ========================================================
-              LƯỚI SẢN PHẨM HOẶC TRẠNG THÁI TRỐNG (EMPTY STATE)
+              LƯỚI HOẶC DANH SÁCH SẢN PHẨM HOẶC TRẠNG THÁI TRỐNG
              ======================================================== */}
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-              {filteredProducts.map((animal) => (
-                <ProductCard key={animal.id} animal={animal} />
-              ))}
+          {totalItems > 0 ? (
+            <div className="space-y-8">
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 sm:gap-4.5">
+                  {paginatedProducts.map((animal) => (
+                    <ProductCard key={animal.id} animal={animal} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 sm:gap-3.5">
+                  {paginatedProducts.map((animal) => (
+                    <ProductListItem key={animal.id} animal={animal} />
+                  ))}
+                </div>
+              )}
+
+              {/* PHÂN TRANG (PAGINATION) */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 pb-2 border-t border-amber-200/80">
+                  <div className="text-xs text-stone-500 font-semibold order-2 sm:order-1">
+                    Trang <span className="text-amber-950 font-black">{safeCurrentPage}</span> trên tổng số <span className="text-amber-950 font-black">{totalPages}</span> trang ({totalItems} thẻ bài)
+                  </div>
+
+                  <div className="flex items-center gap-1.5 order-1 sm:order-2 flex-wrap justify-center">
+                    {/* Trang đầu */}
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(1)}
+                      disabled={safeCurrentPage === 1}
+                      className="p-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-amber-50 hover:border-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shadow-2xs"
+                      title="Trang đầu"
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </button>
+
+                    {/* Trang trước */}
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(Math.max(1, safeCurrentPage - 1))}
+                      disabled={safeCurrentPage === 1}
+                      className="p-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-amber-50 hover:border-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shadow-2xs"
+                      title="Trang trước"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+
+                    {/* Các số trang */}
+                    {pageNumbers.map((p, idx) => {
+                      if (p === "dots") {
+                        return (
+                          <span key={`dots-${idx}`} className="px-2 text-stone-400 font-bold select-none">
+                            ...
+                          </span>
+                        );
+                      }
+                      const isActive = p === safeCurrentPage;
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => handlePageChange(p)}
+                          className={`min-w-[36px] h-9 px-3 rounded-xl text-xs font-black transition-all active:scale-95 shadow-2xs ${
+                            isActive
+                              ? "bg-gradient-to-r from-amber-500 to-amber-400 text-stone-950 border-2 border-amber-400 shadow-amber-500/20 shadow-md font-black"
+                              : "bg-white text-stone-700 border border-stone-200 hover:bg-amber-50 hover:border-amber-300"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+
+                    {/* Trang sau */}
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(Math.min(totalPages, safeCurrentPage + 1))}
+                      disabled={safeCurrentPage === totalPages}
+                      className="p-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-amber-50 hover:border-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shadow-2xs"
+                      title="Trang sau"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+
+                    {/* Trang cuối */}
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(totalPages)}
+                      disabled={safeCurrentPage === totalPages}
+                      className="p-2 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-amber-50 hover:border-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shadow-2xs"
+                      title="Trang cuối"
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-3xl border-2 border-dashed border-amber-300 bg-white/80 p-8 sm:p-12 text-center shadow-xs">
