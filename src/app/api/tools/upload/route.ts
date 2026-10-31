@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Binary, GridFSBucket } from "mongodb";
 import { getMongoDb } from "@/lib/mongodb";
 import { isR2Configured, uploadToR2 } from "@/lib/r2";
+import { isSupabaseConfigured, uploadToSupabase } from "@/lib/supabase-storage";
 
 interface UploadTempChunkDoc {
   uploadId: string;
@@ -208,11 +209,30 @@ export async function POST(req: NextRequest) {
             fileType,
           });
         } catch (r2Err) {
-          console.warn("Cloudflare R2 upload thất bại, tự động fallback về MongoDB GridFS:", r2Err);
+          console.warn("Cloudflare R2 upload thất bại, tự động fallback sang Tầng 2:", r2Err);
         }
       }
 
-      // FALLBACK: Ghi vào MongoDB Atlas GridFS
+      // DỰ PHÒNG TẦNG 2: SUPABASE STORAGE (1GB - 5GB Miễn phí, CDN toàn cầu)
+      if (isSupabaseConfigured()) {
+        try {
+          const supabaseUrl = await uploadToSupabase(chunkBuffer, finalFileName, mimeType);
+          return NextResponse.json({
+            success: true,
+            completed: true,
+            storage: "supabase-storage",
+            message: `Đã lưu tệp "${finalFileName}" lên Supabase Storage thành công!`,
+            fileName: finalFileName,
+            size: chunkBuffer.length,
+            url: supabaseUrl,
+            fileType,
+          });
+        } catch (supaErr) {
+          console.warn("Supabase Storage upload thất bại, tự động fallback sang Tầng 3 (MongoDB GridFS):", supaErr);
+        }
+      }
+
+      // DỰ PHÒNG TẦNG 3 (FALLBACK CUỐI): Ghi vào MongoDB Atlas GridFS
       const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
       for (const oldFile of existingFiles) {
         await bucket.delete(oldFile._id);
@@ -304,11 +324,39 @@ export async function POST(req: NextRequest) {
           fileType,
         });
       } catch (r2Err) {
-        console.warn("Cloudflare R2 ghép tải tệp lớn thất bại, tự động fallback sang MongoDB GridFS:", r2Err);
+        console.warn("Cloudflare R2 ghép tải tệp lớn thất bại, tự động fallback sang Tầng 2:", r2Err);
       }
     }
 
-    // FALLBACK: Ghép trực tiếp từ Cursor vào GridFSBucket (Streaming không tải cả mảng vào RAM)
+    // DỰ PHÒNG TẦNG 2: SUPABASE STORAGE
+    if (isSupabaseConfigured()) {
+      try {
+        const cursor = chunksCol.find({ uploadId }).sort({ chunkIndex: 1 });
+        const chunkDocs = await cursor.toArray();
+        const bufferList = chunkDocs.map((c) => Buffer.from(c.data.buffer));
+        const fullBuffer = Buffer.concat(bufferList);
+
+        const supabaseUrl = await uploadToSupabase(fullBuffer, finalFileName, mimeType);
+
+        // Dọn dẹp các mảnh tạm sau khi tải lên Supabase thành công
+        await chunksCol.deleteMany({ uploadId });
+
+        return NextResponse.json({
+          success: true,
+          completed: true,
+          storage: "supabase-storage",
+          message: `Đã tải lên và ghép tệp "${finalFileName}" (${(totalSize / (1024 * 1024)).toFixed(1)} MB) lên Supabase Storage thành công!`,
+          fileName: finalFileName,
+          size: totalSize,
+          url: supabaseUrl,
+          fileType,
+        });
+      } catch (supaErr) {
+        console.warn("Supabase Storage ghép tải tệp lớn thất bại, tự động fallback sang Tầng 3 (MongoDB GridFS):", supaErr);
+      }
+    }
+
+    // DỰ PHÒNG TẦNG 3 (FALLBACK CUỐI): Ghép trực tiếp từ Cursor vào GridFSBucket
     const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
     for (const oldFile of existingFiles) {
       await bucket.delete(oldFile._id);

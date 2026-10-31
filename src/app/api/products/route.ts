@@ -3,6 +3,7 @@ import { GridFSBucket } from "mongodb";
 import { Animal } from "@/types/animal";
 import { normalizeCategorySlug } from "@/lib/activation";
 import { isR2Configured, uploadToR2 } from "@/lib/r2";
+import { isSupabaseConfigured, uploadToSupabase } from "@/lib/supabase-storage";
 import {
   dbGetProducts,
   dbUpsertProduct,
@@ -34,7 +35,16 @@ async function persistBase64Image(base64Data: string, prefix: string): Promise<s
       try {
         return await uploadToR2(buffer, fileName, contentType);
       } catch (r2Err) {
-        console.warn("Cloudflare R2 lưu ảnh base64 thất bại, fallback sang GridFS:", r2Err);
+        console.warn("Cloudflare R2 lưu ảnh base64 thất bại, fallback sang Tầng 2:", r2Err);
+      }
+    }
+
+    // Dự phòng Tầng 2: Supabase Storage
+    if (isSupabaseConfigured()) {
+      try {
+        return await uploadToSupabase(buffer, fileName, contentType);
+      } catch (supaErr) {
+        console.warn("Supabase Storage lưu ảnh base64 thất bại, fallback sang Tầng 3 (GridFS):", supaErr);
       }
     }
 
