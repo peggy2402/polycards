@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Binary, GridFSBucket } from "mongodb";
 import { getMongoDb } from "@/lib/mongodb";
+import { isR2Configured, uploadToR2 } from "@/lib/r2";
 
 interface UploadTempChunkDoc {
   uploadId: string;
@@ -190,8 +191,28 @@ export async function POST(req: NextRequest) {
 
     const bucket = new GridFSBucket(db, { bucketName: "assets" });
 
-    // TRƯỜNG HỢP 1: Tệp nhỏ chỉ có 1 mảnh duy nhất (totalChunks <= 1) -> Ghi thẳng vào GridFS
+    // TRƯỜNG HỢP 1: Tệp nhỏ chỉ có 1 mảnh duy nhất (totalChunks <= 1)
     if (totalChunks <= 1) {
+      // ƯU TIÊN SỐ 1: CLOUDFLARE R2 OBJECT STORAGE (10GB Miễn phí, 0đ băng thông tải, CDN toàn cầu)
+      if (isR2Configured()) {
+        try {
+          const r2Url = await uploadToR2(chunkBuffer, finalFileName, mimeType);
+          return NextResponse.json({
+            success: true,
+            completed: true,
+            storage: "cloudflare-r2",
+            message: `Đã lưu tệp "${finalFileName}" lên Cloudflare R2 CDN thành công!`,
+            fileName: finalFileName,
+            size: chunkBuffer.length,
+            url: r2Url,
+            fileType,
+          });
+        } catch (r2Err) {
+          console.warn("Cloudflare R2 upload thất bại, tự động fallback về MongoDB GridFS:", r2Err);
+        }
+      }
+
+      // FALLBACK: Ghi vào MongoDB Atlas GridFS
       const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
       for (const oldFile of existingFiles) {
         await bucket.delete(oldFile._id);
@@ -258,7 +279,36 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Khi đã nhận mảnh cuối cùng -> Ghép trực tiếp từ Cursor vào GridFSBucket (Streaming không tải cả mảng vào RAM)
+    // Khi đã nhận mảnh cuối cùng
+    // ƯU TIÊN SỐ 1: CLOUDFLARE R2 OBJECT STORAGE (10GB Miễn phí, 0đ băng thông tải, CDN toàn cầu)
+    if (isR2Configured()) {
+      try {
+        const cursor = chunksCol.find({ uploadId }).sort({ chunkIndex: 1 });
+        const chunkDocs = await cursor.toArray();
+        const bufferList = chunkDocs.map((c) => Buffer.from(c.data.buffer));
+        const fullBuffer = Buffer.concat(bufferList);
+
+        const r2Url = await uploadToR2(fullBuffer, finalFileName, mimeType);
+
+        // Dọn dẹp các mảnh tạm sau khi tải lên R2 thành công
+        await chunksCol.deleteMany({ uploadId });
+
+        return NextResponse.json({
+          success: true,
+          completed: true,
+          storage: "cloudflare-r2",
+          message: `Đã tải lên và ghép tệp "${finalFileName}" (${(totalSize / (1024 * 1024)).toFixed(1)} MB) lên Cloudflare R2 CDN thành công!`,
+          fileName: finalFileName,
+          size: totalSize,
+          url: r2Url,
+          fileType,
+        });
+      } catch (r2Err) {
+        console.warn("Cloudflare R2 ghép tải tệp lớn thất bại, tự động fallback sang MongoDB GridFS:", r2Err);
+      }
+    }
+
+    // FALLBACK: Ghép trực tiếp từ Cursor vào GridFSBucket (Streaming không tải cả mảng vào RAM)
     const existingFiles = await bucket.find({ filename: finalFileName }).toArray();
     for (const oldFile of existingFiles) {
       await bucket.delete(oldFile._id);

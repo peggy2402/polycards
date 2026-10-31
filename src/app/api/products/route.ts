@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GridFSBucket } from "mongodb";
 import { Animal } from "@/types/animal";
 import { normalizeCategorySlug } from "@/lib/activation";
+import { isR2Configured, uploadToR2 } from "@/lib/r2";
 import {
   dbGetProducts,
   dbUpsertProduct,
@@ -21,14 +22,25 @@ async function persistBase64Image(base64Data: string, prefix: string): Promise<s
     return base64Data;
   }
   try {
-    const db = await getMongoDb();
-    if (!db) return base64Data;
     const match = base64Data.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
     if (!match) return base64Data;
     const ext = match[1] === "jpeg" ? "jpg" : match[1];
     const buffer = Buffer.from(match[2], "base64");
-    const bucket = new GridFSBucket(db, { bucketName: "assets" });
     const fileName = `${prefix}.${ext}`;
+    const contentType = `image/${match[1]}`;
+
+    // Ưu tiên lưu lên Cloudflare R2 CDN nếu đã cấu hình
+    if (isR2Configured()) {
+      try {
+        return await uploadToR2(buffer, fileName, contentType);
+      } catch (r2Err) {
+        console.warn("Cloudflare R2 lưu ảnh base64 thất bại, fallback sang GridFS:", r2Err);
+      }
+    }
+
+    const db = await getMongoDb();
+    if (!db) return base64Data;
+    const bucket = new GridFSBucket(db, { bucketName: "assets" });
 
     const existing = await bucket.find({ filename: fileName }).toArray();
     for (const old of existing) {
@@ -39,7 +51,7 @@ async function persistBase64Image(base64Data: string, prefix: string): Promise<s
       const stream = bucket.openUploadStream(fileName, {
         metadata: {
           fileType: "image",
-          contentType: `image/${match[1]}`,
+          contentType,
           size: buffer.length,
           updatedAt: new Date().toISOString(),
         },
