@@ -337,9 +337,12 @@ export function WebArCardView({
 
         if (!(window.THREE && window.THREE.DRACOLoader)) {
           try {
-            await loadScript("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/DRACOLoader.js");
-          } catch {
-            // Không ảnh hưởng nếu offline
+            await loadScript("/lib/DRACOLoader.js");
+            if (!window.THREE && (window as any).THREE) {
+              window.THREE = (window as any).THREE;
+            }
+          } catch (dracoErr) {
+            console.warn("Lỗi nạp DRACOLoader cục bộ:", dracoErr);
           }
         }
 
@@ -361,11 +364,11 @@ export function WebArCardView({
           const checkRes = await fetch(resolvedTargetSrc, { method: "HEAD" });
           if (!checkRes.ok) {
             console.warn(`[WebAR] Target "${resolvedTargetSrc}" chưa sẵn sàng (HTTP ${checkRes.status}). Kích hoạt Fallback Target & Free AR View.`);
-            resolvedTargetSrc = "/targets/lion.mind";
+            resolvedTargetSrc = "/targets/polycards.mind";
             isFallbackTarget = true;
           }
         } catch {
-          resolvedTargetSrc = "/targets/lion.mind";
+          resolvedTargetSrc = "/targets/polycards.mind";
           isFallbackTarget = true;
         }
 
@@ -427,15 +430,15 @@ export function WebArCardView({
           }
         };
 
-        // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker và Tự động Fallback sang lion.glb
+        // 4. Nạp mô hình 3D GLTF/GLB với Progress Tracker và Tự động Fallback sang polycards.glb
         const loader = new THREE.GLTFLoader();
         if (THREE.DRACOLoader) {
           const dracoLoader = new THREE.DRACOLoader();
           dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
           loader.setDRACOLoader(dracoLoader);
         }
-        const primaryModelUrl = animal.modelUrl || "/models/lion.glb";
-        const fallbackModelUrl = "/models/lion.glb";
+        const primaryModelUrl = animal.modelUrl || "/models/polycards.glb";
+        const fallbackModelUrl = "/models/polycards.glb";
 
         const loadModelWithFallback = (urlToLoad: string, isFallbackAttempt: boolean = false) => {
           loader.load(
@@ -1064,7 +1067,7 @@ export function WebArCardView({
             <div className="flex justify-between items-center">
               <span>Mô hình 3D:</span>
               <span className="font-bold text-amber-300">
-                {isUsingFallbackModel ? "lion.glb (Mẫu dự phòng)" : "Chính thức"}
+                {isUsingFallbackModel ? "polycards.glb (Mẫu dự phòng)" : "Chính thức"}
               </span>
             </div>
             <div className="flex justify-between items-center">

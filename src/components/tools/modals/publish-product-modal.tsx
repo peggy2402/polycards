@@ -52,11 +52,49 @@ export function PublishProductModal({
   const [showAdvancedFields, setShowAdvancedFields] = useState<boolean>(false);
   const [isAssetUploading, setIsAssetUploading] = useState<boolean>(false);
   const [showModalAbortConfirm, setShowModalAbortConfirm] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const abortUploadRef = useRef<(() => void) | null>(null);
 
   const storedPackCodes = getStoredPackCodes();
 
   if (!isOpen) return null;
+
+  const handleAutoTranslate = async (text: string, sourceLang: "vi" | "en" | "zh") => {
+    if (!text || !text.trim()) {
+      onShowToast("Vui lòng nhập từ khóa trước khi tự động sinh dữ liệu.", "warning");
+      return;
+    }
+    setIsTranslating(true);
+    try {
+      const res = await fetch("/api/tools/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.trim(), sourceLang }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updates: Partial<ProductFormData> = {};
+        if (data.nameVi) updates.nameVi = data.nameVi;
+        if (data.nameEn) updates.nameEn = data.nameEn;
+        if (data.ipa) updates.ipa = data.ipa;
+        if (data.nameZh) updates.nameZh = data.nameZh;
+        if (data.pinyinZh) updates.pinyinZh = data.pinyinZh;
+        onChangeForm(updates);
+
+        if (data.suggestedSlug && (!slug || slug === "polycards")) {
+          onChangeSlug(data.suggestedSlug);
+        }
+        onShowToast("Đã tự động dịch & sinh phiên âm IPA / Pinyin thành công!", "success");
+      } else {
+        onShowToast(data.message || "Không thể tự động dịch, bạn hãy điền thủ công.", "warning");
+      }
+    } catch (err) {
+      console.warn("Lỗi dịch tự động:", err);
+      onShowToast("Không thể kết nối API dịch tự động.", "warning");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const handleModalClose = () => {
     if (isAssetUploading) {
@@ -199,11 +237,18 @@ export function PublishProductModal({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
                   <Languages className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                  <span>Cấu Hình Chế Độ Song Ngữ Hiển Thị Trên WebAR</span>
+                  <span>Cấu Hình Chế Độ Song Ngữ & Tự Động Điền</span>
                 </span>
-                <span className="text-[10px] text-stone-400 font-semibold">
-                  Bật 1 hoặc cả 2 chế độ
-                </span>
+                {isTranslating ? (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-amber-300 animate-pulse">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Đang tự động dịch...</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-stone-400 font-semibold">
+                    Nhập 1 ô & nhấn [Tự sinh] để điền tất cả
+                  </span>
+                )}
               </div>
 
               {/* Toggle 1: Song Ngữ Anh - Việt */}
@@ -251,29 +296,65 @@ export function PublishProductModal({
                 {productForm.enableEnVi && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-amber-400/20 animate-in fade-in duration-150">
                     <div>
-                      <label className="block text-[10px] font-bold text-amber-200 mb-1">
-                        1. Từ vựng Tiếng Anh (EN) *:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-amber-200">
+                          1. Từ vựng Tiếng Anh (EN) *:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAutoTranslate(productForm.nameEn, "en")}
+                          disabled={isTranslating || !productForm.nameEn.trim()}
+                          className="text-[9px] font-bold text-amber-300 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                          title="Tự động dịch sang Tiếng Việt, Tiếng Trung & sinh IPA/Pinyin"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-amber-300" />
+                          <span>Tự sinh</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
                         required={productForm.enableEnVi}
-                        placeholder="VD: Run, Lion..."
+                        placeholder="VD: Run, Lion, Read..."
                         value={productForm.nameEn}
                         onChange={(e) => onChangeForm({ nameEn: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAutoTranslate(productForm.nameEn, "en");
+                          }
+                        }}
                         className="w-full bg-black/80 border border-amber-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-emerald-300 mb-1">
-                        2. Từ Tiếng Việt (VI) *:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-emerald-300">
+                          2. Từ Tiếng Việt (VI) *:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAutoTranslate(productForm.nameVi, "vi")}
+                          disabled={isTranslating || !productForm.nameVi.trim()}
+                          className="text-[9px] font-bold text-emerald-300 hover:text-white px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                          title="Tự động dịch sang Tiếng Anh, Tiếng Trung & sinh IPA/Pinyin"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-emerald-300" />
+                          <span>Tự sinh</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
                         required
-                        placeholder="VD: Chạy bộ, Sư tử..."
+                        placeholder="VD: Chạy bộ, Sư tử, Đọc sách..."
                         value={productForm.nameVi}
                         onChange={(e) => onChangeForm({ nameVi: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAutoTranslate(productForm.nameVi, "vi");
+                          }
+                        }}
                         className="w-full bg-black/80 border border-emerald-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-emerald-400 font-bold"
                       />
                     </div>
@@ -284,7 +365,7 @@ export function PublishProductModal({
                       </label>
                       <input
                         type="text"
-                        placeholder="VD: /rʌn/, /ˈlaɪ.ən/..."
+                        placeholder="VD: /rʌn/, /ˈlaɪ.ən/, /riːd/..."
                         value={productForm.ipa}
                         onChange={(e) => onChangeForm({ ipa: e.target.value })}
                         className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
@@ -339,15 +420,33 @@ export function PublishProductModal({
                 {productForm.enableZhVi && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-rose-400/20 animate-in fade-in duration-150">
                     <div>
-                      <label className="block text-[10px] font-bold text-rose-300 mb-1">
-                        1. Từ vựng Tiếng Trung (ZH) *:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-rose-300">
+                          1. Từ vựng Tiếng Trung (ZH) *:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAutoTranslate(productForm.nameZh, "zh")}
+                          disabled={isTranslating || !productForm.nameZh.trim()}
+                          className="text-[9px] font-bold text-rose-300 hover:text-white px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                          title="Tự động dịch sang Tiếng Việt, Tiếng Anh & sinh Pinyin"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-rose-300" />
+                          <span>Tự sinh</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
                         required={productForm.enableZhVi}
-                        placeholder="VD: 跑步, 狮子, 马..."
+                        placeholder="VD: 跑步, 狮子, 马, 看书..."
                         value={productForm.nameZh}
                         onChange={(e) => onChangeForm({ nameZh: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAutoTranslate(productForm.nameZh, "zh");
+                          }
+                        }}
                         onPaste={(e) => {
                           const pasted = e.clipboardData.getData("text/plain");
                           if (pasted) {
@@ -364,15 +463,33 @@ export function PublishProductModal({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-emerald-300 mb-1">
-                        2. Từ Tiếng Việt (VI) *:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-emerald-300">
+                          2. Từ Tiếng Việt (VI) *:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAutoTranslate(productForm.nameVi, "vi")}
+                          disabled={isTranslating || !productForm.nameVi.trim()}
+                          className="text-[9px] font-bold text-emerald-300 hover:text-white px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                          title="Tự động dịch sang Tiếng Trung, Tiếng Anh & sinh Pinyin"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 text-emerald-300" />
+                          <span>Tự sinh</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
                         required
-                        placeholder="VD: Chạy bộ, Sư tử..."
+                        placeholder="VD: Chạy bộ, Sư tử, Đọc sách..."
                         value={productForm.nameVi}
                         onChange={(e) => onChangeForm({ nameVi: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAutoTranslate(productForm.nameVi, "vi");
+                          }
+                        }}
                         className="w-full bg-black/80 border border-emerald-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-emerald-400 font-bold"
                       />
                     </div>
@@ -383,7 +500,7 @@ export function PublishProductModal({
                       </label>
                       <input
                         type="text"
-                        placeholder="VD: pǎo bù, shī zi, mǎ..."
+                        placeholder="VD: pǎo bù, shī zi, mǎ, kàn shū..."
                         value={productForm.pinyinZh}
                         onChange={(e) => onChangeForm({ pinyinZh: e.target.value })}
                         onPaste={(e) => {
@@ -495,8 +612,9 @@ export function PublishProductModal({
                 </label>
                 <input
                   type="text"
-                  value={slug}
+                  value={slug || "polycards"}
                   onChange={(e) => onChangeSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                  placeholder="polycards"
                   className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
                 />
               </div>

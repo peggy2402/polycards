@@ -38,6 +38,7 @@ interface ArResourcePanelProps {
   audioZhUrl?: string;
   enableEnVi?: boolean;
   enableZhVi?: boolean;
+  showPresets?: boolean;
   onChangeModelUrl: (url: string) => void;
   onChangeIosModelUrl: (url: string) => void;
   onChangeTargetUrl: (url: string) => void;
@@ -61,6 +62,7 @@ export function ArResourcePanel({
   audioZhUrl = "",
   enableEnVi = true,
   enableZhVi = false,
+  showPresets = false,
   onChangeModelUrl,
   onChangeIosModelUrl,
   onChangeTargetUrl,
@@ -324,53 +326,55 @@ export function ArResourcePanel({
         </a>
       </div>
 
-      {/* 1. Chọn nhanh từ Mẫu 3D có sẵn */}
-      <div>
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <label className="block text-[11px] font-bold text-stone-300">
-            Chọn nhanh từ Mô hình 3D mẫu có sẵn:
-          </label>
-          {!PRESET_3D_MODELS.some((p) => p.modelUrl === modelUrl) && modelUrl && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/50 px-2.5 py-0.5 text-[10px] font-black text-emerald-300">
-              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-              <span>Đang dùng tệp 3D riêng</span>
-            </span>
-          )}
+      {/* 1. Chọn nhanh từ Mẫu 3D có sẵn (Ẩn mặc định theo thiết kế mới) */}
+      {showPresets && (
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-[11px] font-bold text-stone-300">
+              Chọn nhanh từ Mô hình 3D mẫu có sẵn:
+            </label>
+            {!PRESET_3D_MODELS.some((p) => p.modelUrl === modelUrl) && modelUrl && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/50 px-2.5 py-0.5 text-[10px] font-black text-emerald-300">
+                <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                <span>Đang dùng tệp 3D riêng</span>
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {PRESET_3D_MODELS.map((preset) => {
+              const isSelected = modelUrl === preset.modelUrl;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    if (onSelectPreset) {
+                      onSelectPreset(preset);
+                    } else {
+                      onChangeModelUrl(preset.modelUrl);
+                      onChangeIosModelUrl(preset.iosModelUrl);
+                      onChangeTargetUrl(preset.targetUrl);
+                    }
+                  }}
+                  className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-amber-500/20 border-amber-400 text-amber-200 ring-1 ring-amber-400/50"
+                      : "bg-black/50 border-white/10 text-stone-300 hover:border-white/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[11px] font-black truncate">{preset.name}</span>
+                    {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                  </div>
+                  <span className="text-[9px] text-stone-400 font-mono mt-0.5 truncate w-full">
+                    {preset.modelUrl}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {PRESET_3D_MODELS.map((preset) => {
-            const isSelected = modelUrl === preset.modelUrl;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => {
-                  if (onSelectPreset) {
-                    onSelectPreset(preset);
-                  } else {
-                    onChangeModelUrl(preset.modelUrl);
-                    onChangeIosModelUrl(preset.iosModelUrl);
-                    onChangeTargetUrl(preset.targetUrl);
-                  }
-                }}
-                className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all cursor-pointer ${
-                  isSelected
-                    ? "bg-amber-500/20 border-amber-400 text-amber-200 ring-1 ring-amber-400/50"
-                    : "bg-black/50 border-white/10 text-stone-300 hover:border-white/30"
-                }`}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-[11px] font-black truncate">{preset.name}</span>
-                  {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
-                </div>
-                <span className="text-[9px] text-stone-400 font-mono mt-0.5 truncate w-full">
-                  {preset.modelUrl}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* 2. Upload tệp 3D riêng (.glb, .usdz) */}
       <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-2">
@@ -411,7 +415,7 @@ export function ArResourcePanel({
               type="text"
               value={modelUrl}
               onChange={(e) => onChangeModelUrl(e.target.value)}
-              placeholder="/models/lion.glb"
+              placeholder="/models/polycards.glb"
               className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
             />
             <span className="text-[9px] text-stone-500 block">Dành cho Android, Chrome, Cốc Cốc, PC.</span>
@@ -441,7 +445,7 @@ export function ArResourcePanel({
               type="text"
               value={iosModelUrl}
               onChange={(e) => onChangeIosModelUrl(e.target.value)}
-              placeholder="/models/lion.usdz"
+              placeholder="/models/polycards.usdz"
               className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
             />
             <span className="text-[9px] text-stone-500 block">Dành riêng cho iPhone / iPad (Safari Quick Look).</span>

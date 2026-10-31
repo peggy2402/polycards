@@ -13,7 +13,7 @@ import {
   isMongoConfigured,
 } from "@/lib/mongodb";
 
-const KNOWN_GLB_SLUGS = new Set(["cat", "deer", "dog", "elephant", "lion", "panda"]);
+const KNOWN_GLB_SLUGS = new Set(["cat", "deer", "dog", "elephant", "lion", "panda", "polycards"]);
 
 /**
  * Tự động chuyển chuỗi Data URL Base64 thành tệp trong GridFS, tránh phình to document MongoDB
@@ -191,8 +191,8 @@ export async function POST(request: NextRequest) {
     );
 
     const hasStaticModel = KNOWN_GLB_SLUGS.has(cleanSlug);
-    const defaultModelGlb = hasStaticModel ? `/models/${cleanSlug}.glb` : "/models/lion.glb";
-    const defaultModelUsdz = hasStaticModel ? `/models/${cleanSlug}.usdz` : "/models/lion.usdz";
+    const defaultModelGlb = hasStaticModel ? `/models/${cleanSlug}.glb` : "/models/polycards.glb";
+    const defaultModelUsdz = hasStaticModel ? `/models/${cleanSlug}.usdz` : "/models/polycards.usdz";
 
     let finalImageUrl =
       body.posterUrl ||

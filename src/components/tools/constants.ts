@@ -81,6 +81,15 @@ export const CARD_PRESETS: CardPreset[] = [
 
 export const PRESET_3D_MODELS: Preset3DModel[] = [
   {
+    id: "polycards",
+    name: "PolyCards Mascot (Mặc Định)",
+    modelUrl: "/models/polycards.glb",
+    iosModelUrl: "/models/polycards.usdz",
+    targetUrl: "/targets/polycards.mind",
+    category: "Mascot",
+    description: "Mô hình 3D PolyCards bản quyền chuẩn mực, tối ưu hóa kích thước nhẹ.",
+  },
+  {
     id: "lion",
     name: "Sư Tử Vàng (Có Animation)",
     modelUrl: "/models/lion.glb",

@@ -11,6 +11,7 @@ import {
   PackageCheck,
   AlertTriangle,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { EditProductFormData } from "../types";
@@ -42,9 +43,43 @@ export function EditProductModal({
 }: EditProductModalProps) {
   const [isAssetUploading, setIsAssetUploading] = useState<boolean>(false);
   const [showModalAbortConfirm, setShowModalAbortConfirm] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const abortUploadRef = useRef<(() => void) | null>(null);
 
   if (!isOpen || !editingProduct) return null;
+
+  const handleAutoTranslate = async (text: string, sourceLang: "vi" | "en" | "zh") => {
+    if (!text || !text.trim()) {
+      onShowToast("Vui lòng nhập từ khóa trước khi tự động sinh dữ liệu.", "warning");
+      return;
+    }
+    setIsTranslating(true);
+    try {
+      const res = await fetch("/api/tools/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.trim(), sourceLang }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updates: Partial<EditProductFormData> = {};
+        if (data.nameVi) updates.nameVi = data.nameVi;
+        if (data.nameEn) updates.nameEn = data.nameEn;
+        if (data.ipa) updates.ipa = data.ipa;
+        if (data.nameZh) updates.nameZh = data.nameZh;
+        if (data.pinyinZh) updates.pinyinZh = data.pinyinZh;
+        onChangeForm(updates);
+        onShowToast("Đã tự động dịch & sinh phiên âm IPA / Pinyin thành công!", "success");
+      } else {
+        onShowToast(data.message || "Không thể tự động dịch, bạn hãy điền thủ công.", "warning");
+      }
+    } catch (err) {
+      console.warn("Lỗi dịch tự động:", err);
+      onShowToast("Không thể kết nối API dịch tự động.", "warning");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const handleModalClose = () => {
     if (isAssetUploading) {
@@ -142,29 +177,65 @@ export function EditProductModal({
               {editProductForm.enableEnVi && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-amber-400/20 animate-in fade-in duration-150">
                   <div>
-                    <label className="block text-[10px] font-bold text-amber-200 mb-1">
-                      1. Từ vựng Tiếng Anh (EN) *:
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-amber-200">
+                        1. Từ vựng Tiếng Anh (EN) *:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoTranslate(editProductForm.nameEn, "en")}
+                        disabled={isTranslating || !editProductForm.nameEn.trim()}
+                        className="text-[9px] font-bold text-amber-300 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                        title="Tự động dịch sang Tiếng Việt, Tiếng Trung & sinh IPA/Pinyin"
+                      >
+                        <Sparkles className="h-2.5 w-2.5 text-amber-300" />
+                        <span>Tự sinh</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       required={editProductForm.enableEnVi}
-                      placeholder="VD: Run, Lion..."
+                      placeholder="VD: Run, Lion, Read..."
                       value={editProductForm.nameEn}
                       onChange={(e) => onChangeForm({ nameEn: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAutoTranslate(editProductForm.nameEn, "en");
+                        }
+                      }}
                       className="w-full bg-black/80 border border-amber-400/40 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400 font-bold"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-emerald-300 mb-1">
-                      2. Từ Tiếng Việt (VI) *:
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-emerald-300">
+                        2. Từ Tiếng Việt (VI) *:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoTranslate(editProductForm.nameVi, "vi")}
+                        disabled={isTranslating || !editProductForm.nameVi.trim()}
+                        className="text-[9px] font-bold text-emerald-300 hover:text-white px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                        title="Tự động dịch sang Tiếng Anh, Tiếng Trung & sinh IPA/Pinyin"
+                      >
+                        <Sparkles className="h-2.5 w-2.5 text-emerald-300" />
+                        <span>Tự sinh</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       required
-                      placeholder="VD: Chạy bộ, Sư tử..."
+                      placeholder="VD: Chạy bộ, Sư tử, Đọc sách..."
                       value={editProductForm.nameVi}
                       onChange={(e) => onChangeForm({ nameVi: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAutoTranslate(editProductForm.nameVi, "vi");
+                        }
+                      }}
                       className="w-full bg-black/80 border border-emerald-400/40 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-hidden focus:border-emerald-400 font-bold"
                     />
                   </div>
@@ -175,7 +246,7 @@ export function EditProductModal({
                     </label>
                     <input
                       type="text"
-                      placeholder="/rʌn/"
+                      placeholder="VD: /rʌn/, /ˈtiː.tʃər/, /riːd/..."
                       value={editProductForm.ipa}
                       onChange={(e) => onChangeForm({ ipa: e.target.value })}
                       className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-mono focus:outline-hidden focus:border-amber-400"
@@ -230,15 +301,33 @@ export function EditProductModal({
               {editProductForm.enableZhVi && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-rose-400/20 animate-in fade-in duration-150">
                   <div>
-                    <label className="block text-[10px] font-bold text-rose-300 mb-1">
-                      1. Từ vựng Tiếng Trung (ZH) *:
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-rose-300">
+                        1. Từ vựng Tiếng Trung (ZH) *:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoTranslate(editProductForm.nameZh, "zh")}
+                        disabled={isTranslating || !editProductForm.nameZh.trim()}
+                        className="text-[9px] font-bold text-rose-300 hover:text-white px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                        title="Tự động dịch sang Tiếng Việt, Tiếng Anh & sinh Pinyin"
+                      >
+                        <Sparkles className="h-2.5 w-2.5 text-rose-300" />
+                        <span>Tự sinh</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       required={editProductForm.enableZhVi}
-                      placeholder="Chữ Hán: 跑步, 马..."
+                      placeholder="Chữ Hán: 跑步, 狮子, 看书..."
                       value={editProductForm.nameZh}
                       onChange={(e) => onChangeForm({ nameZh: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAutoTranslate(editProductForm.nameZh, "zh");
+                        }
+                      }}
                       onPaste={(e) => {
                         const pasted = e.clipboardData.getData("text/plain");
                         if (pasted) {
@@ -255,15 +344,33 @@ export function EditProductModal({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-emerald-300 mb-1">
-                      2. Từ Tiếng Việt (VI) *:
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-emerald-300">
+                        2. Từ Tiếng Việt (VI) *:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoTranslate(editProductForm.nameVi, "vi")}
+                        disabled={isTranslating || !editProductForm.nameVi.trim()}
+                        className="text-[9px] font-bold text-emerald-300 hover:text-white px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
+                        title="Tự động dịch sang Tiếng Trung, Tiếng Anh & sinh Pinyin"
+                      >
+                        <Sparkles className="h-2.5 w-2.5 text-emerald-300" />
+                        <span>Tự sinh</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       required
-                      placeholder="VD: Chạy bộ..."
+                      placeholder="VD: Chạy bộ, Đọc sách..."
                       value={editProductForm.nameVi}
                       onChange={(e) => onChangeForm({ nameVi: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAutoTranslate(editProductForm.nameVi, "vi");
+                        }
+                      }}
                       className="w-full bg-black/80 border border-emerald-400/40 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-hidden focus:border-emerald-400 font-bold"
                     />
                   </div>
@@ -274,7 +381,7 @@ export function EditProductModal({
                     </label>
                     <input
                       type="text"
-                      placeholder="Pinyin: pǎo bù, mǎ..."
+                      placeholder="Pinyin: pǎo bù, kàn shū, mǎ..."
                       value={editProductForm.pinyinZh}
                       onChange={(e) => onChangeForm({ pinyinZh: e.target.value })}
                       onPaste={(e) => {

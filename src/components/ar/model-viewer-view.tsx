@@ -35,7 +35,7 @@ export function ModelViewerView({
   const [loadError, setLoadError] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
   const [activeModelSrc, setActiveModelSrc] = useState<string>(
-    animal.modelUrl || "/models/lion.glb"
+    animal.modelUrl || "/models/polycards.glb"
   );
   const [arSupported, setArSupported] = useState<boolean | null>(null);
   const [isAndroid, setIsAndroid] = useState(false);
@@ -46,7 +46,7 @@ export function ModelViewerView({
   useEffect(() => {
     setLoadError(false);
     setIsFallback(false);
-    setActiveModelSrc(animal.modelUrl || "/models/lion.glb");
+    setActiveModelSrc(animal.modelUrl || "/models/polycards.glb");
   }, [animal.modelUrl]);
 
   useEffect(() => {
@@ -109,9 +109,9 @@ export function ModelViewerView({
     };
 
     const handleError = () => {
-      if (activeModelSrc !== "/models/lion.glb") {
+      if (activeModelSrc !== "/models/polycards.glb") {
         setIsFallback(true);
-        setActiveModelSrc("/models/lion.glb");
+        setActiveModelSrc("/models/polycards.glb");
         return;
       }
       setLoadError(true);
@@ -173,7 +173,7 @@ export function ModelViewerView({
               type="button"
               onClick={() => {
                 setIsFallback(false);
-                setActiveModelSrc(animal.modelUrl || "/models/lion.glb");
+                setActiveModelSrc(animal.modelUrl || "/models/polycards.glb");
               }}
               className="px-2.5 py-1 rounded-xl bg-stone-950 text-white text-[11px] font-black shrink-0 hover:bg-stone-800 transition-colors"
             >
@@ -220,7 +220,7 @@ export function ModelViewerView({
             src={activeModelSrc}
             ios-src={
               activeModelSrc.startsWith("/api/tools/upload") &&
-              animal.iosModelUrl === "/models/lion.usdz"
+              animal.iosModelUrl === "/models/polycards.usdz"
                 ? undefined
                 : animal.iosModelUrl
             }

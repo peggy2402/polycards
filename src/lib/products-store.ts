@@ -253,9 +253,9 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
               : localItem.packCode || "",
           images: [bestImage],
           posterUrl: bestImage,
-          modelUrl: serverMatch?.modelUrl || localItem.modelUrl || `/models/lion.glb`,
-          iosModelUrl: serverMatch?.iosModelUrl || localItem.iosModelUrl || `/models/lion.usdz`,
-          targetUrl: serverMatch?.targetUrl || localItem.targetUrl || `/targets/lion.mind`,
+          modelUrl: serverMatch?.modelUrl || localItem.modelUrl || `/models/polycards.glb`,
+          iosModelUrl: serverMatch?.iosModelUrl || localItem.iosModelUrl || `/models/polycards.usdz`,
+          targetUrl: serverMatch?.targetUrl || localItem.targetUrl || `/targets/polycards.mind`,
         };
       });
 
