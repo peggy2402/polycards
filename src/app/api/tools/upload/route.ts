@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Binary, GridFSBucket } from "mongodb";
 import { getMongoDb } from "@/lib/mongodb";
-import { isR2Configured, uploadToR2 } from "@/lib/r2";
-import { isSupabaseConfigured, uploadToSupabase } from "@/lib/supabase-storage";
+import { isR2Configured, uploadToR2, getR2PublicFileUrl } from "@/lib/r2";
+import { isSupabaseConfigured, uploadToSupabase, getSupabasePublicUrl } from "@/lib/supabase-storage";
 
 interface UploadTempChunkDoc {
   uploadId: string;
@@ -74,6 +74,22 @@ export async function GET(req: NextRequest) {
       .toArray();
 
     if (!files || files.length === 0) {
+      // DỰ PHÒNG TẦNG 1: Kiểm tra xem tệp có trên Cloudflare R2 CDN không
+      if (isR2Configured()) {
+        const r2Url = getR2PublicFileUrl(fileName);
+        if (r2Url) {
+          return NextResponse.redirect(r2Url, { status: 307 });
+        }
+      }
+
+      // DỰ PHÒNG TẦNG 2: Kiểm tra Supabase Storage
+      if (isSupabaseConfigured()) {
+        const supaUrl = getSupabasePublicUrl(fileName);
+        if (supaUrl) {
+          return NextResponse.redirect(supaUrl, { status: 307 });
+        }
+      }
+
       return NextResponse.json(
         { success: false, message: `Không tìm thấy tệp "${fileName}" trên MongoDB GridFS.` },
         { status: 404 }

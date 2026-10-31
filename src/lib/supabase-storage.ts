@@ -10,6 +10,16 @@ export function isSupabaseConfigured(): boolean {
 }
 
 /**
+ * Lấy URL công khai của file trên Supabase Storage
+ */
+export function getSupabasePublicUrl(fileName: string): string | null {
+  if (!isSupabaseConfigured()) return null;
+  const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const baseUrl = SUPABASE_PROJECT_URL!.replace(/\/+$/, "");
+  return `${baseUrl}/storage/v1/object/public/${SUPABASE_BUCKET_NAME}/${cleanName}`;
+}
+
+/**
  * Tải file lên Supabase Storage qua REST API (không cần cài thêm thư viện)
  * @returns Đường link public hoàn chỉnh của file trên Supabase CDN
  */
@@ -33,7 +43,7 @@ export async function uploadToSupabase(
       "Content-Type": contentType,
       "x-upsert": "true",
     },
-    body: new Blob([fileBuffer], { type: contentType }),
+    body: fileBuffer as unknown as BodyInit,
   });
 
   if (!res.ok) {

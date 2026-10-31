@@ -19,6 +19,13 @@ export function isR2Configured(): boolean {
   );
 }
 
+export function getR2PublicFileUrl(fileName: string): string | null {
+  if (!isR2Configured()) return null;
+  const baseUrl = R2_PUBLIC_URL!.replace(/\/+$/, "");
+  const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${baseUrl}/${cleanName}`;
+}
+
 let r2Client: S3Client | null = null;
 
 export function getR2Client(): S3Client | null {

@@ -1022,6 +1022,12 @@ export function WebArCardView({
             <span>Chế Độ AR Tương Tác Trực Tiếp (Không cần thẻ bài vật lý)</span>
           </div>
         )}
+        {isUsingFallbackModel && (
+          <div className="flex items-center gap-1.5 rounded-full bg-amber-950/90 border border-amber-400/60 px-3 py-0.5 backdrop-blur-md text-[10px] font-bold text-amber-300 shadow-md animate-in fade-in slide-in-from-top-1 duration-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+            <span>Mô hình chính tải thất bại (chưa cấu hình CORS R2). Đang hiển thị mẫu sư tử.</span>
+          </div>
+        )}
       </div>
 
       {/* 5. AR Diagnostic Debug HUD Modal (Trực quan hóa nhận diện thẻ, FPS, tọa độ) */}

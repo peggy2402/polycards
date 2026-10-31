@@ -33,6 +33,7 @@ export function ModelViewerView({
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [isFallback, setIsFallback] = useState(false);
   const [activeModelSrc, setActiveModelSrc] = useState<string>(
     animal.modelUrl || "/models/lion.glb"
   );
@@ -44,6 +45,7 @@ export function ModelViewerView({
 
   useEffect(() => {
     setLoadError(false);
+    setIsFallback(false);
     setActiveModelSrc(animal.modelUrl || "/models/lion.glb");
   }, [animal.modelUrl]);
 
@@ -108,6 +110,7 @@ export function ModelViewerView({
 
     const handleError = () => {
       if (activeModelSrc !== "/models/lion.glb") {
+        setIsFallback(true);
         setActiveModelSrc("/models/lion.glb");
         return;
       }
@@ -158,6 +161,26 @@ export function ModelViewerView({
     <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-200/90 bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 shadow-xl shadow-amber-900/5 backdrop-blur-md">
       {/* 3D Model Viewer Container */}
       <div className="relative aspect-square sm:aspect-4/3 w-full flex items-center justify-center p-4">
+        {isFallback && (
+          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 rounded-2xl bg-amber-500/95 border border-amber-300 px-3.5 py-2 text-xs font-bold text-stone-950 shadow-lg backdrop-blur-md">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <AlertCircle className="h-4 w-4 text-stone-950 shrink-0" />
+              <span className="truncate">
+                Mô hình gốc tải thất bại (chưa bật CORS trên Cloudflare R2). Đang hiển thị mô hình mẫu.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsFallback(false);
+                setActiveModelSrc(animal.modelUrl || "/models/lion.glb");
+              }}
+              className="px-2.5 py-1 rounded-xl bg-stone-950 text-white text-[11px] font-black shrink-0 hover:bg-stone-800 transition-colors"
+            >
+              Tải lại
+            </button>
+          </div>
+        )}
         {loadError ? (
           <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
