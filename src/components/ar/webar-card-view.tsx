@@ -580,16 +580,57 @@ export function WebArCardView({
 
               rawModel.updateMatrixWorld(true);
 
-              // Tính Bounding Box chuẩn xác từ Three.js (tránh union lệch tâm)
+              // 1. Quét tìm tất cả Mesh và SkinnedMesh để lấy bounding box hình học gốc
+              let geomMin = new THREE.Vector3(Infinity, Infinity, Infinity);
+              let geomMax = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+              let hasSkinnedMesh = false;
+
+              rawModel.traverse((child: any) => {
+                if (child.isMesh && child.geometry) {
+                  if (child.isSkinnedMesh) hasSkinnedMesh = true;
+                  child.geometry.computeBoundingBox();
+                  if (child.geometry.boundingBox) {
+                    geomMin.min(child.geometry.boundingBox.min);
+                    geomMax.max(child.geometry.boundingBox.max);
+                  }
+                }
+              });
+
+              // 2. Bounding Box chuẩn từ Three.js scene graph
               const bbox = new THREE.Box3().setFromObject(rawModel);
-              const center = bbox.getCenter(new THREE.Vector3());
-              const size = bbox.getSize(new THREE.Vector3());
-              const maxDim = Math.max(size.x, size.y, size.z) || 1.0;
+              let size = bbox.getSize(new THREE.Vector3());
+              let center = bbox.getCenter(new THREE.Vector3());
+              let maxDim = Math.max(size.x, size.y, size.z);
+
+              // 3. Khắc phục lỗi Mixamo / Blender 0.01 Armature scale:
+              // SkinnedMesh trong Blender thường bị root scale 0.01 khiến Box3.setFromObject trả về ~0.015m,
+              // nhưng vertex shader render 1.5m thật. Ta dùng geometry bounds để lấy kích thước thật của nhân vật.
+              if (geomMin.x !== Infinity) {
+                const geomSize = new THREE.Vector3().subVectors(geomMax, geomMin);
+                const geomMaxDim = Math.max(geomSize.x, geomSize.y, geomSize.z);
+
+                if (hasSkinnedMesh && (maxDim < 0.25 || maxDim / geomMaxDim < 0.1)) {
+                  size = geomSize;
+                  center = new THREE.Vector3().addVectors(geomMin, geomMax).multiplyScalar(0.5);
+                  maxDim = geomMaxDim;
+                  console.warn(
+                    `[PolyCards WebAR Engine] Đã sửa lỗi Mixamo scale artifact. maxDim chuẩn hóa: ${maxDim.toFixed(2)}m`
+                  );
+                }
+              }
+
+              if (!maxDim || maxDim <= 0.001 || !isFinite(maxDim)) {
+                maxDim = 1.0;
+              }
               maxDimRef.current = maxDim;
 
-              // Căn tâm cơ thể về (0,0,0)
+              // Căn đáy nhân vật/mô hình về y = 0 để đứng thẳng trên mặt sàn (ngay trên bóng đổ blob shadow)
+              const floorY =
+                isFinite(geomMin.y) && geomMin.y !== Infinity
+                  ? geomMin.y
+                  : center.y - size.y / 2;
               const modelHolder = new THREE.Group();
-              modelHolder.position.set(-center.x, -center.y, -center.z);
+              modelHolder.position.set(-center.x, -floorY, -center.z);
               modelHolder.add(rawModel);
 
               // Tích hợp P2 Reaction System (Squash/stretch, blob shadow, particles, ripples)
@@ -611,7 +652,7 @@ export function WebArCardView({
               scene.add(displayRoot);
 
               // Kích thước chuẩn hiển thị vừa vặn, thanh thoát giữa khung nhìn camera
-              const baseDim = 0.38;
+              const baseDim = 0.72;
               const initialScale = baseDim / maxDim;
               pivot.scale.set(initialScale, initialScale, initialScale);
               pivot.position.set(0, 0, 0);
@@ -739,7 +780,7 @@ export function WebArCardView({
                       // Điều chỉnh vị trí thông minh theo hướng màn hình Dọc / Ngang
                       const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
                       const freeArDist = isLandNow ? 2.4 : 1.9;
-                      const yPos = isLandNow ? -0.12 : -0.20;
+                      const yPos = isLandNow ? -0.28 : -0.36;
                       worldPointW.set(0, yPos, -freeArDist);
                       anchorScaleTarget.set(1.0, 1.0, 1.0);
 
@@ -1009,6 +1050,54 @@ export function WebArCardView({
           <X className="h-5 w-5" />
         </button>
 
+        {/* Nút kích hoạt xoay 360° quanh vật thể (Gyro) / Badge trạng thái */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {isMotionSupported && needsMotionPrompt && !isMotionPermissionGranted && (
+            <button
+              type="button"
+              onClick={async () => {
+                const granted = await requestMotionPermission();
+                if (granted) {
+                  showToast("Đã kích hoạt xoay 360° quanh con vật (Gyro)", "success");
+                  setIsMotionEnabled(true);
+                  resetBasePose();
+                } else {
+                  showToast("Quyền cảm biến chuyển động bị từ chối", "warning");
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 text-white font-bold text-xs shadow-lg backdrop-blur-md active:scale-95 transition-all border border-emerald-300/40 animate-pulse cursor-pointer"
+            >
+              <Compass className="h-4 w-4 text-white" />
+              <span>Bật xoay 360° (Gyro)</span>
+            </button>
+          )}
+
+          {isMotionSupported && isMotionPermissionGranted && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsMotionEnabled((prev) => {
+                  const next = !prev;
+                  showToast(
+                    next ? "Đã bật xoay 360° quanh con vật" : "Đã tắt cảm biến xoay",
+                    "info"
+                  );
+                  return next;
+                });
+                resetBasePose();
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all cursor-pointer ${
+                isMotionEnabled
+                  ? "bg-emerald-950/70 text-emerald-300 border-emerald-500/40"
+                  : "bg-black/50 text-stone-400 border-white/10"
+              }`}
+            >
+              <Compass className={`h-3.5 w-3.5 ${isMotionEnabled ? "text-emerald-400" : "text-stone-400"}`} />
+              <span>{isMotionEnabled ? "360° Gyro Bật" : "360° Gyro Tắt"}</span>
+            </button>
+          )}
+        </div>
+
         {/* Menu More "⋯" (Chứa Reset, Debug HUD, Hướng Dẫn, Cảm Biến) - Đảm bảo z-index cao không bị đè */}
         <div className="pointer-events-auto relative z-50">
           <button
@@ -1153,19 +1242,24 @@ export function WebArCardView({
                   </div>
                 )}
 
-                {/* BƯỚC 4: Apple AR Quick Look (.usdz) trên iPhone / iPad */}
-                {supportsAppleAr && (animal.iosModelUrl || animal.modelUrl) && (
-                  <div className="pt-1 border-t border-white/10">
-                    <a
-                      href={animal.iosModelUrl || `/models/${animal.slug}.usdz`}
-                      rel="ar"
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-teal-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
-                    >
-                      <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
-                      <span>Xem AR Apple (3D phòng thật)</span>
-                    </a>
-                  </div>
-                )}
+                {/* BƯỚC 4: Apple AR Quick Look (.usdz) chỉ hiển thị khi có tệp .usdz tĩnh cục bộ tồn tại thực tế (không hiển thị link R2 tránh lỗi 404) */}
+                {supportsAppleAr &&
+                  Boolean(
+                    animal.iosModelUrl &&
+                    animal.iosModelUrl.startsWith("/models/") &&
+                    !animal.iosModelUrl.startsWith("http")
+                  ) && (
+                    <div className="pt-1 border-t border-white/10">
+                      <a
+                        href={animal.iosModelUrl}
+                        rel="ar"
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-teal-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+                      >
+                        <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                        <span>Xem AR Apple Quick Look</span>
+                      </a>
+                    </div>
+                  )}
               </div>
             )}
           </div>

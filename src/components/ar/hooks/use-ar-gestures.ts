@@ -445,7 +445,7 @@ export function useArGestures({
       pivot.rotation.y = currentRotYRef.current;
       pivot.rotation.x = currentRotXRef.current;
 
-      const baseDim = 0.34;
+      const baseDim = 0.72;
       const s = (baseDim / (maxDimRef.current || 1)) * currentScaleRef.current;
       pivot.scale.set(s, s, s);
 

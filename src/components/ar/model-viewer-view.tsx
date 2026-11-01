@@ -227,10 +227,11 @@ export function ModelViewerView({
             ref={modelViewerRef as any}
             src={activeModelSrc}
             ios-src={
-              activeModelSrc.startsWith("/api/tools/upload") &&
-              animal.iosModelUrl === "/models/polycards.usdz"
-                ? undefined
-                : animal.iosModelUrl
+              animal.iosModelUrl &&
+              animal.iosModelUrl.startsWith("/models/") &&
+              !animal.iosModelUrl.startsWith("http")
+                ? animal.iosModelUrl
+                : undefined
             }
             alt={`Mô hình 3D AR ${animal.nameEn}`}
             ar={true}

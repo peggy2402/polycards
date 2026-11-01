@@ -27,6 +27,7 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
   const qScreenRef = useRef<any>(null);
   const targetQuatRef = useRef<any>(null);
   const axisZRef = useRef<any>(null);
+  const q1Ref = useRef<any>(null); // Bù góc -90 độ trục X: Camera nhìn ra mặt lưng (chuẩn Three.js DeviceOrientationControls)
 
   // Góc bù trừ xoay màn hình (orientation angle)
   const screenAngleRef = useRef<number>(0);
@@ -43,6 +44,7 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
       qScreenRef.current = new THREE.Quaternion();
       targetQuatRef.current = new THREE.Quaternion();
       axisZRef.current = new THREE.Vector3(0, 0, 1);
+      q1Ref.current = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
     }
     return THREE;
   }, []);
@@ -127,6 +129,11 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
       // Chuẩn Euler DeviceOrientation: YXZ
       eulerRef.current.set(beta, alpha, -gamma, "YXZ");
       rawQuatRef.current.setFromEuler(eulerRef.current);
+
+      // Bù góc -90° trục X: Camera nhìn ra mặt lưng thiết bị (loại bỏ hoàn toàn Gimbal Lock khi điện thoại dựng đứng)
+      if (q1Ref.current) {
+        rawQuatRef.current.multiply(q1Ref.current);
+      }
 
       // Bù góc xoay màn hình (Portrait / Landscape)
       qScreenRef.current.setFromAxisAngle(axisZRef.current, -orient);
