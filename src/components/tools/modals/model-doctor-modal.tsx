@@ -178,82 +178,111 @@ export function ModelDoctorModal({
           setStatusText(step);
         });
 
-        setStatusText("Đang chuẩn bị tải tệp tối ưu trực tiếp lên Cloudflare R2...");
+        setStatusText("Đang chuẩn bị tải tệp tối ưu lên Cloudflare R2...");
 
         const effectiveSlug = selectedSlug || (customUploadedFile ? customUploadedFile.name.replace(/\.[^/.]+$/, "") : "model");
-
-        // 1. Xin Presigned URL và tải trực tiếp GLB lên Cloudflare R2 (Bỏ qua hoàn toàn giới hạn 4.5MB của Vercel)
-        setStatusText("Đang xin URL tải lên Cloudflare R2 cho tệp .glb...");
-        const presignedGlbRes = await fetch("/api/tools/r2-presigned-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: `${effectiveSlug}.glb`,
-            contentType: "model/gltf-binary",
-          }),
-        });
-        const presignedGlbJson = await presignedGlbRes.json();
-        if (!presignedGlbRes.ok || !presignedGlbJson.success || !presignedGlbJson.uploadUrl) {
-          throw new Error(presignedGlbJson.message || "Lỗi xin URL tải lên tệp .glb");
-        }
-
-        setStatusText(`Đang tải ${effectiveSlug}.glb trực tiếp lên Cloudflare R2 (${clientRes.optimizedSizeMB} MB)...`);
-        const putGlbRes = await fetch(presignedGlbJson.uploadUrl, {
-          method: "PUT",
-          body: clientRes.glbBlob,
-          headers: {
-            "Content-Type": "model/gltf-binary",
-          },
-        });
-        if (!putGlbRes.ok) {
-          throw new Error(`Tải tệp .glb lên Cloudflare R2 thất bại (HTTP ${putGlbRes.status})`);
-        }
-        const glbUrl = presignedGlbJson.publicUrl;
-
-        // 2. Tải trực tiếp USDZ lên Cloudflare R2 nếu có
+        let glbUrl: string | undefined = undefined;
         let usdzUrl: string | undefined = undefined;
-        if (clientRes.usdzBlob) {
-          setStatusText("Đang xin URL tải lên Cloudflare R2 cho tệp .usdz...");
-          const presignedUsdzRes = await fetch("/api/tools/r2-presigned-url", {
+        let directUploadSucceeded = false;
+
+        // 1. Thử tải trực tiếp lên Cloudflare R2 qua Presigned PUT URL (0% Payload, tối ưu băng thông)
+        try {
+          setStatusText("Đang xin URL tải lên trực tiếp Cloudflare R2...");
+          const presignedGlbRes = await fetch("/api/tools/r2-presigned-url", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              fileName: `${effectiveSlug}.usdz`,
-              contentType: "model/vnd.usdz+zip",
+              fileName: `${effectiveSlug}.glb`,
+              contentType: "model/gltf-binary",
             }),
           });
-          const presignedUsdzJson = await presignedUsdzRes.json();
-          if (presignedUsdzRes.ok && presignedUsdzJson.success && presignedUsdzJson.uploadUrl) {
-            const usdzSizeMB = (clientRes.usdzBlob.size / 1024 / 1024).toFixed(2);
-            setStatusText(`Đang tải ${effectiveSlug}.usdz trực tiếp lên Cloudflare R2 (${usdzSizeMB} MB)...`);
-            const putUsdzRes = await fetch(presignedUsdzJson.uploadUrl, {
+          const presignedGlbJson = await presignedGlbRes.json();
+          if (presignedGlbRes.ok && presignedGlbJson.success && presignedGlbJson.uploadUrl) {
+            setStatusText(`Đang tải ${effectiveSlug}.glb trực tiếp lên Cloudflare R2 (${clientRes.optimizedSizeMB} MB)...`);
+            const putGlbRes = await fetch(presignedGlbJson.uploadUrl, {
               method: "PUT",
-              body: clientRes.usdzBlob,
+              body: clientRes.glbBlob,
               headers: {
-                "Content-Type": "model/vnd.usdz+zip",
+                "Content-Type": "model/gltf-binary",
               },
             });
-            if (putUsdzRes.ok) {
-              usdzUrl = presignedUsdzJson.publicUrl;
+
+            if (putGlbRes.ok) {
+              glbUrl = presignedGlbJson.publicUrl;
+              directUploadSucceeded = true;
+
+              // Tải tiếp USDZ nếu có
+              if (clientRes.usdzBlob) {
+                try {
+                  const presignedUsdzRes = await fetch("/api/tools/r2-presigned-url", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      fileName: `${effectiveSlug}.usdz`,
+                      contentType: "model/vnd.usdz+zip",
+                    }),
+                  });
+                  const presignedUsdzJson = await presignedUsdzRes.json();
+                  if (presignedUsdzRes.ok && presignedUsdzJson.success && presignedUsdzJson.uploadUrl) {
+                    const putUsdzRes = await fetch(presignedUsdzJson.uploadUrl, {
+                      method: "PUT",
+                      body: clientRes.usdzBlob,
+                      headers: {
+                        "Content-Type": "model/vnd.usdz+zip",
+                      },
+                    });
+                    if (putUsdzRes.ok) {
+                      usdzUrl = presignedUsdzJson.publicUrl;
+                    }
+                  }
+                } catch {}
+              }
             }
           }
+        } catch {
+          directUploadSucceeded = false;
         }
 
-        // 3. Cập nhật MongoDB Atlas bằng request JSON nhẹ nhàng (vài bytes)
-        setStatusText("Đang đồng bộ thông tin thẻ vào MongoDB Atlas...");
-        const saveRes = await fetch("/api/tools/save-model-assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            slug: effectiveSlug,
-            glbUrl,
-            usdzUrl,
-            updateDatabase: true,
-          }),
-        });
-        const saveJson = await saveRes.json();
-        if (!saveRes.ok || !saveJson.success) {
-          throw new Error(saveJson.message || "Lỗi đồng bộ thông tin thẻ vào MongoDB.");
+        // 2. Dự phòng thông minh: Nếu Direct Upload thất bại (ví dụ R2 chưa bật CORS cho PUT):
+        // File sau khi nén chỉ còn ~1-2 MB (nhỏ hơn nhiều so với giới hạn 4.5 MB của Vercel).
+        // Server Next.js dùng S3 SDK đẩy lên R2 mà KHÔNG BAO GIỜ bị chặn CORS!
+        if (!directUploadSucceeded || !glbUrl) {
+          setStatusText(`Đang chuyển sang tải dự phòng qua Server R2 Proxy (${clientRes.optimizedSizeMB} MB)...`);
+          const fallbackFormData = new FormData();
+          fallbackFormData.append("slug", effectiveSlug);
+          fallbackFormData.append("glb", clientRes.glbBlob, `${effectiveSlug}.glb`);
+          if (clientRes.usdzBlob) {
+            fallbackFormData.append("usdz", clientRes.usdzBlob, `${effectiveSlug}.usdz`);
+          }
+          fallbackFormData.append("updateDatabase", "true");
+
+          const fallbackRes = await fetch("/api/tools/save-model-assets", {
+            method: "POST",
+            body: fallbackFormData,
+          });
+          const fallbackJson = await fallbackRes.json();
+          if (!fallbackRes.ok || !fallbackJson.success) {
+            throw new Error(fallbackJson.message || "Tải tệp lên Cloudflare R2 thất bại.");
+          }
+          glbUrl = fallbackJson.glbUrl;
+          usdzUrl = fallbackJson.usdzUrl;
+        } else {
+          // Nếu Direct Upload thành công -> Đồng bộ thông tin nhẹ qua JSON
+          setStatusText("Đang đồng bộ thông tin thẻ vào MongoDB Atlas...");
+          const saveRes = await fetch("/api/tools/save-model-assets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slug: effectiveSlug,
+              glbUrl,
+              usdzUrl,
+              updateDatabase: true,
+            }),
+          });
+          const saveJson = await saveRes.json();
+          if (!saveRes.ok || !saveJson.success) {
+            throw new Error(saveJson.message || "Lỗi đồng bộ thông tin thẻ vào MongoDB.");
+          }
         }
 
         const reducedPct = Math.max(
@@ -264,7 +293,7 @@ export function ModelDoctorModal({
         const fallbackBeforeReport = currentReport || json?.beforeReport;
         if (fallbackBeforeReport) {
           setOptimizedResult({
-            modelUrl: glbUrl,
+            modelUrl: glbUrl || "",
             iosModelUrl: usdzUrl || "",
             beforeReport: fallbackBeforeReport,
             afterReport: {
@@ -285,7 +314,7 @@ export function ModelDoctorModal({
           if (matched) {
             onOptimizedSuccess({
               ...matched,
-              modelUrl: glbUrl,
+              modelUrl: glbUrl || matched.modelUrl || "",
               iosModelUrl: usdzUrl || matched.iosModelUrl || "",
             });
           }
