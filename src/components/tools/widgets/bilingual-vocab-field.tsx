@@ -82,3 +82,4 @@ export function BilingualVocabField({
     </div>
   );
 }
+

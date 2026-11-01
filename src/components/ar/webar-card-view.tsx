@@ -428,9 +428,17 @@ export function WebArCardView({
         let resolvedTargetSrc = animal.targetUrl || `/targets/${animal.slug}.mind`;
         let isFallbackTarget = false;
 
+        // Nếu targetUrl là link R2 chưa có hoặc file không tồn tại, kiểm tra an toàn
         try {
-          const checkRes = await fetch(resolvedTargetSrc, { method: "HEAD" });
-          if (!checkRes.ok) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2500);
+          const checkRes = await fetch(resolvedTargetSrc, {
+            method: "GET",
+            headers: { Range: "bytes=0-10" },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (!checkRes.ok && checkRes.status !== 206) {
             resolvedTargetSrc = "/targets/polycards.mind";
             isFallbackTarget = true;
           }
@@ -512,14 +520,36 @@ export function WebArCardView({
           loader.setDRACOLoader(dracoLoader);
         }
 
-        const primaryModelUrl = animal.modelUrl || "/models/polycards.glb";
         const fallbackModelUrl = "/models/polycards.glb";
+        let primaryModelUrl = animal.modelUrl || fallbackModelUrl;
+
+        // Tự động chuyển qua Proxy cho các tệp ngoài hoặc Cloudflare R2 để xóa bỏ 100% lỗi CORS
+        if (
+          primaryModelUrl.startsWith("http://") ||
+          primaryModelUrl.startsWith("https://")
+        ) {
+          primaryModelUrl = `/api/proxy/model?url=${encodeURIComponent(primaryModelUrl)}`;
+        }
+
+        let modelLoadTimeoutTimer: any = null;
 
         const loadModelWithFallback = (urlToLoad: string, isFallbackAttempt: boolean = false) => {
+          // Timeout bảo vệ 8s: Nếu tệp mạng quá nặng hoặc parse treo, tự động fallback sang polycards.glb
+          if (!isFallbackAttempt) {
+            modelLoadTimeoutTimer = setTimeout(() => {
+              if (isLoading && !isCancelled) {
+                console.warn("[PolyCards AR] Tải mô hình chính quá 8s, tự động chuyển sang polycards.glb tối ưu.");
+                setIsUsingFallbackModel(true);
+                loadModelWithFallback(fallbackModelUrl, true);
+              }
+            }, 8000);
+          }
+
           loader.load(
             urlToLoad,
             (gltf: any) => {
               if (isCancelled) return;
+              if (modelLoadTimeoutTimer) clearTimeout(modelLoadTimeoutTimer);
               setDownloadProgress(100);
 
               const rawModel = gltf.scene;
@@ -695,15 +725,11 @@ export function WebArCardView({
                       // 2. Khi chưa quét thẻ hoặc thẻ vừa bị che khuất (Fallback / Free AR):
                       anchorGroupRef.current.visible = true;
 
-                      const camNear = camera.near && camera.near > 0 ? camera.near : 10;
-                      const camFar = camera.far && camera.far > camNear ? camera.far : 10000;
-                      const dist = Math.min(Math.max(camNear * 6, 1000), camFar * 0.4);
-                      const fovDeg = camera.fov && camera.fov > 0 ? camera.fov : 45;
-                      const fovRad = (fovDeg * Math.PI) / 180;
-                      const visibleHeight = 2 * dist * Math.tan(fovRad / 2);
-
-                      worldPointW.set(0, -visibleHeight * 0.05, -dist);
-                      anchorScaleTarget.set(visibleHeight, visibleHeight, visibleHeight);
+                      // Khoảng cách camera và kích thước lý tưởng trong MindAR Three.js
+                      // Thẻ bài chuẩn có unit = 1.0; đặt model ở khoảng cách z = -2.0m để hiển thị to rõ, cân đối trên mọi màn hình
+                      const freeArDist = 2.0;
+                      worldPointW.set(0, -0.22, -freeArDist);
+                      anchorScaleTarget.set(1.0, 1.0, 1.0);
 
                       // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới Mw = qCam * Mc
                       if (wasTargetFoundLastFrame && qCam) {

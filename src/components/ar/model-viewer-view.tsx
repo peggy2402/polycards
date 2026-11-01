@@ -34,8 +34,16 @@ export function ModelViewerView({
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
+  const getSafeModelUrl = (rawUrl?: string) => {
+    if (!rawUrl) return "/models/polycards.glb";
+    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+      return `/api/proxy/model?url=${encodeURIComponent(rawUrl)}`;
+    }
+    return rawUrl;
+  };
+
   const [activeModelSrc, setActiveModelSrc] = useState<string>(
-    animal.modelUrl || "/models/polycards.glb"
+    getSafeModelUrl(animal.modelUrl)
   );
   const [arSupported, setArSupported] = useState<boolean | null>(null);
   const [isAndroid, setIsAndroid] = useState(false);
@@ -46,7 +54,7 @@ export function ModelViewerView({
   useEffect(() => {
     setLoadError(false);
     setIsFallback(false);
-    setActiveModelSrc(animal.modelUrl || "/models/polycards.glb");
+    setActiveModelSrc(getSafeModelUrl(animal.modelUrl));
   }, [animal.modelUrl]);
 
   useEffect(() => {

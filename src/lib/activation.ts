@@ -259,6 +259,16 @@ export function activateWithCode(
       catSlug: "hoa-qua",
       title: "Bộ 30 Thẻ AR Hoa Quả & Trái Cây",
     },
+    {
+      keywords: ["NGHENGHIEP", "NGHE-NGHIEP", "CAREER", "JOB"],
+      catSlug: "nghe-nghiep",
+      title: "Bộ 30 Thẻ AR Nghề Nghiệp",
+    },
+    {
+      keywords: ["COMBOVIP", "VIP120", "POLY120"],
+      catSlug: "dong-vat",
+      title: "Trọn Bộ Siêu Combo 120 Thẻ Poly Cards",
+    },
   ];
 
   for (const pack of PACK_MAPPINGS) {

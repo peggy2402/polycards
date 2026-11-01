@@ -44,6 +44,80 @@ export async function GET(request: NextRequest) {
         );
       });
       if (!matched) {
+        // Nhận diện các mã bộ chuẩn đã phát hành in trên thẻ bài & hộp sản phẩm (ví dụ: POLY30-HANHDONG)
+        const isStandardPack =
+          codeParam.startsWith("POLY30-") ||
+          codeParam.startsWith("POLY120-") ||
+          codeParam.startsWith("PACK-") ||
+          codeParam.includes("HANHDONG") ||
+          codeParam.includes("DONGVAT") ||
+          codeParam.includes("XECO") ||
+          codeParam.includes("HOAQUA") ||
+          codeParam.includes("NGHENGHIEP");
+
+        if (isStandardPack) {
+          let catSlug = "dong-vat";
+          let packTitle = "Bộ 30 Thẻ AR Poly Cards";
+          let allowedCategorySlugs = ["dong-vat"];
+
+          if (codeParam.includes("HANHDONG") || codeParam.includes("ACTION")) {
+            catSlug = "hanh-dong";
+            packTitle = "Bộ 30 Thẻ AR Hành Động";
+            allowedCategorySlugs = ["hanh-dong"];
+          } else if (codeParam.includes("XECO") || codeParam.includes("VEHICLE")) {
+            catSlug = "xe-co";
+            packTitle = "Bộ 30 Thẻ AR Phương Tiện & Xe Cộ";
+            allowedCategorySlugs = ["xe-co"];
+          } else if (codeParam.includes("HOAQUA") || codeParam.includes("FRUIT")) {
+            catSlug = "hoa-qua";
+            packTitle = "Bộ 30 Thẻ AR Hoa Quả & Trái Cây";
+            allowedCategorySlugs = ["hoa-qua"];
+          } else if (codeParam.includes("NGHENGHIEP") || codeParam.includes("JOB")) {
+            catSlug = "nghe-nghiep";
+            packTitle = "Bộ 30 Thẻ AR Nghề Nghiệp";
+            allowedCategorySlugs = ["nghe-nghiep"];
+          } else if (codeParam.includes("COMBOVIP") || codeParam.includes("120")) {
+            catSlug = "dong-vat";
+            packTitle = "Trọn Bộ Siêu Combo 120 Thẻ Poly Cards";
+            allowedCategorySlugs = ["dong-vat", "hanh-dong", "xe-co", "hoa-qua", "nghe-nghiep"];
+          } else {
+            catSlug = "dong-vat";
+            packTitle = "Bộ 30 Thẻ AR Động Vật";
+            allowedCategorySlugs = ["dong-vat"];
+          }
+
+          const defaultPackOrder: SeedOrderItem = {
+            id: `ORD-${codeParam}`,
+            code: codeParam,
+            packCode: codeParam,
+            codeType: "PACK",
+            packTitle,
+            allowedCategorySlug: catSlug,
+            allowedCategorySlugs,
+            customerName: "Khách Hàng Quét Thẻ Bản Quyền",
+            customerType: "TRUCTIEP",
+            paymentMethod: "TIEN_MAT",
+            creditAmount: 249000,
+            debitAmount: 249000,
+            status: "PAID",
+            createdAt: new Date().toISOString(),
+            note: "Mã bộ phát hành chính thức in trên hộp và thẻ bài Poly Cards",
+          };
+
+          // Tự động lưu vào MongoDB orders để đồng bộ vĩnh viễn
+          try {
+            await dbUpsertOrder(defaultPackOrder);
+          } catch (dbErr) {
+            console.warn("[Orders API] Không thể tự động lưu mã bộ vào DB:", dbErr);
+          }
+
+          return NextResponse.json({
+            success: true,
+            storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+            data: defaultPackOrder,
+          });
+        }
+
         return NextResponse.json(
           {
             success: false,
