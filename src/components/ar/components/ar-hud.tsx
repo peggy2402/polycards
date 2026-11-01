@@ -24,6 +24,7 @@ interface ArHudProps {
   elevationDeg?: number;
   distanceR?: number;
   motionMode?: string;
+  gestureState?: string;
   onClose: () => void;
   onForceShow: () => void;
   onResetTransform: () => void;
@@ -48,6 +49,7 @@ export function ArHud({
   elevationDeg = 0,
   distanceR = 1.9,
   motionMode = "orbit-sphere",
+  gestureState = "IDLE",
   onClose,
   onForceShow,
   onResetTransform,
@@ -124,6 +126,10 @@ export function ArHud({
         <div className="flex justify-between items-center">
           <span>Chế độ Motion:</span>
           <span className="font-bold text-amber-300 uppercase text-[9px]">{motionMode}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Cử chỉ (Gesture):</span>
+          <span className="font-bold text-emerald-400 font-mono text-[10px] uppercase">{gestureState}</span>
         </div>
         <div className="flex justify-between items-center">
           <span>Vị trí (X, Y):</span>

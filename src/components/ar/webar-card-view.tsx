@@ -283,6 +283,9 @@ export function WebArCardView({
     }
   }, [animal.slug, animal.audioUrl, animal.animations, playingClipName]);
 
+  const gestureSpaceRef = useRef<"tracking" | "free">("free");
+  const anchorQuatRef = useRef<any>(null);
+
   // P0 & P1 Gestures Hook (Pointer Events + 60FPS Physics Damping)
   const {
     pointerHandlers,
@@ -290,14 +293,24 @@ export function WebArCardView({
     adjustZoom,
     updatePhysics,
     currentPosRef,
+    panCamCurrentRef,
+    targetScaleRef,
+    isHoldingModelRef,
+    gestureStateRef,
   } = useArGestures({
     containerRef,
     pivotGroupRef,
     maxDimRef,
     halfHRef,
     cameraRef,
+    gestureSpaceRef,
+    anchorQuatRef,
     onTapModel: handleTapModel,
     onZoomChange: setZoomPercent,
+    onResetGesture: () => {
+      resetBasePose();
+      showToast("Đã đặt lại góc nhìn & vị trí 100%", "info");
+    },
     onDoubleTapEmpty: () => {
       resetBasePose();
       showToast("Đã đặt lại góc nhìn & vị trí 100%", "info");
@@ -312,6 +325,12 @@ export function WebArCardView({
 
   const currentPosRefLatest = useRef(currentPosRef);
   currentPosRefLatest.current = currentPosRef;
+
+  const panCamCurrentRefLatest = useRef(panCamCurrentRef);
+  panCamCurrentRefLatest.current = panCamCurrentRef;
+
+  const gestureStateRefLatest = useRef(gestureStateRef);
+  gestureStateRefLatest.current = gestureStateRef;
 
   const stopFrontStreamRef = useRef(() => {});
 
@@ -778,6 +797,15 @@ export function WebArCardView({
                       mixerRef.current.update(dt);
                     }
 
+                    // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Quả cầu quỹ đạo (Orbit Sphere)
+                    const isTargetFoundNow = isTargetFoundRef.current;
+                    const isManual360 = isManual360ActiveRef.current;
+                    const isTrackingCard = isTargetFoundNow && !isManual360;
+
+                    // Gán gesture space và anchor quaternion trước khi cập nhật vật lý cử chỉ
+                    gestureSpaceRef.current = isTrackingCard ? "tracking" : "free";
+                    anchorQuatRef.current = anchorQuatTarget;
+
                     // Cập nhật hệ thống cử chỉ Damping vật lý (đọc qua ref, không re-run effect)
                     if (updatePhysicsRef.current) {
                       updatePhysicsRef.current(dt);
@@ -787,11 +815,6 @@ export function WebArCardView({
                     if (reactionSystemRef.current) {
                       reactionSystemRef.current.update(dt);
                     }
-
-                    // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Quả cầu quỹ đạo (Orbit Sphere)
-                    const isTargetFoundNow = isTargetFoundRef.current;
-                    const isManual360 = isManual360ActiveRef.current;
-                    const isTrackingCard = isTargetFoundNow && !isManual360;
 
                     const isMotionActive =
                       isMotionEnabledRef.current &&
@@ -832,7 +855,10 @@ export function WebArCardView({
                       const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
                       const freeArDist = isLandNow ? 2.4 : 1.9;
                       const yPos = isLandNow ? -0.28 : -0.36;
-                      pScreenVec.set(0, yPos, -freeArDist);
+
+                      // Lấy độ dịch chuyển pan trong không gian màn hình camera (Prompt 2c & 3)
+                      const panCam = panCamCurrentRefLatest.current?.current || { x: 0, y: 0 };
+                      pScreenVec.set(panCam.x, yPos + panCam.y, -freeArDist);
                       anchorScaleTarget.set(1.0, 1.0, 1.0);
 
                       // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới
@@ -868,16 +894,14 @@ export function WebArCardView({
                           // anchorQuat = qView^-1
                           anchorQuatTarget.copy(qView).invert();
 
-                          // O_local = vị trí tâm model trong không gian displayRoot (Prompt 2 & 3: pivot.position chưa bù xoay + (0, halfHeightScaled, 0))
+                          // O_local = vị trí tâm model trong không gian displayRoot
+                          // BẮT BUỘC (Prompt 2c & 3): KHÔNG cộng pan của người dùng vào O_local
+                          // vì pan đã nằm riêng trong không gian camera (panCam) và được cộng vào pScreenVec ở trên.
                           const curScale = pivotGroupRef.current
                             ? pivotGroupRef.current.scale.x / (baseDim / (maxDimRef.current || 1))
                             : 1.0;
                           const hH = halfHRef.current || 0.36;
-                          const rawPos = currentPosRefLatest.current?.current || { x: 0, y: 0 };
-                          const oLocalX = rawPos.x;
-                          const oLocalY = rawPos.y + hH * curScale;
-                          const oLocalZ = 0;
-                          oLocalVec.set(oLocalX, oLocalY, oLocalZ);
+                          oLocalVec.set(0, hH * curScale, 0);
 
                           // anchorPos = P_screen - anchorQuat * O_local
                           quatOLocal.copy(oLocalVec).applyQuaternion(anchorQuatTarget);
@@ -888,6 +912,9 @@ export function WebArCardView({
                           if (hasSavedWorldPose) {
                             qCamInvMatrix.makeRotationFromQuaternion(qCamInv);
                             displayRoot.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
+                            // Áp dụng pan trong không gian màn hình vào ma trận thế giới (Prompt 2c)
+                            displayRoot.matrix.elements[12] += panCam.x;
+                            displayRoot.matrix.elements[13] += panCam.y;
                             smoothedMatrix.copy(displayRoot.matrix);
                             displayRoot.matrixWorldNeedsUpdate = true;
                             wasTargetFoundLastFrame = isTrackingCard;
@@ -1424,6 +1451,7 @@ export function WebArCardView({
         elevationDeg={motionDebugAnglesRef.current.elevationDeg}
         distanceR={isLandscape ? 2.4 : 1.9}
         motionMode={motionMode}
+        gestureState={gestureStateRefLatest.current?.current || "IDLE"}
         onClose={() => setIsDebugOpen(false)}
         onForceShow={() => {
           hasScannedOnceRef.current = true;
