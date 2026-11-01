@@ -610,8 +610,8 @@ export function WebArCardView({
               displayRoot.add(pivot);
               scene.add(displayRoot);
 
-              // Kích thước chuẩn hiển thị to rõ vừa vặn giữa khung nhìn camera
-              const baseDim = 0.75;
+              // Kích thước chuẩn hiển thị vừa vặn, thanh thoát giữa khung nhìn camera
+              const baseDim = 0.38;
               const initialScale = baseDim / maxDim;
               pivot.scale.set(initialScale, initialScale, initialScale);
               pivot.position.set(0, 0, 0);
@@ -677,6 +677,13 @@ export function WebArCardView({
                       lastFpsTimeRef.current = now;
                     }
 
+                    // Bảo đảm camera near clipping plane luôn là 0.05 (ngăn MindAR.resize ghi đè near=10 làm mất model khi xoay ngang)
+                    if (camera && camera.near !== 0.05) {
+                      camera.near = 0.05;
+                      camera.far = 10000;
+                      camera.updateProjectionMatrix();
+                    }
+
                     const dt = clockRef.current ? Math.min(0.1, clockRef.current.getDelta()) : 0.016;
 
                     // Cập nhật AnimationMixer của mô hình
@@ -729,8 +736,11 @@ export function WebArCardView({
                       }
                     } else {
                       // 2. Khi chưa quét thẻ hoặc thẻ vừa bị che khuất (Fallback / Free AR):
-                      const freeArDist = 2.0;
-                      worldPointW.set(0, -0.2, -freeArDist);
+                      // Điều chỉnh vị trí thông minh theo hướng màn hình Dọc / Ngang
+                      const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+                      const freeArDist = isLandNow ? 2.4 : 1.9;
+                      const yPos = isLandNow ? -0.12 : -0.20;
+                      worldPointW.set(0, yPos, -freeArDist);
                       anchorScaleTarget.set(1.0, 1.0, 1.0);
 
                       // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới Mw = qCam * Mc

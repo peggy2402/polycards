@@ -62,9 +62,17 @@
 		}
 		decodeDracoFile( buffer, callback, attributeIDs, attributeTypes ) {
 
+			const safeAttributeTypes = {};
+			if ( attributeTypes ) {
+				for ( const key in attributeTypes ) {
+					const val = attributeTypes[ key ];
+					safeAttributeTypes[ key ] = typeof val === 'function' ? ( val.name || 'Float32Array' ) : val;
+				}
+			}
+
 			const taskConfig = {
 				attributeIDs: attributeIDs || this.defaultAttributeIDs,
-				attributeTypes: attributeTypes || this.defaultAttributeTypes,
+				attributeTypes: attributeTypes ? safeAttributeTypes : this.defaultAttributeTypes,
 				useUniqueIDs: !! attributeIDs
 			};
 			return this.decodeGeometry( buffer, taskConfig ).then( callback );
@@ -112,10 +120,20 @@
 						resolve,
 						reject
 					};
+					// Sanitize taskConfig to guarantee zero functions exist (avoids Worker DataCloneError)
+					let safeTaskConfig = taskConfig;
+					if ( taskConfig ) {
+						try {
+							safeTaskConfig = JSON.parse( JSON.stringify( taskConfig, ( key, val ) => {
+								return typeof val === 'function' ? ( val.name || 'Float32Array' ) : val;
+							} ) );
+						} catch {}
+					}
+
 					worker.postMessage( {
 						type: 'decode',
 						id: taskID,
-						taskConfig,
+						taskConfig: safeTaskConfig,
 						buffer
 					}, [ buffer ] );
 
