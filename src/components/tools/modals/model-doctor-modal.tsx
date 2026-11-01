@@ -265,7 +265,7 @@ export function ModelDoctorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl bg-stone-950 border border-amber-500/40 shadow-2xl shadow-amber-500/10 text-white overflow-hidden">
+      <div className="relative w-full max-w-3xl min-h-[460px] max-h-[92vh] flex flex-col rounded-3xl bg-stone-950 border border-amber-500/40 shadow-2xl shadow-amber-500/10 text-white overflow-hidden">
         {/* Header Modal */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/5">
           <div className="flex items-center gap-2.5">
@@ -337,6 +337,21 @@ export function ModelDoctorModal({
               </label>
             </div>
           </div>
+
+          {/* Trạng thái ban đầu khi chưa chọn hoặc tải thẻ */}
+          {!isInspecting && !currentReport && !optimizedResult && (
+            <div className="py-12 flex flex-col items-center justify-center text-center space-y-3 px-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-stone-200">Sẵn sàng thẩm định mô hình 3D</h3>
+                <p className="text-xs text-stone-400 max-w-md">
+                  Tìm kiếm một thẻ bài từ danh sách bên trên hoặc tải tệp .glb để phân tích số đa giác, độ phân giải texture và nguy cơ sập RAM trên Safari.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Loading State */}
           {isInspecting && (

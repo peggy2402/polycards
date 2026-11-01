@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   ChevronDown,
   X,
   Check,
   Box,
-  Layers,
-  Sparkles,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
 
@@ -36,33 +35,85 @@ export function SearchableCardSelect({
   products,
   selectedSlug,
   onSelect,
-  placeholder = "-- Chọn thẻ bài trong kho --",
+  placeholder = "-- Tìm hoặc chọn thẻ bài --",
   disabled = false,
 }: SearchableCardSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const selectedCard = useMemo(
     () => products.find((p) => p.slug === selectedSlug) || null,
     [products, selectedSlug]
   );
 
+  // Tính toán vị trí hiển thị popover (Fixed Portal để không bị overflow-hidden cắt cụt)
+  const updatePosition = () => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const popoverHeight = 320;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < popoverHeight && rect.top > spaceBelow;
+
+    if (openUpwards) {
+      setPopoverStyle({
+        position: "fixed",
+        bottom: `${window.innerHeight - rect.top + 6}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        maxHeight: `${Math.min(320, rect.top - 16)}px`,
+        zIndex: 99999,
+      });
+    } else {
+      setPopoverStyle({
+        position: "fixed",
+        top: `${rect.bottom + 6}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        maxHeight: `${Math.min(320, spaceBelow - 16)}px`,
+        zIndex: 99999,
+      });
+    }
+  };
+
   // Đóng dropdown khi nhấp chuột ra ngoài
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen]);
 
-  // Tự động focus vào ô tìm kiếm khi mở popover
+  // Tự động focus vào ô tìm kiếm và định vị khi mở popover
   useEffect(() => {
     if (isOpen) {
+      updatePosition();
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
@@ -134,11 +185,15 @@ export function SearchableCardSelect({
         />
       </button>
 
-      {/* Popover Dropdown với Ô Tìm Kiếm */}
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-2xl bg-stone-900 border border-stone-700 shadow-2xl shadow-black/60 overflow-hidden flex flex-col animate-in fade-in duration-150">
+      {/* Popover Dropdown qua React Portal (Luôn nổi lên trên cùng, không bao giờ bị overflow cắt xén) */}
+      {isOpen && mounted && createPortal(
+        <div
+          ref={popoverRef}
+          style={popoverStyle}
+          className="rounded-2xl bg-stone-900 border border-amber-500/40 shadow-2xl shadow-black/80 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl"
+        >
           {/* Ô Input Search */}
-          <div className="p-2.5 border-b border-stone-800 bg-stone-950/60 sticky top-0 z-10 flex items-center gap-2">
+          <div className="p-2.5 border-b border-stone-800 bg-stone-950/80 sticky top-0 z-10 flex items-center gap-2">
             <Search className="h-4 w-4 text-amber-400 shrink-0 ml-1" />
             <input
               ref={searchInputRef}
@@ -152,7 +207,7 @@ export function SearchableCardSelect({
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="p-1 rounded-md text-stone-400 hover:text-stone-100 hover:bg-stone-800"
+                className="p-1 rounded-md text-stone-400 hover:text-stone-100 hover:bg-stone-800 transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -179,7 +234,7 @@ export function SearchableCardSelect({
                     className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between gap-2.5 text-xs transition-colors cursor-pointer ${
                       isSelected
                         ? "bg-amber-500/20 text-amber-200"
-                        : "hover:bg-stone-800/70 text-stone-300"
+                        : "hover:bg-stone-800/80 text-stone-300"
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -222,11 +277,12 @@ export function SearchableCardSelect({
           </div>
 
           {/* Footer nhỏ đếm số thẻ */}
-          <div className="px-3 py-1.5 bg-stone-950/80 border-t border-stone-800/80 text-[10px] text-stone-400 flex items-center justify-between">
+          <div className="px-3 py-1.5 bg-stone-950/90 border-t border-stone-800 text-[10px] text-stone-400 flex items-center justify-between select-none">
             <span>Hiển thị {filteredProducts.length} / {products.length} thẻ bài</span>
-            <span className="text-stone-500">Poly Cards Studio</span>
+            <span className="text-amber-400/80 font-semibold">Poly Cards Studio</span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
