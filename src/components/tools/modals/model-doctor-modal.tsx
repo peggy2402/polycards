@@ -20,6 +20,7 @@ import {
 import { Animal } from "@/types/animal";
 import { GlbHealthReport } from "@/lib/gltf-inspector";
 import { optimizeGlbInBrowser } from "@/lib/client-3d-optimizer";
+import { SearchableCardSelect } from "@/components/tools/widgets/searchable-card-select";
 
 interface ModelDoctorModalProps {
   isOpen: boolean;
@@ -300,27 +301,17 @@ export function ModelDoctorModal({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
                 <Box className="h-3.5 w-3.5 text-amber-400" />
-                <span>Chọn thẻ bài trong kho:</span>
+                <span>Tìm & chọn thẻ bài trong kho:</span>
               </label>
-              <div className="relative">
-                <select
-                  value={selectedSlug}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSelectedSlug(val);
-                    if (val) handleInspectBySlug(val);
-                  }}
-                  className="w-full h-11 px-3.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-200 font-medium appearance-none focus:outline-none focus:border-amber-400 cursor-pointer"
-                >
-                  <option value="">-- Chọn thẻ bài cần thẩm định --</option>
-                  {products.map((p) => (
-                    <option key={p.slug} value={p.slug}>
-                      {p.nameVi} ({p.nameEn}) - {p.slug}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3.5 top-3.5 h-4 w-4 text-stone-400 pointer-events-none" />
-              </div>
+              <SearchableCardSelect
+                products={products}
+                selectedSlug={selectedSlug}
+                placeholder="-- Tìm hoặc chọn thẻ bài cần khám --"
+                onSelect={(val) => {
+                  setSelectedSlug(val);
+                  if (val) handleInspectBySlug(val);
+                }}
+              />
             </div>
 
             {/* Hoặc tải file GLB từ máy tính */}

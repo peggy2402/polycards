@@ -19,6 +19,7 @@ import {
   Box,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
+import { SearchableCardSelect } from "@/components/tools/widgets/searchable-card-select";
 
 interface PreflightCheckItem {
   id: string;
@@ -161,19 +162,13 @@ export function ArSimulatorModal({
 
         {/* Thanh chọn thẻ & chuyển Tab */}
         <div className="px-5 sm:px-7 py-3 border-b border-stone-800 bg-stone-950/40 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
-            <span className="text-xs font-bold text-stone-400 shrink-0">Chọn thẻ:</span>
-            <select
-              value={selectedSlug}
-              onChange={(e) => setSelectedSlug(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-stone-800 border border-stone-700 text-stone-100 text-xs font-semibold focus:outline-none focus:border-sky-500 transition-colors"
-            >
-              {products.map((p) => (
-                <option key={p.id || p.slug} value={p.slug}>
-                  {p.nameVi} ({p.nameEn}) - [{p.category}]
-                </option>
-              ))}
-            </select>
+          <div className="w-full sm:w-80">
+            <SearchableCardSelect
+              products={products}
+              selectedSlug={selectedSlug}
+              placeholder="-- Tìm hoặc chọn thẻ cần thẩm định --"
+              onSelect={(slugVal) => setSelectedSlug(slugVal)}
+            />
           </div>
 
           {/* Tab Selector */}

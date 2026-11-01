@@ -18,6 +18,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
+import { SearchableCardSelect } from "@/components/tools/widgets/searchable-card-select";
 
 interface TargetCompilerModalProps {
   isOpen: boolean;
@@ -305,26 +306,21 @@ export function TargetCompilerModal({
             <div className="p-4 rounded-2xl bg-stone-950/50 border border-stone-800 space-y-3">
               <label className="text-xs font-bold text-stone-300 flex items-center gap-2">
                 <Layers className="h-4 w-4 text-amber-400" />
-                <span>1. Chọn thẻ bài trong kho Poly Cards</span>
+                <span>1. Tìm & chọn thẻ bài trong kho Poly Cards</span>
               </label>
-              <select
-                value={selectedSlug}
-                onChange={(e) => {
-                  setSelectedSlug(e.target.value);
+              <SearchableCardSelect
+                products={products}
+                selectedSlug={selectedSlug}
+                placeholder="-- Tìm kiếm hoặc chọn thẻ bài --"
+                disabled={isCompiling}
+                onSelect={(slugVal) => {
+                  setSelectedSlug(slugVal);
                   setCustomFile(null);
                   setCustomPreviewUrl("");
                   setCompiledBuffer(null);
                   setErrorMessage(null);
                 }}
-                disabled={isCompiling}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-stone-900 border border-stone-700 text-stone-100 text-xs font-semibold focus:outline-none focus:border-amber-500 transition-colors"
-              >
-                {products.map((p) => (
-                  <option key={p.id || p.slug} value={p.slug}>
-                    {p.nameVi} ({p.nameEn}) - [{p.category}]
-                  </option>
-                ))}
-              </select>
+              />
 
               {currentAnimal && (
                 <div className="text-[11px] text-stone-400 space-y-1 bg-stone-900/60 p-3 rounded-xl border border-stone-800/80">
