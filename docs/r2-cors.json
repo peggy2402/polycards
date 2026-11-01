@@ -1,8 +1,7 @@
 [
   {
     "AllowedOrigins": [
-      "https://polycards-one.vercel.app",
-      "http://localhost:3000"
+      "*"
     ],
     "AllowedMethods": [
       "GET",
@@ -14,8 +13,11 @@
       "*"
     ],
     "ExposeHeaders": [
-      "ETag"
+      "ETag",
+      "Content-Length",
+      "Content-Type",
+      "Accept-Ranges"
     ],
-    "MaxAgeSeconds": 3600
+    "MaxAgeSeconds": 86400
   }
 ]
