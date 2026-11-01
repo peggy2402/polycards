@@ -146,7 +146,7 @@ export function useArCamera({ onShowToast }: UseArCameraOptions = {}) {
         if (onShowToast) {
           onShowToast(
             target === "user"
-              ? "Đã chuyển sang Camera trước (Selfie)"
+              ? "Đã chuyển sang Camera trước (Selfie - Cảm biến xoay tạm tắt)"
               : "Đã chuyển về Camera sau",
             "info"
           );

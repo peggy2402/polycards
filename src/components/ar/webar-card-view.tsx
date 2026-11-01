@@ -233,9 +233,10 @@ export function WebArCardView({
   // Đếm số lần effect startAR chạy để kiểm chứng không bị tải lại (chỉ 1 lần mỗi con vật)
   const startArCallCountRef = useRef(0);
 
-  // Hỗ trợ Apple AR Quick Look (iOS .usdz) & WebXR (Android) cho Bước 4
+  // Hỗ trợ Apple AR Quick Look (iOS .usdz) & WebXR (Android) cho Bước 4 & Prompt 5
   const [supportsAppleAr, setSupportsAppleAr] = useState<boolean>(false);
   const [supportsWebXr, setSupportsWebXr] = useState<boolean>(false);
+  const nativeModelViewerRef = useRef<any>(null);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -247,6 +248,22 @@ export function WebArCardView({
         setSupportsWebXr(sup);
       }).catch(() => {});
     }
+    // Nạp @google/model-viewer cho activateAR() (Prompt 5, Phương án A)
+    if (typeof window !== "undefined" && !customElements.get("model-viewer")) {
+      import("@google/model-viewer").catch(() => {});
+    }
+  }, []);
+
+  // Kích hoạt AR native (Quick Look iOS / WebXR Android) ngay trong user click handler
+  const handleLaunchNativeAr = useCallback(() => {
+    if (nativeModelViewerRef.current && typeof nativeModelViewerRef.current.activateAR === "function") {
+      try {
+        nativeModelViewerRef.current.activateAR();
+        return;
+      } catch {}
+    }
+    const quickLookAnchor = document.getElementById("native-ar-quick-look-anchor") as HTMLAnchorElement | null;
+    quickLookAnchor?.click();
   }, []);
 
   // Phản ứng khi chạm vào con vật (P2: Squash & stretch, parabolic jump, floating stars, audio)
@@ -289,6 +306,12 @@ export function WebArCardView({
 
   const updatePhysicsRef = useRef(updatePhysics);
   updatePhysicsRef.current = updatePhysics;
+
+  const resetBasePoseRef = useRef(resetBasePose);
+  resetBasePoseRef.current = resetBasePose;
+
+  const currentPosRefLatest = useRef(currentPosRef);
+  currentPosRefLatest.current = currentPosRef;
 
   const stopFrontStreamRef = useRef(() => {});
 
@@ -814,6 +837,9 @@ export function WebArCardView({
 
                       // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới
                       if (wasTargetFoundLastFrame && qCamTarget) {
+                        if (motionModeRef.current === "orbit-sphere") {
+                          resetBasePoseRef.current?.();
+                        }
                         qCamMatrix.makeRotationFromQuaternion(qCamTarget);
                         savedWorldMatrix.multiplyMatrices(qCamMatrix, lastTrackingMatrix);
                         hasSavedWorldPose = true;
@@ -842,15 +868,15 @@ export function WebArCardView({
                           // anchorQuat = qView^-1
                           anchorQuatTarget.copy(qView).invert();
 
-                          // O_local = vị trí tâm model trong không gian displayRoot
-                          // O_local = pivot.position + (0, halfH * currentScale, 0)
+                          // O_local = vị trí tâm model trong không gian displayRoot (Prompt 2 & 3: pivot.position chưa bù xoay + (0, halfHeightScaled, 0))
                           const curScale = pivotGroupRef.current
                             ? pivotGroupRef.current.scale.x / (baseDim / (maxDimRef.current || 1))
                             : 1.0;
                           const hH = halfHRef.current || 0.36;
-                          const oLocalY = (pivotGroupRef.current ? pivotGroupRef.current.position.y : 0) + hH * curScale;
-                          const oLocalX = pivotGroupRef.current ? pivotGroupRef.current.position.x : 0;
-                          const oLocalZ = pivotGroupRef.current ? pivotGroupRef.current.position.z : 0;
+                          const rawPos = currentPosRefLatest.current?.current || { x: 0, y: 0 };
+                          const oLocalX = rawPos.x;
+                          const oLocalY = rawPos.y + hH * curScale;
+                          const oLocalZ = 0;
                           oLocalVec.set(oLocalX, oLocalY, oLocalZ);
 
                           // anchorPos = P_screen - anchorQuat * O_local
@@ -1328,16 +1354,18 @@ export function WebArCardView({
                   </div>
                 )}
 
-                {/* PHẦN C: Nút Xem AR Thật (Apple AR Quick Look / WebXR trên Android) */}
+                {/* PHẦN C & PROMPT 5: Nút Xem AR Thật (Apple AR Quick Look / WebXR trên Android) */}
                 {(supportsAppleAr || supportsWebXr) &&
                   Boolean(
-                    (animal.iosModelUrl && animal.iosModelUrl.startsWith("/models/") && !animal.iosModelUrl.startsWith("http")) ||
+                    (animal.iosModelUrl &&
+                      (animal.iosModelUrl.startsWith("/models/") || animal.iosModelUrl.startsWith("/models/usdz/")) &&
+                      !animal.iosModelUrl.startsWith("http")) ||
                     supportsWebXr
                   ) && (
                     <div className="pt-1 border-t border-white/10 space-y-1">
-                      <a
-                        href={animal.iosModelUrl || `/models/${animal.slug}.usdz`}
-                        rel="ar"
+                      <button
+                        type="button"
+                        onClick={handleLaunchNativeAr}
                         className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-teal-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
                       >
                         <div className="flex items-center gap-2">
@@ -1347,6 +1375,14 @@ export function WebArCardView({
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">
                           {supportsAppleAr ? "Apple Quick Look" : "WebXR"}
                         </span>
+                      </button>
+                      <a
+                        id="native-ar-quick-look-anchor"
+                        href={animal.iosModelUrl || `/models/usdz/${animal.slug}.usdz`}
+                        rel="ar"
+                        className="hidden"
+                      >
+                        Apple Quick Look
                       </a>
                       <p className="px-2 text-[9px] text-stone-400 leading-tight">
                         *Chế độ chạy ngoài trang, không có từ vựng song ngữ & mic.
@@ -1357,6 +1393,25 @@ export function WebArCardView({
             )}
           </div>
         </div>
+
+      {/* Hidden model-viewer để gọi activateAR() trực tiếp cho WebXR và Scene Viewer (Prompt 5 Phương án A) */}
+      {(supportsAppleAr || supportsWebXr) && (
+        <model-viewer
+          ref={nativeModelViewerRef as any}
+          src={animal.modelUrl || "/models/polycards.glb"}
+          ios-src={
+            animal.iosModelUrl &&
+            (animal.iosModelUrl.startsWith("/models/") || animal.iosModelUrl.startsWith("/models/usdz/")) &&
+            !animal.iosModelUrl.startsWith("http")
+              ? animal.iosModelUrl
+              : undefined
+          }
+          ar
+          ar-modes="webxr scene-viewer quick-look"
+          className="hidden"
+          style={{ display: "none" }}
+        />
+      )}
 
       {/* 5. AR Debug HUD */}
       <ArHud
