@@ -45,6 +45,7 @@ import {
 } from "@/lib/pack-codes-store";
 import { PackCardsModal } from "../modals/pack-cards-modal";
 import { AddPackCodeModal } from "../modals/add-pack-code-modal";
+import { ModelDoctorModal } from "../modals/model-doctor-modal";
 
 interface ProductsTabProps {
   productsList: Animal[];
@@ -111,6 +112,8 @@ export function ProductsTab({
     cards: Animal[];
   } | null>(null);
   const [isAddPackCodeModalOpen, setIsAddPackCodeModalOpen] = useState<boolean>(false);
+  const [isDoctorModalOpen, setIsDoctorModalOpen] = useState<boolean>(false);
+  const [doctorTargetAnimal, setDoctorTargetAnimal] = useState<Animal | null>(null);
 
   useEffect(() => {
     setStoredPackCodes(getStoredPackCodes());
@@ -578,6 +581,19 @@ export function ProductsTab({
               <span className="truncate">Xuất Tệp .ZIP</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setDoctorTargetAnimal(null);
+              setIsDoctorModalOpen(true);
+            }}
+            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-sky-500/20 to-teal-500/20 hover:from-sky-500 hover:to-teal-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            title="Bác sĩ 3D: Kiểm tra đa giác, chống sập RAM iPhone Safari & sinh USDZ lên R2"
+          >
+            <Sparkles className="h-4 w-4 shrink-0 text-sky-400" />
+            <span className="truncate">Bác Sĩ 3D & R2</span>
+          </button>
 
           <button
             type="button"
@@ -1947,6 +1963,10 @@ export function ProductsTab({
         onUpdatePackCode={onUpdatePackCode}
         onAddToPrintQueue={onAddToPrintQueue}
         onDownloadSingleCard={onDownloadSingleCard}
+        onOpenDoctorModal={(card) => {
+          setDoctorTargetAnimal(card);
+          setIsDoctorModalOpen(true);
+        }}
       />
 
       {/* Vùng quét chuột kéo chọn thẻ (Marquee Drag Selection Box) */}
@@ -1980,6 +2000,20 @@ export function ProductsTab({
         onClose={() => setIsAddPackCodeModalOpen(false)}
         onCreated={(newPack) => {
           setBatchTargetPackCode(newPack.code);
+        }}
+      />
+
+      {/* Bác sĩ 3D & Tối Ưu Hóa Mobile AR (Anti-Crash iPhone Safari + Auto USDZ R2) */}
+      <ModelDoctorModal
+        isOpen={isDoctorModalOpen}
+        onClose={() => {
+          setIsDoctorModalOpen(false);
+          setDoctorTargetAnimal(null);
+        }}
+        products={productsList}
+        initialAnimal={doctorTargetAnimal}
+        onOptimizedSuccess={(updated) => {
+          if (onRefreshProducts) onRefreshProducts();
         }}
       />
     </div>

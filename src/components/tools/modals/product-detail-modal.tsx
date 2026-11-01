@@ -18,6 +18,7 @@ import {
   PackageCheck,
   FolderPlus,
   FileDown,
+  Sparkles,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -35,6 +36,7 @@ interface ProductDetailModalProps {
   onUpdatePackCode?: (card: Animal, newPackCode: string) => void;
   onAddToPrintQueue?: (card: Animal) => void;
   onDownloadSingleCard?: (card: Animal) => void;
+  onOpenDoctorModal?: (card: Animal) => void;
 }
 
 export function ProductDetailModal({
@@ -47,6 +49,7 @@ export function ProductDetailModal({
   onUpdatePackCode,
   onAddToPrintQueue,
   onDownloadSingleCard,
+  onOpenDoctorModal,
 }: ProductDetailModalProps) {
   const [previewMode, setPreviewMode] = useState<"subject" | "fullcard">("subject");
 
@@ -410,6 +413,21 @@ export function ProductDetailModal({
               <Eye className="h-3.5 w-3.5" />
               <span>Mở WebAR 3D</span>
             </Link>
+
+            {onOpenDoctorModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenDoctorModal(card);
+                }}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500/20 to-teal-500/20 hover:from-sky-500 hover:to-teal-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                title="Khám sức khỏe mô hình 3D, giảm đa giác & đẩy USDZ lên Cloudflare R2"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-sky-400" />
+                <span>Khám 3D & R2</span>
+              </button>
+            )}
 
             <button
               type="button"
