@@ -35,6 +35,7 @@ import {
   ScanLine,
   Smartphone,
   HardDrive,
+  Wrench,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -547,36 +548,37 @@ export function ProductsTab({
 
   return (
     <div className="flex-1 overflow-y-auto bg-stone-950 p-4 sm:p-6 lg:p-8 space-y-5">
-      {/* Header Kho Thẻ Bài */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-white/10">
+      {/* 1. Header Kho Thẻ Bài (Thoáng đãng, phân cấp thị giác rõ ràng) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black">
+            <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black shadow-inner">
               <Layers className="h-5 w-5" />
             </div>
-            <h2 className="text-lg sm:text-xl font-black text-white">
+            <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
               Kho Thẻ Bài Sản Phẩm Poly Cards
             </h2>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
               {productsList.length} Thẻ
             </span>
           </div>
-          <p className="text-xs text-stone-400 mt-1 max-w-2xl">
-            Bấm trực tiếp vào bất kỳ thẻ nhỏ nào bên dưới để xem chi tiết, sửa thông tin, chế bản in hoặc thử WebAR 3D. Chọn nhiều thẻ để gán nhanh Mã Bộ hàng loạt.
+          <p className="text-xs text-stone-400 mt-1 max-w-xl leading-relaxed">
+            Bấm vào bất kỳ thẻ nhỏ nào để xem chi tiết, chỉnh sửa thông tin, chế bản in hoặc trải nghiệm WebAR 3D.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto">
+        {/* Primary Action Group: Làm Mới, Xuất ZIP, Chế Bản Thẻ Mới */}
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
           {onRefreshProducts && (
             <button
               type="button"
               disabled={isLoadingProducts}
               onClick={onRefreshProducts}
-              className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white border border-white/15 font-black text-xs flex items-center justify-center gap-2 shadow-md hover:border-amber-400/40 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              className="min-h-[42px] py-2 px-3 sm:px-3.5 rounded-xl bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white border border-white/15 font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:border-amber-400/40 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
               title="Làm mới danh sách thẻ bài (Đồng bộ dữ liệu mới nhất từ MongoDB Atlas)"
             >
               <RefreshCw className={`h-4 w-4 text-amber-400 shrink-0 ${isLoadingProducts ? "animate-spin" : ""}`} />
-              <span className="truncate">{isLoadingProducts ? "Đang đồng bộ..." : "Làm Mới"}</span>
+              <span className="hidden sm:inline">{isLoadingProducts ? "Đang đồng bộ..." : "Làm Mới"}</span>
             </button>
           )}
 
@@ -592,78 +594,100 @@ export function ProductsTab({
                 }
                 setIsPackZipModalOpen(true);
               }}
-              className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500 text-purple-200 hover:text-white border border-purple-400/50 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              className="min-h-[42px] py-2 px-3.5 sm:px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500 text-purple-200 hover:text-white border border-purple-400/50 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/15 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              title="Tải gói ảnh in chất lượng cao và dữ liệu .ZIP"
             >
               <FolderArchive className="h-4 w-4 shrink-0" />
-              <span className="truncate">Xuất Tệp .ZIP</span>
+              <span>Xuất Tệp .ZIP</span>
             </button>
           )}
 
+          <button
+            type="button"
+            onClick={onNavigateToEditor}
+            className="min-h-[42px] py-2 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-stone-950 font-black text-xs flex items-center justify-center gap-2 shadow-xl shadow-amber-500/25 active:scale-95 transition-all cursor-pointer"
+          >
+            <Plus className="h-4 w-4 shrink-0 stroke-[3]" />
+            <span>Chế Bản Thẻ Mới</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Trạm Kỹ Thuật AR & Quản Lý Xưởng In (Quick Tools Dock) - Tách biệt, thoáng đãng, chuyên nghiệp */}
+      <div className="p-3 sm:p-3.5 rounded-2xl bg-stone-900/60 border border-white/10 backdrop-blur-md flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-2 text-stone-400 text-xs font-bold">
+          <div className="h-7 w-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-amber-400 shrink-0">
+            <Wrench className="h-3.5 w-3.5" />
+          </div>
+          <div>
+            <span className="font-black text-stone-200 uppercase tracking-wider text-[11px]">Trạm Kỹ Thuật AR & In Ấn</span>
+            <span className="hidden sm:inline text-stone-400 text-[11px] ml-2 font-normal">• Công cụ tối ưu 3D, MindAR và Cloud R2</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap items-center gap-2">
+          {/* Bác Sĩ 3D */}
           <button
             type="button"
             onClick={() => {
               setDoctorTargetAnimal(null);
               setIsDoctorModalOpen(true);
             }}
-            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-sky-500/20 to-teal-500/20 hover:from-sky-500 hover:to-teal-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-sky-500/15 hover:bg-sky-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
             title="Bác sĩ 3D: Kiểm tra đa giác, chống sập RAM iPhone Safari & sinh USDZ lên R2"
           >
-            <Sparkles className="h-4 w-4 shrink-0 text-sky-400" />
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400 group-hover:text-stone-950 transition-colors" />
             <span className="truncate">Bác Sĩ 3D</span>
           </button>
 
+          {/* Tạo .mind */}
           <button
             type="button"
             onClick={() => {
               setTargetModalAnimal(null);
               setIsTargetModalOpen(true);
             }}
-            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
             title="Biên dịch tệp .mind từ ảnh phôi thẻ bài chuẩn xác 100%"
           >
-            <ScanLine className="h-4 w-4 shrink-0 text-amber-400" />
+            <ScanLine className="h-3.5 w-3.5 shrink-0 text-amber-400 group-hover:text-stone-950 transition-colors" />
             <span className="truncate">Tạo .mind</span>
           </button>
 
+          {/* Giả Lập & QA */}
           <button
             type="button"
             onClick={() => {
               setSimulatorModalAnimal(null);
               setIsSimulatorModalOpen(true);
             }}
-            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-indigo-500/20 hover:bg-indigo-500 text-indigo-300 hover:text-stone-950 border border-indigo-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500 text-indigo-300 hover:text-stone-950 border border-indigo-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
             title="Giả lập Camera AR & Thẩm định 6 tiêu chí xuất xưởng trước khi in"
           >
-            <Smartphone className="h-4 w-4 shrink-0 text-indigo-400" />
+            <Smartphone className="h-3.5 w-3.5 shrink-0 text-indigo-400 group-hover:text-stone-950 transition-colors" />
             <span className="truncate">Giả Lập & QA</span>
           </button>
 
+          {/* Kho R2 */}
           <button
             type="button"
             onClick={() => setIsR2StorageModalOpen(true)}
-            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
-            title="Kiểm soát dung lượng 10GB Cloudflare R2 & Dọn dẹp tệp mồ côi"
+            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
+            title="Kiểm soát dung lượng 10GB Cloudflare R2 & Dọn dẹp tệp cần dọn dẹp"
           >
-            <HardDrive className="h-4 w-4 shrink-0 text-emerald-400" />
+            <HardDrive className="h-3.5 w-3.5 shrink-0 text-emerald-400 group-hover:text-stone-950 transition-colors" />
             <span className="truncate">Kho R2 (10GB)</span>
           </button>
 
+          {/* Khối Combo (#products) */}
           <button
             type="button"
             onClick={onOpenComboModal}
-            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-teal-500/15 hover:bg-teal-500 text-teal-300 hover:text-stone-950 border border-teal-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
+            title="Cấu hình ghim thẻ bài và khối combo lớn hiển thị ở trang chủ"
           >
-            <Sparkles className="h-4 w-4 shrink-0" />
+            <Star className="h-3.5 w-3.5 shrink-0 text-teal-400 group-hover:text-stone-950 transition-colors" />
             <span className="truncate">Khối Combo (#products)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onNavigateToEditor}
-            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
-          >
-            <Plus className="h-4 w-4 shrink-0" />
-            <span className="truncate">Chế Bản Thẻ Mới</span>
           </button>
         </div>
       </div>

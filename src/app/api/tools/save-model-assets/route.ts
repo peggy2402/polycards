@@ -7,11 +7,55 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/tools/save-model-assets
- * Tiếp nhận trực tiếp các tệp .glb và .usdz đã được nén/tối ưu hóa từ Browser Three.js Engine
- * Tải thẳng lên Cloudflare R2 CDN và đồng bộ MongoDB Atlas (Hoạt động hoàn hảo trên Vercel Serverless)
+ * Tiếp nhận cập nhật model assets lên Cloudflare R2 & MongoDB Atlas
+ * Hỗ trợ 2 chế độ:
+ * 1. JSON Mode: Client đã upload trực tiếp lên R2 qua Presigned URL (0% Payload size, không bao giờ bị 413 trên Vercel)
+ * 2. FormData Mode: Client gửi trực tiếp file nhị phân (cho các file nhỏ <4MB)
  */
 export async function POST(req: NextRequest) {
   try {
+    const contentType = req.headers.get("content-type") || "";
+
+    // 1. CHẾ ĐỘ JSON: Đã tải trực tiếp lên Cloudflare R2 qua Presigned URL
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      const slug = (body.slug as string | undefined)?.trim()?.toLowerCase();
+      const glbUrl = (body.glbUrl as string | undefined)?.trim();
+      const usdzUrl = (body.usdzUrl as string | undefined)?.trim();
+      const afterReport = body.afterReport || null;
+      const updateDatabase = body.updateDatabase !== false;
+
+      if (!slug || !glbUrl) {
+        return NextResponse.json(
+          { success: false, message: "Vui lòng cung cấp slug và glbUrl." },
+          { status: 400 }
+        );
+      }
+
+      let updatedCard = null;
+      if (updateDatabase) {
+        const existing = await dbGetProductBySlug(slug);
+        if (existing) {
+          existing.modelUrl = glbUrl;
+          if (usdzUrl) {
+            existing.iosModelUrl = usdzUrl;
+          }
+          existing.updatedAt = new Date().toISOString();
+          updatedCard = await dbUpsertProduct(existing);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Đã liên kết thành công mô hình 3D cho thẻ "${slug}"!`,
+        glbUrl,
+        usdzUrl,
+        afterReport,
+        updatedCard,
+      });
+    }
+
+    // 2. CHẾ ĐỘ FORMDATA: Tải nhị phân trực tiếp (Fallback)
     const formData = await req.formData();
     const slug = (formData.get("slug") as string | null)?.trim()?.toLowerCase();
     const glbFile = formData.get("glb") as File | null;
@@ -83,4 +127,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
-

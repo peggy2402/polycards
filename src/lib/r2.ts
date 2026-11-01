@@ -5,6 +5,7 @@ import {
   ListObjectsV2Command,
   ListObjectsV2CommandOutput,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID?.trim();
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID?.trim();
@@ -47,6 +48,30 @@ export function getR2Client(): S3Client | null {
     });
   }
   return r2Client;
+}
+
+/**
+ * Tạo Presigned URL cho phép trình duyệt tải trực tiếp tệp lên Cloudflare R2
+ * Bỏ qua hoàn toàn giới hạn dung lượng 4.5MB của Vercel Serverless Function
+ */
+export async function getPresignedUploadUrl(
+  fileName: string,
+  contentType: string
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  const client = getR2Client();
+  if (!client) {
+    throw new Error("Cloudflare R2 chưa được cấu hình đầy đủ các biến môi trường.");
+  }
+  const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: cleanName,
+    ContentType: contentType,
+  });
+  const uploadUrl = await getSignedUrl(client, command, { expiresIn: 3600 });
+  const baseUrl = R2_PUBLIC_URL!.replace(/\/+$/, "");
+  const publicUrl = `${baseUrl}/${cleanName}`;
+  return { uploadUrl, publicUrl };
 }
 
 /**
