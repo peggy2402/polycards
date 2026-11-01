@@ -531,25 +531,11 @@ export function WebArCardView({
           primaryModelUrl = `/api/proxy/model?url=${encodeURIComponent(primaryModelUrl)}`;
         }
 
-        let modelLoadTimeoutTimer: any = null;
-
         const loadModelWithFallback = (urlToLoad: string, isFallbackAttempt: boolean = false) => {
-          // Timeout bảo vệ 8s: Nếu tệp mạng quá nặng hoặc parse treo, tự động fallback sang polycards.glb
-          if (!isFallbackAttempt) {
-            modelLoadTimeoutTimer = setTimeout(() => {
-              if (isLoading && !isCancelled) {
-                console.warn("[PolyCards AR] Tải mô hình chính quá 8s, tự động chuyển sang polycards.glb tối ưu.");
-                setIsUsingFallbackModel(true);
-                loadModelWithFallback(fallbackModelUrl, true);
-              }
-            }, 8000);
-          }
-
           loader.load(
             urlToLoad,
             (gltf: any) => {
               if (isCancelled) return;
-              if (modelLoadTimeoutTimer) clearTimeout(modelLoadTimeoutTimer);
               setDownloadProgress(100);
 
               const rawModel = gltf.scene;
@@ -622,7 +608,13 @@ export function WebArCardView({
               pivot.name = "ArPivotGroup";
               pivot.add(reactionSystem.reactionGroup);
 
-              anchor.group.add(pivot);
+              // Root Group hiển thị độc lập nằm trực tiếp trong Scene:
+              // Giúp mô hình 100% LUÔN HIỂN THỊ, không bị MindAR ẩn đi khi chưa nhận diện được thẻ
+              const displayRoot = new THREE.Group();
+              displayRoot.name = "ArDisplayRoot";
+              displayRoot.matrixAutoUpdate = false;
+              displayRoot.add(pivot);
+              scene.add(displayRoot);
 
               const baseDim = 0.34;
               const initialScale = baseDim / maxDim;
@@ -634,7 +626,7 @@ export function WebArCardView({
 
               hasScannedOnceRef.current = true;
               setHasScannedOnce(true);
-              anchor.group.visible = true;
+              displayRoot.visible = true;
 
               // 6. Khởi động Camera stream
               clockRef.current = new THREE.Clock();
@@ -701,6 +693,8 @@ export function WebArCardView({
                       gyroQuatRefLatest.current?.current;
                     const qCam = isMotionActive ? gyroQuatRefLatest.current.current : null;
 
+                    displayRoot.visible = true;
+
                     if (isTargetFoundNow) {
                       // 1. Khi đang nhận diện thẻ bài vật lý:
                       lastTrackingMatrix.copy(anchorGroupRef.current.matrix);
@@ -714,19 +708,18 @@ export function WebArCardView({
                         trackingEaseTime = Math.min(1.0, trackingEaseTime + dt / 0.3);
                         // Ease-out cubic: 1 - (1 - t)^3
                         const tEase = 1 - Math.pow(1 - trackingEaseTime, 3);
-                        anchorGroupRef.current.matrix.lerpMatrices(
+                        displayRoot.matrix.lerpMatrices(
                           smoothedMatrix,
                           anchorGroupRef.current.matrix,
                           tEase
                         );
-                        anchorGroupRef.current.matrixWorldNeedsUpdate = true;
+                        displayRoot.matrixWorldNeedsUpdate = true;
+                      } else {
+                        displayRoot.matrix.copy(anchorGroupRef.current.matrix);
+                        displayRoot.matrixWorldNeedsUpdate = true;
                       }
-                    } else if (hasScannedOnceRef.current && anchorGroupRef.current) {
+                    } else {
                       // 2. Khi chưa quét thẻ hoặc thẻ vừa bị che khuất (Fallback / Free AR):
-                      anchorGroupRef.current.visible = true;
-
-                      // Khoảng cách camera và kích thước lý tưởng trong MindAR Three.js
-                      // Thẻ bài chuẩn có unit = 1.0; đặt model ở khoảng cách z = -2.0m để hiển thị to rõ, cân đối trên mọi màn hình
                       const freeArDist = 2.0;
                       worldPointW.set(0, -0.22, -freeArDist);
                       anchorScaleTarget.set(1.0, 1.0, 1.0);
@@ -752,13 +745,11 @@ export function WebArCardView({
                           anchorQuatTarget.copy(orbitQuat);
                         } else {
                           // BƯỚC 2 (P1): Chế độ "Đứng yên trong phòng" (World-lock 3DoF)
-                          // LƯU Ý KỸ THUẬT: Đây là 3DoF (Orientation only), chỉ bù góc xoay, KHÔNG bù tịnh tiến
                           if (hasSavedWorldPose) {
-                            // Dùng ma trận thế giới đã lưu: Mc' = qInv * Mw
                             qCamInvMatrix.makeRotationFromQuaternion(qCamInv);
-                            anchorGroupRef.current.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
-                            smoothedMatrix.copy(anchorGroupRef.current.matrix);
-                            anchorGroupRef.current.matrixWorldNeedsUpdate = true;
+                            displayRoot.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
+                            smoothedMatrix.copy(displayRoot.matrix);
+                            displayRoot.matrixWorldNeedsUpdate = true;
                             wasTargetFoundLastFrame = isTargetFoundNow;
                             renderer.render(scene, camera);
                             return;
@@ -773,13 +764,13 @@ export function WebArCardView({
                         anchorQuatTarget.set(0, 0, 0, 1);
                       }
 
-                      anchorGroupRef.current.matrix.compose(
+                      displayRoot.matrix.compose(
                         anchorPosTarget,
                         anchorQuatTarget,
                         anchorScaleTarget
                       );
-                      smoothedMatrix.copy(anchorGroupRef.current.matrix);
-                      anchorGroupRef.current.matrixWorldNeedsUpdate = true;
+                      smoothedMatrix.copy(displayRoot.matrix);
+                      displayRoot.matrixWorldNeedsUpdate = true;
                     }
 
                     wasTargetFoundLastFrame = isTargetFoundNow;
