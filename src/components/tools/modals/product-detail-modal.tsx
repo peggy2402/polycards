@@ -19,6 +19,8 @@ import {
   FolderPlus,
   FileDown,
   Sparkles,
+  ScanLine,
+  Smartphone,
 } from "lucide-react";
 import { Animal } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -37,6 +39,8 @@ interface ProductDetailModalProps {
   onAddToPrintQueue?: (card: Animal) => void;
   onDownloadSingleCard?: (card: Animal) => void;
   onOpenDoctorModal?: (card: Animal) => void;
+  onOpenTargetModal?: (card: Animal) => void;
+  onOpenSimulatorModal?: (card: Animal) => void;
 }
 
 export function ProductDetailModal({
@@ -50,6 +54,8 @@ export function ProductDetailModal({
   onAddToPrintQueue,
   onDownloadSingleCard,
   onOpenDoctorModal,
+  onOpenTargetModal,
+  onOpenSimulatorModal,
 }: ProductDetailModalProps) {
   const [previewMode, setPreviewMode] = useState<"subject" | "fullcard">("subject");
 
@@ -421,11 +427,41 @@ export function ProductDetailModal({
                   onClose();
                   onOpenDoctorModal(card);
                 }}
-                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500/20 to-teal-500/20 hover:from-sky-500 hover:to-teal-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-teal-500/20 hover:from-sky-500 hover:to-teal-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
                 title="Khám sức khỏe mô hình 3D, giảm đa giác & đẩy USDZ lên Cloudflare R2"
               >
                 <Sparkles className="h-3.5 w-3.5 text-sky-400" />
-                <span>Khám 3D & R2</span>
+                <span>Khám 3D</span>
+              </button>
+            )}
+
+            {onOpenTargetModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenTargetModal(card);
+                }}
+                className="py-2.5 px-3.5 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                title="Biên dịch tệp nhận diện Target .mind chuẩn xác"
+              >
+                <ScanLine className="h-3.5 w-3.5 text-amber-400" />
+                <span>Tạo .mind</span>
+              </button>
+            )}
+
+            {onOpenSimulatorModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSimulatorModal(card);
+                }}
+                className="py-2.5 px-3.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500 text-indigo-300 hover:text-stone-950 border border-indigo-400/40 font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                title="Giả lập Camera AR & Thẩm định 6 tiêu chuẩn xuất xưởng"
+              >
+                <Smartphone className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Thẩm Định</span>
               </button>
             )}
 

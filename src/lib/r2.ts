@@ -1,4 +1,10 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
+} from "@aws-sdk/client-s3";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID?.trim();
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID?.trim();
@@ -96,4 +102,54 @@ export async function deleteFromR2(fileName: string): Promise<boolean> {
     return false;
   }
 }
+
+export interface R2ObjectItem {
+  key: string;
+  size: number;
+  lastModified?: Date;
+  url: string;
+}
+
+/**
+ * Liệt kê danh sách tất cả các tệp hiện có trong bucket Cloudflare R2
+ */
+export async function listR2Objects(prefix?: string): Promise<R2ObjectItem[]> {
+  const client = getR2Client();
+  if (!client) {
+    throw new Error("Cloudflare R2 chưa được cấu hình.");
+  }
+
+  const items: R2ObjectItem[] = [];
+  let continuationToken: string | undefined = undefined;
+  const baseUrl = R2_PUBLIC_URL!.replace(/\/+$/, "");
+
+  do {
+    const res: ListObjectsV2CommandOutput = await client.send(
+      new ListObjectsV2Command({
+        Bucket: R2_BUCKET_NAME,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+        MaxKeys: 1000,
+      })
+    );
+
+    if (res.Contents) {
+      for (const obj of res.Contents) {
+        if (obj.Key) {
+          items.push({
+            key: obj.Key,
+            size: obj.Size || 0,
+            lastModified: obj.LastModified,
+            url: `${baseUrl}/${obj.Key}`,
+          });
+        }
+      }
+    }
+
+    continuationToken = res.NextContinuationToken;
+  } while (continuationToken);
+
+  return items;
+}
+
 

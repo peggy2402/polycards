@@ -32,6 +32,9 @@ import {
   Trash2,
   Tag,
   Languages,
+  ScanLine,
+  Smartphone,
+  HardDrive,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -46,6 +49,9 @@ import {
 import { PackCardsModal } from "../modals/pack-cards-modal";
 import { AddPackCodeModal } from "../modals/add-pack-code-modal";
 import { ModelDoctorModal } from "../modals/model-doctor-modal";
+import { TargetCompilerModal } from "../modals/target-compiler-modal";
+import { ArSimulatorModal } from "../modals/ar-simulator-modal";
+import { R2StorageModal } from "../modals/r2-storage-modal";
 
 interface ProductsTabProps {
   productsList: Animal[];
@@ -114,6 +120,17 @@ export function ProductsTab({
   const [isAddPackCodeModalOpen, setIsAddPackCodeModalOpen] = useState<boolean>(false);
   const [isDoctorModalOpen, setIsDoctorModalOpen] = useState<boolean>(false);
   const [doctorTargetAnimal, setDoctorTargetAnimal] = useState<Animal | null>(null);
+
+  // Modal Biên dịch Target .mind
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState<boolean>(false);
+  const [targetModalAnimal, setTargetModalAnimal] = useState<Animal | null>(null);
+
+  // Modal Giả lập Camera AR & Thẩm định Pre-flight
+  const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState<boolean>(false);
+  const [simulatorModalAnimal, setSimulatorModalAnimal] = useState<Animal | null>(null);
+
+  // Modal Quản lý kho R2 & Dọn dẹp tệp mồ côi
+  const [isR2StorageModalOpen, setIsR2StorageModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     setStoredPackCodes(getStoredPackCodes());
@@ -592,7 +609,43 @@ export function ProductsTab({
             title="Bác sĩ 3D: Kiểm tra đa giác, chống sập RAM iPhone Safari & sinh USDZ lên R2"
           >
             <Sparkles className="h-4 w-4 shrink-0 text-sky-400" />
-            <span className="truncate">Bác Sĩ 3D & R2</span>
+            <span className="truncate">Bác Sĩ 3D</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTargetModalAnimal(null);
+              setIsTargetModalOpen(true);
+            }}
+            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            title="Biên dịch tệp .mind từ ảnh phôi thẻ bài chuẩn xác 100%"
+          >
+            <ScanLine className="h-4 w-4 shrink-0 text-amber-400" />
+            <span className="truncate">Tạo .mind</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSimulatorModalAnimal(null);
+              setIsSimulatorModalOpen(true);
+            }}
+            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-indigo-500/20 hover:bg-indigo-500 text-indigo-300 hover:text-stone-950 border border-indigo-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            title="Giả lập Camera AR & Thẩm định 6 tiêu chí xuất xưởng trước khi in"
+          >
+            <Smartphone className="h-4 w-4 shrink-0 text-indigo-400" />
+            <span className="truncate">Giả Lập & QA</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsR2StorageModalOpen(true)}
+            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+            title="Kiểm soát dung lượng 10GB Cloudflare R2 & Dọn dẹp tệp mồ côi"
+          >
+            <HardDrive className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span className="truncate">Kho R2 (10GB)</span>
           </button>
 
           <button
@@ -1967,6 +2020,14 @@ export function ProductsTab({
           setDoctorTargetAnimal(card);
           setIsDoctorModalOpen(true);
         }}
+        onOpenTargetModal={(card) => {
+          setTargetModalAnimal(card);
+          setIsTargetModalOpen(true);
+        }}
+        onOpenSimulatorModal={(card) => {
+          setSimulatorModalAnimal(card);
+          setIsSimulatorModalOpen(true);
+        }}
       />
 
       {/* Vùng quét chuột kéo chọn thẻ (Marquee Drag Selection Box) */}
@@ -2013,6 +2074,48 @@ export function ProductsTab({
         products={productsList}
         initialAnimal={doctorTargetAnimal}
         onOptimizedSuccess={(updated) => {
+          if (onRefreshProducts) onRefreshProducts();
+        }}
+      />
+
+      {/* MindAR Target Compiler (Biên dịch .mind từ ảnh phôi) */}
+      <TargetCompilerModal
+        isOpen={isTargetModalOpen}
+        onClose={() => {
+          setIsTargetModalOpen(false);
+          setTargetModalAnimal(null);
+        }}
+        products={productsList}
+        initialAnimal={targetModalAnimal}
+        onCompileSuccess={(updated) => {
+          if (onRefreshProducts) onRefreshProducts();
+        }}
+      />
+
+      {/* Virtual AR Simulator & Pre-flight QA Validator */}
+      <ArSimulatorModal
+        isOpen={isSimulatorModalOpen}
+        onClose={() => {
+          setIsSimulatorModalOpen(false);
+          setSimulatorModalAnimal(null);
+        }}
+        products={productsList}
+        initialAnimal={simulatorModalAnimal}
+        onOpenDoctorModal={(card) => {
+          setDoctorTargetAnimal(card);
+          setIsDoctorModalOpen(true);
+        }}
+        onOpenTargetModal={(card) => {
+          setTargetModalAnimal(card);
+          setIsTargetModalOpen(true);
+        }}
+      />
+
+      {/* Quản lý lưu trữ Cloudflare R2 CDN (10GB Quota Monitor & Cleaner) */}
+      <R2StorageModal
+        isOpen={isR2StorageModalOpen}
+        onClose={() => setIsR2StorageModalOpen(false)}
+        onRefreshProducts={() => {
           if (onRefreshProducts) onRefreshProducts();
         }}
       />
