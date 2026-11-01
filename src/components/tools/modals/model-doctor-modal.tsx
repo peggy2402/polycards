@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Animal } from "@/types/animal";
 import { GlbHealthReport } from "@/lib/gltf-inspector";
+import { optimizeGlbInBrowser } from "@/lib/client-3d-optimizer";
 
 interface ModelDoctorModalProps {
   isOpen: boolean;
@@ -38,7 +39,9 @@ export function ModelDoctorModal({
   const [selectedSlug, setSelectedSlug] = useState<string>(initialAnimal?.slug || "");
   const [isInspecting, setIsInspecting] = useState<boolean>(false);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [statusText, setStatusText] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [customUploadedFile, setCustomUploadedFile] = useState<File | null>(null);
 
   const [currentReport, setCurrentReport] = useState<GlbHealthReport | null>(null);
   const [optimizedResult, setOptimizedResult] = useState<{
@@ -60,6 +63,7 @@ export function ModelDoctorModal({
     setIsInspecting(true);
     setErrorMsg(null);
     setOptimizedResult(null);
+    setCustomUploadedFile(null);
 
     try {
       const res = await fetch(`/api/tools/inspect-3d?slug=${encodeURIComponent(slugToInspect)}`);
@@ -82,6 +86,7 @@ export function ModelDoctorModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setCustomUploadedFile(file);
     setIsInspecting(true);
     setErrorMsg(null);
     setOptimizedResult(null);
@@ -113,50 +118,147 @@ export function ModelDoctorModal({
   const handleOptimizeNow = async () => {
     setIsOptimizing(true);
     setErrorMsg(null);
+    setStatusText("Đang kết nối pipeline tối ưu hóa...");
 
     const formData = new FormData();
     if (selectedSlug) {
       formData.append("slug", selectedSlug);
+    }
+    if (customUploadedFile) {
+      formData.append("file", customUploadedFile);
     }
     formData.append("targetPolygons", "40000");
     formData.append("maxTextureSize", "1024");
     formData.append("autoUploadR2", "true");
 
     try {
-      const res = await fetch("/api/tools/optimize-3d", {
-        method: "POST",
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || "Quá trình tối ưu hóa 3D thất bại.");
+      let json: any = null;
+      let usedServerPipeline = false;
+
+      // 1. Thử gọi Server Pipeline trước
+      try {
+        const res = await fetch("/api/tools/optimize-3d", {
+          method: "POST",
+          body: formData,
+        });
+        json = await res.json();
+        if (res.ok && json.success) {
+          usedServerPipeline = true;
+        }
+      } catch {
+        usedServerPipeline = false;
       }
 
-      setOptimizedResult({
-        modelUrl: json.modelUrl,
-        iosModelUrl: json.iosModelUrl,
-        beforeReport: json.beforeReport,
-        afterReport: json.afterReport,
-        reducedPercent: json.reducedPercent,
-        savedPolygons: json.savedPolygons,
-      });
+      // 2. Nếu Server trả về 501 (Vercel Serverless không có Blender) -> Tự động chuyển sang Browser Three.js Engine!
+      if (!usedServerPipeline) {
+        setStatusText("Đang khởi chạy Three.js WebGL Engine trên trình duyệt...");
 
-      setCurrentReport(json.afterReport);
+        let arrayBuffer: ArrayBuffer | null = null;
+        if (customUploadedFile) {
+          arrayBuffer = await customUploadedFile.arrayBuffer();
+        } else if (selectedSlug) {
+          const matched = products.find((p) => p.slug === selectedSlug);
+          if (matched?.modelUrl) {
+            setStatusText("Đang tải tệp mô hình nguồn...");
+            const proxyUrl = `/api/proxy/model?url=${encodeURIComponent(matched.modelUrl)}`;
+            const modelRes = await fetch(proxyUrl);
+            if (modelRes.ok) {
+              arrayBuffer = await modelRes.arrayBuffer();
+            }
+          }
+        }
 
-      if (selectedSlug && onOptimizedSuccess) {
-        const matched = products.find((p) => p.slug === selectedSlug);
-        if (matched) {
-          onOptimizedSuccess({
-            ...matched,
-            modelUrl: json.modelUrl,
-            iosModelUrl: json.iosModelUrl,
+        if (!arrayBuffer) {
+          throw new Error(json?.message || "Không thể tải tệp 3D nguồn để tối ưu hóa.");
+        }
+
+        // Tối ưu hóa trực tiếp trên trình duyệt (Downscale textures 4K -> 1024, xuất GLB + USDZ)
+        const clientRes = await optimizeGlbInBrowser(arrayBuffer, 1024, (step: string) => {
+          setStatusText(step);
+        });
+
+        setStatusText("Đang tải các tệp tối ưu lên Cloudflare R2 CDN...");
+
+        // Gửi các tệp đã nén lên Cloudflare R2
+        const saveFormData = new FormData();
+        const effectiveSlug = selectedSlug || (customUploadedFile ? customUploadedFile.name.replace(/\.[^/.]+$/, "") : "model");
+        saveFormData.append("slug", effectiveSlug);
+        saveFormData.append("glb", clientRes.glbBlob, `${effectiveSlug}.glb`);
+        if (clientRes.usdzBlob) {
+          saveFormData.append("usdz", clientRes.usdzBlob, `${effectiveSlug}.usdz`);
+        }
+        saveFormData.append("updateDatabase", "true");
+
+        const saveRes = await fetch("/api/tools/save-model-assets", {
+          method: "POST",
+          body: saveFormData,
+        });
+        const saveJson = await saveRes.json();
+        if (!saveRes.ok || !saveJson.success) {
+          throw new Error(saveJson.message || "Lỗi lưu tệp lên Cloudflare R2.");
+        }
+
+        const reducedPct = Math.max(
+          0,
+          Math.round(((clientRes.originalSizeMB - clientRes.optimizedSizeMB) / clientRes.originalSizeMB) * 100)
+        );
+
+        const fallbackBeforeReport = currentReport || json?.beforeReport;
+        if (fallbackBeforeReport && saveJson.afterReport) {
+          setOptimizedResult({
+            modelUrl: saveJson.glbUrl,
+            iosModelUrl: saveJson.usdzUrl,
+            beforeReport: fallbackBeforeReport,
+            afterReport: saveJson.afterReport,
+            reducedPercent: reducedPct,
+            savedPolygons: 0,
           });
+        }
+
+        if (saveJson.afterReport) {
+          setCurrentReport(saveJson.afterReport);
+        }
+
+        if (selectedSlug && onOptimizedSuccess) {
+          const matched = products.find((p) => p.slug === selectedSlug);
+          if (matched) {
+            onOptimizedSuccess({
+              ...matched,
+              modelUrl: saveJson.glbUrl,
+              iosModelUrl: saveJson.usdzUrl,
+            });
+          }
+        }
+      } else {
+        // Server Blender Pipeline thành công
+        setOptimizedResult({
+          modelUrl: json.modelUrl,
+          iosModelUrl: json.iosModelUrl,
+          beforeReport: json.beforeReport,
+          afterReport: json.afterReport,
+          reducedPercent: json.reducedPercent,
+          savedPolygons: json.savedPolygons,
+        });
+
+        setCurrentReport(json.afterReport);
+
+        if (selectedSlug && onOptimizedSuccess) {
+          const matched = products.find((p) => p.slug === selectedSlug);
+          if (matched) {
+            onOptimizedSuccess({
+              ...matched,
+              modelUrl: json.modelUrl,
+              iosModelUrl: json.iosModelUrl,
+            });
+          }
         }
       }
     } catch (err: any) {
+      console.error("Lỗi tối ưu hóa 3D:", err);
       setErrorMsg(err.message || "Lỗi trong quá trình tối ưu hóa tệp 3D");
     } finally {
       setIsOptimizing(false);
+      setStatusText("");
     }
   };
 
@@ -441,8 +543,8 @@ export function ModelDoctorModal({
                 >
                   {isOptimizing ? (
                     <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Đang nén đa giác & sinh file USDZ...</span>
+                      <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
+                      <span className="truncate">{statusText || "Đang nén đa giác & sinh file USDZ..."}</span>
                     </>
                   ) : (
                     <>
