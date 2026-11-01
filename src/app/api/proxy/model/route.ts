@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const targetUrl = searchParams.get("url")?.trim();
+    let targetUrl = searchParams.get("url")?.trim() || "";
 
     if (!targetUrl) {
       return NextResponse.json(
@@ -19,10 +19,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Chỉ cho phép proxy từ R2 CDN của dự án hoặc HTTPS hợp lệ
+    // Tự động giải mã triệt để nếu URL bị double-encoded (%252F -> /)
+    try {
+      let loops = 0;
+      while (
+        loops < 5 &&
+        (targetUrl.includes("%3A") ||
+          targetUrl.includes("%2F") ||
+          targetUrl.includes("%25") ||
+          targetUrl.startsWith("http%3A"))
+      ) {
+        const decoded = decodeURIComponent(targetUrl);
+        if (decoded === targetUrl) break;
+        targetUrl = decoded;
+        loops++;
+      }
+    } catch {}
+
+    // Chỉ cho phép proxy từ HTTPS hợp lệ
     if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
       return NextResponse.json(
-        { success: false, message: "URL không hợp lệ." },
+        { success: false, message: `URL không hợp lệ sau khi giải mã: ${targetUrl}` },
         { status: 400 }
       );
     }

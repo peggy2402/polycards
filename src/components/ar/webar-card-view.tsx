@@ -478,15 +478,18 @@ export function WebArCardView({
           renderer.outputColorSpace = THREE.SRGBColorSpace;
         }
 
-        // 4. Cải thiện Ánh Sáng P2 (Khối chân thực, tránh overexposed)
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.1);
+        // 4. Cải thiện Ánh Sáng P2 (Khối chân thực, rực rỡ, tránh tối vật liệu PBR)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
+        scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.2);
         scene.add(hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.3);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
         dirLight.position.set(0, 10, 8);
         scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0xfef3c7, 0.45);
+        const fillLight = new THREE.DirectionalLight(0xfef3c7, 0.8);
         fillLight.position.set(-5, -3, 5);
         scene.add(fillLight);
 
@@ -521,9 +524,17 @@ export function WebArCardView({
         }
 
         const fallbackModelUrl = "/models/polycards.glb";
-        let primaryModelUrl = animal.modelUrl || fallbackModelUrl;
+        let cleanModelUrl = animal.modelUrl || fallbackModelUrl;
 
-        // Tự động chuyển qua Proxy cho các tệp ngoài hoặc Cloudflare R2 để xóa bỏ 100% lỗi CORS
+        // Bóc tách URL gốc nếu đã bị bọc proxy trước đó để chống double encoding
+        if (cleanModelUrl.includes("/api/proxy/model?url=")) {
+          const parts = cleanModelUrl.split("/api/proxy/model?url=");
+          try {
+            cleanModelUrl = decodeURIComponent(parts[1] || "");
+          } catch {}
+        }
+
+        let primaryModelUrl = cleanModelUrl;
         if (
           primaryModelUrl.startsWith("http://") ||
           primaryModelUrl.startsWith("https://")
@@ -569,28 +580,11 @@ export function WebArCardView({
 
               rawModel.updateMatrixWorld(true);
 
-              // Tính Bounding Box chuẩn xác cho SkinnedMesh
+              // Tính Bounding Box chuẩn xác từ Three.js (tránh union lệch tâm)
               const bbox = new THREE.Box3().setFromObject(rawModel);
-              const boneBox = new THREE.Box3();
-              const tempVec = new THREE.Vector3();
-              let boneCount = 0;
-
-              rawModel.traverse((child: any) => {
-                if (child.isBone && child.matrixWorld) {
-                  tempVec.setFromMatrixPosition(child.matrixWorld);
-                  boneBox.expandByPoint(tempVec);
-                  boneCount++;
-                }
-              });
-
-              if (boneCount >= 2 && !boneBox.isEmpty()) {
-                boneBox.expandByScalar(boneBox.getSize(new THREE.Vector3()).y * 0.18);
-                bbox.union(boneBox);
-              }
-
               const center = bbox.getCenter(new THREE.Vector3());
               const size = bbox.getSize(new THREE.Vector3());
-              const maxDim = Math.max(size.x, size.y, size.z) || 1;
+              const maxDim = Math.max(size.x, size.y, size.z) || 1.0;
               maxDimRef.current = maxDim;
 
               // Căn tâm cơ thể về (0,0,0)
@@ -616,7 +610,8 @@ export function WebArCardView({
               displayRoot.add(pivot);
               scene.add(displayRoot);
 
-              const baseDim = 0.34;
+              // Kích thước chuẩn hiển thị to rõ vừa vặn giữa khung nhìn camera
+              const baseDim = 0.75;
               const initialScale = baseDim / maxDim;
               pivot.scale.set(initialScale, initialScale, initialScale);
               pivot.position.set(0, 0, 0);
@@ -628,6 +623,13 @@ export function WebArCardView({
               setHasScannedOnce(true);
               displayRoot.visible = true;
 
+              // Đảm bảo camera near clipping plane đủ nhỏ để hiển thị vật thể ở khoảng cách 1.5 - 2.5m
+              if (camera) {
+                camera.near = 0.05;
+                camera.far = 10000;
+                camera.updateProjectionMatrix();
+              }
+
               // 6. Khởi động Camera stream
               clockRef.current = new THREE.Clock();
 
@@ -636,6 +638,13 @@ export function WebArCardView({
                 .then(() => {
                   if (isCancelled) return;
                   setIsLoading(false);
+
+                  // Cập nhật lại camera near sau khi MindAR khởi tạo
+                  if (camera) {
+                    camera.near = 0.05;
+                    camera.far = 10000;
+                    camera.updateProjectionMatrix();
+                  }
 
                   // Đối tượng toán học tái sử dụng cho Render Loop (Không cấp phát object trong frame)
                   const worldPointW = new THREE.Vector3();
@@ -721,7 +730,7 @@ export function WebArCardView({
                     } else {
                       // 2. Khi chưa quét thẻ hoặc thẻ vừa bị che khuất (Fallback / Free AR):
                       const freeArDist = 2.0;
-                      worldPointW.set(0, -0.22, -freeArDist);
+                      worldPointW.set(0, -0.2, -freeArDist);
                       anchorScaleTarget.set(1.0, 1.0, 1.0);
 
                       // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới Mw = qCam * Mc
@@ -736,11 +745,9 @@ export function WebArCardView({
 
                         if (motionModeRef.current === "orbit-lite") {
                           // BƯỚC 3 (P2): Chế độ "Đi quanh model" (orbit-lite) - MẶC ĐỊNH
-                          // Model luôn ở giữa màn hình (W), nhưng xoay ngược lại quanh trục Y theo yaw của thiết bị
                           anchorPosTarget.copy(worldPointW);
                           eulerYaw.setFromQuaternion(qCam, "YXZ");
                           const yaw = eulerYaw.y;
-                          // orbitQuat = angleAxis(Y, -yawDelta)
                           orbitQuat.setFromAxisAngle(axisY, -yaw);
                           anchorQuatTarget.copy(orbitQuat);
                         } else {
@@ -786,12 +793,20 @@ export function WebArCardView({
                 });
             },
             (xhr: any) => {
+              const loadedMb = (xhr.loaded / (1024 * 1024)).toFixed(1);
               if (xhr.lengthComputable && xhr.total > 0) {
+                const totalMb = (xhr.total / (1024 * 1024)).toFixed(1);
                 const percent = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
                 setDownloadProgress(35 + Math.round(percent * 0.6));
+                setDownloadStats({ loadedMb, totalMb });
+              } else if (xhr.loaded > 0) {
+                // Hỗ trợ chunked streaming khi chưa có Content-Length
+                const estimatedTotal = 28 * 1024 * 1024;
+                const percent = Math.min(96, Math.round((xhr.loaded / estimatedTotal) * 100));
+                setDownloadProgress(35 + Math.round(percent * 0.6));
                 setDownloadStats({
-                  loadedMb: (xhr.loaded / (1024 * 1024)).toFixed(1),
-                  totalMb: (xhr.total / (1024 * 1024)).toFixed(1),
+                  loadedMb,
+                  totalMb: "30.0",
                 });
               }
             },
