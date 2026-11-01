@@ -66,6 +66,7 @@ export function useArGestures({
 
   // Chế độ nhấn giữ để di chuyển (Long press drag)
   const isHoldingModelRef = useRef<boolean>(false);
+  const touchStartedOnModelRef = useRef<boolean>(false);
   const holdLiftYRef = useRef<number>(0);
   const targetHoldLiftYRef = useRef<number>(0);
   const longPressTimerRef = useRef<any>(null);
@@ -178,7 +179,10 @@ export function useArGestures({
   );
 
   /**
-   * Pointer Down: Nhận diện điểm chạm, chuẩn bị Long-press và hit test
+   * Pointer Down: Nhận diện điểm chạm, chuẩn bị Di chuyển và Hit Test
+   * - 1 ngón chạm trúng mô hình: Kích hoạt chế độ di chuyển (Drag 1:1) tức thì, nhấc nhẹ mô hình lên.
+   * - 1 ngón chạm vùng trống: Chuẩn bị xoay 360 quanh mô hình.
+   * - 2 ngón tay: Chuẩn bị cho cử chỉ vừa kéo di chuyển (Two-finger Drag) vừa phóng to/thu nhỏ (Pinch Zoom).
    */
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -208,39 +212,27 @@ export function useArGestures({
       if (activePointers.length === 1) {
         // Kiểm tra xem vị trí chạm có trúng mô hình 3D không
         const isHit = hitTestModel(e.clientX, e.clientY);
-
-        // Hủy timer cũ nếu có
-        if (longPressTimerRef.current) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
+        touchStartedOnModelRef.current = isHit;
 
         if (isHit) {
-          // Bắt đầu đếm thời gian nhấn giữ 250ms để kích hoạt chế độ di chuyển (Pan)
-          longPressTimerRef.current = setTimeout(() => {
-            const currentP = pointersMapRef.current.get(e.pointerId);
-            if (currentP && !currentP.hasMovedFar) {
-              isHoldingModelRef.current = true;
-              targetHoldLiftYRef.current = 0.04; // Nhấc mô hình lên nhẹ
-              // Phản hồi rung haptic
-              if (typeof navigator !== "undefined" && navigator.vibrate) {
-                try {
-                  navigator.vibrate(10);
-                } catch {}
-              }
-            }
-          }, 250);
+          isHoldingModelRef.current = true;
+          targetHoldLiftYRef.current = 0.035; // Nhấc mô hình lên nhẹ báo hiệu đang cầm
+          // Phản hồi rung haptic nhẹ nếu thiết bị hỗ trợ
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            try {
+              navigator.vibrate(10);
+            } catch {}
+          }
+        } else {
+          isHoldingModelRef.current = false;
+          targetHoldLiftYRef.current = 0;
         }
       } else if (activePointers.length === 2) {
-        // Hủy chế độ giữ nếu có thêm ngón tay thứ 2
-        if (longPressTimerRef.current) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
+        touchStartedOnModelRef.current = false;
         isHoldingModelRef.current = false;
         targetHoldLiftYRef.current = 0;
 
-        // Chuẩn bị cho Pinch Zoom
+        // Chuẩn bị cho cử chỉ 2 ngón tay: Vừa Pan kéo di chuyển vị trí, vừa Pinch Zoom
         const p1 = activePointers[0];
         const p2 = activePointers[1];
         pinchStartDistRef.current = Math.hypot(p1.currentX - p2.currentX, p1.currentY - p2.currentY);
@@ -269,23 +261,18 @@ export function useArGestures({
       const totalDist = Math.hypot(e.clientX - pointer.startX, e.clientY - pointer.startY);
       if (totalDist > 8) {
         pointer.hasMovedFar = true;
-        // Nếu người dùng vuốt nhanh trước 250ms, hủy chế độ nhấn giữ và chuyển sang xoay 360
-        if (!isHoldingModelRef.current && longPressTimerRef.current) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
       }
 
       const activePointers = Array.from(pointersMapRef.current.values());
 
       if (activePointers.length === 1) {
-        if (isHoldingModelRef.current || e.shiftKey || e.buttons === 2) {
-          // 1 ngón đang nhấn giữ vào con vật (hoặc desktop Shift/chuột phải): Di chuyển 1:1 trong không gian
+        if (touchStartedOnModelRef.current || isHoldingModelRef.current || e.shiftKey || e.buttons === 2) {
+          // 1 ngón chạm trúng con vật (hoặc desktop Shift/chuột phải): Di chuyển 1:1 theo ngón tay
           const { dx: worldDx, dy: worldDy } = projectScreenDeltaTo3D(dx, dy);
-          targetPosRef.current.x = Math.max(-0.6, Math.min(0.6, targetPosRef.current.x + worldDx));
-          targetPosRef.current.y = Math.max(-0.6, Math.min(0.6, targetPosRef.current.y + worldDy));
+          targetPosRef.current.x = Math.max(-0.8, Math.min(0.8, targetPosRef.current.x + worldDx));
+          targetPosRef.current.y = Math.max(-0.8, Math.min(0.8, targetPosRef.current.y + worldDy));
         } else {
-          // 1 ngón vuốt tự do: Xoay 360 quanh hình cầu (trục Y 360° tự do + trục X nghiêng rộng ±80°)
+          // 1 ngón vuốt ở vùng trống: Xoay 360 quanh hình cầu (trục Y 360° tự do + trục X nghiêng rộng ±80°)
           const rotSpeed = 0.009;
           targetRotYRef.current += dx * rotSpeed;
 
@@ -304,7 +291,13 @@ export function useArGestures({
           lastMoveDeltaXRef.current = dx;
         }
       } else if (activePointers.length === 2) {
-        // Cử chỉ 2 ngón tay: Pinch to Zoom mượt mà, độc lập, không làm văng mô hình
+        // Cử chỉ 2 ngón tay: Vừa Pan kéo di chuyển vị trí bất kỳ đâu, vừa Pinch to Zoom
+        // 1. Pan 2 ngón di chuyển vị trí:
+        const { dx: worldDx, dy: worldDy } = projectScreenDeltaTo3D(dx * 0.5, dy * 0.5);
+        targetPosRef.current.x = Math.max(-0.8, Math.min(0.8, targetPosRef.current.x + worldDx));
+        targetPosRef.current.y = Math.max(-0.8, Math.min(0.8, targetPosRef.current.y + worldDy));
+
+        // 2. Pinch Zoom phóng to / thu nhỏ:
         const p1 = activePointers[0];
         const p2 = activePointers[1];
         const currentDist = Math.hypot(p1.currentX - p2.currentX, p1.currentY - p2.currentY);
@@ -328,20 +321,15 @@ export function useArGestures({
       const pointer = pointersMapRef.current.get(e.pointerId);
       const now = performance.now();
 
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
-
       if (pointer) {
         const elapsed = now - pointer.startTime;
         const totalDist = Math.hypot(pointer.currentX - pointer.startX, pointer.currentY - pointer.startY);
 
-        // Chạm nhanh (<250ms, di chuyển <8px)
-        if (!pointer.hasMovedFar && totalDist < 8 && elapsed < 250) {
-          const hit = hitTestModel(pointer.currentX, pointer.currentY);
+        // Chạm nhẹ nhanh (<300ms, di chuyển <12px)
+        if (!pointer.hasMovedFar && totalDist < 12 && elapsed < 300) {
+          const hit = touchStartedOnModelRef.current || hitTestModel(pointer.currentX, pointer.currentY);
           if (hit) {
-            // Chạm trúng mô hình: Kích hoạt tương tác
+            // Chạm nhẹ trúng mô hình: Kích hoạt âm thanh & phản ứng nhảy
             onTapModel();
           } else {
             // Chạm ra vùng trống: Kiểm tra Double-Tap để Reset góc nhìn
@@ -368,6 +356,7 @@ export function useArGestures({
       }
 
       // Thả tay: Mô hình hạ xuống bình thường
+      touchStartedOnModelRef.current = false;
       isHoldingModelRef.current = false;
       targetHoldLiftYRef.current = 0;
 

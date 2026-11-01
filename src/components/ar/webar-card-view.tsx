@@ -563,6 +563,11 @@ export function WebArCardView({
         const fallbackModelUrl = "/models/polycards.glb";
         let cleanModelUrl = animal.modelUrl || fallbackModelUrl;
 
+        // Ưu tiên bản local đã nén tối ưu (giảm từ 2.25 triệu polygons xuống 40k polygons) để chống crash OOM trên iPhone Safari
+        if (animal.slug === "strawberry") {
+          cleanModelUrl = "/models/strawberry.glb";
+        }
+
         // Bóc tách URL gốc nếu đã bị bọc proxy trước đó để chống double encoding
         if (cleanModelUrl.includes("/api/proxy/model?url=")) {
           const parts = cleanModelUrl.split("/api/proxy/model?url=");
@@ -1398,11 +1403,13 @@ export function WebArCardView({
       {(supportsAppleAr || supportsWebXr) && (
         <model-viewer
           ref={nativeModelViewerRef as any}
-          src={animal.modelUrl || "/models/polycards.glb"}
+          src={animal.slug === "strawberry" ? "/models/strawberry.glb" : (animal.modelUrl || "/models/polycards.glb")}
           ios-src={
-            animal.iosModelUrl &&
-            (animal.iosModelUrl.startsWith("/models/") || animal.iosModelUrl.startsWith("/models/usdz/")) &&
-            !animal.iosModelUrl.startsWith("http")
+            animal.slug === "strawberry"
+              ? "/models/usdz/strawberry.usdz"
+              : animal.iosModelUrl &&
+                (animal.iosModelUrl.startsWith("/models/") || animal.iosModelUrl.startsWith("/models/usdz/")) &&
+                !animal.iosModelUrl.startsWith("http")
               ? animal.iosModelUrl
               : undefined
           }

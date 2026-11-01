@@ -15,6 +15,7 @@ Tài liệu này hướng dẫn quy trình chuẩn để chuyển đổi các t�
 | `elephant` | Voi con (Elephant) | **Đã có** | `/public/models/usdz/elephant.usdz` |
 | `panda` | Gấu trúc (Panda) | **Đã có** | `/public/models/usdz/panda.usdz` |
 | `polycards` | Thẻ đa năng (Poly) | **Đã có** | `/public/models/usdz/polycards.usdz` |
+| `strawberry` | Dâu tây (Strawberry) | **Đã có** | `/public/models/usdz/strawberry.usdz` |
 | `walk` | Đi bộ (Cô bé học sinh) | **Cần bổ sung** | Tải từ `g_walk.glb` |
 | `jump` | Nhảy vui nhộn (Cậu bé) | **Cần bổ sung** | Tải từ `b_jump.glb` |
 
