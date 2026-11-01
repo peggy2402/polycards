@@ -19,6 +19,7 @@ interface UseArGesturesOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   pivotGroupRef: React.RefObject<any>;
   maxDimRef: React.RefObject<number>;
+  halfHRef?: React.RefObject<number>;
   cameraRef: React.RefObject<any>;
   onTapModel: () => void;
   onZoomChange?: (zoomPercent: number) => void;
@@ -39,6 +40,7 @@ export function useArGestures({
   containerRef,
   pivotGroupRef,
   maxDimRef,
+  halfHRef,
   cameraRef,
   onTapModel,
   onZoomChange,
@@ -90,6 +92,10 @@ export function useArGestures({
   const threeIntersectPointRef = useRef<any>(null);
   const threeRayOriginRef = useRef<any>(null);
   const threeModelWorldPosRef = useRef<any>(null);
+  const threeVecCRef = useRef<any>(null);
+  const threeVecRcRef = useRef<any>(null);
+  const threeEulerRef = useRef<any>(null);
+  const threeQuatRef = useRef<any>(null);
 
   /**
    * Khởi tạo các helper toán học Three.js khi thư viện đã nạp
@@ -104,6 +110,10 @@ export function useArGestures({
       threeIntersectPointRef.current = new THREE.Vector3();
       threeRayOriginRef.current = new THREE.Vector2();
       threeModelWorldPosRef.current = new THREE.Vector3();
+      threeVecCRef.current = new THREE.Vector3();
+      threeVecRcRef.current = new THREE.Vector3();
+      threeEulerRef.current = new THREE.Euler(0, 0, 0, "YXZ");
+      threeQuatRef.current = new THREE.Quaternion();
     }
     return THREE;
   }, []);
@@ -441,7 +451,7 @@ export function useArGestures({
       // 5. Nội suy tỉ lệ Scale
       currentScaleRef.current += (targetScaleRef.current - currentScaleRef.current) * alpha;
 
-      // 6. Áp ma trận vào Pivot Group
+      // 6. Áp ma trận vào Pivot Group quanh tâm model c = (0, halfH * currentScale, 0)
       pivot.rotation.y = currentRotYRef.current;
       pivot.rotation.x = currentRotXRef.current;
 
@@ -449,11 +459,32 @@ export function useArGestures({
       const s = (baseDim / (maxDimRef.current || 1)) * currentScaleRef.current;
       pivot.scale.set(s, s, s);
 
-      pivot.position.set(
-        currentPosRef.current.x,
-        currentPosRef.current.y + holdLiftYRef.current,
-        0
-      );
+      const hH = halfHRef?.current ?? 0.36;
+      const cy = hH * currentScaleRef.current;
+
+      const THREE = ensureThreeHelpers();
+      if (THREE && threeVecCRef.current) {
+        threeVecCRef.current.set(0, cy, 0);
+        threeEulerRef.current.set(currentRotXRef.current, currentRotYRef.current, 0, "YXZ");
+        threeQuatRef.current.setFromEuler(threeEulerRef.current);
+        threeVecRcRef.current.copy(threeVecCRef.current).applyQuaternion(threeQuatRef.current);
+
+        const offsetX = threeVecCRef.current.x - threeVecRcRef.current.x;
+        const offsetY = threeVecCRef.current.y - threeVecRcRef.current.y;
+        const offsetZ = threeVecCRef.current.z - threeVecRcRef.current.z;
+
+        pivot.position.set(
+          currentPosRef.current.x + offsetX,
+          currentPosRef.current.y + holdLiftYRef.current + offsetY,
+          offsetZ
+        );
+      } else {
+        pivot.position.set(
+          currentPosRef.current.x,
+          currentPosRef.current.y + holdLiftYRef.current,
+          0
+        );
+      }
 
       // 7. Throttled update cho React state zoomPercent (<= 10 lần/s và đổi >= 1%)
       const now = performance.now();
@@ -466,7 +497,7 @@ export function useArGestures({
         }
       }
     },
-    [maxDimRef, onZoomChange, pivotGroupRef]
+    [ensureThreeHelpers, halfHRef, maxDimRef, onZoomChange, pivotGroupRef]
   );
 
   return {

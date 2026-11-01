@@ -1,8 +1,11 @@
 /**
- * Poly Cards - AR Motion Sensor Hook (3DoF Gyroscope World-Lock & Orbit-Lite)
- * Cung cấp quaternion qCam (hướng xoay của camera trong thế giới so với pose mốc ban đầu).
+ * Poly Cards - AR Motion Sensor Hook (Orbit Sphere & World Lock 3DoF)
+ * Cung cấp quaternion qTarget (hướng xoay của camera trong thế giới so với pose mốc ban đầu).
  * Tối ưu hiệu năng: tái sử dụng Vector/Quaternion/Euler cố định, không cấp phát object trong event listener.
- * Tích hợp bộ lọc slerp low-pass chống rung tay và hỗ trợ đầy đủ quyền truy cập iOS 13+ Safari.
+ * Theo yêu cầu Phần A (PROMPT.md):
+ * - Không slerp theo event listener để độc lập tần số cảm biến (60Hz vs 120Hz).
+ * - Render loop sẽ làm mượt qua qSmooth.slerp(qTarget, 1 - Math.exp(-18 * dt)).
+ * - Hỗ trợ đầy đủ quyền truy cập iOS 13+ Safari và bù góc Camera lưng chuẩn Three.js.
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -16,8 +19,8 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
   const [isPermissionGranted, setIsPermissionGranted] = useState<boolean>(false);
   const [needsPermissionPrompt, setNeedsPermissionPrompt] = useState<boolean>(false);
 
-  // Quaternion qCam ổn định biểu diễn hướng xoay camera trong thế giới
-  const qCamRef = useRef<any>(null);
+  // Quaternion qTarget biểu diễn hướng xoay camera tức thời trong thế giới
+  const qTargetRef = useRef<any>(null);
   const initialQuatRef = useRef<any>(null);
   const hasBasePoseRef = useRef<boolean>(false);
 
@@ -25,24 +28,28 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
   const eulerRef = useRef<any>(null);
   const rawQuatRef = useRef<any>(null);
   const qScreenRef = useRef<any>(null);
-  const targetQuatRef = useRef<any>(null);
   const axisZRef = useRef<any>(null);
   const q1Ref = useRef<any>(null); // Bù góc -90 độ trục X: Camera nhìn ra mặt lưng (chuẩn Three.js DeviceOrientationControls)
 
   // Góc bù trừ xoay màn hình (orientation angle)
   const screenAngleRef = useRef<number>(0);
 
+  // Lưu góc azimuth và elevation cho Debug HUD (không gây re-render)
+  const motionDebugAnglesRef = useRef<{ azimuthDeg: number; elevationDeg: number }>({
+    azimuthDeg: 0,
+    elevationDeg: 0,
+  });
+
   // Khởi tạo các helper toán học Three.js một lần duy nhất
   const ensureMotionMath = useCallback(() => {
     if (typeof window === "undefined" || !window.THREE) return null;
     const THREE = window.THREE;
-    if (!qCamRef.current) {
-      qCamRef.current = new THREE.Quaternion();
+    if (!qTargetRef.current) {
+      qTargetRef.current = new THREE.Quaternion();
       initialQuatRef.current = new THREE.Quaternion();
-      eulerRef.current = new THREE.Euler();
+      eulerRef.current = new THREE.Euler(0, 0, 0, "YXZ");
       rawQuatRef.current = new THREE.Quaternion();
       qScreenRef.current = new THREE.Quaternion();
-      targetQuatRef.current = new THREE.Quaternion();
       axisZRef.current = new THREE.Vector3(0, 0, 1);
       q1Ref.current = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
     }
@@ -119,7 +126,7 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
       const THREE = ensureMotionMath();
-      if (!THREE || !qCamRef.current) return;
+      if (!THREE || !qTargetRef.current) return;
 
       const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // [0, 360]
       const beta = e.beta ? THREE.MathUtils.degToRad(e.beta) : 0;   // [-180, 180]
@@ -145,11 +152,13 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
         hasBasePoseRef.current = true;
       }
 
-      // targetQuat = rawQuat * initialQuat (hướng xoay tương đối so với pose gốc)
-      targetQuatRef.current.copy(rawQuatRef.current).multiply(initialQuatRef.current);
+      // qTarget = rawQuat * initialQuat (hướng xoay tương đối so với pose gốc ban đầu)
+      qTargetRef.current.copy(rawQuatRef.current).multiply(initialQuatRef.current);
 
-      // Lọc nhiễu slerp chống rung tay (low-pass filter)
-      qCamRef.current.slerp(targetQuatRef.current, 0.25);
+      // Cập nhật thông số góc cho HUD
+      eulerRef.current.setFromQuaternion(qTargetRef.current, "YXZ");
+      motionDebugAnglesRef.current.azimuthDeg = Math.round(THREE.MathUtils.radToDeg(eulerRef.current.y));
+      motionDebugAnglesRef.current.elevationDeg = Math.round(THREE.MathUtils.radToDeg(-eulerRef.current.x));
     };
 
     window.addEventListener("deviceorientation", handleOrientation, true);
@@ -167,7 +176,8 @@ export function useArMotion({ enabled = false }: UseArMotionOptions = {}) {
     isPermissionGranted,
     needsPermissionPrompt,
     requestMotionPermission,
-    gyroQuatRef: qCamRef, // qCam: Quaternion hướng camera trong thế giới
+    gyroQuatRef: qTargetRef, // qTarget: Quaternion hướng tức thời, render loop sẽ làm mượt
+    motionDebugAnglesRef,
     resetBasePose,
   };
 }

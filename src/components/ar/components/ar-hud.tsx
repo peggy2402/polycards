@@ -20,6 +20,10 @@ interface ArHudProps {
   posY: number;
   zoomPercent: number;
   facingMode: "environment" | "user";
+  azimuthDeg?: number;
+  elevationDeg?: number;
+  distanceR?: number;
+  motionMode?: string;
   onClose: () => void;
   onForceShow: () => void;
   onResetTransform: () => void;
@@ -40,6 +44,10 @@ export function ArHud({
   posY,
   zoomPercent,
   facingMode,
+  azimuthDeg = 0,
+  elevationDeg = 0,
+  distanceR = 1.9,
+  motionMode = "orbit-sphere",
   onClose,
   onForceShow,
   onResetTransform,
@@ -106,6 +114,16 @@ export function ArHud({
           <span className="font-bold text-sky-300 truncate max-w-[140px]">
             {playingClipName || (animalSlug === "cat" ? "Static (Protected)" : "Default")}
           </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Quỹ đạo (Azimuth / Elev):</span>
+          <span className="font-bold text-emerald-300">
+            {azimuthDeg}°, {elevationDeg}° (R={distanceR.toFixed(1)}m)
+          </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span>Chế độ Motion:</span>
+          <span className="font-bold text-amber-300 uppercase text-[9px]">{motionMode}</span>
         </div>
         <div className="flex justify-between items-center">
           <span>Vị trí (X, Y):</span>

@@ -178,25 +178,32 @@ export function WebArCardView({
   const [trialTimeLeft, setTrialTimeLeft] = useState<number>(isTrial ? 3 : 0);
   const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
 
-  // P4.1 Camera Hook (Chuyển đổi Camera Trước / Sau)
+  // Chiều cao nửa thân (half height) của mô hình để làm tâm xoay Quả cầu quỹ đạo (A0 & A1)
+  const halfHRef = useRef<number>(0.36);
+
+  // P4.1 Camera Hook (Chuyển đổi Camera Trước / Sau không bị màn hình đen)
   const {
     facingMode,
     setFacingMode,
     hasMultipleCameras,
-    startFrontCamera,
-    stopFrontStream,
+    switchCamera,
     capturePhoto,
+    isSwitching: isCameraSwitching,
   } = useArCamera({ onShowToast: showToast });
 
-  // P4.2 Motion Gyro Hook (World Lock 3DoF & Orbit-Lite)
+  // P4.2 Motion Gyro Hook (Orbit Sphere & World Lock 3DoF)
   const [isMotionEnabled, setIsMotionEnabled] = useState<boolean>(true);
-  const [motionMode, setMotionMode] = useState<"orbit-lite" | "world-lock">("orbit-lite");
+  const [motionMode, setMotionMode] = useState<"orbit-sphere" | "world-lock" | "off">("orbit-sphere");
+  const [lockRoll, setLockRoll] = useState<boolean>(false);
+  const [isManual360Active, setIsManual360Active] = useState<boolean>(false);
+
   const {
     isMotionSupported,
     isPermissionGranted: isMotionPermissionGranted,
     needsPermissionPrompt: needsMotionPrompt,
     requestMotionPermission,
     gyroQuatRef,
+    motionDebugAnglesRef,
     resetBasePose,
   } = useArMotion({ enabled: isMotionEnabled });
 
@@ -207,6 +214,12 @@ export function WebArCardView({
 
   const motionModeRef = useRef(motionMode);
   motionModeRef.current = motionMode;
+
+  const lockRollRef = useRef(lockRoll);
+  lockRollRef.current = lockRoll;
+
+  const isManual360ActiveRef = useRef(isManual360Active);
+  isManual360ActiveRef.current = isManual360Active;
 
   const isMotionPermissionGrantedRef = useRef(isMotionPermissionGranted);
   isMotionPermissionGrantedRef.current = isMotionPermissionGranted;
@@ -264,19 +277,20 @@ export function WebArCardView({
     containerRef,
     pivotGroupRef,
     maxDimRef,
+    halfHRef,
     cameraRef,
     onTapModel: handleTapModel,
     onZoomChange: setZoomPercent,
     onDoubleTapEmpty: () => {
-      showToast("Đã đặt lại vị trí & kích thước ban đầu", "info");
+      resetBasePose();
+      showToast("Đã đặt lại góc nhìn & vị trí 100%", "info");
     },
   });
 
   const updatePhysicsRef = useRef(updatePhysics);
   updatePhysicsRef.current = updatePhysics;
 
-  const stopFrontStreamRef = useRef(stopFrontStream);
-  stopFrontStreamRef.current = stopFrontStream;
+  const stopFrontStreamRef = useRef(() => {});
 
   // P4.3 Voice Recognition Quiz Hook
   const { isSupported: isVoiceSupported, isListening, startListening } = useVoiceQuiz({
@@ -657,6 +671,10 @@ export function WebArCardView({
               pivot.scale.set(initialScale, initialScale, initialScale);
               pivot.position.set(0, 0, 0);
 
+              // Lưu half height để làm tâm xoay Quả cầu quỹ đạo quanh tâm model O (A0 & A1)
+              const halfH = (size.y / maxDim) * baseDim * 0.5;
+              halfHRef.current = halfH;
+
               pivotGroupRef.current = pivot;
               modelRef.current = rawModel;
 
@@ -688,14 +706,19 @@ export function WebArCardView({
                   }
 
                   // Đối tượng toán học tái sử dụng cho Render Loop (Không cấp phát object trong frame)
-                  const worldPointW = new THREE.Vector3();
                   const anchorPosTarget = new THREE.Vector3();
                   const anchorQuatTarget = new THREE.Quaternion();
-                  const anchorScaleTarget = new THREE.Vector3();
+                  const anchorScaleTarget = new THREE.Vector3(1, 1, 1);
                   const qCamInv = new THREE.Quaternion();
-                  const eulerYaw = new THREE.Euler(0, 0, 0, "YXZ");
-                  const orbitQuat = new THREE.Quaternion();
-                  const axisY = new THREE.Vector3(0, 1, 0);
+
+                  // Quả cầu quỹ đạo (Orbit Sphere) A0, A1, A2, A3
+                  const qSmooth = new THREE.Quaternion();
+                  const eulerYXZ = new THREE.Euler(0, 0, 0, "YXZ");
+                  const eulerClamped = new THREE.Euler(0, 0, 0, "YXZ");
+                  const qView = new THREE.Quaternion();
+                  const oLocalVec = new THREE.Vector3();
+                  const pScreenVec = new THREE.Vector3();
+                  const quatOLocal = new THREE.Vector3();
 
                   // Chuyển tiếp mượt giữa Thẻ bài và Fallback / Gyro (300ms easing)
                   const lastTrackingMatrix = new THREE.Matrix4();
@@ -742,18 +765,23 @@ export function WebArCardView({
                       reactionSystemRef.current.update(dt);
                     }
 
-                    // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Fallback Gyro
+                    // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Quả cầu quỹ đạo (Orbit Sphere)
                     const isTargetFoundNow = isTargetFoundRef.current;
+                    const isManual360 = isManual360ActiveRef.current;
+                    const isTrackingCard = isTargetFoundNow && !isManual360;
+
                     const isMotionActive =
                       isMotionEnabledRef.current &&
                       isMotionPermissionGrantedRef.current &&
-                      gyroQuatRefLatest.current?.current;
-                    const qCam = isMotionActive ? gyroQuatRefLatest.current.current : null;
+                      gyroQuatRefLatest.current?.current &&
+                      facingModeRef.current !== "user"; // A5: Selfie camera mặc định tắt motion sensor tránh ngược hướng
+
+                    const qCamTarget = isMotionActive ? gyroQuatRefLatest.current.current : null;
 
                     displayRoot.visible = true;
 
-                    if (isTargetFoundNow) {
-                      // 1. Khi đang nhận diện thẻ bài vật lý:
+                    if (isTrackingCard) {
+                      // 1. Khi đang nhận diện thẻ bài vật lý (MindAR 6DoF):
                       lastTrackingMatrix.copy(anchorGroupRef.current.matrix);
                       hasSavedWorldPose = false;
 
@@ -776,49 +804,81 @@ export function WebArCardView({
                         displayRoot.matrixWorldNeedsUpdate = true;
                       }
                     } else {
-                      // 2. Khi chưa quét thẻ hoặc thẻ vừa bị che khuất (Fallback / Free AR):
-                      // Điều chỉnh vị trí thông minh theo hướng màn hình Dọc / Ngang
+                      // 2. Chế độ "Quả cầu quỹ đạo" (Orbit Sphere) khi chưa/mất thẻ hoặc chủ động xem 360°:
+                      // Điều chỉnh khoảng cách và độ cao theo hướng màn hình Dọc / Ngang
                       const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
                       const freeArDist = isLandNow ? 2.4 : 1.9;
                       const yPos = isLandNow ? -0.28 : -0.36;
-                      worldPointW.set(0, yPos, -freeArDist);
+                      pScreenVec.set(0, yPos, -freeArDist);
                       anchorScaleTarget.set(1.0, 1.0, 1.0);
 
-                      // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới Mw = qCam * Mc
-                      if (wasTargetFoundLastFrame && qCam) {
-                        qCamMatrix.makeRotationFromQuaternion(qCam);
+                      // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới
+                      if (wasTargetFoundLastFrame && qCamTarget) {
+                        qCamMatrix.makeRotationFromQuaternion(qCamTarget);
                         savedWorldMatrix.multiplyMatrices(qCamMatrix, lastTrackingMatrix);
                         hasSavedWorldPose = true;
                       }
 
-                      if (qCam) {
-                        qCamInv.copy(qCam).invert();
+                      if (qCamTarget) {
+                        // A3: Làm mượt qSmooth độc lập tần số cảm biến (1 - exp(-18 * dt))
+                        qSmooth.slerp(qCamTarget, 1 - Math.exp(-18 * dt));
 
-                        if (motionModeRef.current === "orbit-lite") {
-                          // BƯỚC 3 (P2): Chế độ "Đi quanh model" (orbit-lite) - MẶC ĐỊNH
-                          anchorPosTarget.copy(worldPointW);
-                          eulerYaw.setFromQuaternion(qCam, "YXZ");
-                          const yaw = eulerYaw.y;
-                          orbitQuat.setFromAxisAngle(axisY, -yaw);
-                          anchorQuatTarget.copy(orbitQuat);
-                        } else {
-                          // BƯỚC 2 (P1): Chế độ "Đứng yên trong phòng" (World-lock 3DoF)
+                        if (motionModeRef.current === "orbit-sphere") {
+                          // A0 & A2: Chế độ "Quả cầu quỹ đạo" (Orbit Sphere)
+                          eulerYXZ.setFromQuaternion(qSmooth, "YXZ");
+                          const yaw = eulerYXZ.y;
+                          const pitch = eulerYXZ.x;
+                          const roll = lockRollRef.current ? 0 : eulerYXZ.z;
+
+                          // Kẹp pitch trong [-85°, +20°] (đơn vị radian: [-1.48, +0.35])
+                          // Âm = nhìn xuống đỉnh đầu con vật (camera ở trên đỉnh A), dương = ngẩng nhìn lên (đáy B)
+                          const minPitch = -85 * (Math.PI / 180);
+                          const maxPitch = 20 * (Math.PI / 180);
+                          const pitchClamped = Math.max(minPitch, Math.min(maxPitch, pitch));
+
+                          eulerClamped.set(pitchClamped, yaw, roll, "YXZ");
+                          qView.setFromEuler(eulerClamped);
+
+                          // anchorQuat = qView^-1
+                          anchorQuatTarget.copy(qView).invert();
+
+                          // O_local = vị trí tâm model trong không gian displayRoot
+                          // O_local = pivot.position + (0, halfH * currentScale, 0)
+                          const curScale = pivotGroupRef.current
+                            ? pivotGroupRef.current.scale.x / (baseDim / (maxDimRef.current || 1))
+                            : 1.0;
+                          const hH = halfHRef.current || 0.36;
+                          const oLocalY = (pivotGroupRef.current ? pivotGroupRef.current.position.y : 0) + hH * curScale;
+                          const oLocalX = pivotGroupRef.current ? pivotGroupRef.current.position.x : 0;
+                          const oLocalZ = pivotGroupRef.current ? pivotGroupRef.current.position.z : 0;
+                          oLocalVec.set(oLocalX, oLocalY, oLocalZ);
+
+                          // anchorPos = P_screen - anchorQuat * O_local
+                          quatOLocal.copy(oLocalVec).applyQuaternion(anchorQuatTarget);
+                          anchorPosTarget.subVectors(pScreenVec, quatOLocal);
+                        } else if (motionModeRef.current === "world-lock") {
+                          // BƯỚC 2: Chế độ "Đứng yên trong phòng" (World-lock 3DoF)
+                          qCamInv.copy(qSmooth).invert();
                           if (hasSavedWorldPose) {
                             qCamInvMatrix.makeRotationFromQuaternion(qCamInv);
                             displayRoot.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
                             smoothedMatrix.copy(displayRoot.matrix);
                             displayRoot.matrixWorldNeedsUpdate = true;
-                            wasTargetFoundLastFrame = isTargetFoundNow;
+                            wasTargetFoundLastFrame = isTrackingCard;
                             renderer.render(scene, camera);
                             return;
                           } else {
-                            anchorPosTarget.copy(worldPointW).applyQuaternion(qCamInv);
+                            anchorPosTarget.copy(pScreenVec).applyQuaternion(qCamInv);
                             anchorQuatTarget.copy(qCamInv);
                           }
+                        } else {
+                          // Chế độ "off": Khóa cố định phía trước camera
+                          anchorPosTarget.copy(pScreenVec);
+                          anchorQuatTarget.set(0, 0, 0, 1);
                         }
                       } else {
-                        // Không kích hoạt Gyro: Cố định thẳng trước mặt camera
-                        anchorPosTarget.copy(worldPointW);
+                        // Không kích hoạt cảm biến: Cố định thẳng trước mặt camera
+                        anchorPosTarget.copy(pScreenVec);
                         anchorQuatTarget.set(0, 0, 0, 1);
                       }
 
@@ -831,7 +891,7 @@ export function WebArCardView({
                       displayRoot.matrixWorldNeedsUpdate = true;
                     }
 
-                    wasTargetFoundLastFrame = isTargetFoundNow;
+                    wasTargetFoundLastFrame = isTrackingCard;
                     renderer.render(scene, camera);
                   });
                 })
@@ -935,37 +995,18 @@ export function WebArCardView({
     };
   }, [animal.slug, animal.modelUrl, animal.targetUrl, loadScript]);
 
-  // Xử lý chuyển đổi Camera Trước / Sau
+  // Xử lý chuyển đổi Camera Trước / Sau chuẩn xác (Phần B: chống đen hình và race condition)
   const handleToggleCamera = useCallback(async () => {
     wakeUi();
-    const nextMode = facingMode === "environment" ? "user" : "environment";
-
-    if (nextMode === "user") {
-      // Chuyển sang Camera Trước (Selfie Mode)
-      if (mindarRef.current?.video) {
-        const videoEl = containerRef.current?.querySelector("video") as HTMLVideoElement | null;
-        if (videoEl) {
-          const stream = await startFrontCamera(videoEl);
-          if (stream) {
-            setFacingMode("user");
-            showToast("Đã chuyển sang Camera trước (Selfie Mode)", "info");
-          }
-        }
-      }
-    } else {
-      // Chuyển về Camera Sau (Marker Mode)
-      stopFrontStream();
-      if (mindarRef.current?.video) {
-        const videoEl = containerRef.current?.querySelector("video") as HTMLVideoElement | null;
-        if (videoEl && (mindarRef.current.video as HTMLVideoElement).srcObject) {
-          videoEl.srcObject = (mindarRef.current.video as HTMLVideoElement).srcObject;
-          await videoEl.play();
-        }
-      }
-      setFacingMode("environment");
-      showToast("Đã chuyển về Camera sau", "info");
+    if (isCameraSwitching) return;
+    const nextMode = facingModeRef.current === "environment" ? "user" : "environment";
+    const videoEl = (mindarRef.current?.video || containerRef.current?.querySelector("video")) as HTMLVideoElement | null;
+    if (!videoEl) {
+      showToast("Không tìm thấy phần tử video camera", "warning");
+      return;
     }
-  }, [facingMode, showToast, startFrontCamera, stopFrontStream, wakeUi]);
+    await switchCamera(nextMode, videoEl, mindarRef.current);
+  }, [isCameraSwitching, switchCamera, wakeUi, showToast]);
 
   // Xử lý phát âm đa ngữ
   const handleSpeak = (lang: "en" | "vi" | "zh") => {
@@ -1011,12 +1052,12 @@ export function WebArCardView({
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={wakeUi}
     >
-      {/* 1. Camera Viewport: Ép full màn hình 100dvh, lật gương khi ở Selfie mode */}
+      {/* 1. Camera Viewport: Ép full màn hình 100dvh, lật gương CHỈ video khi ở Selfie mode (không lật canvas để cử chỉ và tia raycast đúng hướng) */}
       <div
         ref={containerRef}
         id="webar-camera-viewport"
-        className={`absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none transition-transform duration-300 ${
-          facingMode === "user" ? "scale-x-[-1]" : ""
+        className={`absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none ${
+          facingMode === "user" ? "[&>video]:scale-x-[-1]" : ""
         }`}
       />
 
@@ -1050,8 +1091,36 @@ export function WebArCardView({
           <X className="h-5 w-5" />
         </button>
 
-        {/* Nút kích hoạt xoay 360° quanh vật thể (Gyro) / Badge trạng thái */}
+        {/* Nút kích hoạt xoay 360° quanh vật thể (Gyro) / Badge trạng thái & Nút Tách thẻ 360° */}
         <div className="pointer-events-auto flex items-center gap-2">
+          {/* Nút tách khỏi thẻ để xem 360° Quả cầu quỹ đạo ngay cả khi thẻ còn trong khung */}
+          {isTargetFound && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsManual360Active((prev) => {
+                  const next = !prev;
+                  if (next) resetBasePose();
+                  showToast(
+                    next
+                      ? "Đã chuyển sang chế độ Quả cầu quỹ đạo 360°"
+                      : "Đã gắn lại vào thẻ bài vật lý",
+                    "info"
+                  );
+                  return next;
+                });
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg backdrop-blur-md active:scale-95 transition-all border cursor-pointer ${
+                isManual360Active
+                  ? "bg-amber-400 text-stone-950 border-amber-300"
+                  : "bg-black/60 text-amber-300 border-amber-400/40"
+              }`}
+            >
+              <Compass className="h-3.5 w-3.5" />
+              <span>{isManual360Active ? "Gắn lại thẻ" : "Xem 360°"}</span>
+            </button>
+          )}
+
           {isMotionSupported && needsMotionPrompt && !isMotionPermissionGranted && (
             <button
               type="button"
@@ -1110,7 +1179,7 @@ export function WebArCardView({
           </button>
 
           {isMenuOpen && (
-            <div className="absolute right-0 top-12 w-52 rounded-2xl bg-stone-950/95 border border-white/20 p-1.5 backdrop-blur-xl shadow-2xl space-y-1 text-xs text-white z-[60] animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 top-12 w-56 rounded-2xl bg-stone-950/95 border border-white/20 p-1.5 backdrop-blur-xl shadow-2xl space-y-1 text-xs text-white z-[60] animate-in fade-in zoom-in-95 duration-150">
                 <button
                   type="button"
                   onClick={() => {
@@ -1148,14 +1217,13 @@ export function WebArCardView({
                   <span>{isDebugOpen ? "Tắt Debug HUD" : "Bật Debug HUD"}</span>
                 </button>
 
-                {/* Tùy chọn Cảm biến chuyển động Gyroscope (3DoF) */}
+                {/* Tùy chọn Cảm biến chuyển động Gyroscope (Quả cầu quỹ đạo / World-Lock) */}
                 {isMotionSupported && (
                   <div className="pt-1 border-t border-white/10 space-y-1">
                     {/* Nút bật/tắt Gyro */}
                     <button
                       type="button"
                       onClick={async () => {
-                        // BẮT BUỘC: requestMotionPermission() trên iOS Safari phải được gọi trực tiếp trong click handler
                         if (needsMotionPrompt && !isMotionPermissionGranted) {
                           const granted = await requestMotionPermission();
                           if (!granted) {
@@ -1167,9 +1235,9 @@ export function WebArCardView({
                           const next = !prev;
                           showToast(
                             next
-                              ? motionMode === "orbit-lite"
-                                ? "Đã bật chế độ 'Đi quanh model'"
-                                : "Đã bật chế độ 'Đứng yên trong phòng'"
+                              ? motionMode === "orbit-sphere"
+                                ? "Đã bật chế độ Quả cầu quỹ đạo 360°"
+                                : "Đã bật chế độ Đứng yên trong phòng"
                               : "Đã tắt cảm biến xoay",
                             "info"
                           );
@@ -1188,25 +1256,25 @@ export function WebArCardView({
                       </span>
                     </button>
 
-                    {/* Bộ 2 lựa chọn: "Đi quanh model" (Orbit) vs "Đứng yên trong phòng" (World-Lock) */}
+                    {/* Bộ 2 lựa chọn: "Quả cầu quỹ đạo" (Orbit Sphere - MẶC ĐỊNH) vs "Đứng yên trong phòng" (World-Lock) */}
                     {isMotionEnabled && (
                       <div className="px-1.5 py-1 rounded-xl bg-white/5 space-y-1">
                         <div className="text-[10px] text-amber-300 font-bold px-1.5">Chế độ hiển thị:</div>
                         <button
                           type="button"
                           onClick={() => {
-                            setMotionMode("orbit-lite");
+                            setMotionMode("orbit-sphere");
                             resetBasePose();
-                            showToast("Chế độ: Đi quanh model (Model xoay theo bước chân)", "info");
+                            showToast("Chế độ: Quả cầu quỹ đạo (Xoay 360° quanh tâm model)", "info");
                           }}
                           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            motionMode === "orbit-lite"
+                            motionMode === "orbit-sphere"
                               ? "bg-amber-400 text-stone-950 shadow-md"
                               : "text-stone-300 hover:bg-white/10"
                           }`}
                         >
-                          <span>Đi quanh model</span>
-                          {motionMode === "orbit-lite" && <Check className="h-3.5 w-3.5" />}
+                          <span>Quả cầu quỹ đạo</span>
+                          {motionMode === "orbit-sphere" && <Check className="h-3.5 w-3.5" />}
                         </button>
 
                         <button
@@ -1222,8 +1290,26 @@ export function WebArCardView({
                               : "text-stone-300 hover:bg-white/10"
                           }`}
                         >
-                          <span>Đứng yên trong phòng</span>
+                          <span>Đứng yên phòng</span>
                           {motionMode === "world-lock" && <Check className="h-3.5 w-3.5" />}
+                        </button>
+
+                        {/* Tùy chọn khóa trục nghiêng roll */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLockRoll((prev) => {
+                              const next = !prev;
+                              showToast(next ? "Đã khóa trục nghiêng Roll" : "Đã mở trục nghiêng Roll", "info");
+                              return next;
+                            });
+                          }}
+                          className="w-full flex items-center justify-between px-2.5 py-1 rounded-lg text-[10px] text-stone-300 hover:bg-white/10 cursor-pointer"
+                        >
+                          <span>Khóa trục nghiêng (Roll)</span>
+                          <span className={`px-1 rounded text-[9px] font-bold ${lockRoll ? "bg-amber-400 text-stone-950" : "bg-white/10 text-stone-400"}`}>
+                            {lockRoll ? "BẬT" : "TẮT"}
+                          </span>
                         </button>
 
                         <button
@@ -1242,22 +1328,29 @@ export function WebArCardView({
                   </div>
                 )}
 
-                {/* BƯỚC 4: Apple AR Quick Look (.usdz) chỉ hiển thị khi có tệp .usdz tĩnh cục bộ tồn tại thực tế (không hiển thị link R2 tránh lỗi 404) */}
-                {supportsAppleAr &&
+                {/* PHẦN C: Nút Xem AR Thật (Apple AR Quick Look / WebXR trên Android) */}
+                {(supportsAppleAr || supportsWebXr) &&
                   Boolean(
-                    animal.iosModelUrl &&
-                    animal.iosModelUrl.startsWith("/models/") &&
-                    !animal.iosModelUrl.startsWith("http")
+                    (animal.iosModelUrl && animal.iosModelUrl.startsWith("/models/") && !animal.iosModelUrl.startsWith("http")) ||
+                    supportsWebXr
                   ) && (
-                    <div className="pt-1 border-t border-white/10">
+                    <div className="pt-1 border-t border-white/10 space-y-1">
                       <a
-                        href={animal.iosModelUrl}
+                        href={animal.iosModelUrl || `/models/${animal.slug}.usdz`}
                         rel="ar"
-                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-teal-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-teal-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
                       >
-                        <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
-                        <span>Xem AR Apple Quick Look</span>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                          <span>Xem AR phòng thật</span>
+                        </div>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">
+                          {supportsAppleAr ? "Apple Quick Look" : "WebXR"}
+                        </span>
                       </a>
+                      <p className="px-2 text-[9px] text-stone-400 leading-tight">
+                        *Chế độ chạy ngoài trang, không có từ vựng song ngữ & mic.
+                      </p>
                     </div>
                   )}
               </div>
@@ -1280,6 +1373,10 @@ export function WebArCardView({
         posY={currentPosRef.current.y}
         zoomPercent={zoomPercent}
         facingMode={facingMode}
+        azimuthDeg={motionDebugAnglesRef.current.azimuthDeg}
+        elevationDeg={motionDebugAnglesRef.current.elevationDeg}
+        distanceR={isLandscape ? 2.4 : 1.9}
+        motionMode={motionMode}
         onClose={() => setIsDebugOpen(false)}
         onForceShow={() => {
           hasScannedOnceRef.current = true;
