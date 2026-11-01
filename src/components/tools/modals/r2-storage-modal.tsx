@@ -102,10 +102,10 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
 
   if (!isOpen) return null;
 
-  // Xóa tất cả tệp mồ côi
+  // Xóa tất cả tệp cần dọn dẹp
   const handleCleanAllOrphans = async () => {
     if (orphans.length === 0) return;
-    if (!confirm(`Bạn có chắc chắn muốn xóa ${orphans.length} tệp mồ côi để thu hồi ${stats?.orphanSizeMB} MB?`)) {
+    if (!confirm(`Bạn có chắc chắn muốn xóa ${orphans.length} tệp cần dọn dẹp để thu hồi ${stats?.orphanSizeMB} MB?`)) {
       return;
     }
 
@@ -191,7 +191,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                 </span>
               </div>
               <p className="text-xs text-stone-400">
-                Theo dõi dung lượng CDN, kiểm soát tệp 3D và tự động dọn dẹp tệp rác mồ côi
+                Theo dõi dung lượng CDN, kiểm soát tệp 3D và dọn dẹp các tệp chưa dùng
               </p>
             </div>
           </div>
@@ -287,11 +287,11 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2">
-                  <FileQuestion className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+                  <FileQuestion className="h-3.5 w-3.5 text-amber-400 shrink-0" />
                   <div>
-                    <div className="text-rose-300">Tệp mồ côi</div>
-                    <div className="font-bold text-rose-200">
+                    <div className="text-amber-300">Cần dọn dẹp</div>
+                    <div className="font-bold text-amber-200">
                       {stats.orphanCount} tệp ({stats.orphanSizeMB}M)
                     </div>
                   </div>
@@ -324,12 +324,12 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                 onClick={() => setActiveTab("orphans")}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === "orphans"
-                    ? "bg-rose-500 text-stone-950 shadow-md"
+                    ? "bg-amber-500 text-stone-950 shadow-md"
                     : "text-stone-400 hover:text-stone-200"
                 }`}
               >
                 <FileQuestion className="h-3.5 w-3.5" />
-                <span>Tệp Mồ Côi ({orphans.length})</span>
+                <span>Cần Dọn Dẹp ({orphans.length})</span>
               </button>
               <button
                 type="button"
@@ -394,7 +394,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
               <div className="py-16 text-center text-stone-500 text-xs space-y-1">
                 <p className="font-bold text-stone-400">
                   {activeTab === "orphans"
-                    ? "Tuyệt vời! Không có tệp rác mồ côi nào trên Cloudflare R2."
+                    ? "Tuyệt vời! Không có tệp dư thừa nào cần dọn dẹp trên Cloudflare R2."
                     : "Không tìm thấy tệp nào phù hợp với bộ lọc."}
                 </p>
                 <p className="text-[11px] text-stone-600">
@@ -431,8 +431,8 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                               Hệ thống
                             </span>
                           ) : item.isOrphan ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
-                              Mồ côi (Rác)
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                              Cần dọn dẹp
                             </span>
                           ) : (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
@@ -500,7 +500,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                 ) : (
                   <>
                     <Trash2 className="h-4 w-4" />
-                    <span>Dọn Dẹp Tất Cả Tệp Mồ Côi ({stats?.orphanSizeMB} MB)</span>
+                    <span>Dọn Dẹp Tất Cả Tệp Chưa Dùng ({stats?.orphanSizeMB} MB)</span>
                   </>
                 )}
               </button>
