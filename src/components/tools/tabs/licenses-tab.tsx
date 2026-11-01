@@ -326,11 +326,11 @@ export function LicensesTab({
       </div>
 
       {/* 2 TAB CON CHUYÊN BIỆT */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+      <div className="flex items-center gap-2 border-b border-white/10 pb-2 overflow-x-auto scrollbar-none touch-pan-x whitespace-nowrap">
         <button
           type="button"
           onClick={() => setSubTab("STORE_PACKS")}
-          className={`py-2 px-4 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
+          className={`py-2.5 px-4 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 transition-all ${
             subTab === "STORE_PACKS"
               ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
               : "text-stone-400 hover:text-white hover:bg-white/5"
@@ -343,7 +343,7 @@ export function LicensesTab({
         <button
           type="button"
           onClick={() => setSubTab("ISSUED_LICENSES")}
-          className={`py-2 px-4 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
+          className={`py-2.5 px-4 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 transition-all ${
             subTab === "ISSUED_LICENSES"
               ? "bg-amber-500 text-stone-950 shadow-lg shadow-amber-500/20"
               : "text-stone-400 hover:text-white hover:bg-white/5"

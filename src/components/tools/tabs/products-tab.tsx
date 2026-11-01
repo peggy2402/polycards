@@ -517,17 +517,17 @@ export function ProductsTab({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto">
           {onRefreshProducts && (
             <button
               type="button"
               disabled={isLoadingProducts}
               onClick={onRefreshProducts}
-              className="py-2.5 px-4 rounded-xl bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white border border-white/15 font-black text-xs flex items-center gap-2 shadow-md hover:border-amber-400/40 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white border border-white/15 font-black text-xs flex items-center justify-center gap-2 shadow-md hover:border-amber-400/40 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
               title="Làm mới danh sách thẻ bài (Đồng bộ dữ liệu mới nhất từ MongoDB Atlas)"
             >
-              <RefreshCw className={`h-4 w-4 text-amber-400 ${isLoadingProducts ? "animate-spin" : ""}`} />
-              <span>{isLoadingProducts ? "Đang đồng bộ..." : "Làm Mới"}</span>
+              <RefreshCw className={`h-4 w-4 text-amber-400 shrink-0 ${isLoadingProducts ? "animate-spin" : ""}`} />
+              <span className="truncate">{isLoadingProducts ? "Đang đồng bộ..." : "Làm Mới"}</span>
             </button>
           )}
 
@@ -543,29 +543,29 @@ export function ProductsTab({
                 }
                 setIsPackZipModalOpen(true);
               }}
-              className="py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500 text-purple-200 hover:text-white border border-purple-400/50 font-black text-xs flex items-center gap-2 shadow-lg shadow-purple-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500 text-purple-200 hover:text-white border border-purple-400/50 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
             >
-              <FolderArchive className="h-4 w-4" />
-              <span>Xuất Tệp .ZIP Thẻ In Theo Bộ</span>
+              <FolderArchive className="h-4 w-4 shrink-0" />
+              <span className="truncate">Xuất Tệp .ZIP</span>
             </button>
           )}
 
           <button
             type="button"
             onClick={onOpenComboModal}
-            className="py-2.5 px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
           >
-            <Sparkles className="h-4 w-4" />
-            <span>Tùy Chỉnh Khối Combo Lớn (#products)</span>
+            <Sparkles className="h-4 w-4 shrink-0" />
+            <span className="truncate">Khối Combo (#products)</span>
           </button>
 
           <button
             type="button"
             onClick={onNavigateToEditor}
-            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+            className="min-h-[44px] py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
           >
-            <Plus className="h-4 w-4" />
-            <span>Chế Bản Thẻ Mới</span>
+            <Plus className="h-4 w-4 shrink-0" />
+            <span className="truncate">Chế Bản Thẻ Mới</span>
           </button>
         </div>
       </div>
@@ -627,14 +627,14 @@ export function ProductsTab({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 shrink-0 w-full xl:w-auto">
           {/* Lọc Theo Danh Mục */}
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+          <div className="flex-1 sm:flex-initial flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300 min-h-[44px]">
             <Filter className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <select
               value={filterCardCategory}
               onChange={(e) => setFilterCardCategory(e.target.value)}
-              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer"
+              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer w-full"
             >
               <option value="all" className="bg-stone-900 text-white">
                 Tất Cả Danh Mục ({productsList.length})
@@ -654,12 +654,12 @@ export function ProductsTab({
           </div>
 
           {/* Lọc Theo Mã Bộ (Pack Code) */}
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+          <div className="flex-1 sm:flex-initial flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300 min-h-[44px]">
             <PackageCheck className="h-3.5 w-3.5 text-purple-400 shrink-0" />
             <select
               value={filterCardPackCode}
               onChange={(e) => setFilterCardPackCode(e.target.value)}
-              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer"
+              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer w-full"
             >
               <option value="all" className="bg-stone-900 text-white">
                 Tất Cả Mã Bộ ({productsList.length})
@@ -679,12 +679,12 @@ export function ProductsTab({
           </div>
 
           {/* Lọc Theo Song Ngữ (Language) */}
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300">
+          <div className="flex-1 sm:flex-initial flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-xs text-stone-300 min-h-[44px]">
             <Languages className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
             <select
               value={filterCardLanguage}
               onChange={(e) => setFilterCardLanguage(e.target.value as "all" | "en-vi" | "zh-vi")}
-              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer"
+              className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer w-full"
             >
               <option value="all" className="bg-stone-900 text-white">
                 Tất Cả Song Ngữ ({productsList.length})
@@ -699,11 +699,11 @@ export function ProductsTab({
           </div>
 
           {/* Chuyển Đổi Chế Độ Xem: Dạng Thẻ (Grid) vs Dạng Danh Sách (List) */}
-          <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/15">
+          <div className="flex items-center justify-center p-1 rounded-xl bg-stone-900 border border-white/15 min-h-[44px]">
             <button
               type="button"
               onClick={() => handleChangeViewMode("grid")}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`p-2 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
                 viewMode === "grid"
                   ? "bg-amber-400 text-stone-950 shadow-xs font-bold"
                   : "text-stone-400 hover:text-white"
@@ -715,7 +715,7 @@ export function ProductsTab({
             <button
               type="button"
               onClick={() => handleChangeViewMode("list")}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`p-2 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
                 viewMode === "list"
                   ? "bg-amber-400 text-stone-950 shadow-xs font-bold"
                   : "text-stone-400 hover:text-white"

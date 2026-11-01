@@ -120,13 +120,13 @@ export function QrConfigPanel({
       {qrMode === "slug" ? (
         <div className="space-y-3">
           {/* Chọn môi trường đích */}
-          <div className="flex items-center justify-between text-xs font-bold text-stone-300 pb-1">
-            <span>Máy chủ đích QR:</span>
-            <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-bold text-stone-300 pb-1">
+            <span className="text-stone-300 text-xs">Máy chủ đích QR:</span>
+            <div className="grid grid-cols-2 sm:flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/10 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => onSetQrTargetEnv("production")}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 sm:py-0.5 rounded text-[10px] sm:text-[11px] font-bold text-center transition-all cursor-pointer ${
                   qrTargetEnv === "production"
                     ? "bg-amber-500 text-stone-950 shadow"
                     : "text-stone-400 hover:text-white"
@@ -138,7 +138,7 @@ export function QrConfigPanel({
               <button
                 type="button"
                 onClick={() => onSetQrTargetEnv("local")}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 sm:py-0.5 rounded text-[10px] sm:text-[11px] font-bold text-center transition-all cursor-pointer ${
                   qrTargetEnv === "local"
                     ? "bg-emerald-500 text-stone-950 shadow"
                     : "text-stone-400 hover:text-white"
@@ -282,34 +282,34 @@ export function QrConfigPanel({
             </div>
           </div>
 
-          <div className="flex items-center justify-center sm:justify-start gap-1.5">
+          <div className="grid grid-cols-3 sm:flex items-center justify-center sm:justify-start gap-1.5 w-full">
             <button
               type="button"
               onClick={onDownloadQrPng}
-              className="py-1 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+              className="py-1.5 sm:py-1 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
               title="Tải riêng file PNG độ nét cao (1024px)"
             >
-              <Download className="h-3 w-3" />
+              <Download className="h-3 w-3 shrink-0" />
               <span>Tải PNG</span>
             </button>
 
             <button
               type="button"
               onClick={onDownloadQrSvg}
-              className="py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+              className="py-1.5 sm:py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
               title="Tải riêng file vector SVG vô hạn độ phân giải"
             >
-              <FileCode className="h-3 w-3 text-sky-400" />
+              <FileCode className="h-3 w-3 text-sky-400 shrink-0" />
               <span>Tải SVG</span>
             </button>
 
             <button
               type="button"
               onClick={onCopyUrl}
-              className="py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+              className="py-1.5 sm:py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 font-bold text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
               title="Sao chép liên kết"
             >
-              {copiedUrl ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+              {copiedUrl ? <Check className="h-3 w-3 text-emerald-400 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
               <span>{copiedUrl ? "Đã chép" : "Copy"}</span>
             </button>
           </div>

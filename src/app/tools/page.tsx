@@ -2530,54 +2530,54 @@ export default function ToolsPage() {
 
   return (
     <div className="min-h-screen bg-stone-950 text-white flex flex-col font-sans">
-      {/* 1. Header Studio Chuyên Nghiệp */}
-      <header className="sticky top-0 z-40 bg-stone-950/85 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* 1. Header Studio Chuyên Nghiệp (Responsive Mobile 360px+) */}
+      <header className="sticky top-0 z-40 bg-stone-950/90 backdrop-blur-md border-b border-white/10 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href="/"
-            className="flex items-center gap-2 text-amber-300 hover:text-amber-200 transition-colors"
+            className="flex items-center gap-2 text-amber-300 hover:text-amber-200 transition-colors min-w-0"
           >
-            <div className="h-9 w-9 rounded-xl bg-amber-500 flex items-center justify-center text-stone-950 font-black shadow-md">
-              <QrCode className="h-5 w-5" />
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-amber-500 flex items-center justify-center text-stone-950 font-black shadow-md shrink-0">
+              <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <div>
-              <div className="text-sm font-black leading-tight flex items-center gap-1.5">
-                <span>Poly Cards Studio</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  QR & CARD MAKER
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm font-black leading-tight flex items-center gap-1.5 truncate">
+                <span className="truncate">Poly Cards Studio</span>
+                <span className="hidden xs:inline-block text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                  QR MAKER
                 </span>
               </div>
-              <p className="text-[10px] text-stone-400">
-                Tạo mã QR WebAR & Kéo thả vào thẻ 1:1 chuẩn in ấn xưởng
+              <p className="hidden md:block text-[10px] text-stone-400 truncate">
+                Tạo mã QR WebAR &amp; Kéo thả vào thẻ 1:1 chuẩn in ấn xưởng
               </p>
             </div>
           </Link>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <Link
             href="/#products"
             target="_blank"
-            className="flex items-center gap-1 text-xs font-bold text-emerald-300 hover:text-white px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 transition-all hover:bg-emerald-500/25"
+            className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-emerald-300 hover:text-white px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 transition-all hover:bg-emerald-500/25 active:scale-95"
             title="Mở xem trang sản phẩm #products"
           >
-            <ShoppingBag className="h-3.5 w-3.5" />
-            <span>Xem #products</span>
+            <ShoppingBag className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden xs:inline">#products</span>
           </Link>
 
           <Link
             href="/invoices"
-            className="flex items-center gap-1.5 text-xs font-black text-amber-300 hover:text-stone-950 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-400 border border-amber-500/40 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-black text-amber-300 hover:text-stone-950 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-400 border border-amber-500/40 transition-all shadow-sm active:scale-95"
             title="Mở Module Lập Hóa Đơn Bán Hàng & POS chuyên biệt"
           >
-            <Receipt className="h-3.5 w-3.5 text-amber-400" />
-            <span>Hóa Đơn Bán Hàng (POS)</span>
+            <Receipt className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span><span className="hidden sm:inline">Hóa Đơn </span>POS</span>
           </Link>
 
           <Link
             href="/ar/cat?ar=1"
             target="_blank"
-            className="hidden sm:flex items-center gap-1 text-xs font-bold text-amber-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 transition-colors"
+            className="hidden lg:flex items-center gap-1 text-xs font-bold text-amber-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 transition-colors"
           >
             <Eye className="h-3.5 w-3.5" />
             <span>Thử WebAR</span>
@@ -2586,7 +2586,7 @@ export default function ToolsPage() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-1 text-xs font-bold text-stone-400 hover:text-rose-400 px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors"
+            className="flex items-center gap-1 text-xs font-bold text-stone-400 hover:text-rose-400 px-2.5 py-1.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
             title="Đăng xuất khỏi Studio"
           >
             <Unlock className="h-3.5 w-3.5" />
@@ -2595,128 +2595,132 @@ export default function ToolsPage() {
         </div>
       </header>
 
-      {/* THANH ĐIỀU HƯỚNG TABS PHÂN HỆ STUDIO */}
-      <div className="bg-stone-900/90 border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 overflow-x-auto shrink-0 z-30">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveStudioTab("editor")}
-            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
-              activeStudioTab === "editor"
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
-                : "text-stone-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <QrCode className="h-4 w-4" />
-            <span>Chế Bản & QR Studio</span>
-            {printQueue.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-stone-950 text-amber-300 font-black">
-                {printQueue.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveStudioTab("products");
-              loadStudioProducts(true);
-            }}
-            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
-              activeStudioTab === "products"
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
-                : "text-stone-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Layers className="h-4 w-4" />
-            <span>Kho Thẻ Bài Sản Phẩm</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeStudioTab === "products" ? "bg-stone-950 text-amber-300" : "bg-white/10 text-stone-300"}`}>
-              {productsList.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveStudioTab("categories")}
-            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
-              activeStudioTab === "categories"
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
-                : "text-stone-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Tag className="h-4 w-4" />
-            <span>Quản Lý Danh Mục</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeStudioTab === "categories" ? "bg-stone-950 text-amber-300" : "bg-white/10 text-stone-300"}`}>
-              {categoriesList.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveStudioTab("licenses")}
-            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
-              activeStudioTab === "licenses"
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
-                : "text-stone-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <KeyRound className="h-4 w-4" />
-            <span>Quản Lý Mã Thẻ/Bộ</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveStudioTab("invoices")}
-            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
-              activeStudioTab === "invoices"
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
-                : "text-stone-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Receipt className="h-4 w-4" />
-            <span>Quản Lý Hóa Đơn</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveStudioTab("customers")}
-            className={`py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all ${
-              activeStudioTab === "customers"
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
-                : "text-stone-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            <span>Quản Lý Khách Hàng</span>
-          </button>
-
-          <Link
-            href="/invoices"
-            className="py-2 px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 text-stone-300 hover:text-amber-400 hover:bg-white/5 border border-dashed border-white/15 transition-all"
-          >
-            <ExternalLink className="h-3.5 w-3.5 text-amber-400" />
-            <span>Điểm Bán Hàng (POS)</span>
-          </Link>
-        </div>
-
-        {/* Trạng thái hàng đợi in nhanh */}
-        {printQueue.length > 0 && (
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1.5 rounded-xl">
-              <FolderArchive className="h-3.5 w-3.5 text-amber-400" />
-              <span>Hàng đợi: <strong>{printQueue.length}</strong> thẻ</span>
-            </span>
+      {/* THANH ĐIỀU HƯỚNG TABS PHÂN HỆ STUDIO (Vuốt chạm mượt mà chuẩn Mobile Touch) */}
+      <div className="relative bg-stone-900/95 border-b border-white/10 shrink-0 z-30">
+        <div className="px-3 sm:px-6 py-2 flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none touch-pan-x flex-1 min-w-0">
             <button
               type="button"
-              onClick={handleDownloadZip}
-              disabled={isGeneratingZip}
-              className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md hover:from-amber-300 hover:to-amber-400 active:scale-95 transition-all"
+              onClick={() => setActiveStudioTab("editor")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "editor"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
             >
-              <Archive className="h-3.5 w-3.5" />
-              <span>{isGeneratingZip ? "Đang Nén..." : "Tải ZIP Hàng Đợi"}</span>
+              <QrCode className="h-4 w-4 shrink-0" />
+              <span>Chế Bản &amp; QR Studio</span>
+              {printQueue.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-stone-950 text-amber-300 font-black">
+                  {printQueue.length}
+                </span>
+              )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveStudioTab("products");
+                loadStudioProducts(true);
+              }}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "products"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Layers className="h-4 w-4 shrink-0" />
+              <span>Kho Thẻ Bài</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeStudioTab === "products" ? "bg-stone-950 text-amber-300" : "bg-white/10 text-stone-300"}`}>
+                {productsList.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveStudioTab("categories")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "categories"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Tag className="h-4 w-4 shrink-0" />
+              <span>Quản Lý Danh Mục</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeStudioTab === "categories" ? "bg-stone-950 text-amber-300" : "bg-white/10 text-stone-300"}`}>
+                {categoriesList.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveStudioTab("licenses")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "licenses"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <KeyRound className="h-4 w-4 shrink-0" />
+              <span>Mã Thẻ/Bộ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveStudioTab("invoices")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "invoices"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Receipt className="h-4 w-4 shrink-0" />
+              <span>Hóa Đơn</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveStudioTab("customers")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "customers"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <span>Khách Hàng</span>
+            </button>
+
+            <Link
+              href="/invoices"
+              className="py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 text-stone-300 hover:text-amber-400 hover:bg-white/5 border border-dashed border-white/15 transition-all whitespace-nowrap shrink-0"
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span>Điểm Bán Hàng (POS)</span>
+            </Link>
           </div>
-        )}
+
+          {/* Trạng thái hàng đợi in nhanh */}
+          {printQueue.length > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1.5 rounded-xl">
+                <FolderArchive className="h-3.5 w-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Hàng đợi: <strong>{printQueue.length}</strong> thẻ</span>
+                <span className="sm:hidden font-mono"><strong>{printQueue.length}</strong></span>
+              </span>
+              <button
+                type="button"
+                onClick={handleDownloadZip}
+                disabled={isGeneratingZip}
+                className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md hover:from-amber-300 hover:to-amber-400 active:scale-95 transition-all"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{isGeneratingZip ? "Đang Nén..." : "Tải ZIP Hàng Đợi"}</span>
+                <span className="sm:hidden">ZIP</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 2. TAB 1: BÀN CHẾ BẢN & QR STUDIO */}

@@ -185,11 +185,11 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full md:w-auto">
           <button
             type="button"
             onClick={loadData}
-            className="py-2.5 px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs flex items-center gap-1.5 border border-white/10 transition-all cursor-pointer"
+            className="min-h-[44px] py-2.5 px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 transition-all cursor-pointer"
             title="Đồng bộ lại dữ liệu"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
@@ -200,7 +200,7 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
             <button
               type="button"
               onClick={onNavigateToPOS}
-              className="py-2.5 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white font-bold text-xs flex items-center gap-1.5 border border-emerald-400/30 transition-all cursor-pointer"
+              className="min-h-[44px] py-2.5 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-400/30 transition-all cursor-pointer"
             >
               <Receipt className="h-3.5 w-3.5" />
               <span>Bán Tại POS</span>
@@ -222,7 +222,7 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
               });
               setIsEditModalOpen(true);
             }}
-            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-stone-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+            className="col-span-2 sm:col-span-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-stone-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>+ Thêm Khách Hàng Mới</span>

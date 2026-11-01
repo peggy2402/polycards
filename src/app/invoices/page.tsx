@@ -668,65 +668,65 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
       {/* ========================================================
           HEADER NAVIGATION: ĐẦY ĐỦ CÁC PHÂN HỆ STUDIO & POS
          ======================================================== */}
-      <header className="border-b border-white/10 bg-stone-900/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 py-3 print:hidden">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-stone-950 font-black shadow-lg shadow-amber-500/20">
-              <Receipt className="h-5 w-5" />
+      <header className="border-b border-white/10 bg-stone-900/90 backdrop-blur-md sticky top-0 z-40 px-3 sm:px-6 py-2.5 sm:py-3 print:hidden">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-stone-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
+              <Receipt className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-black tracking-wide uppercase text-white">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-xs sm:text-base font-black tracking-wide uppercase text-white">
                   Phân Hệ Hóa Đơn Bán Hàng (POS)
                 </h1>
-                <span className="text-[10px] bg-amber-400 text-stone-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[9px] sm:text-[10px] bg-amber-400 text-stone-950 font-black px-1.5 sm:px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Live POS
                 </span>
               </div>
-              <p className="text-xs text-stone-400">
+              <p className="text-[11px] sm:text-xs text-stone-400 hidden sm:block">
                 Lập hóa đơn, tự động sinh mã thẻ/bộ &amp; hạch toán trực tiếp
               </p>
             </div>
           </div>
 
           {/* CÁC NÚT ĐIỀU HƯỚNG NHANH SANG STUDIO & TABS */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 self-stretch sm:self-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none touch-pan-x whitespace-nowrap w-full sm:w-auto pb-1 sm:pb-0">
             <Link
               href="/tools?tab=products"
-              className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10"
+              className="py-1.5 px-2.5 sm:px-3 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10 shrink-0 min-h-[36px]"
             >
-              <Layers className="h-3.5 w-3.5 text-amber-400" />
+              <Layers className="h-3.5 w-3.5 text-amber-400 shrink-0" />
               <span>Kho Thẻ Bài</span>
             </Link>
 
             <Link
               href="/tools?tab=licenses"
-              className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10"
+              className="py-1.5 px-2.5 sm:px-3 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10 shrink-0 min-h-[36px]"
             >
-              <KeyRound className="h-3.5 w-3.5 text-amber-400" />
+              <KeyRound className="h-3.5 w-3.5 text-amber-400 shrink-0" />
               <span>Quản Lý Mã Thẻ/Bộ</span>
             </Link>
 
             <Link
               href="/tools?tab=invoices"
-              className="py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-colors border border-amber-500/30"
+              className="py-1.5 px-2.5 sm:px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-colors border border-amber-500/30 shrink-0 min-h-[36px]"
             >
-              <Receipt className="h-3.5 w-3.5 text-amber-400" />
+              <Receipt className="h-3.5 w-3.5 text-amber-400 shrink-0" />
               <span>Quản Lý Hóa Đơn</span>
             </Link>
 
             <Link
               href="/tools?tab=customers"
-              className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10"
+              className="py-1.5 px-2.5 sm:px-3 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10 shrink-0 min-h-[36px]"
             >
-              <Users className="h-3.5 w-3.5 text-amber-400" />
+              <Users className="h-3.5 w-3.5 text-amber-400 shrink-0" />
               <span>Khách Hàng</span>
             </Link>
 
             <button
               type="button"
               onClick={loadInvoices}
-              className="py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 font-bold text-xs flex items-center gap-1 border border-white/10 transition-colors"
+              className="py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 font-bold text-xs flex items-center gap-1 border border-white/10 transition-colors shrink-0 min-h-[36px]"
               title="Đồng bộ hóa đơn"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
