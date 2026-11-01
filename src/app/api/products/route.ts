@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GridFSBucket } from "mongodb";
 import { Animal } from "@/types/animal";
 import { normalizeCategorySlug } from "@/lib/activation";
+import { cleanPhonetic } from "@/lib/phonetic-utils";
 import { isR2Configured, uploadToR2 } from "@/lib/r2";
 import { isSupabaseConfigured, uploadToSupabase } from "@/lib/supabase-storage";
 import {
@@ -91,6 +92,8 @@ export async function GET(request: NextRequest) {
       const normalizedSlug = normalizeCategorySlug(a.categorySlug || rawCategory);
       return {
         ...a,
+        pinyinZh: a.pinyinZh ? cleanPhonetic(a.pinyinZh) : a.pinyinZh,
+        ipa: a.ipa ? cleanPhonetic(a.ipa) : a.ipa,
         category: rawCategory,
         categorySlug: normalizedSlug,
       };
@@ -251,9 +254,9 @@ export async function POST(request: NextRequest) {
       nameEn: String(body.nameEn).trim(),
       nameVi: String(body.nameVi).trim(),
       nameZh: body.nameZh !== undefined ? String(body.nameZh).trim() : existingItem?.nameZh || "",
-      ipa: body.ipa ? String(body.ipa).trim() : existingItem?.ipa || `/${cleanSlug}/`,
+      ipa: body.ipa ? cleanPhonetic(String(body.ipa).trim()) : existingItem?.ipa ? cleanPhonetic(existingItem.ipa) : cleanPhonetic(cleanSlug),
       pinyinZh:
-        body.pinyinZh !== undefined ? String(body.pinyinZh).trim() : existingItem?.pinyinZh || "",
+        body.pinyinZh !== undefined ? cleanPhonetic(String(body.pinyinZh).trim()) : existingItem?.pinyinZh ? cleanPhonetic(existingItem.pinyinZh) : "",
       enableEnVi:
         typeof body.enableEnVi === "boolean"
           ? body.enableEnVi

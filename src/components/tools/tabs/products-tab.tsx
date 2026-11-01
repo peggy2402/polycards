@@ -36,6 +36,7 @@ import {
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { SubjectFocusImage } from "@/components/common/subject-focus-image";
+import { cleanPhonetic, formatPhonetic } from "@/lib/phonetic-utils";
 import { ProductDetailModal } from "../modals/product-detail-modal";
 import {
   getStoredPackCodes,
@@ -257,11 +258,39 @@ export function ProductsTab({
     return productsList.filter((p) => !p.packCode || p.packCode.trim() === "").length;
   }, [productsList]);
 
-  // Thống kê số lượng thẻ theo chế độ song ngữ
+  // Lấy danh sách thẻ phù hợp với các bộ lọc khác (Category, PackCode, Search, HomePinned) để tính chính xác số lượng song ngữ
+  const scopedProductsForLanguage = useMemo(() => {
+    return productsList.filter((card) => {
+      const matchesSearch =
+        !searchCardQuery.trim() ||
+        card.nameVi.toLowerCase().includes(searchCardQuery.toLowerCase()) ||
+        card.nameEn.toLowerCase().includes(searchCardQuery.toLowerCase()) ||
+        (card.nameZh && card.nameZh.toLowerCase().includes(searchCardQuery.toLowerCase())) ||
+        card.slug.toLowerCase().includes(searchCardQuery.toLowerCase());
+
+      const matchesCategory =
+        filterCardCategory === "all" ||
+        card.categorySlug === filterCardCategory ||
+        card.category === filterCardCategory;
+
+      const matchesPackCode =
+        filterCardPackCode === "all"
+          ? true
+          : filterCardPackCode === "none"
+          ? !card.packCode || card.packCode.trim() === ""
+          : card.packCode === filterCardPackCode;
+
+      const matchesHomePinned = !onlyHomeFeatured || Boolean(card.showOnHome);
+
+      return matchesSearch && matchesCategory && matchesPackCode && matchesHomePinned;
+    });
+  }, [productsList, searchCardQuery, filterCardCategory, filterCardPackCode, onlyHomeFeatured]);
+
+  // Thống kê số lượng thẻ theo chế độ song ngữ (tính toán động theo ngữ cảnh danh mục & mã bộ đang lọc)
   const languageStats = useMemo(() => {
     let enVi = 0;
     let zhVi = 0;
-    productsList.forEach((card) => {
+    scopedProductsForLanguage.forEach((card) => {
       if (card.enableEnVi !== false && Boolean(card.nameEn && card.nameEn.trim())) {
         enVi++;
       }
@@ -269,8 +298,8 @@ export function ProductsTab({
         zhVi++;
       }
     });
-    return { enVi, zhVi, total: productsList.length };
-  }, [productsList]);
+    return { enVi, zhVi, total: scopedProductsForLanguage.length };
+  }, [scopedProductsForLanguage]);
 
   const filteredProducts = productsList.filter((card) => {
     const matchesSearch =
@@ -687,7 +716,7 @@ export function ProductsTab({
               className="bg-transparent text-white font-bold text-xs focus:outline-hidden cursor-pointer w-full"
             >
               <option value="all" className="bg-stone-900 text-white">
-                Tất Cả Song Ngữ ({productsList.length})
+                Tất Cả Song Ngữ ({languageStats.total})
               </option>
               <option value="en-vi" className="bg-stone-900 text-amber-300">
                 Anh - Việt (EN-VI) ({languageStats.enVi})
@@ -1040,8 +1069,9 @@ export function ProductsTab({
                 {/* Ảnh thu gọn 1:1 tập trung nhân vật */}
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-stone-950 border border-white/10">
                   <SubjectFocusImage
-                    primaryUrl={card.images?.[0]}
-                    secondaryUrl={card.posterUrl}
+                    rawUrl={card.rawImageUrl}
+                    primaryUrl={card.rawImageUrl || card.images?.[0]}
+                    secondaryUrl={card.images?.[0] || card.posterUrl}
                     alt={card.nameVi}
                     className="transition-transform duration-300 group-hover:scale-106"
                   />
@@ -1148,7 +1178,7 @@ export function ProductsTab({
                   <div className="flex items-center justify-between gap-1 text-[11px]">
                     <span className="text-stone-400 font-semibold truncate">
                       {card.enableZhVi && !card.enableEnVi && card.nameZh
-                        ? `${card.nameZh} (${card.pinyinZh || ""})`
+                        ? `${card.nameZh} (${cleanPhonetic(card.pinyinZh)})`
                         : card.enableZhVi && card.enableEnVi && card.nameZh
                         ? `${card.nameEn} • ${card.nameZh}`
                         : card.nameEn}
@@ -1257,8 +1287,9 @@ export function ProductsTab({
                           <td className="py-2 px-3 text-center">
                             <div className="relative h-11 w-11 rounded-xl overflow-hidden bg-stone-950 border border-white/10 mx-auto">
                               <SubjectFocusImage
-                                primaryUrl={card.images?.[0]}
-                                secondaryUrl={card.posterUrl}
+                                rawUrl={card.rawImageUrl}
+                                primaryUrl={card.rawImageUrl || card.images?.[0]}
+                                secondaryUrl={card.images?.[0] || card.posterUrl}
                                 alt={card.nameVi}
                               />
                             </div>
@@ -1292,17 +1323,17 @@ export function ProductsTab({
                                   )}
                                   {card.pinyinZh ? (
                                     <span className="text-amber-300 font-mono font-medium">
-                                      /{card.pinyinZh}/
+                                      {formatPhonetic(card.pinyinZh)}
                                     </span>
                                   ) : card.ipa ? (
-                                    <span className="text-stone-500 font-mono">{card.ipa}</span>
+                                    <span className="text-stone-500 font-mono">{formatPhonetic(card.ipa)}</span>
                                   ) : null}
                                 </>
                               ) : (
                                 <>
                                   <span className="font-mono">{card.nameEn}</span>
                                   {card.ipa && (
-                                    <span className="text-stone-500 font-mono">{card.ipa}</span>
+                                    <span className="text-stone-500 font-mono">{formatPhonetic(card.ipa)}</span>
                                   )}
                                   {card.enableZhVi && card.nameZh && (
                                     <span
@@ -1317,7 +1348,7 @@ export function ProductsTab({
                                   )}
                                   {card.enableZhVi && card.pinyinZh && (
                                     <span className="text-amber-300 font-mono text-[10px]">
-                                      ({card.pinyinZh})
+                                      ({cleanPhonetic(card.pinyinZh)})
                                     </span>
                                   )}
                                 </>

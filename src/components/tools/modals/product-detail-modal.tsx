@@ -23,6 +23,7 @@ import { Animal } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { resolveValidProductImage } from "@/lib/products-store";
 import { SubjectFocusImage } from "@/components/common/subject-focus-image";
+import { cleanPhonetic, formatPhonetic } from "@/lib/phonetic-utils";
 
 interface ProductDetailModalProps {
   card: Animal | null;
@@ -89,10 +90,9 @@ export function ProductDetailModal({
               </span>
             </h3>
             <span className="font-mono text-[11px] text-amber-300 hidden sm:inline">
-              /
               {card.enableZhVi && !card.enableEnVi && card.pinyinZh
-                ? card.pinyinZh
-                : card.slug}
+                ? formatPhonetic(card.pinyinZh)
+                : formatPhonetic(card.slug)}
             </span>
           </div>
 
@@ -114,8 +114,9 @@ export function ProductDetailModal({
               <div className="relative aspect-[3/3.6] w-full rounded-2xl overflow-hidden bg-stone-950 border border-white/15 shadow-lg">
                 {previewMode === "subject" ? (
                   <SubjectFocusImage
-                    primaryUrl={card.images?.[0]}
-                    secondaryUrl={card.posterUrl}
+                    rawUrl={card.rawImageUrl}
+                    primaryUrl={card.rawImageUrl || card.images?.[0]}
+                    secondaryUrl={card.images?.[0] || card.posterUrl}
                     alt={card.nameVi}
                   />
                 ) : (
@@ -305,7 +306,7 @@ export function ProductDetailModal({
                       </strong>{" "}
                       {card.pinyinZh && (
                         <span className="font-mono text-[12px] text-amber-300 font-semibold">
-                          ({card.pinyinZh})
+                          ({cleanPhonetic(card.pinyinZh)})
                         </span>
                       )}
                     </div>

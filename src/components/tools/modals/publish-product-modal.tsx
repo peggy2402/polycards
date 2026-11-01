@@ -20,6 +20,7 @@ import { ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { ProductFormData } from "../types";
 import { ArResourcePanel } from "../widgets/ar-resource-panel";
+import { BilingualConfigSection } from "../widgets/bilingual-config-section";
 import { getPackCodeForCategory, getStoredPackCodes } from "@/lib/pack-codes-store";
 
 interface PublishProductModalProps {
@@ -251,275 +252,31 @@ export function PublishProductModal({
                 )}
               </div>
 
-              {/* Toggle 1: Song Ngữ Anh - Việt */}
-              <div
-                className={`p-3 rounded-xl border transition-all space-y-2.5 ${
-                  productForm.enableEnVi
-                    ? "bg-amber-500/10 border-amber-400/50"
-                    : "bg-black/40 border-white/10 opacity-75"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                      <span>Song Ngữ Anh - Việt (EN - VI)</span>
-                    </div>
-                    <p className="text-[10px] text-stone-400">
-                      Hiển thị nút phát âm Tiếng Anh & Tiếng Việt trên màn hình quét WebAR
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={productForm.enableEnVi}
-                    onClick={() => {
-                      const nextVal = !productForm.enableEnVi;
-                      if (!nextVal && !productForm.enableZhVi) {
-                        onShowToast("Phải bật ít nhất 1 chế độ song ngữ (Anh - Việt hoặc Trung - Việt)!", "warning");
-                        return;
-                      }
-                      onChangeForm({ enableEnVi: nextVal });
-                    }}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                      productForm.enableEnVi ? "bg-amber-400" : "bg-stone-700"
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-stone-950 shadow-md ring-0 transition duration-200 ease-in-out ${
-                        productForm.enableEnVi ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {productForm.enableEnVi && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-amber-400/20 animate-in fade-in duration-150">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-bold text-amber-200">
-                          1. Từ vựng Tiếng Anh (EN) *:
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleAutoTranslate(productForm.nameEn, "en")}
-                          disabled={isTranslating || !productForm.nameEn.trim()}
-                          className="text-[9px] font-bold text-amber-300 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
-                          title="Tự động dịch sang Tiếng Việt, Tiếng Trung & sinh IPA/Pinyin"
-                        >
-                          <Sparkles className="h-2.5 w-2.5 text-amber-300" />
-                          <span>Tự sinh</span>
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        required={productForm.enableEnVi}
-                        placeholder="VD: Run, Lion, Read..."
-                        value={productForm.nameEn}
-                        onChange={(e) => onChangeForm({ nameEn: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAutoTranslate(productForm.nameEn, "en");
-                          }
-                        }}
-                        className="w-full bg-black/80 border border-amber-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-bold text-emerald-300">
-                          2. Từ Tiếng Việt (VI) *:
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleAutoTranslate(productForm.nameVi, "vi")}
-                          disabled={isTranslating || !productForm.nameVi.trim()}
-                          className="text-[9px] font-bold text-emerald-300 hover:text-white px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
-                          title="Tự động dịch sang Tiếng Anh, Tiếng Trung & sinh IPA/Pinyin"
-                        >
-                          <Sparkles className="h-2.5 w-2.5 text-emerald-300" />
-                          <span>Tự sinh</span>
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        placeholder="VD: Chạy bộ, Sư tử, Đọc sách..."
-                        value={productForm.nameVi}
-                        onChange={(e) => onChangeForm({ nameVi: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAutoTranslate(productForm.nameVi, "vi");
-                          }
-                        }}
-                        className="w-full bg-black/80 border border-emerald-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-emerald-400 font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-300 mb-1">
-                        3. Phiên âm (IPA):
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="VD: /rʌn/, /ˈlaɪ.ən/, /riːd/..."
-                        value={productForm.ipa}
-                        onChange={(e) => onChangeForm({ ipa: e.target.value })}
-                        className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Toggle 2: Song Ngữ Trung - Việt */}
-              <div
-                className={`p-3 rounded-xl border transition-all space-y-2.5 ${
-                  productForm.enableZhVi
-                    ? "bg-rose-500/10 border-rose-400/50"
-                    : "bg-black/40 border-white/10 opacity-75"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-black text-rose-300 flex items-center gap-1.5">
-                      <span>Song Ngữ Trung - Việt (ZH - VI)</span>
-                    </div>
-                    <p className="text-[10px] text-stone-400">
-                      Hiển thị nút phát âm Tiếng Trung & Tiếng Việt trên màn hình quét WebAR
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={productForm.enableZhVi}
-                    onClick={() => {
-                      const nextVal = !productForm.enableZhVi;
-                      if (!nextVal && !productForm.enableEnVi) {
-                        onShowToast("Phải bật ít nhất 1 chế độ song ngữ (Anh - Việt hoặc Trung - Việt)!", "warning");
-                        return;
-                      }
-                      onChangeForm({ enableZhVi: nextVal });
-                    }}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                      productForm.enableZhVi ? "bg-rose-400" : "bg-stone-700"
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-stone-950 shadow-md ring-0 transition duration-200 ease-in-out ${
-                        productForm.enableZhVi ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {productForm.enableZhVi && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-rose-400/20 animate-in fade-in duration-150">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-bold text-rose-300">
-                          1. Từ vựng Tiếng Trung (ZH) *:
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleAutoTranslate(productForm.nameZh, "zh")}
-                          disabled={isTranslating || !productForm.nameZh.trim()}
-                          className="text-[9px] font-bold text-rose-300 hover:text-white px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
-                          title="Tự động dịch sang Tiếng Việt, Tiếng Anh & sinh Pinyin"
-                        >
-                          <Sparkles className="h-2.5 w-2.5 text-rose-300" />
-                          <span>Tự sinh</span>
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        required={productForm.enableZhVi}
-                        placeholder="VD: 跑步, 狮子, 马, 看书..."
-                        value={productForm.nameZh}
-                        onChange={(e) => onChangeForm({ nameZh: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAutoTranslate(productForm.nameZh, "zh");
-                          }
-                        }}
-                        onPaste={(e) => {
-                          const pasted = e.clipboardData.getData("text/plain");
-                          if (pasted) {
-                            e.preventDefault();
-                            onChangeForm({ nameZh: pasted.trim() });
-                          }
-                        }}
-                        style={{
-                          fontFamily:
-                            '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif',
-                        }}
-                        className="w-full bg-black/80 border border-rose-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-rose-400 font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-bold text-emerald-300">
-                          2. Từ Tiếng Việt (VI) *:
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleAutoTranslate(productForm.nameVi, "vi")}
-                          disabled={isTranslating || !productForm.nameVi.trim()}
-                          className="text-[9px] font-bold text-emerald-300 hover:text-white px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 flex items-center gap-1 transition-colors disabled:opacity-40 cursor-pointer"
-                          title="Tự động dịch sang Tiếng Trung, Tiếng Anh & sinh Pinyin"
-                        >
-                          <Sparkles className="h-2.5 w-2.5 text-emerald-300" />
-                          <span>Tự sinh</span>
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        placeholder="VD: Chạy bộ, Sư tử, Đọc sách..."
-                        value={productForm.nameVi}
-                        onChange={(e) => onChangeForm({ nameVi: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAutoTranslate(productForm.nameVi, "vi");
-                          }
-                        }}
-                        className="w-full bg-black/80 border border-emerald-400/40 rounded-xl px-2.5 py-2 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-emerald-400 font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-300 mb-1">
-                        3. Phiên âm (Pinyin):
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="VD: pǎo bù, shī zi, mǎ, kàn shū..."
-                        value={productForm.pinyinZh}
-                        onChange={(e) => onChangeForm({ pinyinZh: e.target.value })}
-                        onPaste={(e) => {
-                          const pasted = e.clipboardData.getData("text/plain");
-                          if (pasted) {
-                            e.preventDefault();
-                            onChangeForm({ pinyinZh: pasted.trim() });
-                          }
-                        }}
-                        style={{
-                          fontFamily:
-                            '"Inter", "PingFang SC", "Arial", sans-serif',
-                        }}
-                        className="w-full bg-black/80 border border-white/20 rounded-xl px-2.5 py-2 text-xs font-semibold text-rose-300 placeholder-stone-500 focus:outline-hidden focus:border-rose-400"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Khối cấu hình Song Ngữ Anh-Việt & Trung-Việt (Tách Component chuẩn Clean Architecture & DRY) */}
+              <BilingualConfigSection
+                data={{
+                  enableEnVi: productForm.enableEnVi,
+                  nameEn: productForm.nameEn,
+                  nameVi: productForm.nameVi,
+                  ipa: productForm.ipa,
+                  enableZhVi: productForm.enableZhVi,
+                  nameZh: productForm.nameZh,
+                  pinyinZh: productForm.pinyinZh,
+                }}
+                onChange={(updates) => {
+                  if (updates.enableEnVi !== undefined && !updates.enableEnVi && !productForm.enableZhVi) {
+                    onShowToast("Phải bật ít nhất 1 chế độ song ngữ (Anh - Việt hoặc Trung - Việt)!", "warning");
+                    return;
+                  }
+                  if (updates.enableZhVi !== undefined && !updates.enableZhVi && !productForm.enableEnVi) {
+                    onShowToast("Phải bật ít nhất 1 chế độ song ngữ (Anh - Việt hoặc Trung - Việt)!", "warning");
+                    return;
+                  }
+                  onChangeForm(updates);
+                }}
+                onAutoTranslate={handleAutoTranslate}
+                isTranslating={isTranslating}
+              />
             </div>
 
             {/* 3. GIÁ TIỀN ƯU ĐÃI & GIÁ GỐC */}

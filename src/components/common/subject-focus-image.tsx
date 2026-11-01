@@ -16,7 +16,9 @@ export function isPrintedCardLayoutImage(url?: string): boolean {
     lower.startsWith("/images/animals/") ||
     lower.startsWith("/images/posters/") ||
     lower.includes("-subject") ||
-    lower.includes("-avatar")
+    lower.includes("-avatar") ||
+    lower.includes("-raw") ||
+    lower.includes("/raw/")
   ) {
     return false;
   }
@@ -39,6 +41,7 @@ export function isPrintedCardLayoutImage(url?: string): boolean {
 const croppedSubjectCache = new Map<string, string>();
 
 interface SubjectFocusImageProps {
+  rawUrl?: string;
   primaryUrl?: string;
   secondaryUrl?: string;
   fallbackUrl?: string;
@@ -51,25 +54,37 @@ interface SubjectFocusImageProps {
  * tự động loại bỏ vùng mã QR và các ô chữ rườm rà nếu nguồn ảnh là phôi thẻ in.
  */
 export function SubjectFocusImage({
+  rawUrl,
   primaryUrl,
   secondaryUrl,
-  fallbackUrl = "/images/cards/jump-template.jpg",
+  fallbackUrl = "/images/cards/lion-card.jpg",
   alt,
   className = "",
 }: SubjectFocusImageProps) {
-  const initialSrc = resolveValidProductImage(primaryUrl, secondaryUrl, fallbackUrl);
+  // Ưu tiên cao nhất là rawUrl (ảnh nhân vật gốc không có khung QR)
+  const initialSrc =
+    (rawUrl && rawUrl.trim() !== "")
+      ? rawUrl
+      : resolveValidProductImage(primaryUrl, secondaryUrl, fallbackUrl);
+
   const [activeSrc, setActiveSrc] = useState<string>(initialSrc);
   const [croppedUrl, setCroppedUrl] = useState<string | null>(
     () => croppedSubjectCache.get(initialSrc) || null
   );
+  const [cropFailed, setCropFailed] = useState<boolean>(false);
 
   useEffect(() => {
-    const nextSrc = resolveValidProductImage(primaryUrl, secondaryUrl, fallbackUrl);
+    const nextSrc =
+      (rawUrl && rawUrl.trim() !== "")
+        ? rawUrl
+        : resolveValidProductImage(primaryUrl, secondaryUrl, fallbackUrl);
     setActiveSrc(nextSrc);
     setCroppedUrl(croppedSubjectCache.get(nextSrc) || null);
-  }, [primaryUrl, secondaryUrl, fallbackUrl]);
+    setCropFailed(false);
+  }, [rawUrl, primaryUrl, secondaryUrl, fallbackUrl]);
 
-  const needsCrop = isPrintedCardLayoutImage(activeSrc);
+  // Nếu là rawUrl thì tuyệt đối không cần cắt xén
+  const needsCrop = Boolean(!rawUrl && isPrintedCardLayoutImage(activeSrc));
 
   useEffect(() => {
     if (!needsCrop) {
@@ -102,8 +117,6 @@ export function SubjectFocusImage({
         const sw = Math.max(1, Math.round(w * 0.535));
         const sh = Math.max(1, Math.round(h * 0.64));
 
-        // Đảm bảo khung ảnh sau khi cắt có tỷ lệ cân đối (>= 0.85) để hiển thị trọn vẹn từ đầu tới chân
-        // trong cả khung vuông (1:1) lẫn khung chữ nhật (4:3.6) mà không bị cắt mất chân nhân vật.
         const minTargetRatio = 0.86;
         const currentRatio = sw / sh;
         const targetW =
@@ -120,8 +133,6 @@ export function SubjectFocusImage({
         ctx.imageSmoothingQuality = "high";
 
         if (targetW > sw) {
-          // Tạo lớp nền mờ đồng màu tự nhiên (bầu trời/cây cỏ/đường chạy) hai bên mép bằng kỹ thuật downscale-upscale
-          // Tương thích 100% trên cả iOS Safari và Android Chrome
           const blurCanvas = document.createElement("canvas");
           blurCanvas.width = 24;
           blurCanvas.height = 28;
@@ -144,13 +155,15 @@ export function SubjectFocusImage({
           setCroppedUrl(resultDataUrl);
         }
       } catch {
-        // Nếu trình duyệt chặn xuất canvas, tự động giữ chế độ CSS zoom fallback bên dưới
+        // Trình duyệt chặn canvas (CORS R2): Giữ chế độ CSS crop bên dưới, KHÔNG đổi sang jump-template!
+        if (!cancelled) setCropFailed(true);
       }
     };
 
     img.onerror = () => {
-      if (!cancelled && activeSrc !== fallbackUrl) {
-        setActiveSrc(fallbackUrl);
+      // Khi CORS chặn img.crossOrigin="anonymous": Giữ ảnh gốc và dùng CSS crop!
+      if (!cancelled) {
+        setCropFailed(true);
       }
     };
 
@@ -162,18 +175,13 @@ export function SubjectFocusImage({
   }, [activeSrc, needsCrop, fallbackUrl]);
 
   // 1. Ảnh minh họa nhân vật gốc hoặc ảnh đã cắt sạch QR qua Canvas
-  if (!needsCrop || croppedUrl) {
+  if (!needsCrop || (croppedUrl && !cropFailed)) {
     const displaySrc = croppedUrl || activeSrc;
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={displaySrc}
         alt={alt}
-        onError={() => {
-          if (activeSrc !== fallbackUrl) {
-            setActiveSrc(fallbackUrl);
-          }
-        }}
         className={`h-full w-full object-cover object-[50%_22%] ${className}`}
       />
     );
