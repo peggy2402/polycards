@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ShoppingBag,
   X,
@@ -21,7 +21,13 @@ import { formatVndCurrency } from "@/lib/formatters";
 import { ProductFormData } from "../types";
 import { ArResourcePanel } from "../widgets/ar-resource-panel";
 import { BilingualConfigSection } from "../widgets/bilingual-config-section";
-import { getPackCodeForCategory, getStoredPackCodes } from "@/lib/pack-codes-store";
+import {
+  getPackCodeForCategory,
+  getStoredPackCodes,
+  fetchPackCodesFromApi,
+  PackCodeItem,
+  PACK_CODES_UPDATED_EVENT,
+} from "@/lib/pack-codes-store";
 
 interface PublishProductModalProps {
   isOpen: boolean;
@@ -56,7 +62,29 @@ export function PublishProductModal({
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const abortUploadRef = useRef<(() => void) | null>(null);
 
-  const storedPackCodes = getStoredPackCodes();
+  const [packCodes, setPackCodes] = useState<PackCodeItem[]>(() => getStoredPackCodes());
+
+  useEffect(() => {
+    if (isOpen) {
+      setPackCodes(getStoredPackCodes());
+      fetchPackCodesFromApi().then((data) => {
+        if (data && data.length > 0) {
+          setPackCodes(data);
+        }
+      });
+    }
+
+    const handleUpdate = (e: CustomEvent<PackCodeItem[]>) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setPackCodes(e.detail);
+      }
+    };
+
+    window.addEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate as EventListener);
+    return () => {
+      window.removeEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate as EventListener);
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -203,7 +231,7 @@ export function PublishProductModal({
                     <option value="" className="text-stone-400">
                       -- Để trống (Chưa gắn mã) --
                     </option>
-                    {storedPackCodes.map((p) => (
+                    {packCodes.map((p) => (
                       <option key={p.code} value={p.code} className="text-white">
                         {p.code} ({p.name})
                       </option>

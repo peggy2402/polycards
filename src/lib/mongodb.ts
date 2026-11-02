@@ -12,12 +12,107 @@ import {
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "polycards";
 
+export interface DbPackCodeItem {
+  code: string;
+  name: string;
+  categorySlug: string;
+  categoryName: string;
+  description?: string;
+  cardsCount?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const INITIAL_PACK_CODES: DbPackCodeItem[] = [
+  {
+    code: "POLY30-XECO-ZHVI",
+    name: "Bộ 30 Thẻ AR Phương Tiện ZHVI",
+    categorySlug: "xe-co",
+    categoryName: "Xe Cộ & Giao Thông",
+    description: "Bộ 30 thẻ bài phương tiện giao thông song ngữ Trung - Việt",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-XECO-ENVI",
+    name: "Bộ 30 Thẻ AR Phương Tiện ENVI",
+    categorySlug: "xe-co",
+    categoryName: "Xe Cộ & Giao Thông",
+    description: "Bộ 30 thẻ bài phương tiện giao thông song ngữ Anh - Việt",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-NGHENGHIEP",
+    name: "Bộ 30 Thẻ AR Nghề Nghiệp",
+    categorySlug: "nghe-nghiep",
+    categoryName: "Nghề Nghiệp",
+    description: "Bộ 30 thẻ các ngành nghề tương tác 3D WebAR",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-DONGVAT-ZHVI",
+    name: "Bộ 30 Thẻ AR ĐỘNG VẬT ZH VI",
+    categorySlug: "dong-vat",
+    categoryName: "Động Vật",
+    description: "Bộ thẻ động vật song ngữ Trung - Việt tương tác WebAR 3D",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-DONGVAT-ENVI",
+    name: "Bộ 30 Thẻ AR ĐỘNG VẬT EN VI",
+    categorySlug: "dong-vat",
+    categoryName: "Động Vật",
+    description: "Bộ thẻ động vật song ngữ Anh - Việt tương tác WebAR 3D",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-DONGVAT",
+    name: "Bộ 30 Thẻ AR Động Vật",
+    categorySlug: "dong-vat",
+    categoryName: "Động Vật",
+    description: "Bộ sưu tập 30 loài động vật tương tác 3D WebAR",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-HANHDONG",
+    name: "Bộ 30 Thẻ AR Hành Động",
+    categorySlug: "hanh-dong",
+    categoryName: "Hành Động",
+    description: "Bộ 30 thẻ động từ hành động tiếng Anh tương tác sống động",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-XECO",
+    name: "Bộ 30 Thẻ AR Xe Cộ",
+    categorySlug: "xe-co",
+    categoryName: "Xe Cộ",
+    description: "Bộ 30 phương tiện giao thông và máy bay tương tác AR",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY30-HOAQUA",
+    name: "Bộ 30 Thẻ AR Hoa Quả",
+    categorySlug: "hoa-qua",
+    categoryName: "Hoa Quả",
+    description: "Bộ 30 loại trái cây và thực vật bổ ích",
+    createdAt: "2026-10-25",
+  },
+  {
+    code: "POLY120-COMBOVIP",
+    name: "Trọn Bộ VIP 120 Thẻ Học AR",
+    categorySlug: "combo-vip",
+    categoryName: "Combo VIP",
+    description: "Trọn bộ 4 chủ đề 120 thẻ bài AR 3D cao cấp",
+    createdAt: "2026-10-25",
+  },
+];
+
 interface InMemoryStore {
   products: Animal[];
   categories: ProductCategory[];
   orders: SeedOrderItem[];
   customers: SeedCustomerItem[];
   featuredCombo: CardComboPack;
+  packCodes: DbPackCodeItem[];
 }
 
 declare global {
@@ -34,6 +129,7 @@ function getInMemoryStore(): InMemoryStore {
       orders: structuredClone(INITIAL_ORDERS),
       customers: structuredClone(INITIAL_CUSTOMERS),
       featuredCombo: structuredClone(DEFAULT_FEATURED_COMBO),
+      packCodes: structuredClone(INITIAL_PACK_CODES),
     };
   }
   return globalThis._inMemoryStore;
@@ -127,6 +223,9 @@ async function autoSeedDatabaseIfEmpty(db: Db): Promise<void> {
         INITIAL_CUSTOMERS.map((item) => ({ ...item })) as OptionalUnlessRequiredId<SeedCustomerItem>[]
       );
     }
+
+    // Tự động seed và đồng bộ collection pack_codes
+    await autoSeedPackCodes(db);
   } catch (seedErr) {
     console.warn("[MongoDB Atlas] Bỏ qua auto-seed:", seedErr);
   }
@@ -513,5 +612,157 @@ export async function dbSaveFeaturedCombo(combo: CardComboPack): Promise<CardCom
       );
   }
   return combo;
+}
+
+// ============================================================================
+// 6. PACK CODES REPOSITORY (MongoDB Atlas + Fallback)
+// ============================================================================
+
+async function autoSeedPackCodes(db: Db): Promise<void> {
+  try {
+    const col = db.collection<DbPackCodeItem>("pack_codes");
+    await col.createIndex({ code: 1 }, { unique: true }).catch(() => {});
+
+    // 1. Quét collection products để tìm tất cả các packCode đang được sử dụng
+    const productsCol = db.collection<Animal>("products");
+    const productsWithPack = await productsCol
+      .find({ packCode: { $exists: true, $ne: "" } })
+      .project({ packCode: 1, category: 1, categorySlug: 1 })
+      .toArray();
+
+    // 2. Lập danh sách kết hợp giữa INITIAL_PACK_CODES và packCode từ products
+    const packMap = new Map<string, DbPackCodeItem>();
+    INITIAL_PACK_CODES.forEach((item) => packMap.set(item.code.toUpperCase(), { ...item }));
+
+    productsWithPack.forEach((p) => {
+      if (p.packCode && p.packCode.trim()) {
+        const codeUpper = p.packCode.trim().toUpperCase();
+        if (!packMap.has(codeUpper)) {
+          packMap.set(codeUpper, {
+            code: codeUpper,
+            name: `Bộ Thẻ ${codeUpper}`,
+            categorySlug: p.categorySlug || "khac",
+            categoryName: p.category || "Khác",
+            description: "Mã bộ được gắn trực tiếp trên thẻ bài trong kho",
+            createdAt: new Date().toLocaleDateString("vi-VN"),
+          });
+        }
+      }
+    });
+
+    for (const item of packMap.values()) {
+      await col.updateOne(
+        { code: item.code },
+        {
+          $setOnInsert: {
+            code: item.code,
+            name: item.name,
+            categorySlug: item.categorySlug,
+            categoryName: item.categoryName,
+            description: item.description,
+            createdAt: item.createdAt,
+          },
+        },
+        { upsert: true }
+      );
+    }
+  } catch (err) {
+    console.warn("[MongoDB Atlas] Lỗi autoSeedPackCodes:", err);
+  }
+}
+
+export async function dbGetPackCodes(): Promise<DbPackCodeItem[]> {
+  const db = await getMongoDb();
+  if (!db) {
+    return getInMemoryStore().packCodes || INITIAL_PACK_CODES;
+  }
+
+  try {
+    const col = db.collection<DbPackCodeItem>("pack_codes");
+    let docs = await col.find({}).sort({ createdAt: -1 }).toArray();
+
+    // Nếu collection rỗng, seed ngay
+    if (docs.length === 0) {
+      await autoSeedPackCodes(db);
+      docs = await col.find({}).sort({ createdAt: -1 }).toArray();
+    }
+
+    // Đếm số lượng thẻ thực tế cho mỗi mã bộ từ collection products
+    const productsCol = db.collection<Animal>("products");
+    const counts = await productsCol
+      .aggregate<{ _id: string; count: number }>([
+        { $match: { packCode: { $exists: true, $ne: "" } } },
+        { $group: { _id: { $toUpper: "$packCode" }, count: { $sum: 1 } } },
+      ])
+      .toArray();
+
+    const countMap = new Map<string, number>();
+    counts.forEach((c) => {
+      if (c._id) countMap.set(c._id, c.count);
+    });
+
+    return docs.map((d) => {
+      const clean = stripMongoId(d);
+      return {
+        ...clean,
+        cardsCount: countMap.get(clean.code.toUpperCase()) || 0,
+      };
+    });
+  } catch (err) {
+    console.error("[MongoDB] Lỗi dbGetPackCodes:", err);
+    return getInMemoryStore().packCodes || INITIAL_PACK_CODES;
+  }
+}
+
+export async function dbUpsertPackCode(
+  item: Partial<DbPackCodeItem> & { code: string }
+): Promise<DbPackCodeItem> {
+  const cleanCode = item.code.trim().toUpperCase();
+  const now = new Date().toLocaleDateString("vi-VN");
+
+  const packData: DbPackCodeItem = {
+    code: cleanCode,
+    name: item.name?.trim() || `Bộ Thẻ ${cleanCode}`,
+    categorySlug: item.categorySlug || "khac",
+    categoryName: item.categoryName || "Khác",
+    description: item.description?.trim() || undefined,
+    createdAt: item.createdAt || now,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const mem = getInMemoryStore();
+  const existingIdx = mem.packCodes.findIndex((p) => p.code.toUpperCase() === cleanCode);
+  if (existingIdx >= 0) {
+    mem.packCodes[existingIdx] = { ...mem.packCodes[existingIdx], ...packData };
+  } else {
+    mem.packCodes.unshift(packData);
+  }
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<DbPackCodeItem>("pack_codes");
+    await col.updateOne(
+      { code: cleanCode },
+      { $set: packData },
+      { upsert: true }
+    );
+  }
+
+  return packData;
+}
+
+export async function dbDeletePackCode(code: string): Promise<number> {
+  const cleanCode = code.trim().toUpperCase();
+  const mem = getInMemoryStore();
+  mem.packCodes = mem.packCodes.filter((p) => p.code.toUpperCase() !== cleanCode);
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<DbPackCodeItem>("pack_codes");
+    await col.deleteOne({ code: cleanCode });
+    return await col.countDocuments();
+  }
+
+  return mem.packCodes.length;
 }
 

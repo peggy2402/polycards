@@ -42,7 +42,12 @@ import {
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
 import { Animal, ProductCategory } from "@/types/animal";
-import { getStoredPackCodes, PackCodeItem, PACK_CODES_UPDATED_EVENT } from "@/lib/pack-codes-store";
+import {
+  getStoredPackCodes,
+  fetchPackCodesFromApi,
+  PackCodeItem,
+  PACK_CODES_UPDATED_EVENT,
+} from "@/lib/pack-codes-store";
 import {
   CatalogPickerModal,
   InvoiceCartItem,
@@ -226,6 +231,11 @@ export default function InvoicesPage() {
     loadCatalog();
     loadCategories();
     setStoredPackCodes(getStoredPackCodes());
+    fetchPackCodesFromApi().then((data) => {
+      if (data && data.length > 0) {
+        setStoredPackCodes(data);
+      }
+    });
 
     const handlePackCodesUpdate = () => setStoredPackCodes(getStoredPackCodes());
     window.addEventListener(PACK_CODES_UPDATED_EVENT, handlePackCodesUpdate);

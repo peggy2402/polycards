@@ -17,7 +17,13 @@ import { Animal, ProductCategory } from "@/types/animal";
 import { EditProductFormData } from "../types";
 import { ArResourcePanel } from "../widgets/ar-resource-panel";
 import { BilingualConfigSection } from "../widgets/bilingual-config-section";
-import { getPackCodeForCategory } from "@/lib/pack-codes-store";
+import {
+  getPackCodeForCategory,
+  getStoredPackCodes,
+  fetchPackCodesFromApi,
+  PackCodeItem,
+  PACK_CODES_UPDATED_EVENT,
+} from "@/lib/pack-codes-store";
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -46,6 +52,30 @@ export function EditProductModal({
   const [showModalAbortConfirm, setShowModalAbortConfirm] = useState<boolean>(false);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const abortUploadRef = useRef<(() => void) | null>(null);
+
+  const [packCodes, setPackCodes] = useState<PackCodeItem[]>(() => getStoredPackCodes());
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setPackCodes(getStoredPackCodes());
+      fetchPackCodesFromApi().then((data) => {
+        if (data && data.length > 0) {
+          setPackCodes(data);
+        }
+      });
+    }
+
+    const handleUpdate = (e: CustomEvent<PackCodeItem[]>) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setPackCodes(e.detail);
+      }
+    };
+
+    window.addEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate as EventListener);
+    return () => {
+      window.removeEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate as EventListener);
+    };
+  }, [isOpen]);
 
   if (!isOpen || !editingProduct) return null;
 
@@ -248,50 +278,62 @@ export function EditProductModal({
           </div>
 
           {/* MÃ BỘ BẢN QUYỀN (PACK CODE - &code=) */}
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-purple-500/10 border border-purple-400/40 space-y-2">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-purple-500/10 border border-purple-400/40 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <label className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
                 <PackageCheck className="h-3.5 w-3.5 text-purple-400 shrink-0" />
                 <span>Mã Bộ Bản Quyền (Pack Code - Tham số &code=)</span>
               </label>
-              <span className="text-[10px] text-stone-400">Tùy chọn</span>
+              <span className="text-[10px] text-stone-400">Đồng bộ từ Database</span>
             </div>
-            <input
-              type="text"
-              placeholder="VD: POLY30-HANHDONG, POLY30-DONGVAT... (Để trống nếu Chưa có)"
-              value={editProductForm.packCode || ""}
-              onChange={(e) => onChangeForm({ packCode: e.target.value.toUpperCase() })}
-              className="w-full bg-black/80 border border-purple-400/50 rounded-xl px-3 py-2 text-xs font-mono font-bold text-purple-300 placeholder-stone-500 focus:outline-hidden focus:border-purple-300"
-            />
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className="text-[10px] text-stone-400">Gợi ý nhanh:</span>
-              {[
-                { label: "Động Vật", code: "POLY30-DONGVAT" },
-                { label: "Hành Động", code: "POLY30-HANHDONG" },
-                { label: "Xe Cộ", code: "POLY30-XECO" },
-                { label: "Hoa Quả", code: "POLY30-HOAQUA" },
-                { label: "Combo VIP", code: "POLY120-COMBOVIP" },
-              ].map((preset) => (
-                <button
-                  key={preset.code}
-                  type="button"
-                  onClick={() => onChangeForm({ packCode: preset.code })}
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border font-mono transition-colors cursor-pointer ${
-                    editProductForm.packCode === preset.code
-                      ? "bg-purple-500 text-white border-purple-400 shadow-sm"
-                      : "bg-white/5 text-purple-300 border-purple-400/20 hover:bg-purple-500/20"
-                  }`}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-stone-400 font-bold mb-1">
+                  Chọn mã bộ từ Database:
+                </label>
+                <select
+                  value={editProductForm.packCode || ""}
+                  onChange={(e) => onChangeForm({ packCode: e.target.value })}
+                  className="w-full bg-stone-900 border border-purple-400/40 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-purple-300 focus:outline-hidden focus:border-purple-400 cursor-pointer"
                 >
-                  {preset.code}
-                </button>
-              ))}
+                  <option value="" className="text-stone-400">
+                    -- Để trống (Chưa gắn mã) --
+                  </option>
+                  {packCodes.map((p) => (
+                    <option key={p.code} value={p.code} className="text-white">
+                      {p.code} ({p.name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-stone-400 font-bold mb-1">
+                  Hoặc nhập mã tùy chỉnh:
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: POLY30-XECO-ZHVI..."
+                  value={editProductForm.packCode || ""}
+                  onChange={(e) => onChangeForm({ packCode: e.target.value.toUpperCase().trim() })}
+                  className="w-full bg-stone-900 border border-purple-400/40 rounded-xl px-2.5 py-2 text-xs font-mono font-bold text-purple-300 placeholder-stone-500 focus:outline-hidden focus:border-purple-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-0.5 text-[10px] text-stone-400">
+              <span>Tham số nhúng vào QR:</span>
+              <span className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-400/30 text-purple-300 font-mono font-bold">
+                {editProductForm.packCode ? `&code=${editProductForm.packCode}` : "(Không có tham số code)"}
+              </span>
               {editProductForm.packCode && (
                 <button
                   type="button"
                   onClick={() => onChangeForm({ packCode: "" })}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-800 text-stone-400 hover:text-white border border-white/10 transition-colors cursor-pointer"
+                  className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-800 text-stone-400 hover:text-white border border-white/10 transition-colors cursor-pointer"
                 >
-                  Xóa (Chưa có)
+                  Xóa mã
                 </button>
               )}
             </div>

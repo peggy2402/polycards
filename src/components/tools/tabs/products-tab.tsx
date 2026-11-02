@@ -44,6 +44,7 @@ import { cleanPhonetic, formatPhonetic } from "@/lib/phonetic-utils";
 import { ProductDetailModal } from "../modals/product-detail-modal";
 import {
   getStoredPackCodes,
+  fetchPackCodesFromApi,
   PackCodeItem,
   PACK_CODES_UPDATED_EVENT,
 } from "@/lib/pack-codes-store";
@@ -135,6 +136,11 @@ export function ProductsTab({
 
   useEffect(() => {
     setStoredPackCodes(getStoredPackCodes());
+    fetchPackCodesFromApi().then((data) => {
+      if (data && data.length > 0) {
+        setStoredPackCodes(data);
+      }
+    });
     const handleUpdate = () => setStoredPackCodes(getStoredPackCodes());
     window.addEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate);
     return () => window.removeEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate);

@@ -39,6 +39,7 @@ import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import {
   getStoredPackCodes,
+  fetchPackCodesFromApi,
   saveNewPackCode,
   deleteStoredPackCode,
   PackCodeItem,
@@ -133,6 +134,9 @@ export function LicensesTab({
 
   useEffect(() => {
     loadPackCodes();
+    fetchPackCodesFromApi().then(() => {
+      loadPackCodes();
+    });
     const handleUpdate = () => loadPackCodes();
     window.addEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate);
     return () => window.removeEventListener(PACK_CODES_UPDATED_EVENT, handleUpdate);
