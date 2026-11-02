@@ -113,7 +113,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     if (selectedInvoice) {
       const url =
         selectedInvoice.directUrl ||
-        `https://polycards-one.vercel.app/ar/${selectedInvoice.unlockedSlug || "lion"}?ar=1&code=${selectedInvoice.code}`;
+        `https://polycards.vn/ar/${selectedInvoice.unlockedSlug || "lion"}?ar=1&code=${selectedInvoice.code}`;
       QRCode.toDataURL(url, {
         margin: 1,
         width: 300,

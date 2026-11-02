@@ -11,7 +11,7 @@ async function generateQrCodes() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://polycards-one.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://polycards.vn";
 
   console.log(
     `[QR Generator] Đang khởi tạo mã QR cho ${INITIAL_PRODUCTS.length} thẻ bài với domain: ${siteUrl}...`

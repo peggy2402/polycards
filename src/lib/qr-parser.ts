@@ -49,7 +49,7 @@ export function parseAndValidateQr(
     try {
       let pathname = "";
       if (content.startsWith("/")) {
-        const fakeUrl = new URL(content, "https://polycards-one.vercel.app");
+        const fakeUrl = new URL(content, "https://polycards.vn");
         pathname = fakeUrl.pathname;
         detectedCode =
           fakeUrl.searchParams.get("code") || fakeUrl.searchParams.get("key") || undefined;

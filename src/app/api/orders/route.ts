@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
       note: body.note || "",
       directUrl:
         body.directUrl ||
-        `https://polycards-one.vercel.app/ar/lion?ar=1&code=${cleanCode}`,
+        `https://polycards.vn/ar/lion?ar=1&code=${cleanCode}`,
     };
 
     const saved = await dbUpsertOrder(newOrder);

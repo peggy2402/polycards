@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/tools", "/api/"],
     },
-    sitemap: "https://polycards-one.vercel.app/sitemap.xml",
+    sitemap: "https://polycards.vn/sitemap.xml",
   };
 }

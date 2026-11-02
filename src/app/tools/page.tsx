@@ -82,7 +82,7 @@ export default function ToolsPage() {
   const [qrMode, setQrMode] = useState<"slug" | "custom">("slug");
   const [qrTargetEnv, setQrTargetEnv] = useState<"production" | "local">("production");
   const [slug, setSlug] = useState<string>("lion");
-  const [customUrl, setCustomUrl] = useState<string>("https://polycards-one.vercel.app/ar/lion?ar=1");
+  const [customUrl, setCustomUrl] = useState<string>("https://polycards.vn/ar/lion?ar=1");
   const [directAr, setDirectAr] = useState<boolean>(true);
   const [includeLicense, setIncludeLicense] = useState<boolean>(false);
   const [licenseCode, setLicenseCode] = useState<string>("POLY-LION-2026");
@@ -466,13 +466,13 @@ export default function ToolsPage() {
   // Tính toán URL đích khi quét mã QR
   const computedTargetUrl = useCallback(() => {
     if (qrMode === "custom") {
-      return customUrl.trim() || "https://polycards-one.vercel.app";
+      return customUrl.trim() || "https://polycards.vn";
     }
 
     const cleanSlug = slug.trim().toLowerCase() || "lion";
     const baseUrl = qrTargetEnv === "local" && typeof window !== "undefined"
       ? window.location.origin
-      : "https://polycards-one.vercel.app";
+      : "https://polycards.vn";
     let url = `${baseUrl}/ar/${cleanSlug}`;
     const params = new URLSearchParams();
     if (directAr) {
@@ -632,7 +632,7 @@ export default function ToolsPage() {
           remainingAmount: 0,
           paymentMethod: "TIEN_MAT",
           status: "PAID",
-          directUrl: `https://polycards-one.vercel.app/ar/${packSampleSlug}?ar=1&code=${newCode}`,
+          directUrl: `https://polycards.vn/ar/${packSampleSlug}?ar=1&code=${newCode}`,
           note: `Mã bản quyền sinh tự động trong Studio Chế Bản Thẻ & QR`,
         }),
       });
@@ -1213,7 +1213,7 @@ export default function ToolsPage() {
             : "";
 
         // Luôn sử dụng domain chính thức cho file in ấn xưởng để điện thoại quét trúng production kèm code
-        const baseUrl = "https://polycards-one.vercel.app";
+        const baseUrl = "https://polycards.vn";
         const targetWebArUrl = `${baseUrl}/ar/${card.slug}?ar=1${
           effectivePackCode ? `&code=${encodeURIComponent(effectivePackCode)}` : ""
         }`;

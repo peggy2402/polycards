@@ -198,7 +198,7 @@ export async function GET(req: NextRequest) {
 
     const isReadyForPrint = failCount === 0 && passCount >= 4;
 
-    const qrUrl = `https://polycards-one.vercel.app/ar/${card.slug}?ar=1${card.packCode ? `&code=${card.packCode}` : ""}`;
+    const qrUrl = `https://polycards.vn/ar/${card.slug}?ar=1${card.packCode ? `&code=${card.packCode}` : ""}`;
 
     return NextResponse.json({
       success: true,

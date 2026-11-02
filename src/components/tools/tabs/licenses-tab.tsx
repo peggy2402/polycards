@@ -808,7 +808,7 @@ export function LicensesTab({
                       <div className="lg:col-span-6 space-y-2">
                         {items.map((item, idx) => {
                           const childCode = item.packCode || `CHILD-${idx + 1}`;
-                          const directArUrl = `https://polycards-one.vercel.app/ar/${
+                          const directArUrl = `https://polycards.vn/ar/${
                             item.categorySlug || "jump"
                           }?ar=1&code=${encodeURIComponent(childCode)}&codeParent=${encodeURIComponent(
                             parentCode

@@ -575,7 +575,7 @@ export default function InvoicesPage() {
 
     const firstChildCode = childCodes[0] || licenseCode;
     // URL WebAR chuẩn theo cú pháp ?ar=1&code=ABC&codeParent=XYZ
-    const directUrl = `https://polycards-one.vercel.app/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(
+    const directUrl = `https://polycards.vn/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(
       firstChildCode
     )}&codeParent=${encodeURIComponent(codeParent)}`;
 

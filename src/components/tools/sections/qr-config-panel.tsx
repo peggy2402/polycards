@@ -234,7 +234,7 @@ export function QrConfigPanel({
             type="url"
             value={customUrl}
             onChange={(e) => onSetCustomUrl(e.target.value)}
-            placeholder="https://polycards-one.vercel.app/ar/..."
+            placeholder="https://polycards.vn/ar/..."
             className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
           />
           <p className="text-[10px] text-stone-400 mt-1">
