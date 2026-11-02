@@ -1304,6 +1304,25 @@ export function ProductsTab({
                       </span>
                     )}
                   </div>
+
+                  {/* Hiển thị Tệp Model 3D (.glb) */}
+                  <div className="flex items-center justify-between gap-1 text-[9px] font-mono pt-0.5 border-t border-white/5">
+                    <span className="text-stone-500">model:</span>
+                    {card.modelUrl ? (
+                      <span
+                        className={`truncate max-w-[130px] font-semibold ${
+                          card.modelUrl.includes("r2.dev") || card.modelUrl.includes("http")
+                            ? "text-emerald-400"
+                            : "text-amber-300"
+                        }`}
+                        title={card.modelUrl}
+                      >
+                        /{card.modelUrl.split("/").pop()?.split("?")[0] || card.modelUrl}
+                      </span>
+                    ) : (
+                      <span className="text-stone-600 italic">Chưa gắn</span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -1445,6 +1464,25 @@ export function ProductsTab({
                                     </span>
                                   )}
                                 </>
+                              )}
+                            </div>
+
+                            {/* Hiển thị Tệp Model 3D (.glb) */}
+                            <div className="mt-0.5 text-[10px] font-mono flex items-center gap-1">
+                              <span className="text-stone-500">model:</span>
+                              {card.modelUrl ? (
+                                <span
+                                  className={`font-semibold truncate max-w-[240px] ${
+                                    card.modelUrl.includes("r2.dev") || card.modelUrl.includes("http")
+                                      ? "text-emerald-400/90"
+                                      : "text-amber-300/80"
+                                  }`}
+                                  title={card.modelUrl}
+                                >
+                                  /{card.modelUrl.split("/").pop()?.split("?")[0] || card.modelUrl}
+                                </span>
+                              ) : (
+                                <span className="text-stone-600 italic">Chưa gắn .glb</span>
                               )}
                             </div>
                           </td>
