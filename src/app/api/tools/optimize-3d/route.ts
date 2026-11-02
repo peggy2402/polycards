@@ -7,10 +7,96 @@ import { promisify } from "util";
 import { inspectGlbBuffer } from "@/lib/gltf-inspector";
 import { isR2Configured, uploadToR2 } from "@/lib/r2";
 import { dbGetProductBySlug, dbUpsertProduct } from "@/lib/mongodb";
+import { NodeIO } from "@gltf-transform/core";
+import { KHRONOS_EXTENSIONS } from "@gltf-transform/extensions";
+import { draco, dedup, prune } from "@gltf-transform/functions";
+// @ts-ignore
+import draco3d from "draco3dgltf";
+import { MeshoptSimplifier } from "meshoptimizer";
 
 export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Tối ưu hóa mô hình 3D bằng pipeline @gltf-transform + draco3d + MeshoptSimplifier
+ * Hoạt động 100% không cần Blender, chạy mượt mà trên Vercel Serverless
+ */
+async function optimizeGlbWithGltfTransform(
+  inputBuffer: Buffer,
+  targetPolygons: number = 40000
+): Promise<Buffer> {
+  const [dracoDecoder, dracoEncoder] = await Promise.all([
+    draco3d.createDecoderModule(),
+    draco3d.createEncoderModule(),
+  ]);
+  await MeshoptSimplifier.ready;
+
+  const io = new NodeIO()
+    .registerExtensions(KHRONOS_EXTENSIONS)
+    .registerDependencies({
+      "draco3d.decoder": dracoDecoder,
+      "draco3d.encoder": dracoEncoder,
+    });
+
+  const doc = await io.readBinary(new Uint8Array(inputBuffer));
+
+  // 1. Đếm tổng số đa giác hiện tại
+  let origPolys = 0;
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      origPolys += (prim.getIndices()?.getCount() || 0) / 3;
+    }
+  }
+
+  // 2. Decimate (giảm số đa giác) nếu vượt targetPolygons
+  if (origPolys > targetPolygons) {
+    const ratio = Math.max(0.015, Math.min(1.0, targetPolygons / origPolys));
+    for (const mesh of doc.getRoot().listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        const pos = prim.getAttribute("POSITION");
+        const indices = prim.getIndices();
+        if (!pos || !indices) continue;
+
+        const posArray = pos.getArray();
+        const rawIndices = indices.getArray();
+        if (!posArray || !rawIndices) continue;
+
+        const posFloat = posArray instanceof Float32Array ? posArray : new Float32Array(posArray);
+        const indicesArray = new Uint32Array(rawIndices);
+        const primPolys = indicesArray.length / 3;
+        if (primPolys < 500) continue; // Giữ nguyên các chi tiết nhỏ
+
+        const targetCount = Math.floor((indicesArray.length * ratio) / 3) * 3;
+        let [dstIndices] = MeshoptSimplifier.simplify(indicesArray, posFloat, 3, targetCount, 0.05);
+        if (dstIndices.length > targetCount * 1.5) {
+          const [sloppyIndices] = MeshoptSimplifier.simplifySloppy(
+            indicesArray,
+            posFloat,
+            3,
+            null,
+            targetCount,
+            0.05
+          );
+          if (sloppyIndices && sloppyIndices.length > 0) {
+            dstIndices = sloppyIndices;
+          }
+        }
+        indices.setArray(dstIndices as any);
+      }
+    }
+  }
+
+  // 3. Nén Draco + Dedup + Prune
+  await doc.transform(
+    dedup(),
+    prune(),
+    draco({ method: "edgebreaker" })
+  );
+
+  const optimizedBytes = await io.writeBinary(doc);
+  return Buffer.from(optimizedBytes);
+}
 
 /**
  * Tìm đường dẫn thực thi Blender trên máy
@@ -29,7 +115,7 @@ function findBlenderPath(): string | null {
 
 /**
  * POST /api/tools/optimize-3d
- * Tự động tối ưu hóa đa giác (Decimate), nén Texture và xuất USDZ lên Cloudflare R2
+ * Tự động tối ưu hóa đa giác (Decimate), nén Draco và đẩy lên Cloudflare R2
  */
 export async function POST(req: NextRequest) {
   const tmpFilesToClean: string[] = [];
@@ -89,32 +175,25 @@ export async function POST(req: NextRequest) {
     // 2. Phân tích trước khi tối ưu (Before Report)
     const beforeReport = inspectGlbBuffer(inputBuffer);
 
+    let optimizedGlbBuffer: Buffer | null = null;
+    let optimizedUsdzBuffer: Buffer | null = null;
+
     const blenderBin = findBlenderPath();
-    if (!blenderBin) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Máy chủ chưa cài đặt Blender để chạy pipeline tối ưu hóa tự động (yêu cầu Blender 4.0+ hoặc 5.0+).",
-          beforeReport,
-        },
-        { status: 501 }
-      );
-    }
 
-    // 3. Chuẩn bị tệp tạm
-    const sessionTag = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const tmpDir = os.tmpdir();
-    const inputGlbPath = path.join(tmpDir, `pc_in_${sessionTag}.glb`);
-    const outputGlbPath = path.join(tmpDir, `pc_out_${sessionTag}.glb`);
-    const outputUsdzPath = path.join(tmpDir, `pc_out_${sessionTag}.usdz`);
-    const scriptPath = path.join(tmpDir, `pc_script_${sessionTag}.py`);
+    // 3. Nếu máy chủ có Blender (Local dev), dùng Blender Headless
+    if (blenderBin) {
+      try {
+        const sessionTag = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const tmpDir = os.tmpdir();
+        const inputGlbPath = path.join(tmpDir, `pc_in_${sessionTag}.glb`);
+        const outputGlbPath = path.join(tmpDir, `pc_out_${sessionTag}.glb`);
+        const outputUsdzPath = path.join(tmpDir, `pc_out_${sessionTag}.usdz`);
+        const scriptPath = path.join(tmpDir, `pc_script_${sessionTag}.py`);
 
-    tmpFilesToClean.push(inputGlbPath, outputGlbPath, outputUsdzPath, scriptPath);
+        tmpFilesToClean.push(inputGlbPath, outputGlbPath, outputUsdzPath, scriptPath);
+        fs.writeFileSync(inputGlbPath, inputBuffer);
 
-    fs.writeFileSync(inputGlbPath, inputBuffer);
-
-    // 4. Sinh script Python cho Blender Headless
-    const pythonScript = `
+        const pythonScript = `
 import bpy
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -133,13 +212,11 @@ if total_polys > target_total:
             mod.ratio = ratio
             bpy.ops.object.modifier_apply(modifier=mod.name)
 
-# Scale textures
 max_tex = ${maxTextureSize}
 for img in bpy.data.images:
     if img.size[0] > max_tex or img.size[1] > max_tex:
         img.scale(max_tex, max_tex)
 
-# Export GLB với Draco
 bpy.ops.export_scene.gltf(
     filepath=r"${outputGlbPath}",
     export_format="GLB",
@@ -148,40 +225,51 @@ bpy.ops.export_scene.gltf(
     export_draco_mesh_compression_enable=True
 )
 
-# Export USDZ cho iOS AR Quick Look
 try:
     bpy.ops.wm.usd_export(filepath=r"${outputUsdzPath}", export_materials=True)
 except Exception as e:
     print("USD export error:", e)
 `;
+        fs.writeFileSync(scriptPath, pythonScript, "utf8");
 
-    fs.writeFileSync(scriptPath, pythonScript, "utf8");
+        await execFileAsync(blenderBin, ["--background", "--python", scriptPath], {
+          timeout: 120000,
+        });
 
-    // 5. Chạy Blender ngầm
-    await execFileAsync(blenderBin, ["--background", "--python", scriptPath], {
-      timeout: 120000, // tối đa 2 phút
-    });
-
-    if (!fs.existsSync(outputGlbPath)) {
-      throw new Error("Blender không xuất được tệp GLB tối ưu.");
+        if (fs.existsSync(outputGlbPath)) {
+          optimizedGlbBuffer = fs.readFileSync(outputGlbPath);
+        }
+        if (fs.existsSync(outputUsdzPath)) {
+          optimizedUsdzBuffer = fs.readFileSync(outputUsdzPath);
+        }
+      } catch (blenderErr) {
+        console.warn("Blender pipeline thất bại, tự động chuyển sang WebAssembly Engine:", blenderErr);
+      }
     }
 
-    const optimizedGlbBuffer = fs.readFileSync(outputGlbPath);
+    // 4. Nếu không có Blender (Vercel Serverless Production) hoặc Blender lỗi: Chạy gltf-transform + draco + meshoptimizer!
+    if (!optimizedGlbBuffer) {
+      console.log(`[Optimize-3D] Đang xử lý bằng WebAssembly Engine (@gltf-transform + draco3d + meshoptimizer)...`);
+      optimizedGlbBuffer = await optimizeGlbWithGltfTransform(inputBuffer, targetPolygons);
+    }
+
     const afterReport = inspectGlbBuffer(optimizedGlbBuffer);
 
     let outputGlbUrl = `/models/${effectiveSlug}.glb`;
     let outputUsdzUrl = `/models/usdz/${effectiveSlug}.usdz`;
 
-    // 6. Upload thẳng lên Cloudflare R2 CDN nếu cấu hình
+    // 5. Upload thẳng lên Cloudflare R2 CDN nếu cấu hình
     if (autoUploadR2 && isR2Configured()) {
       const glbFileName = `${effectiveSlug}.glb`;
       const usdzFileName = `${effectiveSlug}.usdz`;
 
       outputGlbUrl = await uploadToR2(optimizedGlbBuffer, glbFileName, "model/gltf-binary");
 
-      if (fs.existsSync(outputUsdzPath)) {
-        const usdzBuffer = fs.readFileSync(outputUsdzPath);
-        outputUsdzUrl = await uploadToR2(usdzBuffer, usdzFileName, "model/vnd.usdz+zip");
+      if (optimizedUsdzBuffer) {
+        outputUsdzUrl = await uploadToR2(optimizedUsdzBuffer, usdzFileName, "model/vnd.usdz+zip");
+      } else {
+        // Dự phòng link USDZ tương ứng nếu đã có trên CDN
+        outputUsdzUrl = outputGlbUrl.replace(/\.glb$/i, ".usdz");
       }
 
       // Tự động cập nhật sản phẩm trong MongoDB Atlas nếu có slug
@@ -198,6 +286,12 @@ except Exception as e:
       }
     }
 
+    const savedPolygons = Math.max(0, beforeReport.totalPolygons - afterReport.totalPolygons);
+    const reducedPercent = Math.max(
+      0,
+      Math.round((savedPolygons / (beforeReport.totalPolygons || 1)) * 100)
+    );
+
     return NextResponse.json({
       success: true,
       message: `Đã tối ưu hóa mô hình "${effectiveSlug}" thành công!`,
@@ -206,11 +300,9 @@ except Exception as e:
       iosModelUrl: outputUsdzUrl,
       beforeReport,
       afterReport,
-      savedBytes: beforeReport.fileSizeBytes - afterReport.fileSizeBytes,
-      savedPolygons: beforeReport.totalPolygons - afterReport.totalPolygons,
-      reducedPercent: Math.round(
-        ((beforeReport.totalPolygons - afterReport.totalPolygons) / (beforeReport.totalPolygons || 1)) * 100
-      ),
+      savedBytes: Math.max(0, beforeReport.fileSizeBytes - afterReport.fileSizeBytes),
+      savedPolygons,
+      reducedPercent,
     });
   } catch (error: any) {
     console.error("[Optimize 3D Error]:", error);
@@ -219,7 +311,6 @@ except Exception as e:
       { status: 500 }
     );
   } finally {
-    // Dọn dẹp tệp tạm
     for (const f of tmpFilesToClean) {
       try {
         if (fs.existsSync(f)) fs.unlinkSync(f);

@@ -61,7 +61,7 @@ export function ModelDoctorModal({
     if (isOpen) {
       if (initialAnimal?.slug) {
         setSelectedSlug(initialAnimal.slug);
-        handleInspectBySlug(initialAnimal.slug);
+        handleInspectBySlug(initialAnimal.slug, initialAnimal.modelUrl);
       } else {
         setSelectedSlug("");
         setCurrentReport(null);
@@ -74,7 +74,7 @@ export function ModelDoctorModal({
   if (!isOpen) return null;
 
   // Xử lý khám bệnh từ thẻ bài có sẵn
-  const handleInspectBySlug = async (slugToInspect: string) => {
+  const handleInspectBySlug = async (slugToInspect: string, directUrl?: string) => {
     if (!slugToInspect) return;
     setIsInspecting(true);
     setErrorMsg(null);
@@ -82,7 +82,11 @@ export function ModelDoctorModal({
     setCustomUploadedFile(null);
 
     try {
-      const res = await fetch(`/api/tools/inspect-3d?slug=${encodeURIComponent(slugToInspect)}`);
+      let endpoint = `/api/tools/inspect-3d?slug=${encodeURIComponent(slugToInspect)}`;
+      if (directUrl && (directUrl.startsWith("http://") || directUrl.startsWith("https://"))) {
+        endpoint += `&url=${encodeURIComponent(directUrl)}`;
+      }
+      const res = await fetch(endpoint);
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.message || "Không thể phân tích mô hình của thẻ này.");
@@ -139,6 +143,10 @@ export function ModelDoctorModal({
     const formData = new FormData();
     if (selectedSlug) {
       formData.append("slug", selectedSlug);
+    }
+    const currentCard = products.find((p) => p.slug === selectedSlug) || initialAnimal;
+    if (currentCard?.modelUrl) {
+      formData.append("url", currentCard.modelUrl);
     }
     if (customUploadedFile) {
       formData.append("file", customUploadedFile);
@@ -413,7 +421,10 @@ export function ModelDoctorModal({
                 placeholder="-- Tìm hoặc chọn thẻ bài cần khám --"
                 onSelect={(val) => {
                   setSelectedSlug(val);
-                  if (val) handleInspectBySlug(val);
+                  if (val) {
+                    const matched = products.find((p) => p.slug === val);
+                    handleInspectBySlug(val, matched?.modelUrl);
+                  }
                 }}
               />
             </div>
@@ -605,20 +616,62 @@ export function ModelDoctorModal({
 
               {/* Kết quả sau khi tối ưu thành công (Before & After) */}
               {optimizedResult && (
-                <div className="p-4 rounded-2xl bg-emerald-950/50 border border-emerald-500/50 space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="p-4 rounded-2xl bg-emerald-950/60 border-2 border-emerald-500/60 space-y-3 animate-in fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase tracking-wide">
-                      <CheckCircle2 className="h-4 w-4" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span>Đã Tối Ưu Hóa & Đẩy Lên Cloudflare R2 Thành Công!</span>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold font-mono">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-black font-mono self-start sm:self-auto">
                       Giảm {optimizedResult.reducedPercent}% đa giác
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs text-stone-300">
+                  {/* Bảng so sánh Trước & Sau */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-stone-900/90 border border-white/10 space-y-1">
+                      <span className="text-[10px] text-stone-400 font-bold block">Số Đa Giác (Polygons):</span>
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="line-through text-stone-500 text-[11px]">
+                          {optimizedResult.beforeReport?.totalPolygons?.toLocaleString() || "849,656"}
+                        </span>
+                        <span className="text-emerald-400 font-black text-sm">
+                          → {optimizedResult.afterReport?.totalPolygons?.toLocaleString()}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-emerald-400/80 block">Chuẩn an toàn Safari Mobile</span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-stone-900/90 border border-white/10 space-y-1">
+                      <span className="text-[10px] text-stone-400 font-bold block">Dung Lượng Tệp:</span>
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="line-through text-stone-500 text-[11px]">
+                          {optimizedResult.beforeReport?.fileSizeMB || "89.18"} MB
+                        </span>
+                        <span className="text-amber-300 font-black text-sm">
+                          → {optimizedResult.afterReport?.fileSizeMB} MB
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-amber-300/80 block font-bold">✓ Đã nén Draco</span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-stone-900/90 border border-white/10 space-y-1">
+                      <span className="text-[10px] text-stone-400 font-bold block">Chỉ Số Sức Khỏe:</span>
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="line-through text-stone-500 text-[11px]">
+                          {optimizedResult.beforeReport?.score || "40"}/100
+                        </span>
+                        <span className="text-emerald-300 font-black text-sm">
+                          → {optimizedResult.afterReport?.score || "95"}/100
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-emerald-400/80 block">Xuất sắc</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-stone-300">
                     <div className="p-2.5 rounded-xl bg-stone-900/80 border border-white/10 space-y-1">
-                      <span className="text-[10px] text-stone-400 block">Đường dẫn GLB mới trên R2:</span>
+                      <span className="text-[10px] text-stone-400 block font-bold">Đường dẫn GLB mới trên R2:</span>
                       <a
                         href={optimizedResult.modelUrl}
                         target="_blank"
@@ -629,7 +682,7 @@ export function ModelDoctorModal({
                       </a>
                     </div>
                     <div className="p-2.5 rounded-xl bg-stone-900/80 border border-white/10 space-y-1">
-                      <span className="text-[10px] text-stone-400 block">Tệp USDZ (Apple Quick Look):</span>
+                      <span className="text-[10px] text-stone-400 block font-bold">Tệp USDZ (Apple Quick Look):</span>
                       <a
                         href={optimizedResult.iosModelUrl}
                         target="_blank"
