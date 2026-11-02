@@ -1,5 +1,4 @@
 import React from "react";
-import { getAllAnimals } from "@/lib/animals";
 import { Navbar } from "@/components/common/navbar";
 import { Footer } from "@/components/common/footer";
 import { HeroSection } from "@/components/landing/hero-section";
@@ -13,8 +12,6 @@ import { CtaBanner } from "@/components/landing/cta-banner";
 import { ParallaxBackground } from "@/components/landing/parallax-background";
 
 export default function HomePage() {
-  const animals = getAllAnimals();
-
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#FCFBF7]">
       {/* Dynamic Parallax Background Orbs & Sparkles */}

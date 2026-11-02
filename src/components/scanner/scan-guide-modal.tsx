@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Animal } from "@/types/animal";
-import { getAllAnimals } from "@/lib/animals";
+import { SYSTEM_POLYCARDS_ANIMAL } from "@/lib/animals";
 import {
   Camera,
   QrCode,
@@ -30,9 +30,8 @@ export function ScanGuideModal({
   expectedAnimal,
   onStartScan,
 }: ScanGuideModalProps) {
-  const allAnimals = getAllAnimals();
-  // Display animal for preview simulation (use expected animal or default to Lion)
-  const displayAnimal = expectedAnimal || allAnimals[4] || allAnimals[0];
+  // Display animal for preview simulation (use expected animal or default to System PolyCards)
+  const displayAnimal = expectedAnimal || SYSTEM_POLYCARDS_ANIMAL;
 
   return (
     <div
@@ -100,9 +99,10 @@ export function ScanGuideModal({
                   {/* 3D Animal Poster Image */}
                   <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-gradient-to-tr from-sky-50 via-amber-50 to-emerald-50 border border-amber-200/70 shadow-inner my-2">
                     <Image
-                      src={displayAnimal.images[0] || "/images/animals/lion.jpg"}
+                      src={displayAnimal.images?.[0] || "/images/cards/butterfly-card.png"}
                       alt={displayAnimal.nameEn}
                       fill
+                      unoptimized
                       className="object-cover"
                     />
                     <div className="absolute bottom-2 left-2 z-10 rounded-md bg-stone-900/80 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-xs">
@@ -112,19 +112,9 @@ export function ScanGuideModal({
 
                   {/* Simulated QR Code on Card with Laser Scan Animation */}
                   <div className="relative rounded-2xl bg-gradient-to-r from-amber-50 to-emerald-50 p-2.5 border-2 border-dashed border-amber-300 flex items-center gap-3">
-                    {/* Simulated Mini QR Code */}
+                    {/* Simulated Mini QR Code Vector SVG */}
                     <div className="relative h-14 w-14 shrink-0 rounded-xl overflow-hidden bg-white p-1 border border-amber-200 shadow-sm flex items-center justify-center">
-                      <Image
-                        src={`/qr-output/${displayAnimal.slug}-qr.png`}
-                        alt="QR Code"
-                        width={48}
-                        height={48}
-                        className="object-contain"
-                        onError={(e) => {
-                          // Fallback to lion QR if specific not available
-                          (e.target as any).src = "/qr-output/lion-qr.png";
-                        }}
-                      />
+                      <QrCode className="h-10 w-10 text-stone-900" />
 
                       {/* Animated Laser Scanning Beam */}
                       <div
@@ -251,23 +241,21 @@ export function ScanGuideModal({
                   Chưa có thẻ bài giấy? Chọn nhanh để xem ngay mô hình 3D AR:
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
-                  {allAnimals.map((animal) => (
-                    <Link
-                      key={animal.id}
-                      href={`/ar/${animal.slug}?ar=1`}
-                      className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1 text-xs font-bold text-amber-950 transition-all hover:bg-amber-100 hover:scale-105 active:scale-95 shadow-2xs"
-                    >
-                      <div className="relative h-4 w-4 shrink-0 rounded-full overflow-hidden border border-amber-300">
-                        <Image
-                          src={animal.images[0] || "/images/animals/lion.jpg"}
-                          alt={animal.nameVi}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      <span>{animal.nameEn}</span>
-                    </Link>
-                  ))}
+                  <Link
+                    href="/ar/polycards?ar=1"
+                    className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100/90 px-3.5 py-1 text-xs font-black text-amber-950 transition-all hover:bg-amber-200 hover:scale-105 active:scale-95 shadow-xs"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Thử Thẻ Bướm 3D Poly Cards</span>
+                  </Link>
+
+                  <Link
+                    href="/products"
+                    className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-3.5 py-1 text-xs font-bold text-stone-700 transition-all hover:bg-stone-100 hover:scale-105 active:scale-95"
+                  >
+                    <Layers className="h-3.5 w-3.5 text-stone-500" />
+                    <span>Khám Phá Toàn Bộ Thẻ</span>
+                  </Link>
                 </div>
               </div>
             </div>

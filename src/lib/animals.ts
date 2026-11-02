@@ -2,8 +2,8 @@ import { Animal } from "@/types/animal";
 import { INITIAL_PRODUCTS } from "@/data/seed-data";
 
 /**
- * Thẻ hệ thống đặc biệt PolyCards AR (Dành riêng cho Hero & Trải nghiệm 3D /models/polycards.glb)
- * Thẻ này KHÔNG nằm trong Kho Thẻ Bài (INITIAL_PRODUCTS / Kho Sản Phẩm), nhưng có đầy đủ định danh AR.
+ * Thẻ hệ thống độc quyền PolyCards AR (Dành riêng cho Hero & Trải nghiệm 3D /models/polycards.glb)
+ * Thẻ này phục vụ demo WebAR trực tiếp không cần mạng, với assets có sẵn trong repo.
  */
 export const SYSTEM_POLYCARDS_ANIMAL: Animal = {
   id: "polycards-system-hero",
@@ -37,30 +37,35 @@ export const SYSTEM_POLYCARDS_ANIMAL: Animal = {
   enableZhVi: true,
 };
 
+// Chỉ giữ các thẻ mẫu có tài nguyên Cloudflare R2 thực sự (như jump, walk) để fallback an toàn
+const VALID_SEED_PRODUCTS: Animal[] = INITIAL_PRODUCTS.filter((item) =>
+  item.modelUrl?.includes(".r2.dev") || item.modelUrl?.startsWith("http")
+);
+
 /**
- * Lấy danh sách con vật mặc định (dùng đồng bộ cho Client Component hoặc Static Params)
+ * Lấy danh sách thẻ bài mẫu an toàn (có sẵn tài nguyên thực tế)
  */
 export function getAllAnimals(): Animal[] {
-  return INITIAL_PRODUCTS;
+  return [SYSTEM_POLYCARDS_ANIMAL, ...VALID_SEED_PRODUCTS];
 }
 
 /**
- * Lấy con vật theo slug đồng bộ
+ * Lấy thẻ bài theo slug đồng bộ
  */
 export function getAnimalBySlug(slug: string): Animal | undefined {
   if (!slug) return undefined;
   const cleanSlug = slug.toLowerCase().trim();
 
-  // Nhận diện thẻ hệ thống polycards / butterfly (không nằm trong kho)
+  // Nhận diện thẻ hệ thống polycards / butterfly
   if (cleanSlug === "polycards" || cleanSlug === "butterfly") {
     return SYSTEM_POLYCARDS_ANIMAL;
   }
 
-  return INITIAL_PRODUCTS.find((animal) => animal.slug.toLowerCase() === cleanSlug);
+  return VALID_SEED_PRODUCTS.find((p) => p.slug.toLowerCase() === cleanSlug);
 }
 
 /**
- * Lấy con vật theo mã QR định danh (ví dụ: 'AR-DEER-001' hoặc 'AR-POLYCARDS-001')
+ * Lấy con vật theo mã QR định danh (ví dụ: 'AR-POLYCARDS-001')
  */
 export function getAnimalByQrCode(qrCode: string): Animal | undefined {
   if (!qrCode) return undefined;
@@ -70,12 +75,12 @@ export function getAnimalByQrCode(qrCode: string): Animal | undefined {
     return SYSTEM_POLYCARDS_ANIMAL;
   }
 
-  return INITIAL_PRODUCTS.find((animal) => animal.qrCode.toUpperCase() === cleanCode);
+  return VALID_SEED_PRODUCTS.find((p) => p.qrCode.toUpperCase() === cleanCode);
 }
 
 /**
- * Lấy danh sách slug phục vụ generateStaticParams
+ * Lấy danh sách slug phục vụ generateStaticParams (Chỉ pre-render các thẻ tĩnh an toàn)
  */
 export function getAnimalSlugs(): string[] {
-  return [...INITIAL_PRODUCTS.map((animal) => animal.slug), "polycards", "butterfly"];
+  return ["polycards", "butterfly"];
 }

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
-import { getAllAnimals } from "@/lib/animals";
 import { getMergedProducts } from "@/lib/products-store";
 import { SubjectFocusImage } from "@/components/common/subject-focus-image";
 import {
@@ -21,18 +20,18 @@ interface ArInteractiveQuizProps {
 }
 
 export function ArInteractiveQuiz({ currentAnimal }: ArInteractiveQuizProps) {
-  const [catalog, setCatalog] = useState<Animal[]>(() => getAllAnimals());
+  const [catalog, setCatalog] = useState<Animal[]>(() => [currentAnimal]);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [hasCompleted, setHasCompleted] = useState(false);
 
   useEffect(() => {
-    setCatalog(getMergedProducts(getAllAnimals()));
     fetch("/api/products")
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
-        if (json.success && Array.isArray(json.data)) {
-          setCatalog(getMergedProducts(json.data));
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+          const merged = getMergedProducts(json.data);
+          setCatalog(merged);
         }
       })
       .catch(() => {});

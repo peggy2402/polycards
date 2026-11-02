@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Animal, ProductCategory } from "@/types/animal";
-import { getAllAnimals } from "@/lib/animals";
 import { normalizeCategorySlug } from "@/lib/activation";
 import { ProductCard } from "@/components/landing/product-card";
 import { ProductListItem } from "@/components/landing/product-list-item";
@@ -144,7 +143,7 @@ export default function ProductsPage() {
 
     const handleProductsUpdated = () => {
       fetchServerProducts();
-      setProducts(getMergedProducts(getAllAnimals()));
+      setProducts(getMergedProducts());
     };
 
     const handleCategoriesUpdated = () => {

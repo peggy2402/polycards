@@ -32,7 +32,17 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: ArPageProps): Promise<Metadata> {
   const { slug } = await params;
   const cleanSlug = slug.toLowerCase().trim();
-  const animal = getAnimalBySlug(cleanSlug) || (await dbGetProductBySlug(cleanSlug));
+  
+  // 1. Kiểm tra thẻ hệ thống demo trước
+  let animal =
+    cleanSlug === "polycards" || cleanSlug === "butterfly"
+      ? getAnimalBySlug("polycards")
+      : undefined;
+
+  // 2. Truy vấn trực tiếp từ MongoDB Atlas
+  if (!animal) {
+    animal = (await dbGetProductBySlug(cleanSlug)) || getAnimalBySlug(cleanSlug);
+  }
 
   if (!animal) {
     return {
@@ -78,7 +88,17 @@ export async function generateMetadata({ params }: ArPageProps): Promise<Metadat
 export default async function ArDetailPage({ params }: ArPageProps) {
   const { slug } = await params;
   const cleanSlug = slug.toLowerCase().trim();
-  const animal = getAnimalBySlug(cleanSlug) || (await dbGetProductBySlug(cleanSlug));
+
+  // 1. Kiểm tra thẻ hệ thống demo trước
+  let animal =
+    cleanSlug === "polycards" || cleanSlug === "butterfly"
+      ? getAnimalBySlug("polycards")
+      : undefined;
+
+  // 2. Truy vấn trực tiếp từ MongoDB Atlas
+  if (!animal) {
+    animal = (await dbGetProductBySlug(cleanSlug)) || getAnimalBySlug(cleanSlug);
+  }
 
   // Nếu thẻ chưa tồn tại trên hệ thống, kích hoạt ngay trang 404 chuẩn của Poly Cards
   if (!animal) {
