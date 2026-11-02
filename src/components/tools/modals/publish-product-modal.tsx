@@ -35,6 +35,7 @@ interface PublishProductModalProps {
   productForm: ProductFormData;
   categoriesList: ProductCategory[];
   isPublishing: boolean;
+  isEditingExistingCard?: boolean;
   onClose: () => void;
   onChangeSlug: (slug: string) => void;
   onChangeForm: (data: Partial<ProductFormData>) => void;
@@ -49,6 +50,7 @@ export function PublishProductModal({
   productForm,
   categoriesList,
   isPublishing,
+  isEditingExistingCard = false,
   onClose,
   onChangeSlug,
   onChangeForm,
@@ -143,11 +145,22 @@ export function PublishProductModal({
               <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm md:text-base font-black text-amber-300 truncate">
-                Cập Nhật Thẻ Vào #products Trang Chủ
-              </h3>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-xs sm:text-sm md:text-base font-black text-amber-300 truncate">
+                  {isEditingExistingCard
+                    ? `Cập Nhật & Lưu Đè: ${productForm.nameVi || slug}`
+                    : "Xuất Bản Thẻ Mới Vào #products"}
+                </h3>
+                {isEditingExistingCard && (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+                    Chế Độ Sửa
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] sm:text-[11px] text-stone-400 truncate">
-                Bắt buộc chọn danh mục để thẻ bài hiển thị đúng vị trí
+                {isEditingExistingCard
+                  ? `Slug /${slug}/ đã tồn tại. Toàn bộ thay đổi sẽ được cập nhật đè lên thẻ này.`
+                  : "Bắt buộc chọn danh mục để thẻ bài hiển thị đúng vị trí trên Trang Chủ"}
               </p>
             </div>
           </div>
@@ -556,7 +569,11 @@ export function PublishProductModal({
               ) : (
                 <>
                   <Check className="h-4 w-4 text-stone-950 shrink-0" />
-                  <span>Xác Nhận Xuất Bản Thẻ Bài</span>
+                  <span>
+                    {isEditingExistingCard
+                      ? `Lưu & Cập Nhật Thẻ "${productForm.nameVi || slug}"`
+                      : "Xác Nhận Xuất Bản Thẻ Mới"}
+                  </span>
                 </>
               )}
             </button>

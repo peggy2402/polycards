@@ -116,42 +116,62 @@ export function QrConfigPanel({
           * Nhập chữ thường tiếng Anh / tiếng Việt / tiếng Trung (tiếng Trung tự convert sang Pinyin, ví dụ: <em>螺蛳粉 &rarr; luo-si-fen</em>).
         </p>
 
-        {/* Khối Cảnh Báo Trùng Slug & Gợi Ý Trực Quan */}
+        {/* Khối Thông Báo Chế Độ Sửa / Cập Nhật Thẻ Hiện Có */}
         {duplicateCard && (
-          <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-400/40 text-xs space-y-2 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2 text-amber-300 font-black">
-              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
-              <span>Đã tồn tại thẻ mang slug này trên hệ thống:</span>
+          <div className="p-3 rounded-2xl bg-amber-500/15 border-2 border-amber-400/40 text-xs space-y-2.5 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-black text-amber-300">
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                <span>Chế Độ Chỉnh Sửa &amp; Cập Nhật Thẻ</span>
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                Sẽ Lưu Đè
+              </span>
             </div>
 
-            <div className="flex items-center gap-2.5 bg-black/40 p-2 rounded-lg border border-white/10">
+            <div className="flex items-center gap-2.5 bg-black/50 p-2 rounded-xl border border-white/10">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={duplicateCard.images?.[0] || duplicateCard.posterUrl || "/images/icons/logo.png"}
                 alt={duplicateCard.nameVi}
-                className="h-11 w-11 rounded-lg object-cover border border-amber-400/30 shrink-0 bg-stone-900"
+                className="h-11 w-11 rounded-lg object-cover border border-amber-400/40 shrink-0 bg-stone-900"
               />
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-white text-xs truncate">
+                <div className="font-black text-white text-xs truncate">
                   {duplicateCard.nameVi} ({duplicateCard.nameEn})
                 </div>
-                <div className="text-[10px] text-stone-400 truncate">
-                  Chủ đề: <span className="text-amber-300">{duplicateCard.category || "Động Vật"}</span>
+                <div className="text-[10px] text-stone-300 truncate">
+                  Slug: <span className="font-mono text-amber-300">/{duplicateCard.slug}/</span>
                   {duplicateCard.packCode ? ` • Mã: ${duplicateCard.packCode}` : ""}
                 </div>
+                <p className="text-[10px] text-emerald-400 font-medium">
+                  ✓ Khi bấm &quot;Đẩy Thẻ Lên Kho&quot;, hệ thống sẽ cập nhật đè thẻ này.
+                </p>
               </div>
             </div>
 
-            {onSelectExistingCard && (
+            {/* Các tùy chọn hỗ trợ người dùng */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+              {onSelectExistingCard && (
+                <button
+                  type="button"
+                  onClick={() => onSelectExistingCard(duplicateCard)}
+                  className="py-1.5 px-2.5 rounded-lg bg-amber-400/20 hover:bg-amber-400 hover:text-stone-950 text-amber-300 border border-amber-400/30 font-bold text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                >
+                  <ArrowRight className="h-3 w-3" />
+                  <span>Nạp lại phôi thẻ này</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => onSelectExistingCard(duplicateCard)}
-                className="w-full py-1.5 px-3 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                onClick={() => onSetSlug(`${duplicateCard.slug}-moi`)}
+                className="py-1.5 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 hover:text-white border border-white/15 font-bold text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                title="Đổi slug nếu muốn tạo thành thẻ mới thay vì lưu đè thẻ cũ"
               >
-                <span>Nạp Phôi &amp; Thông Tin Thẻ Này Vào Canvas</span>
-                <ArrowRight className="h-3.5 w-3.5" />
+                <span>Tạo thẻ mới (đổi slug)</span>
               </button>
-            )}
+            </div>
           </div>
         )}
       </div>

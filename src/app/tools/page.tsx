@@ -3024,6 +3024,9 @@ export default function ToolsPage() {
         productForm={productForm}
         categoriesList={categoriesList}
         isPublishing={isPublishingProduct}
+        isEditingExistingCard={Boolean(
+          slug && productsList.some((p) => p.slug.toLowerCase() === slug.trim().toLowerCase())
+        )}
         onClose={() => setIsPublishModalOpen(false)}
         onChangeSlug={setSlug}
         onChangeForm={(data) => setProductForm((prev) => ({ ...prev, ...data }))}
