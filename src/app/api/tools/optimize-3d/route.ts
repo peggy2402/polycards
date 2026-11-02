@@ -13,6 +13,7 @@ import { draco, dedup, prune } from "@gltf-transform/functions";
 // @ts-ignore
 import draco3d from "draco3dgltf";
 import { MeshoptSimplifier } from "meshoptimizer";
+import sharp from "sharp";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,8 @@ const execFileAsync = promisify(execFile);
  */
 async function optimizeGlbWithGltfTransform(
   inputBuffer: Buffer,
-  targetPolygons: number = 40000
+  targetPolygons: number = 40000,
+  maxTextureSize: number = 1024
 ): Promise<Buffer> {
   const [dracoDecoder, dracoEncoder] = await Promise.all([
     draco3d.createDecoderModule(),
@@ -87,11 +89,35 @@ async function optimizeGlbWithGltfTransform(
     }
   }
 
-  // 3. Nén Draco + Dedup + Prune
+  // 3. Tối ưu & Resize texture bằng sharp nếu vượt quá maxTextureSize (giảm hàng chục MB dung lượng)
+  for (const texture of doc.getRoot().listTextures()) {
+    const rawImage = texture.getImage();
+    if (!rawImage || rawImage.byteLength === 0) continue;
+    try {
+      const meta = await sharp(Buffer.from(rawImage)).metadata();
+      if (meta.width && meta.height && (meta.width > maxTextureSize || meta.height > maxTextureSize)) {
+        const resizedBuffer = await sharp(Buffer.from(rawImage))
+          .resize({ width: maxTextureSize, height: maxTextureSize, fit: "inside", withoutEnlargement: true })
+          .toBuffer();
+        texture.setImage(new Uint8Array(resizedBuffer));
+      }
+    } catch {
+      // bỏ qua nếu sharp không parse được định dạng ảnh lạ
+    }
+  }
+
+  // 4. Nén Draco + Dedup + Prune
   await doc.transform(
     dedup(),
     prune(),
-    draco({ method: "edgebreaker" })
+    draco({
+      method: "edgebreaker",
+      quantizePosition: 14,
+      quantizeNormal: 10,
+      quantizeTexcoord: 12,
+      quantizeColor: 8,
+      quantizeGeneric: 12,
+    })
   );
 
   const optimizedBytes = await io.writeBinary(doc);
@@ -121,13 +147,30 @@ export async function POST(req: NextRequest) {
   const tmpFilesToClean: string[] = [];
 
   try {
-    const formData = await req.formData();
-    const slug = (formData.get("slug") as string | null)?.trim()?.toLowerCase();
-    const sourceUrl = (formData.get("url") as string | null)?.trim();
-    const file = formData.get("file") as File | null;
-    const targetPolygons = Number(formData.get("targetPolygons") || 40000);
-    const maxTextureSize = Number(formData.get("maxTextureSize") || 1024);
-    const autoUploadR2 = formData.get("autoUploadR2") !== "false";
+    let slug: string | null = null;
+    let sourceUrl: string | null = null;
+    let file: File | null = null;
+    let targetPolygons = 40000;
+    let maxTextureSize = 1024;
+    let autoUploadR2 = true;
+
+    const contentType = req.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await req.json();
+      slug = json.slug ? String(json.slug).trim().toLowerCase() : null;
+      sourceUrl = json.url ? String(json.url).trim() : null;
+      targetPolygons = Number(json.targetPolygons || 40000);
+      maxTextureSize = Number(json.maxTextureSize || 1024);
+      autoUploadR2 = json.autoUploadR2 !== false;
+    } else {
+      const formData = await req.formData();
+      slug = (formData.get("slug") as string | null)?.trim()?.toLowerCase() || null;
+      sourceUrl = (formData.get("url") as string | null)?.trim() || null;
+      file = formData.get("file") as File | null;
+      targetPolygons = Number(formData.get("targetPolygons") || 40000);
+      maxTextureSize = Number(formData.get("maxTextureSize") || 1024);
+      autoUploadR2 = formData.get("autoUploadR2") !== "false";
+    }
 
     let inputBuffer: Buffer | null = null;
     let effectiveSlug = slug || "model";
@@ -199,6 +242,9 @@ import bpy
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=r"${inputGlbPath}")
 
+if bpy.ops.object.mode_set.poll():
+    bpy.ops.object.mode_set(mode='OBJECT')
+
 mesh_objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
 total_polys = sum(len(o.data.polygons) for o in mesh_objs)
 
@@ -206,6 +252,8 @@ target_total = ${targetPolygons}
 if total_polys > target_total:
     ratio = min(1.0, max(0.015, target_total / total_polys))
     for obj in mesh_objs:
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
         if len(obj.data.polygons) > 500:
             mod = obj.modifiers.new(name="Decimate", type="DECIMATE")
@@ -250,7 +298,7 @@ except Exception as e:
     // 4. Nếu không có Blender (Vercel Serverless Production) hoặc Blender lỗi: Chạy gltf-transform + draco + meshoptimizer!
     if (!optimizedGlbBuffer) {
       console.log(`[Optimize-3D] Đang xử lý bằng WebAssembly Engine (@gltf-transform + draco3d + meshoptimizer)...`);
-      optimizedGlbBuffer = await optimizeGlbWithGltfTransform(inputBuffer, targetPolygons);
+      optimizedGlbBuffer = await optimizeGlbWithGltfTransform(inputBuffer, targetPolygons, maxTextureSize);
     }
 
     const afterReport = inspectGlbBuffer(optimizedGlbBuffer);

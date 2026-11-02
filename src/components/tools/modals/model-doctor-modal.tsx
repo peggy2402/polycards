@@ -161,10 +161,27 @@ export function ModelDoctorModal({
 
       // 1. Thử gọi Server Pipeline trước
       try {
-        const res = await fetch("/api/tools/optimize-3d", {
-          method: "POST",
-          body: formData,
-        });
+        let res: Response;
+        if (!customUploadedFile && (selectedSlug || currentCard?.modelUrl)) {
+          // Gửi dạng JSON siêu nhẹ (~100 bytes), không bao giờ bị Vercel 413 Payload Too Large!
+          res = await fetch("/api/tools/optimize-3d", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slug: selectedSlug,
+              url: currentCard?.modelUrl,
+              targetPolygons: 40000,
+              maxTextureSize: 1024,
+              autoUploadR2: true,
+            }),
+          });
+        } else {
+          res = await fetch("/api/tools/optimize-3d", {
+            method: "POST",
+            body: formData,
+          });
+        }
+
         json = await res.json();
         if (res.ok && json.success) {
           usedServerPipeline = true;
