@@ -18,6 +18,9 @@ import {
 import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
 import { HeroLion3DPopout } from "./hero-lion-3d-popout";
 
+// Bật/tắt mô hình 3D bước ra từ thẻ ở trang chủ (tạm thời tắt theo yêu cầu để tránh lệch nhân vật với ảnh thẻ)
+const SHOW_HERO_3D_POPOUT = false;
+
 export function HeroSection() {
   const [playingLang, setPlayingLang] = useState<"en" | "vi" | null>(null);
 
@@ -158,13 +161,22 @@ export function HeroSection() {
                     sizes="(max-width: 640px) 100vw, 420px"
                   />
 
-                  {/* Hiệu ứng Matrix QR Swap nháy số ngẫu nhiên liên tục ở ô vuông trắng góc dưới bên trái */}
-                  <HeroQrMatrixSwap />
+                  {/* Hiệu ứng Matrix QR Swap nháy số ngẫu nhiên liên tục ở ô vuông trắng góc dưới bên trái.
+                      Bạn có thể dễ dàng điều chỉnh vị trí và kích thước ô QR theo ảnh thẻ bài tại đây: */}
+                  <HeroQrMatrixSwap
+                    left="7.2%"
+                    bottom="7.4%"
+                    width="22.8%"
+                    height="17.2%"
+                    href="/ar/lion"
+                  />
 
-                  {/* Mô hình 3D Sư Tử bước ra từ thẻ và lại đi vào thẻ (Dành riêng cho Desktop / Macbook) */}
-                  <div className="hidden lg:block">
-                    <HeroLion3DPopout modelUrl="/models/lion.glb" />
-                  </div>
+                  {/* Mô hình 3D bước ra từ thẻ (Dành riêng cho Desktop / Macbook, có thể bật lại khi có ảnh thẻ khớp model) */}
+                  {SHOW_HERO_3D_POPOUT && (
+                    <div className="hidden lg:block">
+                      <HeroLion3DPopout modelUrl="/models/lion.glb" />
+                    </div>
+                  )}
                 </div>
               </div>
 

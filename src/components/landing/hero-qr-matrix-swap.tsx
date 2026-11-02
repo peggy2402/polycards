@@ -4,7 +4,21 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Sparkles, QrCode } from "lucide-react";
 
-export function HeroQrMatrixSwap() {
+interface HeroQrMatrixSwapProps {
+  left?: string;
+  bottom?: string;
+  width?: string;
+  height?: string;
+  href?: string;
+}
+
+export function HeroQrMatrixSwap({
+  left = "7.2%",
+  bottom = "7.4%",
+  width = "22.8%",
+  height = "17.2%",
+  href = "/ar/lion",
+}: HeroQrMatrixSwapProps = {}) {
   // Chuỗi số / mã code ngẫu nhiên chạy liên tục
   const [hexCode, setHexCode] = useState("POLY-8A");
   const [matrixPattern, setMatrixPattern] = useState<number[]>(() =>
@@ -44,14 +58,14 @@ export function HeroQrMatrixSwap() {
 
   return (
     <Link
-      href="/ar/lion"
+      href={href}
       title="Chạm để mở trải nghiệm WebAR thực tế ảo"
       className="group absolute z-25 overflow-hidden rounded-xl border border-amber-300/80 bg-white shadow-md transition-all hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95"
       style={{
-        left: "7.2%",
-        bottom: "7.4%",
-        width: "22.8%",
-        height: "17.2%",
+        left,
+        bottom,
+        width,
+        height,
       }}
     >
       {/* 4 Góc Marker ngắm mục tiêu công nghệ tương lai */}
