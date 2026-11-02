@@ -1,12 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { getAllAnimals, getAnimalBySlug } from "@/lib/animals";
 import { formatVndCurrency } from "@/lib/formatters";
-import { Animal } from "@/types/animal";
+import { Animal, ProductCategory } from "@/types/animal";
+import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
+import {
+  getMergedProducts,
+  getFeaturedCombo,
+  getProductCategories,
+  resolveValidProductImage,
+} from "@/lib/products-store";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -23,17 +29,72 @@ import {
   RotateCcw,
   Box,
   Layers,
+  Search,
+  Filter,
 } from "lucide-react";
 
 function OrderContent() {
   const searchParams = useSearchParams();
   const animalParam = searchParams.get("animal");
-  const allAnimals = getAllAnimals();
 
-  // Sản phẩm đang chọn: "full-set" hoặc animal.slug
-  const [selectedProductType, setSelectedProductType] = useState<string>(
-    animalParam && getAnimalBySlug(animalParam) ? animalParam : "full-set"
-  );
+  // Danh sách sản phẩm thực từ MongoDB & Local Cache
+  const [products, setProducts] = useState<Animal[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("poly_cached_products_catalog");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return getMergedProducts();
+  });
+
+  const [categories, setCategories] = useState<ProductCategory[]>(() => getProductCategories());
+  const [featuredCombo, setFeaturedCombo] = useState<CardComboPack>(() => getFeaturedCombo());
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Nạp dữ liệu mới nhất từ MongoDB API
+  useEffect(() => {
+    async function syncRealData() {
+      try {
+        const res = await fetch("/api/products");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            const merged = getMergedProducts(json.data);
+            setProducts(merged);
+            try {
+              localStorage.setItem("poly_cached_products_catalog", JSON.stringify(merged));
+            } catch {}
+          }
+        }
+      } catch {}
+
+      try {
+        const comboRes = await fetch("/api/featured-combo");
+        if (comboRes.ok) {
+          const comboJson = await comboRes.json();
+          if (comboJson.success && comboJson.data) {
+            setFeaturedCombo(comboJson.data);
+          }
+        }
+      } catch {}
+    }
+
+    syncRealData();
+  }, []);
+
+  // Sản phẩm đang chọn: "combo-featured" hoặc `card_${animal.slug}`
+  const [selectedProductType, setSelectedProductType] = useState<string>(() => {
+    if (animalParam) {
+      return `card_${animalParam.toLowerCase()}`;
+    }
+    return "combo-featured";
+  });
+
   const [quantity, setQuantity] = useState<number>(1);
 
   // Form states
@@ -49,15 +110,60 @@ function OrderContent() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Determine current product details
-  const isFullSet = selectedProductType === "full-set";
-  const selectedAnimal = !isFullSet ? getAnimalBySlug(selectedProductType) : null;
+  // Tìm thẻ bài đang được chọn
+  const isCombo = selectedProductType === "combo-featured";
+  const selectedCard = useMemo(() => {
+    if (isCombo) return null;
+    const cleanSlug = selectedProductType.replace(/^card_/, "").toLowerCase();
+    return products.find(
+      (p) => p.slug.toLowerCase() === cleanSlug || p.id.toLowerCase() === cleanSlug
+    ) || null;
+  }, [selectedProductType, isCombo, products]);
 
-  const unitPrice = isFullSet ? 599000 : selectedAnimal ? selectedAnimal.price : 249000;
+  // Tự động chọn đúng thẻ nếu URL thay đổi
+  useEffect(() => {
+    if (animalParam) {
+      setSelectedProductType(`card_${animalParam.toLowerCase()}`);
+    }
+  }, [animalParam]);
+
+  // Đơn giá và Tên sản phẩm
+  const unitPrice = isCombo
+    ? featuredCombo.price || 599000
+    : selectedCard
+    ? selectedCard.price || 219000
+    : 219000;
+
+  const originalUnitPrice = isCombo
+    ? featuredCombo.originalPrice || 799000
+    : selectedCard
+    ? selectedCard.originalPrice || Math.round((selectedCard.price || 219000) * 1.3)
+    : 299000;
+
   const totalPrice = unitPrice * quantity;
-  const productName = isFullSet
-    ? "Trọn Bộ 6 Thẻ AR Thông Minh Poly Cards (Full Set)"
-    : `Thẻ Bài AR ${selectedAnimal?.nameEn} (${selectedAnimal?.nameVi})`;
+  const productName = isCombo
+    ? `${featuredCombo.name} (${featuredCombo.cardsCount} Thẻ AR)`
+    : `Thẻ Bài AR ${selectedCard?.nameEn || "Poly Cards"} (${selectedCard?.nameVi || ""})`;
+
+  // Lọc danh sách thẻ bài hiển thị theo category và search query
+  const filteredCards = useMemo(() => {
+    return products.filter((card) => {
+      const matchCat =
+        activeCategoryFilter === "all" ||
+        card.categorySlug === activeCategoryFilter ||
+        card.category === activeCategoryFilter;
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        card.nameEn.toLowerCase().includes(q) ||
+        card.nameVi.toLowerCase().includes(q) ||
+        card.slug.toLowerCase().includes(q) ||
+        (card.nameZh && card.nameZh.toLowerCase().includes(q));
+
+      return matchCat && matchSearch;
+    });
+  }, [products, activeCategoryFilter, searchQuery]);
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,7 +185,7 @@ function OrderContent() {
           phone,
           email,
           address,
-          productId: selectedProductType,
+          productId: isCombo ? featuredCombo.id : selectedCard?.slug || selectedProductType,
           productName,
           quantity,
           totalPrice,
@@ -119,7 +225,7 @@ function OrderContent() {
             Cảm Ơn Bạn Đã Đặt Mua Poly Cards!
           </h1>
           <p className="text-sm sm:text-base text-slate-600 max-w-lg mx-auto font-medium">
-            Đơn hàng của bạn đã được chuyển thẳng tới đội ngũ phát triển sản phẩm Poly Cards. Chúng tôi sẽ liên hệ qua số điện thoại <strong>{phone}</strong> trong thời gian sớm nhất để xác nhận và gửi thẻ bài đến tay bé.
+            Đơn hàng của bạn đã được ghi nhận vào hệ thống Poly Cards. Chúng tôi sẽ liên hệ qua số điện thoại <strong>{phone}</strong> trong thời gian sớm nhất để xác nhận và gửi thẻ bài đến tay bé.
           </p>
         </div>
 
@@ -178,7 +284,8 @@ function OrderContent() {
             href="/"
             className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border-2 border-amber-300 bg-white px-6 py-3 text-sm font-black text-slate-800 hover:bg-amber-50"
           >
-            <span>Về Trang Chủ</span>
+            <ArrowLeft className="h-4 w-4" />
+            <span>Quay Về Trang Chủ</span>
           </Link>
         </div>
       </div>
@@ -187,140 +294,128 @@ function OrderContent() {
 
   // ORDER FORM SCREEN
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12 lg:px-8">
+      {/* Back button */}
+      <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-black text-slate-800 hover:bg-amber-50 transition-all shadow-xs max-w-fit"
+          className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-amber-50 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4 text-amber-600" />
-          <span>Quay Lại Trang Chủ</span>
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Quay lại trang chủ</span>
         </Link>
-
-        <div className="flex items-center gap-2 text-xs font-black text-emerald-950 bg-emerald-100/90 px-4 py-1.5 rounded-full border border-emerald-300 max-w-fit">
-          <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          <span>Sản Phẩm Thiết Kế Độc Quyền • Đặt Mua Trực Tiếp Từ Tác Giả</span>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Customer Information Form (7 Cols) */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        {/* Left Column: Checkout Form (7 Cols) */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="rounded-[2.5rem] border-2 border-amber-200/90 bg-white/95 p-6 sm:p-8 shadow-xl shadow-amber-950/5 space-y-6">
-            <div>
-              <span className="text-xs font-extrabold text-amber-700 uppercase tracking-widest block">
-                Thông Tin Giao Hàng
+          <div className="rounded-[2.5rem] border-2 border-amber-200/90 bg-white/95 p-6 sm:p-8 shadow-xl shadow-amber-950/5">
+            <div className="border-b border-amber-100 pb-5 mb-6">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1 text-xs font-black text-amber-950 mb-2">
+                <ShoppingBag className="h-3.5 w-3.5 text-amber-600" />
+                <span>Đặt Mua Thẻ Thật Chính Hãng</span>
               </span>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
-                Đặt Mua Thẻ Bài AR Poly Cards
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                Thông Tin Giao Hàng & Thanh Toán
               </h1>
-              <p className="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">
-                Vui lòng điền thông tin để chúng tôi đóng gói và gửi bộ thẻ bài thông minh có tích hợp mã QR AR đến tận tay bé yêu.
+              <p className="mt-1 text-xs sm:text-sm text-slate-600 font-medium">
+                Giao hàng toàn quốc tận nhà. Quý phụ huynh nhận hàng kiểm tra thẻ trước khi thanh toán.
               </p>
             </div>
 
             {errorMessage && (
-              <div className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 text-xs font-black text-rose-900">
+              <div className="mb-6 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-xs font-bold text-rose-800">
                 {errorMessage}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Họ tên */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-black text-slate-800">
-                  Họ và tên phụ huynh / người nhận <span className="text-rose-500">*</span>
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Họ và tên phụ huynh / người nhận *</span>
                 </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ví dụ: Nguyễn Thị Mai"
-                    className="w-full rounded-2xl border-2 border-amber-200/80 bg-amber-50/20 py-3 pl-10 pr-4 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden"
-                  />
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50/30 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden transition-all"
+                />
               </div>
 
-              {/* SĐT & Email */}
+              {/* Phone & Email */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-slate-800">
-                    Số điện thoại liên hệ <span className="text-rose-500">*</span>
+                <div>
+                  <label className="block text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Số điện thoại nhận hàng *</span>
                   </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      type="tel"
-                      required
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="0912 345 678"
-                      className="w-full rounded-2xl border-2 border-amber-200/80 bg-amber-50/20 py-3 pl-10 pr-4 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-slate-800">
-                    Email nhận xác nhận
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="baome@example.com"
-                      className="w-full rounded-2xl border-2 border-amber-200/80 bg-amber-50/20 py-3 pl-10 pr-4 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Địa chỉ nhận hàng */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-black text-slate-800">
-                  Địa chỉ nhận hàng (Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-                  <textarea
+                  <input
+                    type="tel"
                     required
-                    rows={2}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Số 123 Đường Cầu Giấy, Phường Dịch Vọng, Quận Cầu Giấy, Hà Nội"
-                    className="w-full rounded-2xl border-2 border-amber-200/80 bg-amber-50/20 py-3 pl-10 pr-4 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="0912 345 678"
+                    className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50/30 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Email (nhận hướng dẫn kích hoạt)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50/30 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden transition-all"
                   />
                 </div>
               </div>
 
-              {/* Ghi chú */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-black text-slate-800">
-                  Ghi chú cho đơn hàng (Ví dụ: Giao giờ hành chính, lời nhắn cho bé...)
+              {/* Address */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Địa chỉ giao hàng chi tiết (Số nhà, đường, phường/xã, quận/huyện) *</span>
                 </label>
-                <div className="relative">
-                  <FileText className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-                  <textarea
-                    rows={2}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="Bé tên An 4 tuổi, xin gửi tặng thêm thiệp sinh nhật..."
-                    className="w-full rounded-2xl border-2 border-amber-200/80 bg-amber-50/20 py-3 pl-10 pr-4 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden"
-                  />
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Ví dụ: Số 18 ngõ 45 phố Mai Dịch, Cầu Giấy, Hà Nội"
+                  className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50/30 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden transition-all"
+                />
               </div>
 
-              {/* Phương thức thanh toán */}
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-black text-slate-800">
-                  Hình thức thanh toán
+              {/* Note */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Ghi chú cho shipper (Không bắt buộc)</span>
                 </label>
+                <textarea
+                  rows={2}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi đến..."
+                  className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50/30 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-hidden transition-all"
+                />
+              </div>
+
+              {/* Payment Methods */}
+              <div className="pt-2">
+                <label className="block text-xs font-black text-slate-800 mb-2 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Phương thức thanh toán</span>
+                </label>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -337,7 +432,7 @@ function OrderContent() {
                     <div>
                       <span className="block text-xs font-black">Thanh toán khi nhận hàng (COD)</span>
                       <span className="text-[11px] text-slate-500 font-medium">
-                        Kiểm tra thẻ bài an toàn trước khi thanh toán
+                        Nhận hàng, kiểm tra bộ thẻ bài rồi mới trả tiền
                       </span>
                     </div>
                   </button>
@@ -400,74 +495,141 @@ function OrderContent() {
 
             {/* Product Type Selector */}
             <div className="space-y-3">
-              {/* Option 1: Full Set (Khuyên Dùng) */}
+              {/* Option 1: Combo Nổi Bật (Khuyên Dùng) */}
               <button
                 type="button"
-                onClick={() => setSelectedProductType("full-set")}
+                onClick={() => setSelectedProductType("combo-featured")}
                 className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 p-3.5 text-left transition-all ${
-                  isFullSet
+                  isCombo
                     ? "border-amber-400 bg-amber-50/90 shadow-md ring-2 ring-amber-300/60"
                     : "border-amber-200 bg-white hover:bg-amber-50/40"
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden border border-amber-300 bg-amber-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative h-14 w-14 shrink-0 rounded-xl overflow-hidden border border-amber-300 bg-amber-100">
                     <Image
-                      src="/images/cards/lion-card.jpg"
-                      alt="Trọn bộ 6 thẻ AR Poly Cards"
+                      src={featuredCombo.imageSrc || "/images/cards/lion-card.jpg"}
+                      alt={featuredCombo.name}
                       fill
                       className="object-cover"
                     />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-slate-900">Trọn Bộ 6 Thẻ AR (Full Set)</span>
-                      <span className="rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-black text-white">
-                        HOT
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-black text-slate-900 truncate">
+                        {featuredCombo.name}
+                      </span>
+                      <span className="rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-black text-white shrink-0">
+                        {featuredCombo.badge || "HOT"}
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-medium block">
-                      Đủ 6 bạn thú + Tặng mã QR không giới hạn
+                    <span className="text-[11px] text-slate-500 font-medium block truncate">
+                      {featuredCombo.description || `Trọn bộ ${featuredCombo.cardsCount} thẻ + Mã kích hoạt WebAR`}
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-sm font-black text-amber-950 block">599.000 đ</span>
-                  <span className="text-[10px] text-slate-400 line-through">799.000 đ</span>
+                <div className="text-right shrink-0">
+                  <span className="text-sm font-black text-amber-950 block">
+                    {formatVndCurrency(featuredCombo.price || 599000)}
+                  </span>
+                  {featuredCombo.originalPrice && (
+                    <span className="text-[10px] text-slate-400 line-through">
+                      {formatVndCurrency(featuredCombo.originalPrice)}
+                    </span>
+                  )}
                 </div>
               </button>
 
-              {/* Or Select Individual Animal Cards */}
+              {/* Option 2: Chọn Thẻ Bài Lẻ Từ Toàn Bộ Danh Sách Thật */}
               <div className="pt-2">
-                <span className="text-[11px] font-black text-slate-500 block mb-2">
-                  Hoặc chọn lẻ theo từng bạn thú:
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {allAnimals.map((a) => {
-                    const isSelected = selectedProductType === a.slug;
-                    return (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black text-slate-700">
+                    Hoặc chọn lẻ theo từng bạn thú / thẻ bài ({products.length} thẻ có sẵn):
+                  </span>
+                </div>
+
+                {/* Search & Category Filter */}
+                <div className="space-y-2 mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Tìm thẻ (sư tử, xe cộ, walk, jump...)"
+                      className="w-full rounded-xl border border-amber-200 bg-amber-50/40 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden"
+                    />
+                  </div>
+
+                  {/* Filter chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategoryFilter("all")}
+                      className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors ${
+                        activeCategoryFilter === "all"
+                          ? "bg-amber-400 text-stone-950"
+                          : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                      }`}
+                    >
+                      Tất cả ({products.length})
+                    </button>
+                    {categories.map((c) => (
                       <button
-                        key={a.id}
+                        key={c.id || c.slug}
                         type="button"
-                        onClick={() => setSelectedProductType(a.slug)}
-                        className={`flex items-center gap-2 rounded-xl border-2 p-2 text-left transition-all ${
-                          isSelected
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-300"
-                            : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                        onClick={() => setActiveCategoryFilter(c.slug)}
+                        className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors ${
+                          activeCategoryFilter === c.slug
+                            ? "bg-amber-400 text-stone-950"
+                            : "bg-stone-100 text-stone-600 hover:bg-stone-200"
                         }`}
                       >
-                        <div className="relative h-8 w-8 shrink-0 rounded-lg overflow-hidden border border-amber-300">
-                          <Image
-                            src={a.images[0] || "/images/animals/lion.jpg"}
-                            alt={a.nameVi}
-                            fill
-                            className="object-cover"
-                          />
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Danh Sách Thẻ Cuộn Nhẹ */}
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                  {filteredCards.map((a) => {
+                    const cardTypeKey = `card_${a.slug}`;
+                    const isSelected = selectedProductType === cardTypeKey;
+                    const cardImg = resolveValidProductImage(a.images?.[0], a.posterUrl);
+                    return (
+                      <button
+                        key={a.id || a.slug}
+                        type="button"
+                        onClick={() => setSelectedProductType(cardTypeKey)}
+                        className={`flex w-full items-center justify-between gap-2 rounded-xl border-2 p-2 text-left transition-all ${
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-300"
+                            : "border-amber-200/70 bg-white text-slate-700 hover:bg-amber-50/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="relative h-10 w-10 shrink-0 rounded-lg overflow-hidden border border-amber-200 bg-amber-50">
+                            <Image
+                              src={cardImg}
+                              alt={a.nameVi}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-xs font-black text-slate-900 truncate">
+                              {a.nameEn} <span className="text-[11px] font-normal text-slate-500">({a.nameVi})</span>
+                            </span>
+                            <span className="text-[10px] text-amber-700 font-bold block">
+                              {a.category || "Động Vật"}
+                            </span>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-xs font-black truncate">{a.nameEn}</span>
-                          <span className="block text-[10px] text-amber-900 font-bold">
-                            {formatVndCurrency(a.price)}
+
+                        <div className="text-right shrink-0">
+                          <span className="block text-xs text-amber-950 font-black">
+                            {formatVndCurrency(a.price || 219000)}
                           </span>
                         </div>
                       </button>
@@ -478,14 +640,16 @@ function OrderContent() {
             </div>
 
             {/* Quantity Selector */}
-            <div className="flex items-center justify-between border-t border-b border-amber-100 py-3.5">
-              <span className="text-xs font-black text-slate-900">Số lượng bộ thẻ:</span>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between border-t border-amber-100 pt-4">
+              <div>
+                <span className="text-xs font-black text-slate-800 block">Số lượng</span>
+                <span className="text-[11px] text-slate-500 font-medium">Chọn số bộ/thẻ cần đặt</span>
+              </div>
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  disabled={quantity <= 1}
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-amber-200 bg-white font-black text-slate-800 hover:bg-amber-100 active:scale-95 disabled:opacity-40"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300 bg-amber-50 font-black text-slate-700 hover:bg-amber-100 active:scale-95 transition-all"
                 >
                   -
                 </button>
@@ -493,48 +657,48 @@ function OrderContent() {
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => q + 1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-amber-200 bg-white font-black text-slate-800 hover:bg-amber-100 active:scale-95"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-300 bg-amber-50 font-black text-slate-700 hover:bg-amber-100 active:scale-95 transition-all"
                 >
                   +
                 </button>
               </div>
             </div>
 
-            {/* Price Calculations */}
-            <div className="space-y-2 text-xs font-medium text-slate-600">
-              <div className="flex justify-between">
-                <span>Đơn giá:</span>
-                <span>{formatVndCurrency(unitPrice)}</span>
+            {/* Total Price Box */}
+            <div className="rounded-2xl bg-amber-50/80 p-4 border border-amber-200 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>Đơn giá niêm yết:</span>
+                <span className="line-through text-slate-400">{formatVndCurrency(originalUnitPrice * quantity)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Số lượng:</span>
-                <span>x {quantity}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Phí vận chuyển toàn quốc:</span>
-                <span className="font-bold text-emerald-600">MIỄN PHÍ</span>
-              </div>
-              <div className="flex justify-between items-center text-base font-black text-slate-900 pt-2 border-t border-amber-100">
-                <span>Tổng tiền:</span>
-                <span className="text-2xl font-black text-amber-950">
-                  {formatVndCurrency(totalPrice)}
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>Khuyến mãi Poly Cards:</span>
+                <span className="font-bold text-rose-600">
+                  -{formatVndCurrency((originalUnitPrice - unitPrice) * quantity)}
                 </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>Phí vận chuyển:</span>
+                <span className="font-bold text-emerald-600">Miễn phí (Toàn quốc)</span>
+              </div>
+              <div className="border-t border-amber-200/80 pt-2 flex items-center justify-between">
+                <span className="text-sm font-black text-slate-900">Tổng thanh toán:</span>
+                <span className="text-xl font-black text-amber-950">{formatVndCurrency(totalPrice)}</span>
               </div>
             </div>
 
-            {/* Card Highlights */}
-            <div className="rounded-2xl bg-amber-50/80 p-3.5 border border-amber-200/80 space-y-2 text-xs font-bold text-slate-700">
-              <div className="flex items-center gap-2 text-emerald-800">
+            {/* Bonus Features List */}
+            <div className="space-y-2 pt-1 text-xs text-slate-700 font-medium">
+              <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Mỗi thẻ bài đều in mã QR công nghệ cao độc quyền.</span>
+                <span>Bao gồm mã QR bản quyền mở khóa WebAR vĩnh viễn</span>
               </div>
-              <div className="flex items-center gap-2 text-emerald-800">
+              <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Không cần cài app, quét là xem được 3D và nghe phát âm.</span>
+                <span>Giọng đọc bản xứ 3 ngôn ngữ Anh - Việt - Trung</span>
               </div>
-              <div className="flex items-center gap-2 text-emerald-800">
+              <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Chất liệu giấy chống nước, bo tròn 4 góc an toàn cho trẻ.</span>
+                <span>Thẻ bài bo góc an toàn chứng nhận chuẩn FSC</span>
               </div>
             </div>
           </div>
@@ -546,16 +710,16 @@ function OrderContent() {
 
 export default function OrderPage() {
   return (
-    <div className="min-h-screen bg-[#FCFBF7] text-slate-800">
+    <main className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-amber-50/30">
       <Suspense
         fallback={
           <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="h-10 w-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
           </div>
         }
       >
         <OrderContent />
       </Suspense>
-    </div>
+    </main>
   );
 }

@@ -621,7 +621,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                       Dùng Camera điện thoại quét mã QR bên cạnh để mở khóa trọn bộ thẻ và trải nghiệm mô hình 3D AR ngay lập tức.
                     </p>
                     <span className="font-mono font-bold text-[10px] text-amber-800">
-                      Website: polycards-one.vercel.app
+                      Website: polycards.vn
                     </span>
                   </div>
 

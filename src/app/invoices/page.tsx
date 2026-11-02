@@ -1342,7 +1342,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                       Hệ sinh thái Thẻ bài Học tập Thực tế ảo WebAR tương tác 3D
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Website: polycards-one.vercel.app &bull; Hotline: 0988.xxx.xxx
+                      Website: polycards.vn &bull; Hotline: 0988.xxx.xxx
                     </p>
                   </div>
 

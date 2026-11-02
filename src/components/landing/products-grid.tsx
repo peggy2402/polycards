@@ -32,14 +32,14 @@ function HomeMiniProductCard({ card }: { card: Animal }) {
   const hasBadge = Boolean(card.badge && card.badge.trim() !== "");
 
   return (
-    <article className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-amber-200/90 bg-white p-3.5 shadow-md shadow-amber-900/5 transition-all duration-300 hover:-translate-y-1.5 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/15">
+    <article className="group relative flex flex-col justify-between overflow-hidden rounded-2xl sm:rounded-3xl border-2 border-amber-200/90 bg-white p-2.5 sm:p-3.5 shadow-md shadow-amber-900/5 transition-all duration-300 hover:-translate-y-1.5 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/15">
       {/* Toàn bộ khối Ảnh + Tiêu đề chữ trên thẻ điều hướng mượt sang trang chi tiết 3D & AR */}
       <Link
         href={cardDetailHref}
-        className="block space-y-3 cursor-pointer focus:outline-hidden"
+        className="block space-y-2 sm:space-y-3 cursor-pointer focus:outline-hidden"
         title={`Mở thẻ 3D & WebAR: ${card.nameVi} (${card.nameEn})`}
       >
-        <div className="relative aspect-[4/4.2] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-sky-50 via-amber-50/40 to-emerald-50/60 border border-amber-100">
+        <div className="relative aspect-[4/4.2] w-full overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-b from-sky-50 via-amber-50/40 to-emerald-50/60 border border-amber-100">
           <SubjectFocusImage
             primaryUrl={card.images?.[0]}
             secondaryUrl={card.posterUrl}
@@ -48,87 +48,83 @@ function HomeMiniProductCard({ card }: { card: Animal }) {
           />
 
           {/* Top-Left: Danh mục + AR 3D */}
-          <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 flex-wrap">
-            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-black/75 text-white backdrop-blur-md border border-white/15">
+          <div className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5 z-10 flex items-center gap-1 flex-wrap">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/75 text-white backdrop-blur-md border border-white/15">
               {card.category || "Động Vật"}
             </span>
             {card.arEnabled !== false && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
                 <Sparkles className="h-2.5 w-2.5" />
                 <span>AR 3D</span>
               </span>
             )}
           </div>
 
-          {/* Top-Right: Huy hiệu nổi bật (Badge tùy biến từ Kho Thẻ Bài) */}
+          {/* Top-Right: Huy hiệu nổi bật */}
           {hasBadge && (
-            <span className="absolute top-2.5 right-2.5 z-10 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-stone-950 border border-amber-300 shadow-sm">
+            <span className="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 z-10 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 border border-amber-300 shadow-sm">
               {card.badge}
             </span>
           )}
 
           {/* Bottom-Right: Nhãn Xem 3D khi hover */}
-          <div className="absolute bottom-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-full bg-stone-900/80 px-2.5 py-1 text-[10px] font-bold text-amber-300 backdrop-blur-md border border-white/10 transition-colors group-hover:bg-amber-400 group-hover:text-stone-950">
-            <Sparkles className="h-3 w-3" />
+          <div className="absolute bottom-1.5 right-1.5 sm:bottom-2.5 sm:right-2.5 z-10 inline-flex items-center gap-1 rounded-full bg-stone-900/80 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-[10px] font-bold text-amber-300 backdrop-blur-md border border-white/10 transition-colors group-hover:bg-amber-400 group-hover:text-stone-950">
+            <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
             <span>Xem 3D</span>
           </div>
         </div>
 
-        {/* Khối chữ trên thẻ: Nhấn vào text chuyển trang ngay */}
-        <div className="px-0.5 space-y-1">
-          <div className="flex items-center justify-between gap-1.5">
-            <h3 className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-amber-600 transition-colors truncate">
+        {/* Khối chữ trên thẻ */}
+        <div className="px-0.5 space-y-0.5 sm:space-y-1">
+          <div className="flex items-center justify-between gap-1">
+            <h3 className="text-sm sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-amber-600 transition-colors truncate">
               {card.nameEn}
             </h3>
             {card.ipa && (
-              <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80 shrink-0">
+              <span className="font-mono text-[9px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/80 shrink-0">
                 {card.ipa}
               </span>
             )}
           </div>
 
-          <p className="text-xs sm:text-sm font-bold text-amber-800 group-hover:text-amber-600 transition-colors truncate">
+          <p className="text-[11px] sm:text-sm font-bold text-amber-800 group-hover:text-amber-600 transition-colors truncate">
             {card.nameVi}
             {card.enableZhVi && card.nameZh ? ` • ${card.nameZh}` : ""}
           </p>
         </div>
       </Link>
 
-      {/* Chân thẻ: Giá tiền + Nút chuyển nhanh */}
-      <div className="mt-3 pt-2.5 border-t border-amber-100 flex items-center justify-between gap-2 px-0.5">
+      {/* Chân thẻ: Giá tiền + Nút mua & Xem */}
+      <div className="mt-2.5 pt-2 border-t border-amber-100 flex items-center justify-between gap-1.5 px-0.5">
         <Link href={cardDetailHref} className="block cursor-pointer min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-base sm:text-lg font-black text-amber-950">
+          <div className="flex items-baseline gap-1">
+            <span className="text-xs sm:text-base font-black text-amber-950 truncate">
               {formatVndCurrency(price)}
             </span>
-            {discountPercent > 0 && (
-              <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                -{discountPercent}%
-              </span>
-            )}
           </div>
           {originalPrice > price && (
-            <span className="block text-[11px] text-stone-400 line-through font-mono leading-tight">
+            <span className="block text-[10px] sm:text-[11px] text-stone-400 line-through font-mono leading-tight">
               {formatVndCurrency(originalPrice)}
             </span>
           )}
         </Link>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <Link
             href={card.buyUrl || `/order?animal=${card.slug}`}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 hover:bg-emerald-500 text-emerald-700 hover:text-white border border-emerald-200 transition-colors"
+            className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-emerald-50 hover:bg-emerald-500 text-emerald-700 hover:text-white border border-emerald-200 transition-colors"
             title={`Đặt mua thẻ ${card.nameVi}`}
           >
-            <ShoppingBag className="h-4 w-4" />
+            <ShoppingBag className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Link>
 
           <Link
             href={cardDetailHref}
-            className="inline-flex h-9 items-center gap-1 rounded-xl bg-amber-400 hover:bg-amber-300 px-3 text-xs font-black text-stone-950 shadow-2xs transition-all active:scale-95"
+            className="inline-flex h-8 sm:h-9 items-center gap-1 rounded-lg sm:rounded-xl bg-amber-400 hover:bg-amber-300 px-2 sm:px-3 text-[11px] sm:text-xs font-black text-stone-950 shadow-2xs transition-all active:scale-95"
           >
-            <span>Mở Thẻ</span>
-            <ArrowRight className="h-3.5 w-3.5" />
+            <span className="hidden xs:inline sm:inline">Mở</span>
+            <span className="inline xs:hidden sm:hidden">Xem</span>
+            <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           </Link>
         </div>
       </div>
@@ -235,8 +231,8 @@ export function ProductsGrid() {
           </p>
         </div>
 
-        {/* HÀNG TRÊN: 4 THẺ NHỎ NẰM CÙNG 1 HÀNG */}
-        <div className="mt-10 sm:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* HÀNG TRÊN: 4 THẺ NHỎ NẰM CÙNG 1 HÀNG (2 cột trên mobile, 4 cột trên desktop) */}
+        <div className="mt-8 sm:mt-12 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {isLoading && homeFeaturedCards.length === 0 ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div

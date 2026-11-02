@@ -15,6 +15,8 @@ import {
   Box,
   CheckCircle2,
 } from "lucide-react";
+import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
+import { HeroLion3DPopout } from "./hero-lion-3d-popout";
 
 export function HeroSection() {
   const [playingLang, setPlayingLang] = useState<"en" | "vi" | null>(null);
@@ -155,6 +157,14 @@ export function HeroSection() {
                     className="object-cover"
                     sizes="(max-width: 640px) 100vw, 420px"
                   />
+
+                  {/* Hiệu ứng Matrix QR Swap nháy số ngẫu nhiên liên tục ở ô vuông trắng góc dưới bên trái */}
+                  <HeroQrMatrixSwap />
+
+                  {/* Mô hình 3D Sư Tử bước ra từ thẻ và lại đi vào thẻ (Dành riêng cho Desktop / Macbook) */}
+                  <div className="hidden lg:block">
+                    <HeroLion3DPopout modelUrl="/models/lion.glb" />
+                  </div>
                 </div>
               </div>
 

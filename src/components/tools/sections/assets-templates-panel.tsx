@@ -270,7 +270,7 @@ export function AssetsTemplatesPanel({
           className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
         >
           <ShoppingBag className="h-4 w-4" />
-          <span>Đẩy Thẻ Lên #products &amp; /products</span>
+          <span>Đẩy Thẻ Lên Kho</span>
         </button>
 
         {/* Hàng Đợi In Thu Gọn / Mở Rộng */}
@@ -309,3 +309,4 @@ export function AssetsTemplatesPanel({
     </div>
   );
 }
+
