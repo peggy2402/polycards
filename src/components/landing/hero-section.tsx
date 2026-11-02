@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
 import { HeroLion3DPopout } from "./hero-lion-3d-popout";
+import { speakWord, stopAllCardAudio } from "@/lib/speech-audio";
 
 // Bật/tắt mô hình 3D bước ra từ thẻ ở trang chủ (tạm thời tắt theo yêu cầu để tránh lệch nhân vật với ảnh thẻ)
 const SHOW_HERO_3D_POPOUT = false;
@@ -26,12 +27,15 @@ export function HeroSection() {
 
   const handlePlayAudio = (lang: "en" | "vi") => {
     try {
+      stopAllCardAudio();
       setPlayingLang(lang);
-      const audioPath = lang === "en" ? "/audio/en/lion.mp3" : "/audio/vi/lion.mp3";
-      const audio = new Audio(audioPath);
-      audio.onended = () => setPlayingLang(null);
-      audio.onerror = () => setPlayingLang(null);
-      audio.play().catch(() => setPlayingLang(null));
+      const textToSpeak = lang === "en" ? "Butterfly" : "Con bướm";
+      const success = speakWord(textToSpeak, lang, () => {
+        setPlayingLang(null);
+      });
+      if (!success) {
+        setPlayingLang(null);
+      }
     } catch {
       setPlayingLang(null);
     }

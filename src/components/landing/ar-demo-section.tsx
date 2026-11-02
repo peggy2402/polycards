@@ -11,17 +11,19 @@ import {
   Sparkles,
   RotateCw,
 } from "lucide-react";
+import { speakWord, stopAllCardAudio } from "@/lib/speech-audio";
 
 export function ArDemoSection() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const handlePlayAudio = () => {
     try {
+      stopAllCardAudio();
       setIsPlayingAudio(true);
-      const audio = new Audio("/audio/deer.mp3");
-      audio.onended = () => setIsPlayingAudio(false);
-      audio.onerror = () => setIsPlayingAudio(false);
-      audio.play().catch(() => setIsPlayingAudio(false));
+      const success = speakWord("Butterfly", "en", () => setIsPlayingAudio(false));
+      if (!success) {
+        setIsPlayingAudio(false);
+      }
     } catch {
       setIsPlayingAudio(false);
     }
@@ -127,7 +129,7 @@ export function ArDemoSection() {
                 </button>
 
                 <Link
-                  href="/ar/deer"
+                  href="/ar/polycards"
                   className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/20 transition-all hover:scale-102 active:scale-95"
                 >
                   <Smartphone className="h-4 w-4" />
