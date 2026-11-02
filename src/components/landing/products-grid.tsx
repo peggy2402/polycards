@@ -137,27 +137,51 @@ function HomeMiniProductCard({ card }: { card: Animal }) {
 }
 
 export function ProductsGrid() {
-  const [products, setProducts] = useState<Animal[]>(() => getMergedProducts());
+  const [products, setProducts] = useState<Animal[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("poly_cached_products_catalog");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("poly_cached_products_catalog");
+        if (cached) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [featuredCombo, setFeaturedCombo] = useState<CardComboPack>(
     DEFAULT_FEATURED_COMBO
   );
 
   const loadHomeData = useCallback(async () => {
-    // 1. Đồng bộ danh sách thẻ bài từ MongoDB + Local Store
+    // 1. Đồng bộ danh sách thẻ bài từ MongoDB
     try {
       const res = await fetch("/api/products");
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setProducts(getMergedProducts(json.data));
-        } else {
-          setProducts(getMergedProducts());
+          const merged = getMergedProducts(json.data);
+          setProducts(merged);
+          try {
+            localStorage.setItem("poly_cached_products_catalog", JSON.stringify(merged));
+          } catch {}
         }
-      } else {
-        setProducts(getMergedProducts());
       }
     } catch {
-      setProducts(getMergedProducts());
+      // Giữ nguyên products hiện tại
+    } finally {
+      setIsLoading(false);
     }
 
     // 2. Đồng bộ Khối Combo Lớn từ MongoDB + Local Store
@@ -213,9 +237,28 @@ export function ProductsGrid() {
 
         {/* HÀNG TRÊN: 4 THẺ NHỎ NẰM CÙNG 1 HÀNG */}
         <div className="mt-10 sm:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {homeFeaturedCards.map((card) => (
-            <HomeMiniProductCard key={card.id || card.slug} card={card} />
-          ))}
+          {isLoading && homeFeaturedCards.length === 0 ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-amber-100 bg-white p-3.5 shadow-md shadow-amber-900/5 animate-pulse"
+              >
+                <div className="aspect-[4/4.2] w-full rounded-2xl bg-amber-50/70 mb-3" />
+                <div className="space-y-2">
+                  <div className="h-5 w-3/4 rounded-lg bg-amber-100/80" />
+                  <div className="h-4 w-1/2 rounded-md bg-stone-100" />
+                  <div className="flex justify-between items-center pt-2">
+                    <div className="h-6 w-20 rounded-lg bg-amber-200/60" />
+                    <div className="h-8 w-20 rounded-xl bg-amber-300/40" />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            homeFeaturedCards.map((card) => (
+              <HomeMiniProductCard key={card.id || card.slug} card={card} />
+            ))
+          )}
         </div>
 
         {/* HÀNG DƯỚI: 1 KHỐI COMBO LỚN TRẢI NGANG DƯỚI 4 THẺ NHỎ */}

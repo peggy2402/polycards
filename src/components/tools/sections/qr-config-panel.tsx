@@ -1,27 +1,24 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   QrCode,
   Sparkles,
-  Link as LinkIcon,
   RefreshCw,
   Download,
-  FileCode,
   Copy,
   Check,
   CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
+import { Animal } from "@/types/animal";
+import { normalizeSlugWithPinyin } from "@/lib/slug-helper";
 
 interface QrConfigPanelProps {
   qrGeneratedCount: number;
-  selectedPackForCard: string;
-  packGeneratedCode: string;
-  copiedPackCode: boolean;
-  qrMode: "slug" | "custom";
-  qrTargetEnv: "production" | "local";
   slug: string;
-  customUrl: string;
   directAr: boolean;
   includeLicense: boolean;
   licenseCode: string;
@@ -29,31 +26,22 @@ interface QrConfigPanelProps {
   qrDataUrl: string;
   targetUrl: string;
   copiedUrl: boolean;
-  onSetSelectedPackForCard: (pack: string) => void;
-  onGeneratePackCodeForCard: () => void;
-  onCopyPackCode: (code: string) => void;
-  onSetQrMode: (mode: "slug" | "custom") => void;
-  onSetQrTargetEnv: (env: "production" | "local") => void;
   onSetSlug: (slug: string) => void;
-  onSetCustomUrl: (url: string) => void;
   onSetDirectAr: (val: boolean) => void;
   onSetIncludeLicense: (val: boolean) => void;
   onSetLicenseCode: (code: string) => void;
   onGenerateQr: () => void;
   onDownloadQrPng: () => void;
-  onDownloadQrSvg: () => void;
   onCopyUrl: () => void;
+
+  // Dữ liệu kiểm tra trùng slug & nạp nhanh phôi thẻ
+  existingCards?: Animal[];
+  onSelectExistingCard?: (card: Animal) => void;
 }
 
 export function QrConfigPanel({
   qrGeneratedCount,
-  selectedPackForCard,
-  packGeneratedCode,
-  copiedPackCode,
-  qrMode,
-  qrTargetEnv,
   slug,
-  customUrl,
   directAr,
   includeLicense,
   licenseCode,
@@ -61,21 +49,30 @@ export function QrConfigPanel({
   qrDataUrl,
   targetUrl,
   copiedUrl,
-  onSetSelectedPackForCard,
-  onGeneratePackCodeForCard,
-  onCopyPackCode,
-  onSetQrMode,
-  onSetQrTargetEnv,
   onSetSlug,
-  onSetCustomUrl,
   onSetDirectAr,
   onSetIncludeLicense,
   onSetLicenseCode,
   onGenerateQr,
   onDownloadQrPng,
-  onDownloadQrSvg,
   onCopyUrl,
+  existingCards = [],
+  onSelectExistingCard,
 }: QrConfigPanelProps) {
+  // Xử lý khi người dùng gõ slug: Tự động convert tiếng Trung sang Pinyin, tiếng Việt bỏ dấu
+  const handleSlugInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const clean = normalizeSlugWithPinyin(raw);
+    onSetSlug(clean);
+  };
+
+  // Tìm thẻ bị trùng slug trên hệ thống (nếu có)
+  const duplicateCard = useMemo(() => {
+    const clean = slug.trim().toLowerCase();
+    if (!clean) return null;
+    return existingCards.find((c) => c.slug.trim().toLowerCase() === clean) || null;
+  }, [slug, existingCards]);
+
   return (
     <div className="rounded-2xl bg-gradient-to-b from-amber-500/15 via-black/50 to-black/60 border-2 border-amber-400/50 p-4 space-y-4 shadow-xl shadow-amber-500/10">
       <div className="flex items-center justify-between">
@@ -88,233 +85,174 @@ export function QrConfigPanel({
         </span>
       </div>
 
-      {/* Chọn Chế Độ Tạo QR: Theo Slug AR hay Link Tùy Biến */}
-      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/60 border border-white/10">
-        <button
-          type="button"
-          onClick={() => onSetQrMode("slug")}
-          className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            qrMode === "slug"
-              ? "bg-amber-500 text-stone-950 font-black shadow-md"
-              : "text-stone-300 hover:text-white"
-          }`}
-        >
-          <Sparkles className="h-3 w-3" />
-          <span>Theo Thẻ AR (Slug)</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onSetQrMode("custom")}
-          className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            qrMode === "custom"
-              ? "bg-amber-500 text-stone-950 font-black shadow-md"
-              : "text-stone-300 hover:text-white"
-          }`}
-        >
-          <LinkIcon className="h-3 w-3" />
-          <span>Link Tùy Biến</span>
-        </button>
+      {/* Domain đích chính thức cố định https://polycards.vn */}
+      <div className="p-2.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-bold text-stone-400">Máy chủ WebAR:</span>
+        <span className="text-[11px] font-mono font-black text-emerald-400 flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>polycards.vn</span>
+        </span>
       </div>
 
-      {/* Form nhập liệu tương ứng */}
-      {qrMode === "slug" ? (
-        <div className="space-y-3">
-          {/* Chọn môi trường đích */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-bold text-stone-300 pb-1">
-            <span className="text-stone-300 text-xs">Máy chủ đích QR:</span>
-            <div className="grid grid-cols-2 sm:flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/10 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => onSetQrTargetEnv("production")}
-                className={`px-2.5 py-1 sm:py-0.5 rounded text-[10px] sm:text-[11px] font-bold text-center transition-all cursor-pointer ${
-                  qrTargetEnv === "production"
-                    ? "bg-amber-500 text-stone-950 shadow"
-                    : "text-stone-400 hover:text-white"
-                }`}
-                title="Quét bằng camera điện thoại ngoài đời (trang web Vercel đã deploy)"
-              >
-                Online Vercel (Chuẩn in)
-              </button>
-              <button
-                type="button"
-                onClick={() => onSetQrTargetEnv("local")}
-                className={`px-2.5 py-1 sm:py-0.5 rounded text-[10px] sm:text-[11px] font-bold text-center transition-all cursor-pointer ${
-                  qrTargetEnv === "local"
-                    ? "bg-emerald-500 text-stone-950 shadow"
-                    : "text-stone-400 hover:text-white"
-                }`}
-                title="Quét test trực tiếp trên máy tính localhost:3000"
-              >
-                Localhost
-              </button>
+      {/* Nhập Slug */}
+      <div className="space-y-2">
+        <label className="block text-xs font-bold text-stone-200">
+          Slug Định Danh Thẻ Bài / Nhân Vật:
+        </label>
+        <div className="relative">
+          <input
+            type="text"
+            value={slug}
+            onChange={handleSlugInputChange}
+            placeholder="Nhập slug ..."
+            className={`w-full bg-black/80 border rounded-xl px-3 py-2.5 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden transition-colors ${
+              duplicateCard
+                ? "border-amber-400 ring-2 ring-amber-400/20"
+                : "border-white/20 focus:border-amber-400"
+            }`}
+          />
+        </div>
+        <p className="text-[10px] text-stone-400">
+          * Nhập chữ thường tiếng Anh / tiếng Việt / tiếng Trung (tiếng Trung tự convert sang Pinyin, ví dụ: <em>螺蛳粉 &rarr; luo-si-fen</em>).
+        </p>
+
+        {/* Khối Cảnh Báo Trùng Slug & Gợi Ý Trực Quan */}
+        {duplicateCard && (
+          <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-400/40 text-xs space-y-2 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2 text-amber-300 font-black">
+              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>Đã tồn tại thẻ mang slug này trên hệ thống:</span>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-bold text-stone-300 mb-1">
-              Slug Tên Thẻ / Hành Động / Con Vật:
-            </label>
-            <input
-              type="text"
-              value={slug}
-              onChange={(e) => onSetSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-              placeholder="Ví dụ: lion, cat, jump, apple..."
-              className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-            />
-
-            {/* Preset Buttons nhanh */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className="text-[10px] text-stone-400">Chọn nhanh:</span>
-              {[
-                { slugKey: "lion", label: "Sư Tử" },
-                { slugKey: "cat", label: "Con Mèo" },
-                { slugKey: "dog", label: "Con Chó" },
-                { slugKey: "deer", label: "Hươu" },
-                { slugKey: "elephant", label: "Voi" },
-                { slugKey: "panda", label: "Gấu Trúc" },
-                { slugKey: "jump", label: "Nhảy" },
-              ].map((item) => (
-                <button
-                  key={item.slugKey}
-                  type="button"
-                  onClick={() => onSetSlug(item.slugKey)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
-                    slug === item.slugKey
-                      ? "bg-amber-400 text-stone-950 border-amber-300"
-                      : "bg-white/5 text-stone-300 border-white/10 hover:bg-white/20"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Các tùy chọn kích hoạt AR */}
-          <div className="space-y-2 pt-1 border-t border-white/10">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
-              <input
-                type="checkbox"
-                checked={directAr}
-                onChange={(e) => onSetDirectAr(e.target.checked)}
-                className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+            <div className="flex items-center gap-2.5 bg-black/40 p-2 rounded-lg border border-white/10">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={duplicateCard.images?.[0] || duplicateCard.posterUrl || "/images/icons/logo.png"}
+                alt={duplicateCard.nameVi}
+                className="h-11 w-11 rounded-lg object-cover border border-amber-400/30 shrink-0 bg-stone-900"
               />
-              <span>Mở thẳng WebAR Camera khi quét QR (?ar=1)</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
-              <input
-                type="checkbox"
-                checked={includeLicense}
-                onChange={(e) => onSetIncludeLicense(e.target.checked)}
-                className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
-              />
-              <span>Nhúng mã bản quyền tự kích hoạt 1 chạm (&code=...)</span>
-            </label>
-
-            {includeLicense && (
-              <div className="pl-6 pt-1">
-                <input
-                  type="text"
-                  value={licenseCode}
-                  onChange={(e) => onSetLicenseCode(e.target.value.toUpperCase())}
-                  placeholder="Mã bản quyền: POLY-JUMP-2026..."
-                  className="w-full bg-black/80 border border-amber-400/40 rounded-xl px-3 py-1.5 text-xs font-mono text-emerald-400 placeholder-stone-600 focus:outline-hidden focus:border-amber-400"
-                />
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-white text-xs truncate">
+                  {duplicateCard.nameVi} ({duplicateCard.nameEn})
+                </div>
+                <div className="text-[10px] text-stone-400 truncate">
+                  Chủ đề: <span className="text-amber-300">{duplicateCard.category || "Động Vật"}</span>
+                  {duplicateCard.packCode ? ` • Mã: ${duplicateCard.packCode}` : ""}
+                </div>
               </div>
+            </div>
+
+            {onSelectExistingCard && (
+              <button
+                type="button"
+                onClick={() => onSelectExistingCard(duplicateCard)}
+                className="w-full py-1.5 px-3 rounded-lg bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              >
+                <span>Nạp Phôi &amp; Thông Tin Thẻ Này Vào Canvas</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
             )}
           </div>
-        </div>
-      ) : (
-        <div>
-          <label className="block text-xs font-bold text-stone-300 mb-1">
-            Đường Dẫn URL Tùy Biến:
-          </label>
-          <input
-            type="url"
-            value={customUrl}
-            onChange={(e) => onSetCustomUrl(e.target.value)}
-            placeholder="https://polycards.vn/ar/..."
-            className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-          />
-          <p className="text-[10px] text-stone-400 mt-1">
-            Có thể nhập bất kỳ đường link website, video, hoặc trang đặt hàng.
-          </p>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* NÚT TẠO MÃ QR NỔI BẬT */}
+      {/* Các Tùy Chọn Kích Hoạt AR */}
+      <div className="space-y-2 pt-2 border-t border-white/10">
+        <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+          <input
+            type="checkbox"
+            checked={directAr}
+            onChange={(e) => onSetDirectAr(e.target.checked)}
+            className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+          />
+          <span>Mở thẳng WebAR Camera khi quét QR (?ar=1)</span>
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-stone-200">
+          <input
+            type="checkbox"
+            checked={includeLicense}
+            onChange={(e) => onSetIncludeLicense(e.target.checked)}
+            className="rounded border-stone-700 text-amber-500 focus:ring-amber-400 h-4 w-4"
+          />
+          <span>Nhúng mã bản quyền tự kích hoạt 1 chạm (&amp;code=...)</span>
+        </label>
+
+        {includeLicense && (
+          <div className="pl-6 pt-1">
+            <input
+              type="text"
+              value={licenseCode}
+              onChange={(e) => onSetLicenseCode(e.target.value.toUpperCase())}
+              placeholder="VD: VIP-8888-9999"
+              className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-1.5 text-xs font-mono text-emerald-400 uppercase placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Nút Tạo / Cập Nhật Mã QR */}
       <button
         type="button"
         onClick={onGenerateQr}
-        disabled={isGeneratingQr}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm active:scale-98 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
+        disabled={isGeneratingQr || !slug.trim()}
+        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
       >
         <RefreshCw className={`h-4 w-4 ${isGeneratingQr ? "animate-spin" : ""}`} />
-        <span>{isGeneratingQr ? "Đang Khởi Tạo QR..." : "Tạo / Cập Nhật Mã QR Ngay"}</span>
+        <span>{isGeneratingQr ? "Đang tạo mã QR nét cao..." : "Tạo / Cập Nhật Mã QR Ngay"}</span>
       </button>
 
-      {/* KHUNG XEM TRƯỚC MÃ QR RIÊNG BIỆT */}
-      <div className="p-3.5 rounded-2xl bg-black/70 border border-amber-500/30 flex flex-col sm:flex-row items-center gap-3.5">
-        <div className="relative h-28 w-28 shrink-0 rounded-xl bg-white p-1.5 shadow-xl flex items-center justify-center">
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
+      {/* Xem Trước Ảnh QR & Tải Xuống / Copy Link (Chỉ giữ tải PNG và Copy Link) */}
+      {qrDataUrl && (
+        <div className="pt-3 border-t border-white/10 space-y-3">
+          <div className="flex items-center gap-3 bg-black/60 p-2.5 rounded-xl border border-white/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrDataUrl}
-              alt="Mã QR Preview"
-              className="w-full h-full object-contain"
+              alt="Mã QR Poly Cards"
+              className="h-16 w-16 rounded-lg bg-white p-1 shrink-0 border border-amber-300/60"
             />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-stone-400 text-[10px]">
-              Đang tạo...
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left w-full">
-          <div>
-            <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] font-black text-emerald-400">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Mã QR Đã Sẵn Sàng Quét Thử</span>
-            </div>
-            <div className="text-[10px] text-stone-400 truncate max-w-full font-mono mt-0.5" title={targetUrl}>
-              {targetUrl}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Mã QR Đã Sẵn Sàng Quét</span>
+              </div>
+              <p className="text-[10px] font-mono text-stone-400 truncate mt-0.5" title={targetUrl}>
+                {targetUrl}
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 sm:flex items-center justify-center sm:justify-start gap-1.5 w-full">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={onDownloadQrPng}
-              className="py-1.5 sm:py-1 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
-              title="Tải riêng file PNG độ nét cao (1024px)"
+              className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
             >
-              <Download className="h-3 w-3 shrink-0" />
-              <span>Tải PNG</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onDownloadQrSvg}
-              className="py-1.5 sm:py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
-              title="Tải riêng file vector SVG vô hạn độ phân giải"
-            >
-              <FileCode className="h-3 w-3 text-sky-400 shrink-0" />
-              <span>Tải SVG</span>
+              <Download className="h-3.5 w-3.5 text-amber-400" />
+              <span>Tải PNG (1024px)</span>
             </button>
 
             <button
               type="button"
               onClick={onCopyUrl}
-              className="py-1.5 sm:py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-stone-300 font-bold text-[10px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
-              title="Sao chép liên kết"
+              className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
             >
-              {copiedUrl ? <Check className="h-3 w-3 text-emerald-400 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
-              <span>{copiedUrl ? "Đã chép" : "Copy"}</span>
+              {copiedUrl ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">Đã Chép!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Chép URL</span>
+                </>
+              )}
             </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

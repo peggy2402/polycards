@@ -78,14 +78,11 @@ export default function ToolsPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // 2. Chế độ tạo mã QR: "slug" (Theo thẻ WebAR) hoặc "custom" (Nhập link tùy ý)
-  const [qrMode, setQrMode] = useState<"slug" | "custom">("slug");
-  const [qrTargetEnv, setQrTargetEnv] = useState<"production" | "local">("production");
-  const [slug, setSlug] = useState<string>("lion");
-  const [customUrl, setCustomUrl] = useState<string>("https://polycards.vn/ar/lion?ar=1");
+  // 2. Chế độ tạo mã QR theo thẻ WebAR chính thức polycards.vn
+  const [slug, setSlug] = useState<string>("");
   const [directAr, setDirectAr] = useState<boolean>(true);
   const [includeLicense, setIncludeLicense] = useState<boolean>(false);
-  const [licenseCode, setLicenseCode] = useState<string>("POLY-LION-2026");
+  const [licenseCode, setLicenseCode] = useState<string>("");
 
   // 3. Tùy chỉnh màu sắc & Logo mã QR
   const [qrColor, setQrColor] = useState<string>("#0F172A");
@@ -95,14 +92,25 @@ export default function ToolsPage() {
   const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
   const [qrGeneratedCount, setQrGeneratedCount] = useState<number>(1);
 
-  // 4. Trạng thái Thẻ Mẫu (Card Template)
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("jump-action");
-  const [cardImageSrc, setCardImageSrc] = useState<string>("/images/cards/jump-template.jpg");
+  // 4. Trạng thái Thẻ Mẫu & Các Lớp Layer (Photoshop Style)
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [cardImageSrc, setCardImageSrc] = useState<string>("");
+  const [isBackgroundVisible, setIsBackgroundVisible] = useState<boolean>(true);
+  const [stickerLayer, setStickerLayer] = useState<{
+    id: string;
+    name: string;
+    src: string;
+    isVisible: boolean;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [cardDimensions, setCardDimensions] = useState<{ width: number; height: number }>({
     width: 709,
     height: 1024,
   });
-  const [cardFileName, setCardFileName] = useState<string>("jump-template.jpg");
+  const [cardFileName, setCardFileName] = useState<string>("Chưa nạp phôi thẻ");
   const [isDraggingOverFile, setIsDraggingOverFile] = useState(false);
   const [rawImageUrl, setRawImageUrl] = useState<string>("");
   const [rawImageBlob, setRawImageBlob] = useState<Blob | null>(null);
@@ -463,16 +471,12 @@ export default function ToolsPage() {
     };
   }, []);
 
-  // Tính toán URL đích khi quét mã QR
+  // Tính toán URL đích khi quét mã QR chuẩn domain https://polycards.vn
   const computedTargetUrl = useCallback(() => {
-    if (qrMode === "custom") {
-      return customUrl.trim() || "https://polycards.vn";
-    }
+    const cleanSlug = slug.trim().toLowerCase();
+    if (!cleanSlug) return "";
 
-    const cleanSlug = slug.trim().toLowerCase() || "lion";
-    const baseUrl = qrTargetEnv === "local" && typeof window !== "undefined"
-      ? window.location.origin
-      : "https://polycards.vn";
+    const baseUrl = "https://polycards.vn";
     let url = `${baseUrl}/ar/${cleanSlug}`;
     const params = new URLSearchParams();
     if (directAr) {
@@ -495,9 +499,6 @@ export default function ToolsPage() {
     const queryString = params.toString();
     return queryString ? `${url}?${queryString}` : url;
   }, [
-    qrMode,
-    qrTargetEnv,
-    customUrl,
     slug,
     directAr,
     productForm.enableEnVi,
@@ -765,6 +766,63 @@ export default function ToolsPage() {
     );
   };
 
+  // Quản lý các lớp Layer (Photoshop Style)
+  const isDraggingStickerRef = useRef<boolean>(false);
+  const dragStickerStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    origX: number;
+    origY: number;
+  }>({ pointerX: 0, pointerY: 0, origX: 0, origY: 0 });
+
+  const handlePointerDownSticker = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (!stickerLayer) return;
+    isDraggingStickerRef.current = true;
+    dragStickerStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      origX: stickerLayer.x,
+      origY: stickerLayer.y,
+    };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const handleAddSpeechBubbleSticker = () => {
+    setStickerLayer({
+      id: `sticker-bubble-${Date.now()}`,
+      name: "Khung Thoại Comic",
+      src: "/images/stickers/speech-bubble.png",
+      isVisible: true,
+      x: 32,
+      y: 18,
+      width: 40,
+      height: 28,
+    });
+    showToast("Đã chèn Khung Thoại lên thẻ! Bạn có thể kéo thả để di chuyển vị trí.", "success");
+  };
+
+  const handleToggleSticker = () => {
+    setStickerLayer((prev) => (prev ? { ...prev, isVisible: !prev.isVisible } : null));
+  };
+
+  const handleRemoveSticker = () => {
+    setStickerLayer(null);
+    showToast("Đã xóa lớp Sticker khỏi thẻ.", "info");
+  };
+
+  const handleToggleBackground = () => {
+    setIsBackgroundVisible((prev) => !prev);
+  };
+
+  const handleRemoveBackground = () => {
+    setCardImageSrc("");
+    setRawImageUrl("");
+    setRawImageBlob(null);
+    setCardFileName("Chưa nạp phôi thẻ");
+    showToast("Đã gỡ phôi thẻ bài khỏi Canvas.", "info");
+  };
+
   // Pointer events trên Canvas
   const handleQrPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -803,6 +861,25 @@ export default function ToolsPage() {
   };
 
   const handleWorkspacePointerMove = (e: React.PointerEvent) => {
+    // Kéo thả lớp Sticker
+    if (isDraggingStickerRef.current && stickerLayer && cardElementRef.current) {
+      const rect = cardElementRef.current.getBoundingClientRect();
+      const deltaPercentX = ((e.clientX - dragStickerStartRef.current.pointerX) / rect.width) * 100;
+      const deltaPercentY = ((e.clientY - dragStickerStartRef.current.pointerY) / rect.height) * 100;
+      const nextX = Math.max(0, Math.min(100 - stickerLayer.width, dragStickerStartRef.current.origX + deltaPercentX));
+      const nextY = Math.max(0, Math.min(100 - stickerLayer.height, dragStickerStartRef.current.origY + deltaPercentY));
+      setStickerLayer((prev) =>
+        prev
+          ? {
+              ...prev,
+              x: Math.round(nextX * 10) / 10,
+              y: Math.round(nextY * 10) / 10,
+            }
+          : null
+      );
+      return;
+    }
+
     const {
       pointerX,
       pointerY,
@@ -877,6 +954,7 @@ export default function ToolsPage() {
 
   const handleWorkspacePointerUp = (e: React.PointerEvent) => {
     setIsDraggingQr(false);
+    isDraggingStickerRef.current = false;
     setResizingHandle(null);
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -886,53 +964,86 @@ export default function ToolsPage() {
   // Tạo ảnh thẻ thành phẩm full-res (Giữ 100% độ nét của ảnh gốc)
   const generateCompositeCanvas = useCallback((): Promise<HTMLCanvasElement> => {
     return new Promise((resolve, reject) => {
-      const cardImg = new window.Image();
-      cardImg.crossOrigin = "anonymous";
-      cardImg.onload = () => {
-        // Lấy kích thước thực tế lớn nhất của ảnh gốc để không bị suy giảm độ phân giải
-        const width = cardImg.naturalWidth || cardDimensions.width;
-        const height = cardImg.naturalHeight || cardDimensions.height;
+      const width = cardDimensions.width;
+      const height = cardDimensions.height;
 
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
 
-        if (!ctx) {
-          reject(new Error("Không thể khởi tạo Canvas 2D"));
-          return;
-        }
+      if (!ctx) {
+        reject(new Error("Không thể khởi tạo Canvas 2D"));
+        return;
+      }
 
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(cardImg, 0, 0, width, height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
 
-        if (!isQrOverlayEnabled || !qrDataUrl) {
-          resolve(canvas);
-          return;
-        }
+      // Helper vẽ các lớp tiếp theo (Sticker & QR)
+      const renderOverlaysAndResolve = () => {
+        // Vẽ Sticker nếu có
+        const drawQr = () => {
+          if (!isQrOverlayEnabled || !qrDataUrl) {
+            resolve(canvas);
+            return;
+          }
+          const realQrX = (qrPos.x / 100) * width;
+          const realQrY = (qrPos.y / 100) * height;
+          const realQrSize = (qrPos.size / 100) * width;
 
-        const realQrX = (qrPos.x / 100) * width;
-        const realQrY = (qrPos.y / 100) * height;
-        const realQrSize = (qrPos.size / 100) * width;
-
-        const qrImg = new window.Image();
-        qrImg.crossOrigin = "anonymous";
-        qrImg.onload = () => {
-          ctx.drawImage(qrImg, realQrX, realQrY, realQrSize, realQrSize);
-          resolve(canvas);
+          const qrImg = new window.Image();
+          qrImg.crossOrigin = "anonymous";
+          qrImg.onload = () => {
+            ctx.drawImage(qrImg, realQrX, realQrY, realQrSize, realQrSize);
+            resolve(canvas);
+          };
+          qrImg.onerror = () => reject(new Error("Lỗi nạp ảnh mã QR"));
+          qrImg.src = qrDataUrl;
         };
-        qrImg.onerror = () => reject(new Error("Lỗi nạp ảnh mã QR"));
-        qrImg.src = qrDataUrl;
+
+        if (stickerLayer && stickerLayer.isVisible) {
+          const stickerImg = new window.Image();
+          stickerImg.crossOrigin = "anonymous";
+          stickerImg.onload = () => {
+            const stX = (stickerLayer.x / 100) * width;
+            const stY = (stickerLayer.y / 100) * height;
+            const stW = (stickerLayer.width / 100) * width;
+            const stH = (stickerLayer.height / 100) * width;
+            ctx.drawImage(stickerImg, stX, stY, stW, stH);
+            drawQr();
+          };
+          stickerImg.onerror = () => {
+            drawQr();
+          };
+          stickerImg.src = stickerLayer.src;
+        } else {
+          drawQr();
+        }
       };
-      cardImg.onerror = () => reject(new Error("Lỗi nạp ảnh thẻ bài"));
-      const finalSrc =
-        cardImageSrc.startsWith("http://") || cardImageSrc.startsWith("https://")
-          ? `/api/proxy/image?url=${encodeURIComponent(cardImageSrc)}`
-          : cardImageSrc;
-      cardImg.src = finalSrc;
+
+      // 1. Vẽ Lớp Nền Phôi Thẻ
+      if (cardImageSrc && isBackgroundVisible) {
+        const cardImg = new window.Image();
+        cardImg.crossOrigin = "anonymous";
+        cardImg.onload = () => {
+          ctx.drawImage(cardImg, 0, 0, width, height);
+          renderOverlaysAndResolve();
+        };
+        cardImg.onerror = () => reject(new Error("Lỗi nạp ảnh thẻ bài"));
+        const finalSrc =
+          cardImageSrc.startsWith("http://") || cardImageSrc.startsWith("https://")
+            ? `/api/proxy/image?url=${encodeURIComponent(cardImageSrc)}`
+            : cardImageSrc;
+        cardImg.src = finalSrc;
+      } else {
+        // Nền trắng tinh khôi chuẩn in ấn nếu chưa nạp phôi
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, width, height);
+        renderOverlaysAndResolve();
+      }
     });
-  }, [cardDimensions, cardImageSrc, qrPos, qrDataUrl, isQrOverlayEnabled]);
+  }, [cardDimensions, cardImageSrc, isBackgroundVisible, stickerLayer, qrPos, qrDataUrl, isQrOverlayEnabled]);
 
   // Xuất file in ấn
   const handleExportFullCard = async () => {
@@ -2746,17 +2857,11 @@ export default function ToolsPage() {
         </div>
       </div>
 
-      {/* 2. TAB 1: BÀN CHẾ BẢN & QR STUDIO */}
+      {/* 2. TAB 1: BÀN CHẾ BẢN & QR STUDIO (BỐ CỤC 3 PANEL CHUYÊN NGHIỆP) */}
       {activeStudioTab === "editor" && (
         <EditorTab
           qrGeneratedCount={qrGeneratedCount}
-          selectedPackForCard={selectedPackForCard}
-          packGeneratedCode={packGeneratedCode}
-          copiedPackCode={copiedPackCode}
-          qrMode={qrMode}
-          qrTargetEnv={qrTargetEnv}
           slug={slug}
-          customUrl={customUrl}
           directAr={directAr}
           includeLicense={includeLicense}
           licenseCode={licenseCode}
@@ -2764,13 +2869,7 @@ export default function ToolsPage() {
           qrDataUrl={qrDataUrl}
           targetUrl={targetUrl}
           copiedUrl={copiedUrl}
-          onSetSelectedPackForCard={setSelectedPackForCard}
-          onGeneratePackCodeForCard={handleGeneratePackCodeForCard}
-          onCopyPackCode={handleCopyPackCode}
-          onSetQrMode={setQrMode}
-          onSetQrTargetEnv={setQrTargetEnv}
           onSetSlug={setSlug}
-          onSetCustomUrl={setCustomUrl}
           onSetDirectAr={setDirectAr}
           onSetIncludeLicense={setIncludeLicense}
           onSetLicenseCode={setLicenseCode}
@@ -2783,18 +2882,26 @@ export default function ToolsPage() {
             );
           }}
           onDownloadQrPng={handleDownloadQrPng}
-          onDownloadQrSvg={handleDownloadQrSvg}
           onCopyUrl={() => {
             navigator.clipboard.writeText(targetUrl);
             setCopiedUrl(true);
             showToast("Đã sao chép link quét AR vào Clipboard!", "success");
             setTimeout(() => setCopiedUrl(false), 2000);
           }}
+          existingCards={productsList}
+          onSelectExistingCard={handleLoadCardToCanvas}
           cardDimensions={cardDimensions}
           cardFileName={cardFileName}
           isDraggingOverFile={isDraggingOverFile}
           onSetIsDraggingOverFile={setIsDraggingOverFile}
           onLoadImageFile={handleLoadImageFile}
+          isBackgroundVisible={isBackgroundVisible}
+          onToggleBackground={handleToggleBackground}
+          onRemoveBackground={handleRemoveBackground}
+          stickerLayer={stickerLayer}
+          onToggleSticker={handleToggleSticker}
+          onRemoveSticker={handleRemoveSticker}
+          onAddSpeechBubbleSticker={handleAddSpeechBubbleSticker}
           qrPos={qrPos}
           isQrOverlayEnabled={isQrOverlayEnabled}
           isExporting={isExporting}
@@ -2830,6 +2937,7 @@ export default function ToolsPage() {
           onUploadCleanTemplate={handleLoadCleanTemplate}
           onRestoreOriginalImage={handleRestoreOriginalCardImage}
           onResetQrToStandard={handleResetQrToStandard}
+          onPointerDownSticker={handlePointerDownSticker}
         />
       )}
 

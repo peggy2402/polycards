@@ -44,9 +44,26 @@ type SortOptionType = "default" | "price-asc" | "price-desc" | "name-az";
 export default function ProductsPage() {
   const [products, setProducts] = useState<Animal[]>(() => {
     if (typeof window !== "undefined") {
-      return getMergedProducts(getAllAnimals());
+      try {
+        const cached = localStorage.getItem("poly_cached_products_catalog");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
     }
-    return getAllAnimals();
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("poly_cached_products_catalog");
+        if (cached) return false;
+      } catch {}
+    }
+    return true;
   });
   const [categories, setCategories] = useState<ProductCategory[]>(() => getProductCategories());
 
@@ -96,11 +113,17 @@ export default function ProductsPage() {
       try {
         const res = await fetch("/api/products");
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setProducts(getMergedProducts(json.data));
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const merged = getMergedProducts(json.data);
+          setProducts(merged);
+          try {
+            localStorage.setItem("poly_cached_products_catalog", JSON.stringify(merged));
+          } catch {}
         }
       } catch (err) {
         console.warn("Lỗi tải sản phẩm từ API server, dùng dữ liệu local:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -598,7 +621,24 @@ export default function ProductsPage() {
           {/* ========================================================
               LƯỚI HOẶC DANH SÁCH SẢN PHẨM HOẶC TRẠNG THÁI TRỐNG
              ======================================================== */}
-          {totalItems > 0 ? (
+          {isLoading && totalItems === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 sm:gap-4.5 animate-pulse">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-3xl border-2 border-stone-100 bg-white p-3.5 shadow-sm space-y-3"
+                >
+                  <div className="aspect-[4/4.2] w-full rounded-2xl bg-amber-50/60" />
+                  <div className="h-5 w-3/4 rounded-lg bg-amber-100/70" />
+                  <div className="h-4 w-1/2 rounded-md bg-stone-100" />
+                  <div className="flex justify-between items-center pt-2">
+                    <div className="h-6 w-20 rounded-lg bg-amber-200/50" />
+                    <div className="h-9 w-20 rounded-xl bg-amber-300/40" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : totalItems > 0 ? (
             <div className="space-y-8">
               {viewMode === "grid" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 sm:gap-4.5">
