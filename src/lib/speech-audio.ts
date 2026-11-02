@@ -103,12 +103,36 @@ export function playCardLanguageAudio(
  * Phát âm từ vựng chuẩn ngữ âm thông qua Web Speech API
  */
 export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => void): boolean {
-  if (!isBrowser || !("speechSynthesis" in window)) {
+  if (!isBrowser) {
+    if (onEnd) onEnd();
+    return false;
+  }
+
+  // Luôn phát âm thanh tương tác Web Audio trước để đảm bảo phản hồi tức thì
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(lang === "vi" ? 523.25 : 659.25, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.13);
+    }
+  } catch {}
+
+  if (!("speechSynthesis" in window)) {
+    if (onEnd) onEnd();
     return false;
   }
 
   try {
-    // Dừng câu nói trước đó nếu đang phát dở
+    window.speechSynthesis.resume();
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -116,7 +140,7 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
     // Cấu hình mã ngôn ngữ chuẩn quốc tế BCP 47
     if (lang === "en") {
       utterance.lang = "en-US";
-      utterance.rate = 0.88; // Tốc độ vừa phải cho bé dễ nghe theo chuẩn bản xứ
+      utterance.rate = 0.88;
       utterance.pitch = 1.05;
     } else if (lang === "vi") {
       utterance.lang = "vi-VN";
@@ -128,10 +152,28 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
       utterance.pitch = 1.0;
     }
 
-    if (onEnd) {
-      utterance.onend = () => onEnd();
-      utterance.onerror = () => onEnd();
+    // Ưu tiên chọn voice phù hợp với ngôn ngữ nếu trình duyệt đã load voices
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const prefix = lang === "en" ? "en" : lang === "vi" ? "vi" : "zh";
+      const matched = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
+      if (matched) {
+        utterance.voice = matched;
+      }
     }
+
+    let isDone = false;
+    const finish = () => {
+      if (isDone) return;
+      isDone = true;
+      if (onEnd) onEnd();
+    };
+
+    utterance.onend = finish;
+    utterance.onerror = finish;
+
+    // Timeout an toàn 2.5s phòng khi browser không kích hoạt onend
+    setTimeout(finish, 2500);
 
     window.speechSynthesis.speak(utterance);
     return true;

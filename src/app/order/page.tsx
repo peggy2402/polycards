@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { formatVndCurrency } from "@/lib/formatters";
 import { CardComboPack, COMBO_PACKS } from "@/data/combos";
@@ -21,7 +20,7 @@ import {
   ShoppingBag,
   Box,
   Layers,
-  Star,
+  Search,
   Check,
 } from "lucide-react";
 
@@ -31,6 +30,16 @@ const ORDERABLE_PACKS: CardComboPack[] = [
   ...COMBO_PACKS.filter((p) => p.cardsCount !== 120),
 ];
 
+// Danh mục các bộ thẻ để lọc nhanh
+const PACK_CATEGORIES = [
+  { id: "all", name: "Tất cả các bộ" },
+  { id: "all-vip", name: "Trọn Bộ VIP" },
+  { id: "dong-vat", name: "Động Vật" },
+  { id: "hanh-dong", name: "Hành Động" },
+  { id: "phuong-tien", name: "Phương Tiện" },
+  { id: "trai-cay", name: "Trái Cây" },
+];
+
 function OrderContent() {
   const searchParams = useSearchParams();
   const packParam = searchParams.get("pack");
@@ -38,7 +47,7 @@ function OrderContent() {
   const animalParam = searchParams.get("animal");
   const comboParam = searchParams.get("combo");
 
-  // Tìm bộ thẻ mặc định dựa trên params
+  // Tìm bộ thẻ ban đầu dựa trên params nếu có
   const initialPackId = useMemo(() => {
     const rawParam = (packParam || comboParam || categoryParam || animalParam || "").toLowerCase();
     if (!rawParam) return "pack-combo-vip-120";
@@ -57,6 +66,8 @@ function OrderContent() {
 
   const [selectedPackId, setSelectedPackId] = useState<string>(initialPackId);
   const [quantity, setQuantity] = useState<number>(1);
+  const [searchPackQuery, setSearchPackQuery] = useState<string>("");
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>("all");
 
   // Form states
   const [fullName, setFullName] = useState("");
@@ -85,12 +96,27 @@ function OrderContent() {
     }
   }, [initialPackId]);
 
+  // Lọc danh sách bộ thẻ theo Search & Category Tabs
+  const filteredPacks = useMemo(() => {
+    return ORDERABLE_PACKS.filter((pack) => {
+      const matchCat =
+        activeCategoryTab === "all" || pack.categorySlug === activeCategoryTab;
+      const q = searchPackQuery.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        pack.name.toLowerCase().includes(q) ||
+        pack.description.toLowerCase().includes(q) ||
+        pack.categoryName.toLowerCase().includes(q);
+      return matchCat && matchQuery;
+    });
+  }, [activeCategoryTab, searchPackQuery]);
+
   // Tính giá
   const unitPrice = selectedPack.price;
   const originalUnitPrice = selectedPack.originalPrice;
   const totalPrice = unitPrice * quantity;
   const discountTotal = (originalUnitPrice - unitPrice) * quantity;
-  const productName = `${selectedPack.name} (${selectedPack.cardsCount} Thẻ AR - Mã: ${selectedPack.packCode})`;
+  const productName = `${selectedPack.name} (${selectedPack.cardsCount} Thẻ AR)`;
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -193,12 +219,6 @@ function OrderContent() {
               <strong className="text-amber-950 font-black">
                 {selectedPack.name} (x{quantity} bộ)
               </strong>
-            </div>
-            <div className="sm:col-span-2">
-              <span className="text-slate-500">Mã kích hoạt WebAR:</span>{" "}
-              <span className="inline-block rounded-md bg-amber-100 px-2 py-0.5 font-mono text-[11px] font-black text-amber-900 border border-amber-300">
-                {selectedPack.packCode}
-              </span>
             </div>
             <div className="sm:col-span-2 pt-2 border-t border-amber-100 flex justify-between items-center text-sm font-black">
               <span>Tổng thanh toán dự kiến:</span>
@@ -432,14 +452,14 @@ function OrderContent() {
 
         {/* Right Column: Order Summary & Combo Pack Selector (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="rounded-[2.5rem] border-2 border-amber-200/90 bg-white/95 p-6 shadow-xl shadow-amber-950/5 space-y-5">
+          <div className="rounded-[2.5rem] border-2 border-amber-200/90 bg-white/95 p-6 shadow-xl shadow-amber-950/5 space-y-4">
             <div>
               <div className="flex items-center justify-between border-b border-amber-100 pb-3">
                 <h2 className="text-lg font-black text-slate-900">
                   Lựa Chọn Bộ Thẻ Bạn Muốn Mua
                 </h2>
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900">
-                  Bán theo bộ
+                  {ORDERABLE_PACKS.length} bộ có sẵn
                 </span>
               </div>
               <p className="mt-1.5 text-xs text-slate-500 font-medium">
@@ -447,85 +467,121 @@ function OrderContent() {
               </p>
             </div>
 
-            {/* List Combo Packs */}
-            <div className="space-y-3">
-              {ORDERABLE_PACKS.map((pack) => {
-                const isSelected = selectedPack.id === pack.id;
-                const isVip = pack.cardsCount === 120;
+            {/* Ô Tìm Kiếm Bộ Thẻ */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchPackQuery}
+                onChange={(e) => setSearchPackQuery(e.target.value)}
+                placeholder="Tìm bộ thẻ (Động vật, Xe cộ, VIP, Hành động...)"
+                className="w-full rounded-xl border border-amber-200 bg-amber-50/40 pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-hidden transition-all"
+              />
+            </div>
 
-                return (
-                  <button
-                    key={pack.id}
-                    type="button"
-                    onClick={() => setSelectedPackId(pack.id)}
-                    className={`relative flex w-full flex-col gap-2.5 rounded-2xl border-2 p-3.5 text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-amber-400 bg-amber-50/95 shadow-md ring-2 ring-amber-300/80"
-                        : "border-amber-200/80 bg-white hover:bg-amber-50/40"
-                    }`}
-                  >
-                    {/* VIP Ribbon / Badge */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span
-                          className={`rounded-lg px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                            isVip
-                              ? "bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 shadow-xs"
-                              : "bg-emerald-600 text-white"
+            {/* Tabs Phân Loại Bộ Thẻ */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
+              {PACK_CATEGORIES.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveCategoryTab(tab.id)}
+                  className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                    activeCategoryTab === tab.id
+                      ? "bg-amber-400 text-stone-950 shadow-xs"
+                      : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              ))}
+            </div>
+
+            {/* List Combo Packs */}
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {filteredPacks.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-amber-300 p-6 text-center text-xs text-slate-500">
+                  Không tìm thấy bộ thẻ nào phù hợp với từ khóa &ldquo;{searchPackQuery}&rdquo;.
+                </div>
+              ) : (
+                filteredPacks.map((pack) => {
+                  const isSelected = selectedPack.id === pack.id;
+                  const isVip = pack.cardsCount === 120;
+
+                  return (
+                    <button
+                      key={pack.id}
+                      type="button"
+                      onClick={() => setSelectedPackId(pack.id)}
+                      className={`relative flex w-full flex-col gap-2 rounded-2xl border-2 p-3.5 text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-amber-400 bg-amber-50/95 shadow-md ring-2 ring-amber-300/80"
+                          : "border-amber-200/80 bg-white hover:bg-amber-50/40"
+                      }`}
+                    >
+                      {/* VIP Ribbon / Badge */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`rounded-lg px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                              isVip
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 shadow-xs"
+                                : "bg-emerald-600 text-white"
+                            }`}
+                          >
+                            {pack.badge}
+                          </span>
+                          <span className="rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold text-stone-600">
+                            {pack.cardsCount} Thẻ AR
+                          </span>
+                          {isSelected && (
+                            <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-800">
+                              Đang chọn
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Selected Radio Indicator */}
+                        <div
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                            isSelected
+                              ? "border-amber-500 bg-amber-400 text-stone-950 shadow-xs"
+                              : "border-stone-300 bg-white"
                           }`}
                         >
-                          {pack.badge}
-                        </span>
-                        <span className="rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold text-stone-600">
-                          {pack.cardsCount} Thẻ AR
-                        </span>
-                      </div>
-
-                      {/* Selected Radio Indicator */}
-                      <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${
-                          isSelected
-                            ? "border-amber-500 bg-amber-400 text-stone-950 shadow-xs"
-                            : "border-stone-300 bg-white"
-                        }`}
-                      >
-                        {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-black text-slate-900 leading-snug">
-                          {pack.name}
-                        </h3>
-                        <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-1 font-medium">
-                          {pack.description}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="font-mono text-[10px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded">
-                            Mã: {pack.packCode}
-                          </span>
+                          {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-base font-black text-amber-950 block">
-                          {formatVndCurrency(pack.price)}
-                        </span>
-                        {pack.originalPrice && (
-                          <span className="text-[11px] text-slate-400 line-through block">
-                            {formatVndCurrency(pack.originalPrice)}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-black text-slate-900 leading-snug">
+                            {pack.name}
+                          </h3>
+                          <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-1 font-medium">
+                            {pack.description}
+                          </p>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-base font-black text-amber-950 block">
+                            {formatVndCurrency(pack.price)}
                           </span>
-                        )}
+                          {pack.originalPrice && (
+                            <span className="text-[11px] text-slate-400 line-through block">
+                              {formatVndCurrency(pack.originalPrice)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             {/* Quantity Selector */}
-            <div className="flex items-center justify-between border-t border-amber-100 pt-4">
+            <div className="flex items-center justify-between border-t border-amber-100 pt-3">
               <div>
                 <span className="text-xs font-black text-slate-800 block">Số lượng</span>
                 <span className="text-[11px] text-slate-500 font-medium">Chọn số bộ thẻ cần đặt</span>

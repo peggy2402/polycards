@@ -15,12 +15,21 @@ import { speakWord, stopAllCardAudio } from "@/lib/speech-audio";
 
 export function ArDemoSection() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [currentLang, setCurrentLang] = useState<"en" | "vi">("en");
 
   const handlePlayAudio = () => {
     try {
       stopAllCardAudio();
       setIsPlayingAudio(true);
-      const success = speakWord("Butterfly", "en", () => setIsPlayingAudio(false));
+      const targetLang = currentLang;
+      const textToSpeak = targetLang === "en" ? "Butterfly" : "Con bướm";
+
+      // Đổi ngôn ngữ cho lần nhấn tiếp theo
+      setCurrentLang((prev) => (prev === "en" ? "vi" : "en"));
+
+      const success = speakWord(textToSpeak, targetLang, () => {
+        setIsPlayingAudio(false);
+      });
       if (!success) {
         setIsPlayingAudio(false);
       }
@@ -67,7 +76,7 @@ export function ArDemoSection() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-3">
               <Link
-                href="/scan?expect=deer"
+                href="/scan?expect=polycards"
                 className="inline-flex min-h-[50px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl bg-amber-500 px-7 py-3.5 text-base font-extrabold text-stone-950 shadow-lg shadow-amber-500/25 transition-all hover:bg-amber-400 active:scale-[0.98]"
               >
                 <Scan className="h-5 w-5" />
@@ -88,13 +97,13 @@ export function ArDemoSection() {
                   </span>
                 </div>
                 <span className="text-[11px] font-mono font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                  AR-DEER-001
+                  AR-POLYCARDS-001
                 </span>
               </div>
 
               {/* Viewport Box Tươi Sáng */}
               <div className="relative my-4 aspect-4/3 overflow-hidden rounded-2xl bg-gradient-to-tr from-sky-100 via-amber-50/70 to-emerald-100/80 flex items-center justify-center p-3 border border-emerald-200/60 shadow-inner">
-                {/* 3D Deer Model Poster */}
+                {/* 3D Model Poster */}
                 <div className="relative h-full w-full rounded-xl overflow-hidden transition-transform duration-500 hover:scale-103">
                   <Image
                     src="/images/cards/butterfly-card.png"
@@ -117,15 +126,21 @@ export function ArDemoSection() {
                 <button
                   type="button"
                   onClick={handlePlayAudio}
-                  className={`inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border-2 px-3 py-2 text-xs font-black transition-all active:scale-95 ${
+                  className={`inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border-2 px-3 py-2 text-xs font-black transition-all active:scale-95 cursor-pointer ${
                     isPlayingAudio
                       ? "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-500/30 animate-pulse"
                       : "border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
                   }`}
-                  aria-label="Nghe phát âm con hươu"
+                  aria-label="Nghe phát âm con bướm"
                 >
                   <Volume2 className="h-4 w-4 text-amber-600" />
-                  <span>{isPlayingAudio ? "Đang phát..." : "Nghe Giọng Đọc"}</span>
+                  <span>
+                    {isPlayingAudio
+                      ? currentLang === "vi"
+                        ? "Đọc: Butterfly (EN)..."
+                        : "Đọc: Con bướm (VI)..."
+                      : "Nghe Giọng Đọc"}
+                  </span>
                 </button>
 
                 <Link
