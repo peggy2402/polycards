@@ -19,6 +19,13 @@ import {
   Filter,
 } from "lucide-react";
 
+interface R2UsedByProduct {
+  slug: string;
+  name: string;
+  category?: string;
+  role: string;
+}
+
 interface R2Item {
   key: string;
   size: number;
@@ -27,6 +34,7 @@ interface R2Item {
   extension: string;
   isOrphan: boolean;
   isProtected: boolean;
+  usedBy?: R2UsedByProduct[];
 }
 
 interface R2CategoryStat {
@@ -164,10 +172,20 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     }
   };
 
-  // Lọc danh sách tệp
+  // Lọc danh sách tệp: hỗ trợ tìm theo tên tệp (key), định dạng, tên thẻ bài hoặc slug sản phẩm
   const displayedItems = (activeTab === "orphans" ? orphans : items).filter((item) => {
-    const matchSearch = item.key.toLowerCase().includes(searchQuery.toLowerCase().trim());
-    if (!matchSearch) return false;
+    const q = searchQuery.toLowerCase().trim();
+    if (q) {
+      const matchKey = item.key.toLowerCase().includes(q);
+      const matchProduct = item.usedBy?.some(
+        (u) =>
+          u.name.toLowerCase().includes(q) ||
+          u.slug.toLowerCase().includes(q) ||
+          (u.category && u.category.toLowerCase().includes(q)) ||
+          u.role.toLowerCase().includes(q)
+      );
+      if (!matchKey && !matchProduct) return false;
+    }
     if (filterExt === "all") return true;
     return item.extension.toLowerCase() === filterExt.toLowerCase();
   });
@@ -184,10 +202,10 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black text-stone-100">
-                  Cloudflare R2 Storage & Asset Cleaner
+                  Kho lưu trữ ảnh/models
                 </h3>
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  10GB Miễn Phí
+                  Limit 10GB
                 </span>
               </div>
               <p className="text-xs text-stone-400">
@@ -209,7 +227,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
           <div className="p-5 rounded-2xl bg-stone-950/60 border border-stone-800 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <span className="text-xs font-bold text-stone-400">Dung lượng ổ lưu trữ Cloudflare R2:</span>
+                <span className="text-xs font-bold text-stone-400">Dung lượng ổ lưu trữ trên Server:</span>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <span className="text-2xl font-black font-mono text-stone-100">
                     {stats ? `${stats.totalSizeMB} MB` : "--"}
@@ -351,7 +369,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-500" />
                 <input
                   type="text"
-                  placeholder="Tìm tên tệp trên R2..."
+                  placeholder="Tìm tên tệp hoặc tên thẻ (VD: Đi bộ, walk, card)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs font-medium focus:outline-none focus:border-emerald-500"
@@ -409,6 +427,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                       <th className="px-4 py-3 font-semibold">Tên Tệp (Key)</th>
                       <th className="px-4 py-3 font-semibold">Định Dạng</th>
                       <th className="px-4 py-3 font-semibold text-right">Kích Thước</th>
+                      <th className="px-4 py-3 font-semibold">Thẻ Bài Sử Dụng</th>
                       <th className="px-4 py-3 font-semibold text-center">Trạng Thái</th>
                       <th className="px-4 py-3 font-semibold text-right">Thao Tác</th>
                     </tr>
@@ -416,7 +435,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                   <tbody className="divide-y divide-stone-800/60 font-mono text-[11px]">
                     {displayedItems.map((item) => (
                       <tr key={item.key} className="hover:bg-stone-900/40 transition-colors">
-                        <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[280px] truncate" title={item.key}>
+                        <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[220px] truncate" title={item.key}>
                           {item.key}
                         </td>
                         <td className="px-4 py-2.5 uppercase text-stone-400 font-semibold">
@@ -424,6 +443,39 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                         </td>
                         <td className="px-4 py-2.5 text-right text-stone-300">
                           {(item.size / 1024 / 1024).toFixed(2)} MB
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {item.usedBy && item.usedBy.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-1 max-w-[280px]">
+                              {item.usedBy.slice(0, 2).map((u, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-stone-900 border border-emerald-500/30 text-[10px] text-stone-200"
+                                  title={`${u.name} (slug: ${u.slug}) - ${u.role}`}
+                                >
+                                  <span className="font-bold text-emerald-400 truncate max-w-[110px]">
+                                    {u.name}
+                                  </span>
+                                  <span className="text-[9px] text-stone-400 font-sans">
+                                    ({u.role})
+                                  </span>
+                                </span>
+                              ))}
+                              {item.usedBy.length > 2 && (
+                                <span className="px-1.5 py-0.5 rounded bg-stone-800 text-[9px] text-stone-400">
+                                  +{item.usedBy.length - 2} thẻ khác
+                                </span>
+                              )}
+                            </div>
+                          ) : item.isProtected ? (
+                            <span className="text-sky-300 text-[10px] font-sans italic">
+                              Hệ thống mặc định
+                            </span>
+                          ) : (
+                            <span className="text-amber-400/80 text-[10px] font-sans italic">
+                              Chưa gắn thẻ bài nào
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-center">
                           {item.isProtected ? (

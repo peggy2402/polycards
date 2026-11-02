@@ -18,6 +18,13 @@ function extractFileNameFromUrl(url?: string): string | null {
   }
 }
 
+export interface R2UsedByProduct {
+  slug: string;
+  name: string;
+  category?: string;
+  role: string;
+}
+
 /**
  * GET /api/tools/r2-storage
  * Đo lường dung lượng đã dùng trên Cloudflare R2 bucket và phát hiện tệp mồ côi (Orphaned Assets)
@@ -38,25 +45,50 @@ export async function GET() {
     const products = await dbGetProducts();
     const usedKeysSet = new Set<string>();
 
-    for (const p of products) {
-      const urls = [
-        p.modelUrl,
-        p.iosModelUrl,
-        p.targetUrl,
-        ...(p.images || []),
-        p.rawImageUrl,
-        p.audioUrl,
-        p.audios?.en,
-        p.audios?.vi,
-        p.audios?.zh,
-      ];
-      for (const u of urls) {
-        const fn = extractFileNameFromUrl(u);
-        if (fn) {
-          usedKeysSet.add(fn.toLowerCase());
-          usedKeysSet.add(fn);
+    const keyToProductsMap = new Map<string, R2UsedByProduct[]>();
+
+    const registerKeyUsage = (
+      url: string | undefined,
+      product: { slug: string; name?: string; nameVi?: string; category?: string },
+      role: string
+    ) => {
+      const fn = extractFileNameFromUrl(url);
+      if (!fn) return;
+
+      usedKeysSet.add(fn.toLowerCase());
+      usedKeysSet.add(fn);
+
+      const info: R2UsedByProduct = {
+        slug: product.slug,
+        name: product.nameVi || product.name || product.slug,
+        category: product.category,
+        role,
+      };
+
+      const keysToRegister = [fn, fn.toLowerCase()];
+      for (const k of keysToRegister) {
+        const existing = keyToProductsMap.get(k) || [];
+        if (!existing.some((x) => x.slug === info.slug && x.role === info.role)) {
+          existing.push(info);
         }
+        keyToProductsMap.set(k, existing);
       }
+    };
+
+    for (const p of products) {
+      registerKeyUsage(p.rawImageUrl, p, "Ảnh phôi thô (Raw)");
+      if (Array.isArray(p.images)) {
+        p.images.forEach((imgUrl, idx) => {
+          registerKeyUsage(imgUrl, p, idx === 0 ? "Ảnh thẻ (Card)" : `Ảnh phụ #${idx + 1}`);
+        });
+      }
+      registerKeyUsage(p.modelUrl, p, "Mô hình 3D (.glb)");
+      registerKeyUsage(p.iosModelUrl, p, "Mô hình iOS (.usdz)");
+      registerKeyUsage(p.targetUrl, p, "Target AR (.mind)");
+      registerKeyUsage(p.audioUrl, p, "Âm thanh");
+      registerKeyUsage(p.audios?.en, p, "Âm thanh (EN)");
+      registerKeyUsage(p.audios?.vi, p, "Âm thanh (VI)");
+      registerKeyUsage(p.audios?.zh, p, "Âm thanh (ZH)");
     }
 
     // Luôn giữ các tệp hệ thống mặc định cốt lõi
@@ -106,12 +138,14 @@ export async function GET() {
       const isProtected = systemProtectedKeys.has(lowerKey);
       const isUsedInDb = usedKeysSet.has(lowerKey) || usedKeysSet.has(item.key);
       const isOrphan = !isProtected && !isUsedInDb;
+      const usedBy = keyToProductsMap.get(item.key) || keyToProductsMap.get(lowerKey) || [];
 
       return {
         ...item,
         extension: ext,
         isOrphan,
         isProtected,
+        usedBy,
       };
     });
 
