@@ -33,9 +33,14 @@ export function ModelViewerView({
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [isFallback, setIsFallback] = useState(false);
+
   const getSafeModelUrl = (rawUrl?: string) => {
     if (!rawUrl) return "/models/polycards.glb";
+    // Nếu là đường dẫn cục bộ /models/... khác polycards.glb (ví dụ /models/lion.glb chưa có tệp)
+    // thì âm thầm fallback ngay về tệp mô hình chuẩn có sẵn /models/polycards.glb
+    if (rawUrl.startsWith("/models/") && rawUrl !== "/models/polycards.glb") {
+      return "/models/polycards.glb";
+    }
     const isR2 = rawUrl.includes(".r2.dev") || rawUrl.includes(".r2.cloudflarestorage.com");
     if (isR2) return rawUrl;
     if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
@@ -55,7 +60,6 @@ export function ModelViewerView({
 
   useEffect(() => {
     setLoadError(false);
-    setIsFallback(false);
     setActiveModelSrc(getSafeModelUrl(animal.modelUrl));
   }, [animal.modelUrl]);
 
@@ -119,12 +123,11 @@ export function ModelViewerView({
     };
 
     const handleError = () => {
+      // Âm thầm fallback về mô hình chuẩn /models/polycards.glb, không hiện lỗi gây ảnh hưởng trải nghiệm
       if (activeModelSrc !== "/models/polycards.glb") {
-        setIsFallback(true);
         setActiveModelSrc("/models/polycards.glb");
         return;
       }
-      setLoadError(true);
     };
 
     viewer.addEventListener("ar-status", handleArStatus);
@@ -171,26 +174,6 @@ export function ModelViewerView({
     <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-200/90 bg-gradient-to-tr from-sky-50 via-amber-50/50 to-emerald-50/60 shadow-xl shadow-amber-900/5 backdrop-blur-md">
       {/* 3D Model Viewer Container */}
       <div className="relative aspect-square sm:aspect-4/3 w-full flex items-center justify-center p-4">
-        {isFallback && (
-          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 rounded-2xl bg-amber-500/95 border border-amber-300 px-3.5 py-2 text-xs font-bold text-stone-950 shadow-lg backdrop-blur-md">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <AlertCircle className="h-4 w-4 text-stone-950 shrink-0" />
-              <span className="truncate">
-                Mô hình gốc tải thất bại (chưa bật CORS trên Cloudflare R2). Đang hiển thị mô hình mẫu.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsFallback(false);
-                setActiveModelSrc(animal.modelUrl || "/models/polycards.glb");
-              }}
-              className="px-2.5 py-1 rounded-xl bg-stone-950 text-white text-[11px] font-black shrink-0 hover:bg-stone-800 transition-colors"
-            >
-              Tải lại
-            </button>
-          </div>
-        )}
         {loadError ? (
           <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
@@ -202,23 +185,25 @@ export function ModelViewerView({
             <p className="text-xs text-stone-600 max-w-xs">
               Đang hiển thị ảnh minh họa 3D chất lượng cao của {animal.nameVi}.
             </p>
-            <div className="relative h-48 w-48 rounded-2xl overflow-hidden shadow-md">
+            <div className="relative h-48 w-48 rounded-2xl overflow-hidden shadow-md bg-stone-100">
               <Image
-                src={animal.images[0] || "/images/animals/lion.jpg"}
+                src={animal.images?.[0] || animal.posterUrl || `/images/cards/${animal.slug}-card.jpg`}
                 alt={animal.nameVi}
                 fill
                 sizes="192px"
                 className="object-cover"
+                unoptimized
               />
             </div>
             <button
               type="button"
               onClick={() => {
                 setLoadError(false);
+                setActiveModelSrc("/models/polycards.glb");
                 setIsLoaded(false);
                 import("@google/model-viewer").then(() => setIsLoaded(true));
               }}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-amber-600 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-amber-600 transition-colors cursor-pointer"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               <span>Thử Tải Lại</span>
