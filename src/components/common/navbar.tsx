@@ -43,28 +43,28 @@ export function Navbar() {
   return (
     <header className="sticky top-2 sm:top-4 z-40 w-full px-3 sm:px-6 transition-all duration-300">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between rounded-full border border-amber-200/60 bg-white/85 px-3.5 sm:px-6 shadow-[0_8px_30px_rgb(217,119,6,0.07),0_1px_3px_rgb(0,0,0,0.03)] backdrop-blur-xl ring-1 ring-black/[0.02]">
-        {/* Brand Logo & Name */}
+        {/* Brand Logo & Name (Lựa chọn A: Logo Ngang Tự Nhiên Thoáng Đãng & Sắc Nét) */}
         <Link
           href="/"
-          className="group flex shrink-0 items-center gap-2.5 sm:gap-3 rounded-full py-1 pr-2 transition-transform hover:scale-102 focus:outline-hidden"
+          className="group flex shrink-0 items-center gap-2 sm:gap-3 py-1 transition-all hover:scale-[1.02] focus:outline-hidden"
           aria-label={`${siteConfig.name} Trang chủ`}
         >
-          <div className="relative h-10 w-10 sm:h-11 sm:w-11 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-amber-50 to-amber-100/60 p-1 border border-amber-300/80 shadow-xs transition-transform duration-300 group-hover:rotate-6">
+          <div className="relative h-9 sm:h-11 w-auto flex items-center">
             <Image
               src="/images/icons/logo.png"
               alt="Poly Cards Logo"
-              width={44}
-              height={44}
+              width={160}
+              height={79}
               priority
-              className="h-full w-full object-contain"
+              className="h-9 sm:h-11 w-auto object-contain drop-shadow-xs transition-transform duration-300 group-hover:scale-105"
             />
           </div>
-          <div className="flex flex-col justify-center">
-            <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900 leading-none whitespace-nowrap">
-              {siteConfig.name}
-            </span>
-            <span className="text-[9.5px] font-black tracking-wider text-emerald-600 uppercase leading-none mt-1 whitespace-nowrap">
+          <div className="hidden xs:flex flex-col justify-center border-l border-amber-300/80 pl-2 sm:pl-2.5">
+            <span className="text-[10px] sm:text-[10.5px] font-black tracking-widest text-emerald-600 uppercase leading-tight whitespace-nowrap">
               AR Smart Cards
+            </span>
+            <span className="text-[8.5px] sm:text-[9px] font-extrabold text-stone-500 leading-tight whitespace-nowrap">
+              Thẻ Thông Minh 3D
             </span>
           </div>
         </Link>

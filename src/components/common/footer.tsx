@@ -19,21 +19,26 @@ export function Footer() {
     <footer className="border-t border-amber-200/80 bg-gradient-to-b from-white to-amber-50/60 pt-16 pb-12 text-slate-600">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
-          {/* Brand Info */}
+          {/* Brand Info (Lựa chọn A: Logo Ngang Tự Nhiên Thoáng Đãng) */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2.5">
-              <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-white shadow-xs p-0.5 border border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="relative h-11 sm:h-12 w-auto flex items-center">
                 <Image
                   src="/images/icons/logo.png"
                   alt="Poly Cards Logo"
-                  width={44}
-                  height={44}
-                  className="h-full w-full object-contain"
+                  width={160}
+                  height={79}
+                  className="h-11 sm:h-12 w-auto object-contain drop-shadow-xs"
                 />
               </div>
-              <span className="text-xl font-extrabold tracking-tight text-slate-900">
-                {siteConfig.name}
-              </span>
+              <div className="flex flex-col justify-center border-l border-amber-300 pl-3">
+                <span className="text-[10px] font-black tracking-widest text-emerald-600 uppercase">
+                  AR Smart Cards
+                </span>
+                <span className="text-[9.5px] font-extrabold text-slate-500">
+                  Thẻ Học Thông Minh 3D
+                </span>
+              </div>
             </div>
             <p className="text-sm leading-relaxed text-slate-600 font-medium">
               {siteConfig.tagline}

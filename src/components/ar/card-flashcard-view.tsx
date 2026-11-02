@@ -100,15 +100,13 @@ export function CardFlashcardView({
             {/* Header thẻ mặt trước */}
             <div className="flex items-center justify-between gap-2 pb-2.5">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="relative h-7 w-7 rounded-xl bg-white border border-amber-200 shadow-2xs p-0.5 shrink-0 overflow-hidden">
-                  <Image
-                    src="/images/icons/logo.png"
-                    alt="Poly Cards"
-                    width={26}
-                    height={26}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
+                <Image
+                  src="/images/icons/logo.png"
+                  alt="Poly Cards"
+                  width={64}
+                  height={32}
+                  className="h-6 sm:h-7 w-auto object-contain shrink-0 drop-shadow-2xs"
+                />
                 <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 truncate">
                   {animal.category || "Poly Cards"}
                 </span>

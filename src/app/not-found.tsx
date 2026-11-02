@@ -17,14 +17,14 @@ export default function NotFound() {
     >
       <div className="w-full max-w-md rounded-3xl border-2 border-amber-200/90 bg-white/95 p-8 shadow-xl shadow-amber-900/5 space-y-6">
         {/* Brand Logo */}
-        <div className="mx-auto relative h-16 w-16 overflow-hidden rounded-2xl bg-white shadow-xs p-1">
+        <div className="flex justify-center">
           <Image
             src="/images/icons/logo.png"
             alt="Poly Cards"
-            width={64}
-            height={64}
+            width={160}
+            height={79}
             priority
-            className="h-full w-full object-contain"
+            className="h-12 sm:h-14 w-auto object-contain drop-shadow-xs"
           />
         </div>
 

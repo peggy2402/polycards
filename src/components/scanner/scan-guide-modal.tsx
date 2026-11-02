@@ -83,18 +83,13 @@ export function ScanGuideModal({
                   {/* Card Header Brand */}
                   <div className="flex items-center justify-between pb-2 border-b border-amber-100">
                     <div className="flex items-center gap-1.5">
-                      <div className="relative h-6 w-6 rounded-full bg-amber-100 p-0.5 border border-amber-300">
-                        <Image
-                          src="/images/icons/logo.png"
-                          alt="Poly Cards"
-                          width={24}
-                          height={24}
-                          className="object-contain"
-                        />
-                      </div>
-                      <span className="text-[11px] font-black tracking-wider text-slate-800">
-                        POLY CARDS
-                      </span>
+                      <Image
+                        src="/images/icons/logo.png"
+                        alt="Poly Cards"
+                        width={60}
+                        height={30}
+                        className="h-5 sm:h-6 w-auto object-contain shrink-0 drop-shadow-2xs"
+                      />
                     </div>
 
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800 border border-emerald-200">

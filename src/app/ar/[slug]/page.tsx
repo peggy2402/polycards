@@ -108,18 +108,16 @@ export default async function ArDetailPage({ params }: ArPageProps) {
 
           {/* Logo Brand Mini - Truncate tự nhiên khi màn hình hẹp 360px */}
           <Link href="/" className="flex items-center gap-1.5 min-w-0 mx-1 shrink">
-            <div className="relative h-8 w-8 sm:h-9 sm:w-9 shrink-0 overflow-hidden rounded-xl bg-white shadow-xs p-0.5">
-              <Image
-                src="/images/icons/logo.png"
-                alt="Poly Cards"
-                width={36}
-                height={36}
-                priority
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <span className="text-sm sm:text-base font-black text-amber-950 truncate">
-              Poly Cards AR
+            <Image
+              src="/images/icons/logo.png"
+              alt="Poly Cards Logo"
+              width={120}
+              height={59}
+              priority
+              className="h-8 sm:h-9 w-auto object-contain drop-shadow-2xs shrink-0"
+            />
+            <span className="hidden xs:inline-block text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80">
+              WebAR
             </span>
           </Link>
 
