@@ -128,13 +128,14 @@ async function optimizeGlbWithGltfTransform(
  * Tìm đường dẫn thực thi Blender trên máy
  */
 function findBlenderPath(): string | null {
+  if (process.env.NODE_ENV === "production") return null;
   const candidates = [
     "/opt/homebrew/bin/blender",
     "/usr/local/bin/blender",
     "/Applications/Blender.app/Contents/MacOS/Blender",
   ];
   for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+    if (fs.existsSync(/*turbopackIgnore: true*/ p)) return p;
   }
   return null;
 }

@@ -115,7 +115,15 @@ export function useArCamera({ onShowToast }: UseArCameraOptions = {}) {
         activeStreamRef.current = newStream;
         videoEl.srcObject = newStream;
         videoEl.muted = true;
+        videoEl.defaultMuted = true;
         videoEl.playsInline = true;
+        videoEl.setAttribute("playsinline", "true");
+        videoEl.setAttribute("webkit-playsinline", "true");
+        videoEl.setAttribute("x5-playsinline", "true");
+        videoEl.setAttribute("disablePictureInPicture", "true");
+        videoEl.setAttribute("disableRemotePlayback", "true");
+        videoEl.controls = false;
+        videoEl.style.pointerEvents = "none";
 
         await videoEl.play();
 
@@ -215,7 +223,15 @@ export function useArCamera({ onShowToast }: UseArCameraOptions = {}) {
           activeStreamRef.current = newStream;
           video.srcObject = newStream;
           video.muted = true;
+          video.defaultMuted = true;
           video.playsInline = true;
+          video.setAttribute("playsinline", "true");
+          video.setAttribute("webkit-playsinline", "true");
+          video.setAttribute("x5-playsinline", "true");
+          video.setAttribute("disablePictureInPicture", "true");
+          video.setAttribute("disableRemotePlayback", "true");
+          video.controls = false;
+          video.style.pointerEvents = "none";
           await video.play();
 
           if (facingModeRef.current === "environment" && mindarRef.current?.controller) {

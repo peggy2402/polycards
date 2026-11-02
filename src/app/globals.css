@@ -96,3 +96,43 @@ body {
 .rotate-y-180 {
   transform: rotateY(180deg);
 }
+
+/* ==========================================================================
+   POLY CARDS - CHẶN TRIỆT ĐỂ PLAY/PAUSE OVERLAY TRÊN IOS SAFARI WEBAR
+   Triệt tiêu hoàn toàn nút native play/pause overlay và media controls của WebKit.
+   ========================================================================== */
+video::-webkit-media-controls,
+video::-webkit-media-controls-start-playback-button,
+video::-webkit-media-controls-play-button,
+video::-webkit-media-controls-overlay-play-button,
+video::-webkit-media-controls-enclosure,
+video::-webkit-media-controls-panel,
+video::-webkit-media-controls-status-display,
+video::-webkit-media-controls-current-time-display,
+video::-webkit-media-controls-time-remaining-display,
+video::-webkit-media-controls-timeline,
+video::-webkit-media-controls-volume-slider,
+video::-webkit-media-controls-mute-button,
+video::-webkit-media-controls-toggle-closed-captions-button,
+video::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+}
+
+/* Bảo đảm thẻ video camera không bao giờ nhận click/tap làm Safari kích hoạt Media Controls */
+#webar-camera-viewport video,
+div[id*="webar"] video,
+video {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+

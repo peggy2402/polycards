@@ -75,6 +75,48 @@ function disposeMaterial(mat: any) {
   } catch {}
 }
 
+/**
+ * Triệt tiêu hoàn toàn nút native play/pause overlay và media controls của WebKit trên iOS Safari
+ */
+function sanitizeVideoElement(video: HTMLVideoElement) {
+  try {
+    video.controls = false;
+    video.removeAttribute("controls");
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+    video.setAttribute("x5-playsinline", "true");
+    video.setAttribute("x5-video-player-type", "h5-page");
+    video.setAttribute("x5-video-player-fullscreen", "false");
+    video.setAttribute("disablePictureInPicture", "true");
+    video.setAttribute("disableRemotePlayback", "true");
+    video.style.pointerEvents = "none";
+    video.style.userSelect = "none";
+    (video.style as any).webkitUserSelect = "none";
+    (video.style as any).webkitTouchCallout = "none";
+
+    const blockTouch = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+    video.addEventListener("touchstart", blockTouch, { passive: false });
+    video.addEventListener("touchend", blockTouch, { passive: false });
+    video.addEventListener("touchmove", blockTouch, { passive: false });
+    video.addEventListener("pointerdown", blockTouch, { passive: false });
+    video.addEventListener("click", blockTouch, { passive: false });
+
+    // Ngăn chặn Safari tạm dừng camera làm xuất hiện nút pause
+    video.addEventListener("pause", () => {
+      if (video.srcObject) {
+        video.play().catch(() => {});
+      }
+    });
+  } catch {}
+}
+
 export function WebArCardView({
   animal,
   onClose,
@@ -217,6 +259,33 @@ export function WebArCardView({
 
   const lockRollRef = useRef(lockRoll);
   lockRollRef.current = lockRoll;
+
+  // Giám sát DOM và triệt tiêu ngay lập tức Controls / Pause Overlay của iOS Safari WebKit trên camera video
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Quét ngay các video hiện có
+    container.querySelectorAll("video").forEach((v) => sanitizeVideoElement(v as HTMLVideoElement));
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof HTMLVideoElement) {
+            sanitizeVideoElement(node);
+          } else if (node instanceof HTMLElement) {
+            node.querySelectorAll("video").forEach((v) => sanitizeVideoElement(v as HTMLVideoElement));
+          }
+        });
+      }
+    });
+
+    observer.observe(container, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const isManual360ActiveRef = useRef(isManual360Active);
   isManual360ActiveRef.current = isManual360Active;
@@ -762,6 +831,12 @@ export function WebArCardView({
                   if (isCancelled) return;
                   setIsLoading(false);
 
+                  // Triệt tiêu controls và native play/pause icon của iOS Safari trên video camera
+                  const videoEl = (mindarThree.video || containerRef.current?.querySelector("video")) as HTMLVideoElement | null;
+                  if (videoEl) {
+                    sanitizeVideoElement(videoEl);
+                  }
+
                   // Cập nhật lại camera near sau khi MindAR khởi tạo
                   if (camera) {
                     camera.near = 0.05;
@@ -1131,7 +1206,7 @@ export function WebArCardView({
       <div
         ref={containerRef}
         id="webar-camera-viewport"
-        className={`absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none ${
+        className={`absolute inset-0 w-full h-full overflow-hidden [&>video]:!absolute [&>video]:!inset-0 [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>video]:!pointer-events-none [&>video]:select-none [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!w-full [&>canvas]:!h-full [&>canvas]:!object-cover pointer-events-none ${
           facingMode === "user" ? "[&>video]:scale-x-[-1]" : ""
         }`}
       />
