@@ -13,6 +13,11 @@ import {
   AlertTriangle,
   Loader2,
   CloudUpload,
+  ClipboardPaste,
+  Link2,
+  Sparkles,
+  Layers,
+  ArrowRightLeft,
 } from "lucide-react";
 import { PRESET_3D_MODELS } from "../constants";
 
@@ -79,6 +84,49 @@ export function ArResourcePanel({
   const [uploadTask, setUploadTask] = useState<UploadTaskState | null>(null);
   const [showConfirmAbort, setShowConfirmAbort] = useState<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Helper dán link trực tiếp từ Clipboard
+  const handlePasteFromClipboard = async (target: "glb" | "usdz") => {
+    try {
+      if (typeof navigator !== "undefined" && navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          const clean = text.trim();
+          if (target === "glb") {
+            onChangeModelUrl(clean);
+            onShowToast("Đã dán đường dẫn mô hình 3D .glb từ bộ nhớ tạm!", "success");
+            // Tự động gợi ý/đồng bộ iOS .usdz tương ứng nếu đang để trống hoặc giá trị mẫu
+            if (
+              clean.toLowerCase().endsWith(".glb") &&
+              (!iosModelUrl || iosModelUrl.includes("__") || iosModelUrl.includes("/models/polycards"))
+            ) {
+              const autoUsdz = clean.replace(/\.glb$/i, ".usdz");
+              onChangeIosModelUrl(autoUsdz);
+              onShowToast("Đã tự động tạo đường dẫn .usdz tương ứng cho Apple iOS!", "info");
+            }
+          } else {
+            onChangeIosModelUrl(clean);
+            onShowToast("Đã dán đường dẫn iOS Quick Look .usdz từ bộ nhớ tạm!", "success");
+          }
+          return;
+        }
+      }
+    } catch {
+      // Trình duyệt có thể chặn quyền clipboard, nhắc người dùng dùng phím tắt
+    }
+    onShowToast("Hãy bấm Ctrl+V (hoặc Cmd+V trên Mac) trực tiếp vào ô nhập để dán link.", "info");
+  };
+
+  // Helper đồng bộ link iOS .usdz từ .glb
+  const handleSyncUsdzFromGlb = () => {
+    if (!modelUrl || !modelUrl.trim()) {
+      onShowToast("Chưa có đường dẫn .glb để đồng bộ.", "warning");
+      return;
+    }
+    const autoUsdz = modelUrl.trim().replace(/\.glb$/i, ".usdz");
+    onChangeIosModelUrl(autoUsdz);
+    onShowToast("Đã đồng bộ đường dẫn .usdz tương ứng thành công!", "success");
+  };
 
   // Phát thử file âm thanh ngay trong form
   const handlePreviewAudioUrl = (url: string, label: string) => {
@@ -376,79 +424,166 @@ export function ArResourcePanel({
         </div>
       )}
 
-      {/* 2. Upload tệp 3D riêng (.glb, .usdz) */}
-      <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-1 border-b border-white/5">
+      {/* 2. Cấu hình & Dán link hoặc Tải lên Tệp 3D (.glb / .usdz) */}
+      <div className="p-3 rounded-2xl bg-stone-950/80 border border-amber-400/30 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
           <div>
-            <span className="text-[11px] font-bold text-stone-200 flex items-center gap-1.5">
-              <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              <span>Tải Lên Tệp 3D Riêng (.glb / .usdz)</span>
+            <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+              <FileUp className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>Tài Nguyên Mô Hình 3D WebAR & iOS Quick Look</span>
             </span>
-            <p className="text-[9px] text-stone-400">
-              Chọn tệp .glb cho Android/WebAR hoặc .usdz cho iPhone Quick Look bên dưới.
+            <p className="text-[10px] text-stone-300 mt-0.5">
+              <span className="text-amber-200 font-bold">Paste đường dẫn URL trực tiếp</span> (dùng chung model R2 CDN giữa các thẻ song ngữ) hoặc <span className="text-stone-300">chọn tệp từ máy tính</span>.
             </p>
           </div>
+          {modelUrl && (modelUrl.includes("r2.dev") || modelUrl.includes("cloudflarestorage.com")) && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[9px] font-bold text-emerald-300 shrink-0">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              <span>Cloudflare R2 CDN</span>
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+        {/* Mẹo dùng chung Model 3D cho 2 thẻ bài song ngữ */}
+        <div className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-400/20 text-[10px] text-amber-200/90 flex items-start gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+          <p className="leading-snug">
+            <strong className="text-amber-300">Dùng chung 1 Model 3D:</strong> Thẻ song ngữ Anh-Việt và Trung-Việt có thể dán chung 1 đường link URL .glb để tiết kiệm dung lượng R2 và tối ưu tốc độ tải.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[10px]">
           {/* Cột 1: Model WebAR .glb */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-stone-300 font-bold block">Model WebAR / Android (.glb):</span>
-              <label className="cursor-pointer text-[9px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10">
-                <Upload className="h-2.5 w-2.5" />
-                <span>Tải .glb</span>
-                <input
-                  type="file"
-                  accept=".glb,.gltf"
-                  disabled={isUploading}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) handleUploadFile(file, "model");
-                  }}
-                />
-              </label>
+          <div className="space-y-1.5 p-2 rounded-xl bg-stone-900/60 border border-white/5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-stone-200 font-bold block flex items-center gap-1 truncate">
+                <Box className="h-3 w-3 text-amber-400 shrink-0" />
+                <span>Model WebAR (.glb):</span>
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handlePasteFromClipboard("glb")}
+                  className="px-1.5 py-0.5 rounded bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 text-amber-300 hover:text-amber-200 font-bold text-[9px] flex items-center gap-0.5 transition-colors cursor-pointer"
+                  title="Dán link từ bộ nhớ tạm"
+                >
+                  <ClipboardPaste className="h-2.5 w-2.5" />
+                  <span>Dán link</span>
+                </button>
+                <label className="cursor-pointer text-[9px] font-bold text-stone-300 hover:text-white flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/15 border border-white/10 transition-colors">
+                  <Upload className="h-2.5 w-2.5" />
+                  <span>Tải tệp</span>
+                  <input
+                    type="file"
+                    accept=".glb,.gltf"
+                    disabled={isUploading}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) handleUploadFile(file, "model");
+                    }}
+                  />
+                </label>
+              </div>
             </div>
-            <input
-              type="text"
-              value={modelUrl}
-              onChange={(e) => onChangeModelUrl(e.target.value)}
-              placeholder="/models/polycards.glb"
-              className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
-            />
-            <span className="text-[9px] text-stone-500 block">Dành cho Android, Chrome, Cốc Cốc, PC.</span>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={modelUrl}
+                onChange={(e) => onChangeModelUrl(e.target.value)}
+                placeholder="Dán URL https://...r2.dev/...glb hoặc /models/..."
+                className="w-full bg-black/80 border border-amber-400/40 focus:border-amber-400 rounded-lg pl-2 pr-7 py-1.5 text-[11px] font-mono text-amber-300 placeholder-stone-600 focus:outline-hidden"
+              />
+              {modelUrl && (modelUrl.startsWith("http://") || modelUrl.startsWith("https://")) && (
+                <a
+                  href={modelUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-amber-300 transition-colors"
+                  title="Mở kiểm tra tệp .glb trong tab mới"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[9px] text-stone-400 pt-0.5">
+              <span>Android, Chrome, PC, Safari WebAR</span>
+              {modelUrl && modelUrl.endsWith(".glb") && (
+                <button
+                  type="button"
+                  onClick={handleSyncUsdzFromGlb}
+                  className="text-amber-400 hover:text-amber-300 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                  title="Tự động sao chép sang ô iOS .usdz tương ứng"
+                >
+                  <ArrowRightLeft className="h-2.5 w-2.5" />
+                  <span>Đồng bộ link iOS</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Cột 2: Model iOS .usdz */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-stone-300 font-bold block">Model Apple iOS (.usdz):</span>
-              <label className="cursor-pointer text-[9px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10">
-                <Upload className="h-2.5 w-2.5" />
-                <span>Tải .usdz</span>
-                <input
-                  type="file"
-                  accept=".usdz"
-                  disabled={isUploading}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) handleUploadFile(file, "model");
-                  }}
-                />
-              </label>
+          <div className="space-y-1.5 p-2 rounded-xl bg-stone-900/60 border border-white/5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-stone-200 font-bold block flex items-center gap-1 truncate">
+                <Box className="h-3 w-3 text-sky-400 shrink-0" />
+                <span>Model Apple iOS (.usdz):</span>
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handlePasteFromClipboard("usdz")}
+                  className="px-1.5 py-0.5 rounded bg-sky-400/15 hover:bg-sky-400/25 border border-sky-400/30 text-sky-300 hover:text-sky-200 font-bold text-[9px] flex items-center gap-0.5 transition-colors cursor-pointer"
+                  title="Dán link từ bộ nhớ tạm"
+                >
+                  <ClipboardPaste className="h-2.5 w-2.5" />
+                  <span>Dán link</span>
+                </button>
+                <label className="cursor-pointer text-[9px] font-bold text-stone-300 hover:text-white flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/15 border border-white/10 transition-colors">
+                  <Upload className="h-2.5 w-2.5" />
+                  <span>Tải tệp</span>
+                  <input
+                    type="file"
+                    accept=".usdz"
+                    disabled={isUploading}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) handleUploadFile(file, "model");
+                    }}
+                  />
+                </label>
+              </div>
             </div>
-            <input
-              type="text"
-              value={iosModelUrl}
-              onChange={(e) => onChangeIosModelUrl(e.target.value)}
-              placeholder="/models/polycards.usdz"
-              className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
-            />
-            <span className="text-[9px] text-stone-500 block">Dành riêng cho iPhone / iPad (Safari Quick Look).</span>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={iosModelUrl}
+                onChange={(e) => onChangeIosModelUrl(e.target.value)}
+                placeholder="Dán URL https://...r2.dev/...usdz hoặc /models/..."
+                className="w-full bg-black/80 border border-white/20 focus:border-sky-400 rounded-lg pl-2 pr-7 py-1.5 text-[11px] font-mono text-stone-200 placeholder-stone-600 focus:outline-hidden"
+              />
+              {iosModelUrl && (iosModelUrl.startsWith("http://") || iosModelUrl.startsWith("https://")) && (
+                <a
+                  href={iosModelUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-sky-300 transition-colors"
+                  title="Mở kiểm tra tệp .usdz trong tab mới"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+
+            <span className="text-[9px] text-stone-400 block pt-0.5">
+              Dành riêng cho iPhone / iPad (Safari Quick Look)
+            </span>
           </div>
         </div>
       </div>

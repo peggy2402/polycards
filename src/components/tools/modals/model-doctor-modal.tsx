@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   Sparkles,
@@ -55,6 +55,21 @@ export function ModelDoctorModal({
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Tự động phân tích khi mở modal với một thẻ cụ thể
+  useEffect(() => {
+    if (isOpen) {
+      if (initialAnimal?.slug) {
+        setSelectedSlug(initialAnimal.slug);
+        handleInspectBySlug(initialAnimal.slug);
+      } else {
+        setSelectedSlug("");
+        setCurrentReport(null);
+        setOptimizedResult(null);
+        setErrorMsg(null);
+      }
+    }
+  }, [isOpen, initialAnimal]);
 
   if (!isOpen) return null;
 

@@ -1522,6 +1522,17 @@ export function ProductsTab({
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDoctorTargetAnimal(card);
+                                  setIsDoctorModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-400 text-amber-300 hover:text-stone-950 border border-amber-400/30 transition-colors cursor-pointer"
+                                title="Bác Sĩ 3D: Thẩm định sức khỏe mô hình 3D thẻ này"
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                              </button>
                               {onAddToPrintQueue && (
                                 <button
                                   type="button"
