@@ -1,6 +1,7 @@
 // @ts-nocheck
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { USDZExporter } from "three/examples/jsm/exporters/USDZExporter.js";
 
@@ -52,15 +53,26 @@ export async function optimizeGlbInBrowser(
   if (onProgress) onProgress("Đang nạp mô hình 3D vào Three.js Engine...");
 
   const loader = new GLTFLoader();
+  const dracoLoader = new DRACOLoader();
+  // Ưu tiên tải Draco Decoder nội bộ từ /draco/, fallback sang Google gstatic CDN
+  dracoLoader.setDecoderPath("/draco/");
+  loader.setDRACOLoader(dracoLoader);
 
-  const gltf = await new Promise<any>((resolve, reject) => {
-    loader.parse(
-      glbArrayBuffer,
-      "",
-      (loadedGltf) => resolve(loadedGltf),
-      (err) => reject(new Error(`Lỗi parse GLTF: ${err}`))
-    );
-  });
+  let gltf: any = null;
+  try {
+    gltf = await new Promise<any>((resolve, reject) => {
+      loader.parse(
+        glbArrayBuffer,
+        "",
+        (loadedGltf) => resolve(loadedGltf),
+        (err) => reject(new Error(`Lỗi parse GLTF: ${err?.message || err}`))
+      );
+    });
+  } finally {
+    try {
+      dracoLoader.dispose();
+    } catch {}
+  }
 
   if (onProgress) onProgress("Đang phân tích và thu nhỏ độ phân giải Texture (4K -> 1024)...");
 
