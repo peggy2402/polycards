@@ -248,14 +248,28 @@ export function WebArCardView({
         setSupportsWebXr(sup);
       }).catch(() => {});
     }
-    // Nạp @google/model-viewer cho activateAR() (Prompt 5, Phương án A)
-    if (typeof window !== "undefined" && !customElements.get("model-viewer")) {
+    // Nạp @google/model-viewer cho WebXR Android (KHÔNG nạp trên iOS để tránh tạo thêm WebGL context gây sập RAM Safari)
+    if (
+      typeof window !== "undefined" &&
+      !supportsAppleAr &&
+      !customElements.get("model-viewer")
+    ) {
       import("@google/model-viewer").catch(() => {});
     }
-  }, []);
+  }, [supportsAppleAr]);
 
   // Kích hoạt AR native (Quick Look iOS / WebXR Android) ngay trong user click handler
   const handleLaunchNativeAr = useCallback(() => {
+    // 1. Ưu tiên Apple AR Quick Look trên iOS (Native qua thẻ <a> rel="ar", không tốn WebGL context)
+    if (supportsAppleAr) {
+      const quickLookAnchor = document.getElementById("native-ar-quick-look-anchor") as HTMLAnchorElement | null;
+      if (quickLookAnchor) {
+        quickLookAnchor.click();
+        return;
+      }
+    }
+
+    // 2. Kích hoạt WebXR trên Android
     if (nativeModelViewerRef.current && typeof nativeModelViewerRef.current.activateAR === "function") {
       try {
         nativeModelViewerRef.current.activateAR();
@@ -264,7 +278,7 @@ export function WebArCardView({
     }
     const quickLookAnchor = document.getElementById("native-ar-quick-look-anchor") as HTMLAnchorElement | null;
     quickLookAnchor?.click();
-  }, []);
+  }, [supportsAppleAr]);
 
   // Phản ứng khi chạm vào con vật (P2: Squash & stretch, parabolic jump, floating stars, audio)
   const handleTapModel = useCallback(() => {
@@ -571,11 +585,14 @@ export function WebArCardView({
           }
         };
 
-        // 5. Nạp mô hình 3D GLTF với DRACOLoader và fallback polycards.glb
+        // 5. Nạp mô hình 3D GLTF với DRACOLoader (Ưu tiên bộ giải mã nội bộ /draco/ và giới hạn 1 worker chống sập RAM iPhone)
         const loader = new THREE.GLTFLoader();
         if (THREE.DRACOLoader) {
           const dracoLoader = new THREE.DRACOLoader();
-          dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+          dracoLoader.setDecoderPath("/draco/");
+          try {
+            dracoLoader.setWorkerLimit(1);
+          } catch {}
           loader.setDRACOLoader(dracoLoader);
         }
 
@@ -590,10 +607,15 @@ export function WebArCardView({
           } catch {}
         }
 
+        // Ưu tiên tải trực tiếp từ R2 Edge CDN nếu là URL R2 (vì R2 đã cấu hình CORS * và không bị giới hạn 4.5MB Vercel)
         let primaryModelUrl = cleanModelUrl;
+        const isR2Url =
+          primaryModelUrl.includes(".r2.dev") ||
+          primaryModelUrl.includes(".r2.cloudflarestorage.com");
+
         if (
-          primaryModelUrl.startsWith("http://") ||
-          primaryModelUrl.startsWith("https://")
+          !isR2Url &&
+          (primaryModelUrl.startsWith("http://") || primaryModelUrl.startsWith("https://"))
         ) {
           primaryModelUrl = `/api/proxy/model?url=${encodeURIComponent(primaryModelUrl)}`;
         }
@@ -1419,14 +1441,13 @@ export function WebArCardView({
           </div>
         </div>
 
-      {/* Hidden model-viewer để gọi activateAR() trực tiếp cho WebXR và Scene Viewer (Prompt 5 Phương án A) */}
-      {(supportsAppleAr || supportsWebXr) && (
+      {/* Hidden model-viewer CHỈ dành cho WebXR trên Android (Trên iOS dùng native anchor rel="ar" để ngăn tạo thêm WebGL context gây sập RAM Safari) */}
+      {!supportsAppleAr && supportsWebXr && (
         <model-viewer
           ref={nativeModelViewerRef as any}
           src={animal.modelUrl || "/models/polycards.glb"}
-          ios-src={animal.iosModelUrl || "/models/polycards.usdz"}
           ar
-          ar-modes="webxr scene-viewer quick-look"
+          ar-modes="webxr scene-viewer"
           className="hidden"
           style={{ display: "none" }}
         />

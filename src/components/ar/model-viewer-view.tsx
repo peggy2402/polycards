@@ -36,6 +36,8 @@ export function ModelViewerView({
   const [isFallback, setIsFallback] = useState(false);
   const getSafeModelUrl = (rawUrl?: string) => {
     if (!rawUrl) return "/models/polycards.glb";
+    const isR2 = rawUrl.includes(".r2.dev") || rawUrl.includes(".r2.cloudflarestorage.com");
+    if (isR2) return rawUrl;
     if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
       return `/api/proxy/model?url=${encodeURIComponent(rawUrl)}`;
     }

@@ -44,42 +44,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const upstreamRes = await fetch(targetUrl, {
+    // Chuyển hướng 307 (Temporary Redirect) để trình duyệt tải trực tiếp từ Cloudflare R2 Edge CDN
+    // Giải quyết triệt để 100% giới hạn 4.5MB của Vercel Serverless Function và tránh đứt gãy kết nối mạng trên di động
+    return NextResponse.redirect(targetUrl, {
+      status: 307,
       headers: {
-        "User-Agent": "PolyCards-Model-Proxy/1.0",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Cache-Control": "public, max-age=31536000, immutable",
       },
-    });
-
-    if (!upstreamRes.ok || !upstreamRes.body) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Không thể tải tệp từ nguồn gốc: ${upstreamRes.status} ${upstreamRes.statusText}`,
-        },
-        { status: upstreamRes.status }
-      );
-    }
-
-    let contentType = upstreamRes.headers.get("content-type") || "model/gltf-binary";
-    if (targetUrl.endsWith(".glb")) contentType = "model/gltf-binary";
-    if (targetUrl.endsWith(".gltf")) contentType = "model/gltf+json";
-    if (targetUrl.endsWith(".usdz")) contentType = "model/vnd.usdz+zip";
-    if (targetUrl.endsWith(".mind")) contentType = "application/octet-stream";
-
-    const contentLength = upstreamRes.headers.get("content-length");
-    const headers = new Headers();
-    headers.set("Content-Type", contentType);
-    headers.set("Access-Control-Allow-Origin", "*");
-    headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-    headers.set("Access-Control-Allow-Headers", "*");
-    headers.set("Cache-Control", "public, max-age=31536000, immutable");
-    if (contentLength) {
-      headers.set("Content-Length", contentLength);
-    }
-
-    return new NextResponse(upstreamRes.body as any, {
-      status: 200,
-      headers,
     });
   } catch (error: any) {
     return NextResponse.json(

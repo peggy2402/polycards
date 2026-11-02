@@ -244,33 +244,35 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
         </div>
       </div>
 
-      {/* 3. Vùng hiển thị nội dung theo Tab */}
-      {activeTab === "card" ? (
-        /* ================= NỘI DUNG TAB 1: THẺ BÀI ================= */
-        <div className="animate-in fade-in zoom-in-95 duration-200">
-          <CardFlashcardView
-            animal={animal}
-            onOpenWebAr={handleRequestWebAr}
-          />
-        </div>
-      ) : (
-        /* ================= NỘI DUNG TAB 2: MODELS 3D ================= */
-        <div className="animate-in fade-in zoom-in-95 duration-200 space-y-5">
-          <ModelViewerView
-            animal={animal}
-            selectedAnimation={selectedAnimation}
-            onOpenWebAr={handleRequestWebAr}
-          />
-
-          {/* Animation Controls cho mô hình 3D */}
-          {animal.animations && animal.animations.length > 0 && (
-            <AnimationControls
-              animations={animal.animations}
-              selectedAnimation={selectedAnimation}
-              onSelectAnimation={setSelectedAnimation}
+      {/* 3. Vùng hiển thị nội dung theo Tab (Chỉ render khi chưa mở WebAR Camera để giải phóng 100% WebGL Context & VRAM cho Safari iPhone) */}
+      {!isWebArOpen && (
+        activeTab === "card" ? (
+          /* ================= NỘI DUNG TAB 1: THẺ BÀI ================= */
+          <div className="animate-in fade-in zoom-in-95 duration-200">
+            <CardFlashcardView
+              animal={animal}
+              onOpenWebAr={handleRequestWebAr}
             />
-          )}
-        </div>
+          </div>
+        ) : (
+          /* ================= NỘI DUNG TAB 2: MODELS 3D ================= */
+          <div className="animate-in fade-in zoom-in-95 duration-200 space-y-5">
+            <ModelViewerView
+              animal={animal}
+              selectedAnimation={selectedAnimation}
+              onOpenWebAr={handleRequestWebAr}
+            />
+
+            {/* Animation Controls cho mô hình 3D */}
+            {animal.animations && animal.animations.length > 0 && (
+              <AnimationControls
+                animations={animal.animations}
+                selectedAnimation={selectedAnimation}
+                onSelectAnimation={setSelectedAnimation}
+              />
+            )}
+          </div>
+        )
       )}
 
       {/* 4. Multilingual Audio Listen Panel (Tiếng Anh IPA - Tiếng Việt - Tiếng Trung Pinyin) */}
