@@ -614,7 +614,7 @@ export function ArResourcePanel({
             type="text"
             value={targetUrl}
             onChange={(e) => onChangeTargetUrl(e.target.value)}
-            placeholder="/targets/lion.mind (Fallback tự động nếu trống)"
+            placeholder="Để trống nếu chưa có file .mind (Tùy chọn)"
             className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
           />
           <div className="pt-0.5 flex flex-col gap-0.5 text-[9px]">
@@ -674,7 +674,7 @@ export function ArResourcePanel({
             type="text"
             value={audioUrl}
             onChange={(e) => onChangeAudioUrl(e.target.value)}
-            placeholder="Tùy chọn: File tiếng kêu / hiệu ứng riêng (.mp3)"
+            placeholder="Để trống nếu chưa có file .mp3 (Tùy chọn)"
             className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
           />
           <p className="text-[9px] text-stone-400">

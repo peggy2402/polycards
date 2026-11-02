@@ -203,7 +203,7 @@ export default function ToolsPage() {
     modelPresetId: "polycards",
     modelUrl: "/models/polycards.glb",
     iosModelUrl: "/models/polycards.usdz",
-    targetUrl: "/targets/polycards.mind",
+    targetUrl: "",
     audioUrl: "",
     audioEnUrl: "",
     audioViUrl: "",
@@ -262,7 +262,7 @@ export default function ToolsPage() {
     imageUrl: "",
     modelUrl: "/models/polycards.glb",
     iosModelUrl: "/models/polycards.usdz",
-    targetUrl: "/targets/polycards.mind",
+    targetUrl: "",
     audioUrl: "",
     audioEnUrl: "",
     audioViUrl: "",
@@ -1902,7 +1902,7 @@ export default function ToolsPage() {
       imageUrl: product.posterUrl || (Array.isArray(product.images) && product.images[0]) || "",
       modelUrl: product.modelUrl || "/models/polycards.glb",
       iosModelUrl: product.iosModelUrl || "/models/polycards.usdz",
-      targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
+      targetUrl: product.targetUrl || "",
       audioUrl: product.audioUrl || "",
       audioEnUrl: product.audios?.en || "",
       audioViUrl: product.audios?.vi || "",
@@ -1940,10 +1940,10 @@ export default function ToolsPage() {
         description: editProductForm.description.trim(),
         posterUrl: editProductForm.imageUrl.trim() || editingProduct.posterUrl,
         images: editProductForm.imageUrl.trim() ? [editProductForm.imageUrl.trim()] : editingProduct.images,
-        modelUrl: editProductForm.modelUrl.trim() || editingProduct.modelUrl,
-        iosModelUrl: editProductForm.iosModelUrl.trim() || editingProduct.iosModelUrl,
-        targetUrl: editProductForm.targetUrl.trim() || editingProduct.targetUrl,
-        audioUrl: editProductForm.audioUrl.trim() || editingProduct.audioUrl,
+        modelUrl: editProductForm.modelUrl.trim() || "/models/polycards.glb",
+        iosModelUrl: editProductForm.iosModelUrl.trim() || "/models/polycards.usdz",
+        targetUrl: editProductForm.targetUrl.trim(),
+        audioUrl: editProductForm.audioUrl.trim(),
         audios: {
           en: editProductForm.audioEnUrl.trim(),
           vi: editProductForm.audioViUrl.trim(),
@@ -2089,7 +2089,7 @@ export default function ToolsPage() {
       modelPresetId: matchedProductPreset ? matchedProductPreset.id : "custom",
       modelUrl: product.modelUrl || "/models/polycards.glb",
       iosModelUrl: product.iosModelUrl || "/models/polycards.usdz",
-      targetUrl: product.targetUrl || `/targets/${product.slug}.mind`,
+      targetUrl: product.targetUrl || "",
       audioUrl: product.audioUrl || "",
       audioEnUrl: product.audios?.en || "",
       audioViUrl: product.audios?.vi || "",
@@ -2230,20 +2230,20 @@ export default function ToolsPage() {
           ? prev.description
           : `Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: ${defaultVi} (${defaultEn}).`,
       useCompositeCardImage: true,
-      modelPresetId: matchedPreset ? matchedPreset.id : prev.modelPresetId || "polycards",
-      modelUrl: matchedPreset
-        ? matchedPreset.modelUrl
-        : prev.modelUrl || "/models/polycards.glb",
-      iosModelUrl: matchedPreset
-        ? matchedPreset.iosModelUrl
-        : prev.iosModelUrl || "/models/polycards.usdz",
-      targetUrl: matchedPreset
-        ? matchedPreset.targetUrl
-        : prev.targetUrl || "/targets/polycards.mind",
-      audioUrl: prev.audioUrl || "",
-      audioEnUrl: prev.audioEnUrl || "",
-      audioViUrl: prev.audioViUrl || "",
-      audioZhUrl: prev.audioZhUrl || "",
+      modelPresetId: "polycards",
+      modelUrl:
+        isCurrentSlugSame && prev.modelUrl
+          ? prev.modelUrl
+          : "/models/polycards.glb",
+      iosModelUrl:
+        isCurrentSlugSame && prev.iosModelUrl
+          ? prev.iosModelUrl
+          : "/models/polycards.usdz",
+      targetUrl: isCurrentSlugSame && prev.targetUrl ? prev.targetUrl : "",
+      audioUrl: isCurrentSlugSame && prev.audioUrl ? prev.audioUrl : "",
+      audioEnUrl: isCurrentSlugSame && prev.audioEnUrl ? prev.audioEnUrl : "",
+      audioViUrl: isCurrentSlugSame && prev.audioViUrl ? prev.audioViUrl : "",
+      audioZhUrl: isCurrentSlugSame && prev.audioZhUrl ? prev.audioZhUrl : "",
     }));
 
     setIsPublishModalOpen(true);
@@ -2374,10 +2374,10 @@ export default function ToolsPage() {
               y: qrPos.y,
               size: qrPos.size,
             },
-            modelUrl: productForm.modelUrl || "/models/polycards.glb",
-            iosModelUrl: productForm.iosModelUrl || "/models/polycards.usdz",
-            targetUrl: productForm.targetUrl || "/targets/polycards.mind",
-            audioUrl: productForm.audioUrl || "",
+            modelUrl: productForm.modelUrl.trim() || "/models/polycards.glb",
+            iosModelUrl: productForm.iosModelUrl.trim() || "/models/polycards.usdz",
+            targetUrl: productForm.targetUrl.trim(),
+            audioUrl: productForm.audioUrl.trim(),
             audios: customAudios,
           }),
         });
@@ -2417,10 +2417,10 @@ export default function ToolsPage() {
           y: qrPos.y,
           size: qrPos.size,
         },
-        modelUrl: productForm.modelUrl || "/models/polycards.glb",
-        iosModelUrl: productForm.iosModelUrl || "/models/polycards.usdz",
-        targetUrl: productForm.targetUrl || "/targets/polycards.mind",
-        audioUrl: productForm.audioUrl || "",
+        modelUrl: productForm.modelUrl.trim() || "/models/polycards.glb",
+        iosModelUrl: productForm.iosModelUrl.trim() || "/models/polycards.usdz",
+        targetUrl: productForm.targetUrl.trim(),
+        audioUrl: productForm.audioUrl.trim(),
         audios: customAudios,
       });
 
