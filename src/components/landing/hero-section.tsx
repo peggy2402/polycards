@@ -94,11 +94,11 @@ export function HeroSection() {
               </Link>
 
               <a
-                href="#products"
+                href="/products"
                 className="inline-flex min-h-[54px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-2xl border-2 border-amber-300 bg-white px-7 py-4 text-base font-black text-amber-950 shadow-md shadow-amber-950/5 transition-all hover:bg-amber-50 hover:border-amber-400 hover:scale-102 active:scale-98"
               >
                 <Compass className="h-5 w-5 text-amber-600" />
-                <span>Khám Phá 6 Bạn Thú</span>
+                <span>Khám Phá Bộ Thẻ</span>
               </a>
             </div>
 
@@ -153,8 +153,8 @@ export function HeroSection() {
 
                 <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[2.2rem] bg-amber-50">
                   <Image
-                    src="/images/cards/lion-card.jpg"
-                    alt="Thẻ bài học tiếng Anh Sư Tử Lion Poly Cards thật"
+                    src="/images/cards/butterfly-card.png"
+                    alt="Thẻ bài học tiếng Anh Butterfly Poly Cards thật"
                     fill
                     priority
                     className="object-cover"
@@ -164,11 +164,11 @@ export function HeroSection() {
                   {/* Hiệu ứng Matrix QR Swap nháy số ngẫu nhiên liên tục ở ô vuông trắng góc dưới bên trái.
                       Bạn có thể dễ dàng điều chỉnh vị trí và kích thước ô QR theo ảnh thẻ bài tại đây: */}
                   <HeroQrMatrixSwap
-                    left="7.2%"
-                    bottom="7.4%"
-                    width="22.8%"
+                    left="6%"
+                    bottom="9.01%"
+                    width="24.8%"
                     height="17.2%"
-                    href="/ar/lion"
+                    href="/ar/butterfly"
                   />
 
                   {/* Mô hình 3D bước ra từ thẻ (Dành riêng cho Desktop / Macbook, có thể bật lại khi có ảnh thẻ khớp model) */}
@@ -186,18 +186,18 @@ export function HeroSection() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-black text-slate-900">Lion</span>
+                      <span className="text-xl font-black text-slate-900">Butterfly</span>
                       <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        /ˈlaɪ.ən/
+                        /ˈbʌt.ə.flaɪ/
                       </span>
                     </div>
                     <p className="text-xs font-bold text-amber-800">
-                      Con sư tử • Chúa sơn lâm dũng mãnh
+                      Con bướm • Cánh bướm sắc màu
                     </p>
                   </div>
 
                   <Link
-                    href="/ar/lion"
+                    href="/ar/polycards"
                     className="btn-toy-3d inline-flex min-h-[42px] items-center gap-1.5 rounded-2xl bg-amber-500 px-4 py-2 text-xs font-black text-stone-950 shadow-md hover:bg-amber-400 active:scale-95 transition-all"
                   >
                     <Smartphone className="h-4 w-4" />

@@ -98,6 +98,17 @@ export function parseAndValidateQr(
     }
   }
 
+  // 3. Dự phòng thông minh: Nếu nội dung quét là slug thuần túy (ví dụ: 'polycards', 'butterfly', 'lion', 'walk')
+  if (!detectedSlug) {
+    const rawClean = content.toLowerCase().trim().replace(/^\/+|\/+$/g, "");
+    const directMatch =
+      getAnimalBySlug(rawClean) ||
+      getMergedProducts().find((p) => p.slug.toLowerCase() === rawClean);
+    if (directMatch) {
+      detectedSlug = directMatch.slug;
+    }
+  }
+
   if (!detectedSlug) {
     return {
       valid: false,
