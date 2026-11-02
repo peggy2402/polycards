@@ -95,8 +95,8 @@ export function ArDemoSection() {
                 {/* 3D Deer Model Poster */}
                 <div className="relative h-full w-full rounded-xl overflow-hidden transition-transform duration-500 hover:scale-103">
                   <Image
-                    src="/images/animals/deer.jpg"
-                    alt="Mô hình Deer AR tương tác"
+                    src="/images/cards/butterfly-card.png"
+                    alt="Mô hình Butterfly AR tương tác"
                     fill
                     sizes="(max-width: 768px) 100vw, 500px"
                     className="object-cover rounded-xl"
