@@ -926,7 +926,11 @@ export default function ToolsPage() {
         qrImg.src = qrDataUrl;
       };
       cardImg.onerror = () => reject(new Error("Lỗi nạp ảnh thẻ bài"));
-      cardImg.src = cardImageSrc;
+      const finalSrc =
+        cardImageSrc.startsWith("http://") || cardImageSrc.startsWith("https://")
+          ? `/api/proxy/image?url=${encodeURIComponent(cardImageSrc)}`
+          : cardImageSrc;
+      cardImg.src = finalSrc;
     });
   }, [cardDimensions, cardImageSrc, qrPos, qrDataUrl, isQrOverlayEnabled]);
 
@@ -1175,11 +1179,17 @@ export default function ToolsPage() {
     return new Promise(async (resolve, reject) => {
       try {
         const hasRawTemplate = Boolean(card.rawImageUrl && card.rawImageUrl.trim());
-        const cardImgSrc =
+        const rawCardImgSrc =
           card.rawImageUrl ||
           card.posterUrl ||
           (Array.isArray(card.images) && card.images[0]) ||
           `/images/cards/${card.slug}-card.jpg`;
+
+        // Nếu ảnh là URL ngoài (Cloudflare R2 CDN), định tuyến qua API proxy để vượt qua 100% rào cản CORS trên Canvas
+        const cardImgSrc =
+          rawCardImgSrc.startsWith("http://") || rawCardImgSrc.startsWith("https://")
+            ? `/api/proxy/image?url=${encodeURIComponent(rawCardImgSrc)}`
+            : rawCardImgSrc;
 
         // Nếu thẻ có ảnh phôi sạch riêng (rawImageUrl) thì bắt buộc phải ghép QR mới
         const isAlreadyComposite =
@@ -1325,8 +1335,16 @@ export default function ToolsPage() {
             );
           }
         };
-        baseImg.onerror = () =>
+        let hasTriedFallback = false;
+        baseImg.onerror = () => {
+          if (!hasTriedFallback) {
+            hasTriedFallback = true;
+            // Thử fallback sang ảnh cục bộ dự phòng
+            baseImg.src = `/images/cards/${card.slug}-card.jpg`;
+            return;
+          }
           reject(new Error(`Không thể nạp ảnh của thẻ ${card.nameVi}`));
+        };
         baseImg.src = cardImgSrc;
       } catch (err) {
         reject(err);
@@ -1982,11 +2000,16 @@ export default function ToolsPage() {
   const handleLoadCardToCanvas = (product: Animal) => {
     // 1. Ưu tiên nạp ảnh phôi sạch (rawImageUrl) nếu có
     const hasRawTemplate = Boolean(product.rawImageUrl && product.rawImageUrl.trim());
-    const cardImg = hasRawTemplate
+    const rawCardImg = hasRawTemplate
       ? product.rawImageUrl!
       : product.posterUrl ||
         (Array.isArray(product.images) && product.images[0]) ||
         `/images/cards/${product.slug}-template.jpg`;
+
+    const cardImg =
+      rawCardImg.startsWith("http://") || rawCardImg.startsWith("https://")
+        ? `/api/proxy/image?url=${encodeURIComponent(rawCardImg)}`
+        : rawCardImg;
 
     setCardImageSrc(cardImg);
     setRawImageUrl(product.rawImageUrl || "");
