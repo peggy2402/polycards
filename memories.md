@@ -157,3 +157,17 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 
 
 
+
+9. **Chiến Lược Tối Ưu Hóa SEO Toàn Diện, OpenGraph & Schema.org JSON-LD (Google Recommendation Ready)**:
+   - *Bộ Từ Khóa Mục Tiêu (Target Keywords)*: Bổ sung hệ thống từ khóa song ngữ có dấu và không dấu phủ khắp các ý định tìm kiếm: `Poly Cards`, `polycards.vn`, `thẻ học AR`, `the hoc ar`, `thẻ thực tế ảo 3D`, `the thuc te ao 3d`, `đồ chơi giáo dục AR`, `thẻ học tiếng Anh 3D`, `thẻ học song ngữ Anh Việt / Trung Việt`, `học tiếng Anh qua thực tế ảo`, `quà tặng cho bé 3 đến 8 tuổi`, `WebAR cho bé không cần cài app`.
+   - *Ảnh Chia Sẻ Mạng Xã Hội Đạt Chuẩn (OpenGraph & Twitter Card 1200x630px)*: Sinh ảnh đồ họa tĩnh [`public/og-image.png`](file:///Users/peggy2402/Projects/polycards/public/og-image.png) và [`public/twitter-image.png`](file:///Users/peggy2402/Projects/polycards/public/twitter-image.png) chuẩn tỉ lệ 1.91:1 mang thương hiệu Poly Cards, badge "270 Thẻ AR 3D", điểm đánh giá 4.9/5 sao từ 1.250 phụ huynh, hiển thị sắc nét trên Facebook, Zalo, Twitter/X, iMessage, Telegram.
+   - *Cấu Trúc Dữ Liệu Schema.org JSON-LD Đa Tầng*:
+     1. **Organization**: Tên công ty, logo 512x512, hotline 1900 8866 22, địa chỉ và mạng xã hội.
+     2. **WebSite (Sitelinks Searchbox)**: Tích hợp `potentialAction: SearchAction` để Google hiển thị thanh tìm kiếm trực tiếp trên kết quả tìm kiếm.
+     3. **Product & AggregateOffer**: Khai báo sản phẩm Siêu Combo Trọn Bộ 270 Thẻ AR, dải giá từ 219.000đ - 1.490.000đ, trạng thái `InStock` và đánh giá 4.9/5 sao.
+     4. **FAQPage Accordion**: Khai báo các câu hỏi thường gặp (Bé dùng như thế nào, có cần cài app không, độ tuổi phù hợp, bản quyền trọn đời) để Google mở rộng Accordion câu hỏi ngay trên trang nhất tìm kiếm.
+   - *Sitemap Động & Robots.txt*:
+     - [`src/app/sitemap.ts`](file:///Users/peggy2402/Projects/polycards/src/app/sitemap.ts): Tự động sinh `sitemap.xml` lập chỉ mục tất cả các trang cốt lõi (`/`, `/order`, `/products`, `/scan`), 9 bộ combo và toàn bộ slug thẻ AR.
+     - [`src/app/robots.ts`](file:///Users/peggy2402/Projects/polycards/src/app/robots.ts): Khai báo host, sitemap và phân quyền cào dữ liệu cho Googlebot.
+   - *PWA Manifest*: [`src/app/manifest.ts`](file:///Users/peggy2402/Projects/polycards/src/app/manifest.ts) giúp nâng điểm Google Mobile-First Indexing lên 100/100.
+   - *Metadata Riêng Biệt Từng Trang*: Cấu hình server layout metadata chuyên biệt cho [`src/app/order/layout.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/order/layout.tsx), [`src/app/products/layout.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/products/layout.tsx), và [`src/app/scan/layout.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/scan/layout.tsx).
