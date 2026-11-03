@@ -111,12 +111,13 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
           codeParam || "",
           catSlug,
           animal.slug,
-          codeParentParam || undefined
+          codeParentParam || undefined,
+          animal.packCode
         );
       }
 
       if (!isMounted) return;
-      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug, catSlug);
+      const isAlreadyUnlocked = isAnimalUnlocked(animal.slug, catSlug, animal.packCode);
       setUnlocked(isAlreadyUnlocked);
 
       if (isDirectAr || codeParam || codeParentParam) {
@@ -129,13 +130,13 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
     return () => {
       isMounted = false;
     };
-  }, [searchParams, animal.slug, animal.categorySlug, animal.category]);
+  }, [searchParams, animal.slug, animal.categorySlug, animal.category, animal.packCode]);
 
   // Kiểm tra trạng thái bản quyền (Đã kích hoạt đúng Bộ Danh Mục hay chưa) và đồng bộ tức thì
   useEffect(() => {
     const catSlug = normalizeCategorySlug(animal.categorySlug || animal.category);
     const updateUnlockStatus = () => {
-      setUnlocked(isAnimalUnlocked(animal.slug, catSlug));
+      setUnlocked(isAnimalUnlocked(animal.slug, catSlug, animal.packCode));
     };
 
     updateUnlockStatus();
@@ -147,7 +148,7 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
       window.removeEventListener("storage", updateUnlockStatus);
       window.removeEventListener("polycards_activated", updateUnlockStatus);
     };
-  }, [animal.slug, animal.categorySlug, animal.category]);
+  }, [animal.slug, animal.categorySlug, animal.category, animal.packCode]);
 
   // Xử lý khi người dùng bấm nút mở WebAR
   const handleRequestWebAr = () => {

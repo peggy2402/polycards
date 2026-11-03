@@ -7,6 +7,7 @@
 | 1 | `01-scan-stabilize.md` | Lỗi nền của trang: hydration #418, camera bị xin trước khi biết đang ở trình duyệt nhúng, modal hướng dẫn sai khung, `?expect=` hỏng sau khi bỏ mockdata, ảnh 404 |
 | 2 | `02-scan-core-fixes.md` | Sửa lõi `qr-camera-scanner.tsx` tại chỗ (11 vấn đề cụ thể đã tìm thấy trong code) |
 | 3 | `03-scan-engine-upgrade.md` | Tùy chọn: đo hiệu năng, thử thay engine `html5-qrcode`, thêm nhập mã tay và vài tính năng |
+| 4 | `04-scan-review-fixes.md` | Vá các lỗi còn lại sau khi AI triển khai prompt 1-2 (commit fde5237): watchdog, race, build, hydration, nhận diện in-app, API, parser |
 
 ## Những gì đã đọc
 `scan/page.tsx`, `qr-camera-scanner.tsx` (đủ 555 dòng; hai bản bạn gửi giống hệt nhau), `scan-guide-modal.tsx`, `in-app-browser-modal.tsx`, `user-agent.ts`, `/ar/[slug]/page.tsx`, `package.json`, `subject-focus-image.tsx`, log trình duyệt.

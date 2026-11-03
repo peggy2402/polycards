@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 
 /**
  * Tối ưu hóa mô hình 3D bằng pipeline @gltf-transform + draco3d + MeshoptSimplifier
- * Hoạt động 100% không cần Blender, chạy mượt mà trên Vercel Serverless
+ * Đạt chuẩn Mobile WebAR an toàn: ~40k Polygons, Textures <= 1024, Nén Draco
  */
 async function optimizeGlbWithGltfTransform(
   inputBuffer: Buffer,
@@ -71,14 +71,16 @@ async function optimizeGlbWithGltfTransform(
 
         const targetCount = Math.floor((indicesArray.length * ratio) / 3) * 3;
         let [dstIndices] = MeshoptSimplifier.simplify(indicesArray, posFloat, 3, targetCount, 0.05);
-        if (dstIndices.length > targetCount * 1.5) {
+
+        // Nếu simplify thông thường bị kẹt bởi topology, chuyển sang simplifySloppy để bảo đảm giảm đa giác
+        if (dstIndices.length > targetCount * 1.3) {
           const [sloppyIndices] = MeshoptSimplifier.simplifySloppy(
             indicesArray,
             posFloat,
             3,
             null,
             targetCount,
-            0.05
+            0.1
           );
           if (sloppyIndices && sloppyIndices.length > 0) {
             dstIndices = sloppyIndices;
@@ -98,8 +100,10 @@ async function optimizeGlbWithGltfTransform(
       if (meta.width && meta.height && (meta.width > maxTextureSize || meta.height > maxTextureSize)) {
         const resizedBuffer = await sharp(Buffer.from(rawImage))
           .resize({ width: maxTextureSize, height: maxTextureSize, fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 85 })
           .toBuffer();
         texture.setImage(new Uint8Array(resizedBuffer));
+        texture.setMimeType("image/jpeg");
       }
     } catch {
       // bỏ qua nếu sharp không parse được định dạng ảnh lạ
@@ -222,58 +226,30 @@ export async function POST(req: NextRequest) {
     let optimizedGlbBuffer: Buffer | null = null;
     let optimizedUsdzBuffer: Buffer | null = null;
 
-    const blenderBin = findBlenderPath();
+    // 3. Ưu tiên chạy gltf-transform + draco + meshoptimizer (Nhanh, nhẹ, đồng nhất)
+    try {
+      optimizedGlbBuffer = await optimizeGlbWithGltfTransform(inputBuffer, targetPolygons, maxTextureSize);
+    } catch (gltfErr) {
+      console.warn("Lỗi gltf-transform engine:", gltfErr);
+    }
 
-    // 3. Nếu máy chủ có Blender (Local dev), dùng Blender Headless
-    if (blenderBin) {
+    // 4. Nếu có Blender trên máy và cần xuất USDZ cho Apple Quick Look
+    const blenderBin = findBlenderPath();
+    if (blenderBin && optimizedGlbBuffer) {
       try {
         const sessionTag = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         const tmpDir = os.tmpdir();
         const inputGlbPath = path.join(tmpDir, `pc_in_${sessionTag}.glb`);
-        const outputGlbPath = path.join(tmpDir, `pc_out_${sessionTag}.glb`);
         const outputUsdzPath = path.join(tmpDir, `pc_out_${sessionTag}.usdz`);
         const scriptPath = path.join(tmpDir, `pc_script_${sessionTag}.py`);
 
-        tmpFilesToClean.push(inputGlbPath, outputGlbPath, outputUsdzPath, scriptPath);
-        fs.writeFileSync(inputGlbPath, inputBuffer);
+        tmpFilesToClean.push(inputGlbPath, outputUsdzPath, scriptPath);
+        fs.writeFileSync(inputGlbPath, optimizedGlbBuffer);
 
         const pythonScript = `
 import bpy
-
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=r"${inputGlbPath}")
-
-if bpy.ops.object.mode_set.poll():
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-mesh_objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
-total_polys = sum(len(o.data.polygons) for o in mesh_objs)
-
-target_total = ${targetPolygons}
-if total_polys > target_total:
-    ratio = min(1.0, max(0.015, target_total / total_polys))
-    for obj in mesh_objs:
-        bpy.ops.object.select_all(action='DESELECT')
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
-        if len(obj.data.polygons) > 500:
-            mod = obj.modifiers.new(name="Decimate", type="DECIMATE")
-            mod.ratio = ratio
-            bpy.ops.object.modifier_apply(modifier=mod.name)
-
-max_tex = ${maxTextureSize}
-for img in bpy.data.images:
-    if img.size[0] > max_tex or img.size[1] > max_tex:
-        img.scale(max_tex, max_tex)
-
-bpy.ops.export_scene.gltf(
-    filepath=r"${outputGlbPath}",
-    export_format="GLB",
-    export_apply=True,
-    export_materials="EXPORT",
-    export_draco_mesh_compression_enable=True
-)
-
 try:
     bpy.ops.wm.usd_export(filepath=r"${outputUsdzPath}", export_materials=True)
 except Exception as e:
@@ -282,24 +258,22 @@ except Exception as e:
         fs.writeFileSync(scriptPath, pythonScript, "utf8");
 
         await execFileAsync(blenderBin, ["--background", "--python", scriptPath], {
-          timeout: 120000,
+          timeout: 60000,
         });
 
-        if (fs.existsSync(outputGlbPath)) {
-          optimizedGlbBuffer = fs.readFileSync(outputGlbPath);
-        }
         if (fs.existsSync(outputUsdzPath)) {
           optimizedUsdzBuffer = fs.readFileSync(outputUsdzPath);
         }
       } catch (blenderErr) {
-        console.warn("Blender pipeline thất bại, tự động chuyển sang WebAssembly Engine:", blenderErr);
+        console.warn("Không thể xuất USDZ bằng Blender:", blenderErr);
       }
     }
 
-    // 4. Nếu không có Blender (Vercel Serverless Production) hoặc Blender lỗi: Chạy gltf-transform + draco + meshoptimizer!
     if (!optimizedGlbBuffer) {
-      console.log(`[Optimize-3D] Đang xử lý bằng WebAssembly Engine (@gltf-transform + draco3d + meshoptimizer)...`);
-      optimizedGlbBuffer = await optimizeGlbWithGltfTransform(inputBuffer, targetPolygons, maxTextureSize);
+      return NextResponse.json(
+        { success: false, message: "Không thể tối ưu hóa tệp 3D này." },
+        { status: 500 }
+      );
     }
 
     const afterReport = inspectGlbBuffer(optimizedGlbBuffer);
@@ -317,7 +291,6 @@ except Exception as e:
       if (optimizedUsdzBuffer) {
         outputUsdzUrl = await uploadToR2(optimizedUsdzBuffer, usdzFileName, "model/vnd.usdz+zip");
       } else {
-        // Dự phòng link USDZ tương ứng nếu đã có trên CDN
         outputUsdzUrl = outputGlbUrl.replace(/\.glb$/i, ".usdz");
       }
 
@@ -349,22 +322,20 @@ except Exception as e:
       iosModelUrl: outputUsdzUrl,
       beforeReport,
       afterReport,
-      savedBytes: Math.max(0, beforeReport.fileSizeBytes - afterReport.fileSizeBytes),
       savedPolygons,
       reducedPercent,
     });
-  } catch (error: any) {
-    console.error("[Optimize 3D Error]:", error);
+  } catch (err: any) {
+    console.error("Lỗi tối ưu 3D:", err);
     return NextResponse.json(
-      { success: false, message: error?.message || "Lỗi trong quá trình tối ưu hóa 3D" },
+      { success: false, message: err.message || "Lỗi xử lý tối ưu hóa mô hình 3D" },
       { status: 500 }
     );
   } finally {
-    for (const f of tmpFilesToClean) {
+    for (const p of tmpFilesToClean) {
       try {
-        if (fs.existsSync(f)) fs.unlinkSync(f);
+        if (fs.existsSync(p)) fs.unlinkSync(p);
       } catch {}
     }
   }
 }
-

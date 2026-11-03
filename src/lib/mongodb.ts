@@ -97,6 +97,14 @@ export const INITIAL_PACK_CODES: DbPackCodeItem[] = [
     createdAt: "2026-10-25",
   },
   {
+    code: "POLY30-HOAQUA-ENVI",
+    name: "Bộ 30 Thẻ AR Hoa Quả & Trái Cây (Anh - Việt)",
+    categorySlug: "hoa-qua",
+    categoryName: "Hoa Quả & Trái Cây",
+    description: "Bộ 30 thẻ hoa quả song ngữ Anh - Việt",
+    createdAt: "2026-10-25",
+  },
+  {
     code: "POLY120-COMBOVIP",
     name: "Trọn Bộ VIP 120 Thẻ Học AR",
     categorySlug: "combo-vip",
