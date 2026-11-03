@@ -134,6 +134,14 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      2. Bổ sung `@tailwindcss/postcss` và `postcss` vào [`package.json`](file:///Users/peggy2402/Projects/polycards/package.json).
      3. Khắc phục lỗi typecheck route handler trong [`src/app/api/products/[slug]/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/products/%5Bslug%5D/route.ts).
      4. Build production thành công 100%, xuất file CSS đầy đủ **206 KB** chứa trọn vẹn toàn bộ Tailwind v4 utility classes.
+7. **Tái Thiết Kế `/order` Thành Mô Hình "Thùng Hàng Stack" + Widget Bottom Sheet & Modal Chi Tiết**:
+   - *Khối Thùng Hàng Stack ([`SelectedPacksStack`](file:///Users/peggy2402/Projects/polycards/src/components/order/selected-packs-stack.tsx))*: Đóng gói các bộ thẻ đã chọn vào một Stack giỏ hàng gọn gàng. Cho phép chọn nhiều bộ thẻ cùng lúc và tăng giảm số lượng `[-] [qty] [+]` độc lập cho từng bộ.
+   - *Widget Bottom Sheet Chọn Bộ Compact ([`OrderPackSheet`](file:///Users/peggy2402/Projects/polycards/src/components/order/order-pack-sheet.tsx))*: Thu gọn danh sách bộ thẻ thành dạng hàng ngang tinh gọn (compact rows). Mỗi hàng gồm ảnh thumbnail, tên bộ thẻ, badge, giá bán, khuyến mãi và 2 nút hành động: `"Xem chi tiết"` và `"Chọn bộ"`. Tích hợp bộ lọc chủ đề và lọc ngôn ngữ song ngữ.
+   - *Widget Modal Chi Tiết Bộ Thẻ ([`PackDetailModal`](file:///Users/peggy2402/Projects/polycards/src/components/order/pack-detail-modal.tsx))*: Hiển thị ảnh thẻ, mô tả chi tiết các con vật/chủ đề trong bộ, các điểm nổi bật và nút thêm nhanh vào giỏ.
+   - *Trải Nghiệm Đa Nền Tảng*:
+     - **Desktop**: Bố cục 2 cột cân đối tổng quan (Cột trái: Thùng hàng Stack + Form giao hàng; Cột phải: Hóa đơn tóm tắt cố định gọn gàng).
+     - **Mobile**: Sticky Footer bám đáy màn hình chuẩn TikTok Shop kèm Safe Area Inset cho iPhone.
+
 
 
 
