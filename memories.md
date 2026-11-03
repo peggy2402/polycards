@@ -127,6 +127,14 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      + **Bước 1: Chọn bộ thẻ & số lượng**: Card sản phẩm sắc nét, badge sinh động, giá tiền, số lượng thẻ, highlights rõ ràng.
      + **Bước 2: Điền thông tin giao hàng & chọn phương thức**: Giữ nguyên 2 phương thức COD tiền mặt & Chuyển khoản QR ngân hàng, card tóm tắt sản phẩm đang chọn chuẩn TikTok Shop.
    - **Sticky Bottom Bar chuẩn TikTok Shop**: Cố định bám đáy màn hình với Safe Area Inset trên iPhone (`pb-[max(0.75rem,env(safe-area-inset-bottom))]`), hiển thị Tổng tiền + Tiết kiệm bên trái và nút hành động to tròn (Pill CTA) bên phải.
+6. **Khắc phục Triệt Để Lỗi Mất CSS Giao Diện Toàn Bộ Các Trang**:
+   - *Nguyên nhân cốt lõi:* Dự án dùng Tailwind CSS v4 (`@import "tailwindcss";`), nhưng thiếu cấu hình PostCSS (`@tailwindcss/postcss` trong `postcss.config.mjs`). Trình biên dịch bỏ qua việc sinh utility classes (file CSS build ra chỉ có font chữ mà không có class `.flex`, `.grid`, màu sắc, bo góc), khiến giao diện bị văng về HTML thô trắng toát.
+   - *Giải pháp triệt để:*
+     1. Khởi tạo cấu hình [`postcss.config.mjs`](file:///Users/peggy2402/Projects/polycards/postcss.config.mjs) kích hoạt `@tailwindcss/postcss`.
+     2. Bổ sung `@tailwindcss/postcss` và `postcss` vào [`package.json`](file:///Users/peggy2402/Projects/polycards/package.json).
+     3. Khắc phục lỗi typecheck route handler trong [`src/app/api/products/[slug]/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/products/%5Bslug%5D/route.ts).
+     4. Build production thành công 100%, xuất file CSS đầy đủ **206 KB** chứa trọn vẹn toàn bộ Tailwind v4 utility classes.
+
 
 
 
