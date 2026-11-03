@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test:qr": "tsx scripts/test-qr-parser.ts",
@@ -27,10 +27,13 @@
     "mongodb": "^7.7.0",
     "next": "16.4.3",
     "pinyin-pro": "^3.29.5",
+    "postcss": "^8.5.3",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sharp": "^0.33.5",
+    "tailwindcss": "^4.0.9",
+    "@tailwindcss/postcss": "^4.0.9",
     "three": "^0.183.0"
   },
   "devDependencies": {

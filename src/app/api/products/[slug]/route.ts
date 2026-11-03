@@ -3,7 +3,7 @@ import { dbGetProductBySlug } from "@/lib/mongodb";
 import { getAnimalBySlug } from "@/lib/animals";
 import { Animal } from "@/types/animal";
 
-export interface ScanCardSummary {
+interface ScanCardSummary {
   slug: string;
   nameEn: string;
   nameVi: string;
@@ -15,7 +15,7 @@ const SLUG_REGEX = /^[a-z0-9-]{1,64}$/;
 /**
  * Chuẩn hóa alias hệ thống: 'butterfly' và 'polycards' là hai tên gọi tương đương của thẻ mẫu
  */
-export function normalizeSystemSlug(raw: string): string {
+function normalizeSystemSlug(raw: string): string {
   const clean = raw.toLowerCase().trim();
   if (clean === "butterfly" || clean === "polycards") {
     return "polycards";
