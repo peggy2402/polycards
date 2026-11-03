@@ -12,12 +12,46 @@ export interface QrParseResult {
   isMismatched?: boolean;
 }
 
+// Regex kiểm tra an toàn cho slug và code
+const SLUG_REGEX = /^[a-z0-9-]{1,64}$/;
+const CODE_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function isAllowedHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (
+    host === "polycards.vn" ||
+    host === "www.polycards.vn" ||
+    host === "localhost" ||
+    host === "127.0.0.1"
+  ) {
+    return true;
+  }
+  if (host.endsWith(".vercel.app") && host.includes("polycards")) {
+    return true;
+  }
+  if (host.endsWith(".ngrok-free.app") || host.endsWith(".trycloudflare.com")) {
+    return true;
+  }
+  try {
+    const configuredHost = new URL(siteConfig.url).hostname.toLowerCase();
+    if (host === configuredHost) return true;
+  } catch {}
+
+  if (typeof window !== "undefined") {
+    const currentHost = window.location.hostname.toLowerCase();
+    if (host === currentHost) return true;
+  }
+
+  return false;
+}
+
 /**
  * Phân tích và kiểm định nội dung quét được từ QR code:
- * 1. Chấp nhận URL thuộc domain website (ví dụ https://domain/ar/deer?ar=1&code=...)
- * 2. Chấp nhận mã định danh theo chuẩn (ví dụ: AR-DEER-001)
- * 3. Giữ nguyên mã hóa đơn (?code=...) nếu được đính kèm trong QR
- * 4. Từ chối mọi URL lạ hoặc dữ liệu không thuộc hệ thống
+ * 1. Chấp nhận URL thuộc domain website (ví dụ https://domain/ar/butterfly?ar=1&code=...)
+ * 2. Chấp nhận mã định danh theo chuẩn (ví dụ: AR-BUTTERFLY-001)
+ * 3. Chấp nhận đường dẫn tương đối (/ar/butterfly)
+ * 4. Chấp nhận slug trực tiếp nếu trùng khớp hệ thống
+ * 5. Từ chối mọi URL lạ hoặc dữ liệu độc hại (javascript:, domain lừa đảo)
  */
 export function parseAndValidateQr(
   rawContent: string,
@@ -31,16 +65,45 @@ export function parseAndValidateQr(
   }
 
   const content = rawContent.trim();
+  if (content.length > 500) {
+    return {
+      valid: false,
+      errorMessage: "Nội dung mã QR vượt quá độ dài cho phép.",
+    };
+  }
+
+  // Chặn các giao thức nguy hiểm
+  const lower = content.toLowerCase();
+  if (
+    lower.startsWith("javascript:") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("vbscript:")
+  ) {
+    return {
+      valid: false,
+      errorMessage: "Mã QR chứa lệnh không an toàn.",
+    };
+  }
+
   let detectedSlug: string | null = null;
   let detectedCode: string | undefined = undefined;
 
-  // 1. Kiểm tra trường hợp định danh mã sản phẩm (ví dụ: AR-DEER-001)
+  // 1. Kiểm tra trường hợp định danh mã sản phẩm (ví dụ: AR-BUTTERFLY-001 hoặc AR-DEER-001)
   if (/^AR-[A-Z0-9-]+-[0-9]{3}$/i.test(content)) {
     const animal =
       getAnimalByQrCode(content) ||
       getMergedProducts().find((p) => p.qrCode.toUpperCase() === content.toUpperCase());
     if (animal) {
-      detectedSlug = animal.slug;
+      detectedSlug = animal.slug.toLowerCase();
+    } else {
+      // Trích xuất slug từ định dạng AR-<SLUG>-001
+      const parts = content.split("-");
+      if (parts.length >= 3) {
+        const potentialSlug = parts.slice(1, -1).join("-").toLowerCase();
+        if (SLUG_REGEX.test(potentialSlug)) {
+          detectedSlug = potentialSlug;
+        }
+      }
     }
   }
 
@@ -51,33 +114,20 @@ export function parseAndValidateQr(
       if (content.startsWith("/")) {
         const fakeUrl = new URL(content, "https://polycards.vn");
         pathname = fakeUrl.pathname;
-        detectedCode =
-          fakeUrl.searchParams.get("code") || fakeUrl.searchParams.get("key") || undefined;
+        const codeParam = fakeUrl.searchParams.get("code") || fakeUrl.searchParams.get("key");
+        if (codeParam && CODE_REGEX.test(codeParam)) {
+          detectedCode = codeParam;
+        }
       } else if (content.startsWith("http://") || content.startsWith("https://")) {
         const parsedUrl = new URL(content);
-        const configuredHost = new URL(siteConfig.url).host.toLowerCase();
-        const currentHost =
-          typeof window !== "undefined"
-            ? window.location.host.toLowerCase()
-            : configuredHost;
 
-        const isAllowedDomain =
-          parsedUrl.host.toLowerCase() === configuredHost ||
-          parsedUrl.host.toLowerCase() === currentHost ||
-          parsedUrl.hostname === "polycards.vn" ||
-          (parsedUrl.hostname.endsWith(".vercel.app") &&
-            parsedUrl.hostname.includes("polycards")) ||
-          parsedUrl.hostname === "localhost" ||
-          parsedUrl.hostname === "127.0.0.1" ||
-          parsedUrl.hostname.endsWith(".ngrok-free.app") ||
-          parsedUrl.hostname.endsWith(".trycloudflare.com");
-
-        if (isAllowedDomain) {
+        if (isAllowedHost(parsedUrl.hostname)) {
           pathname = parsedUrl.pathname;
-          detectedCode =
-            parsedUrl.searchParams.get("code") ||
-            parsedUrl.searchParams.get("key") ||
-            undefined;
+          const codeParam =
+            parsedUrl.searchParams.get("code") || parsedUrl.searchParams.get("key");
+          if (codeParam && CODE_REGEX.test(codeParam)) {
+            detectedCode = codeParam;
+          }
         } else {
           return {
             valid: false,
@@ -90,7 +140,10 @@ export function parseAndValidateQr(
       if (pathname.startsWith("/ar/")) {
         const segments = pathname.split("/").filter(Boolean);
         if (segments.length >= 2 && segments[0] === "ar") {
-          detectedSlug = segments[1].toLowerCase();
+          const rawSlug = segments[1].toLowerCase();
+          if (SLUG_REGEX.test(rawSlug)) {
+            detectedSlug = rawSlug;
+          }
         }
       }
     } catch {
@@ -98,32 +151,37 @@ export function parseAndValidateQr(
     }
   }
 
-  // 3. Dự phòng thông minh: Nếu nội dung quét là slug thuần túy (ví dụ: 'polycards', 'butterfly', 'lion', 'walk')
+  // 3. Dự phòng thông minh: Nếu nội dung quét là slug thuần túy (ví dụ: 'polycards', 'butterfly')
   if (!detectedSlug) {
     const rawClean = content.toLowerCase().trim().replace(/^\/+|\/+$/g, "");
-    const directMatch =
-      getAnimalBySlug(rawClean) ||
-      getMergedProducts().find((p) => p.slug.toLowerCase() === rawClean);
-    if (directMatch) {
-      detectedSlug = directMatch.slug;
+    if (SLUG_REGEX.test(rawClean)) {
+      const directMatch =
+        getAnimalBySlug(rawClean) ||
+        getMergedProducts().find((p) => p.slug.toLowerCase() === rawClean);
+      if (directMatch) {
+        detectedSlug = directMatch.slug.toLowerCase();
+      } else if (rawClean === "polycards") {
+        detectedSlug = "polycards";
+      }
     }
   }
 
   if (!detectedSlug) {
     return {
       valid: false,
-      errorMessage: "Mã QR không hợp lệ hoặc không thuộc hệ thống đồ chơi Poly Cards.",
+      errorMessage: "Mã QR không hợp lệ hoặc không thuộc hệ sinh thái Poly Cards.",
     };
   }
 
+  // Tìm tên hiển thị
   const animal =
     getAnimalBySlug(detectedSlug) ||
-    getMergedProducts().find((p) => p.slug.toLowerCase() === detectedSlug.toLowerCase());
+    getMergedProducts().find((p) => p.slug.toLowerCase() === detectedSlug!.toLowerCase());
 
   const resolvedNameEn = animal?.nameEn || detectedSlug.toUpperCase();
   const resolvedNameVi = animal?.nameVi || detectedSlug;
 
-  // 3. Nếu ở chế độ quét theo sản phẩm cụ thể (?expect=slug)
+  // 4. Nếu ở chế độ quét theo sản phẩm cụ thể (?expect=slug)
   if (expectSlug && expectSlug.trim().toLowerCase() !== detectedSlug.toLowerCase()) {
     const expectedAnimal = getAnimalBySlug(expectSlug);
     const expectedName = expectedAnimal

@@ -1,31 +1,75 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { getAnimalBySlug } from "@/lib/animals";
+import { Animal } from "@/types/animal";
 import { isInAppBrowser } from "@/lib/user-agent";
+import { getAnimalBySlug } from "@/lib/animals";
 import { ScanGuideModal } from "@/components/scanner/scan-guide-modal";
-import { QrCameraScanner } from "@/components/scanner/qr-camera-scanner";
 import { InAppBrowserModal } from "@/components/scanner/in-app-browser-modal";
-import { X } from "lucide-react";
+
+// Dynamic import QrCameraScanner với ssr: false để ngăn chặn hoàn toàn lỗi hydration React #418
+const DynamicQrCameraScanner = dynamic(
+  () =>
+    import("@/components/scanner/qr-camera-scanner").then(
+      (mod) => mod.QrCameraScanner
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center bg-stone-950 text-white">
+        <div className="h-10 w-10 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+        <span className="mt-3 text-xs font-semibold text-stone-400">
+          Đang chuẩn bị Camera AR...
+        </span>
+      </div>
+    ),
+  }
+);
 
 function ScanContent() {
   const searchParams = useSearchParams();
   const expectSlug = searchParams.get("expect");
-  const expectedAnimal = expectSlug ? getAnimalBySlug(expectSlug) : undefined;
 
-  // Mặc định BẬT NGAY Camera Scanner để quét tức thì
-  const [showGuideModal, setShowGuideModal] = useState(false);
-  const [inAppInfo, setInAppInfo] = useState<{ isInApp: boolean; appName: string }>({
-    isInApp: false,
-    appName: "",
+  // Quản lý trạng thái nạp dữ liệu thẻ mục tiêu
+  const [expectedAnimal, setExpectedAnimal] = useState<Animal | undefined>(() => {
+    return expectSlug ? getAnimalBySlug(expectSlug) : undefined;
   });
 
+  // State 3 bước: "checking" (kiểm tra in-app) -> "inapp" (hiện cảnh báo) hoặc "normal" (mở camera)
+  const [scanMode, setScanMode] = useState<"checking" | "inapp" | "normal">("checking");
+  const [inAppName, setInAppName] = useState<string>("");
+  const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
+
+  // Truy vấn dữ liệu thực tế của expectSlug nếu có
   useEffect(() => {
-    // Kiểm tra các trình duyệt in-app như Zalo, TikTok, Facebook
+    if (!expectSlug) return;
+    const cleanSlug = expectSlug.toLowerCase().trim();
+
+    fetch(`/api/products/${cleanSlug}`)
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Product not found");
+      })
+      .then((json) => {
+        if (json.success && json.data) {
+          setExpectedAnimal(json.data as Animal);
+        }
+      })
+      .catch(() => {
+        // Fallback đã có trong khởi tạo
+      });
+  }, [expectSlug]);
+
+  // Kiểm tra in-app browser sau khi client mounted
+  useEffect(() => {
     const detected = isInAppBrowser();
     if (detected.isInApp) {
-      setInAppInfo(detected);
+      setInAppName(detected.appName);
+      setScanMode("inapp");
+    } else {
+      setScanMode("normal");
     }
   }, []);
 
@@ -34,34 +78,38 @@ function ScanContent() {
       suppressHydrationWarning
       className="min-h-[100dvh] w-full bg-stone-950 relative overflow-hidden"
     >
-      {/* Cảnh báo nếu mở trong Zalo / Facebook / TikTok */}
-      {inAppInfo.isInApp && <InAppBrowserModal appName={inAppInfo.appName} />}
-
-      {/* 1. Camera Scanner Toàn Màn Hình Trực Tiếp */}
-      <QrCameraScanner
-        expectedAnimal={expectedAnimal}
-        onOpenGuide={() => setShowGuideModal(true)}
-      />
-
-      {/* 2. Modal Hướng Dẫn Quét Thẻ An Toàn (Popup Overlay Khi Cần) */}
-      {showGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-4xl max-h-[90dvh] overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setShowGuideModal(false)}
-              className="absolute top-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 shadow-md transition-all active:scale-90"
-              title="Đóng hướng dẫn"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <ScanGuideModal
-              expectedAnimal={expectedAnimal}
-              onStartScan={() => setShowGuideModal(false)}
-            />
-          </div>
+      {/* 1. Màn hình Kiểm Tra Môi Trường Trình Duyệt */}
+      {scanMode === "checking" && (
+        <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center bg-stone-950 text-white">
+          <div className="h-10 w-10 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <span className="mt-3 text-xs font-semibold text-stone-400">
+            Đang khởi động Camera Poly Cards...
+          </span>
         </div>
+      )}
+
+      {/* 2. Cảnh báo In-App Browser (Zalo, TikTok, Facebook, WeChat, etc.) */}
+      {scanMode === "inapp" && (
+        <InAppBrowserModal
+          appName={inAppName}
+          onContinueAnyway={() => setScanMode("normal")}
+        />
+      )}
+
+      {/* 3. Camera Scanner Toàn Màn Hình */}
+      {scanMode === "normal" && (
+        <DynamicQrCameraScanner
+          expectedAnimal={expectedAnimal}
+          onOpenGuide={() => setShowGuideModal(true)}
+        />
+      )}
+
+      {/* 4. Modal Hướng Dẫn Quét Thẻ An Toàn (Bottom Sheet / Popup) */}
+      {showGuideModal && (
+        <ScanGuideModal
+          expectedAnimal={expectedAnimal}
+          onStartScan={() => setShowGuideModal(false)}
+        />
       )}
     </div>
   );
@@ -71,13 +119,11 @@ export default function ScanPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[100dvh] items-center justify-center bg-stone-950 text-white">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-10 w-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold text-stone-400">
-              Đang khởi động Camera AR...
-            </span>
-          </div>
+        <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center bg-stone-950 text-white">
+          <div className="h-10 w-10 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <span className="mt-3 text-xs font-semibold text-stone-400">
+            Đang nạp ứng dụng Poly Cards...
+          </span>
         </div>
       }
     >

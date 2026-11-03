@@ -1,7 +1,7 @@
 /**
  * Phát hiện xem trang web có đang được mở bên trong In-App Browser
- * (Facebook, Zalo, TikTok, Instagram, Messenger, WeChat) hay không.
- * Các trình duyệt nhúng này thường chặn quyền truy cập Camera (getUserMedia).
+ * (Facebook, Zalo, TikTok, Instagram, Messenger, WeChat, Line, Kakao, Twitter/X, Snapchat, Pinterest, LinkedIn, Google App, WebView) hay không.
+ * Các trình duyệt nhúng này thường chặn quyền truy cập Camera (getUserMedia) hoặc hạn chế WebXR.
  */
 export function isInAppBrowser(): {
   isInApp: boolean;
@@ -16,7 +16,7 @@ export function isInAppBrowser(): {
   if (ua.includes("zalo")) {
     return { isInApp: true, appName: "Zalo" };
   }
-  if (ua.includes("fban") || ua.includes("fbav") || ua.includes("fb_iab")) {
+  if (ua.includes("fban") || ua.includes("fbav") || ua.includes("fb_iab") || ua.includes("fb4a") || ua.includes("fbios")) {
     return { isInApp: true, appName: "Facebook" };
   }
   if (ua.includes("musical_ly") || ua.includes("tiktok") || ua.includes("bytedance")) {
@@ -30,6 +30,32 @@ export function isInAppBrowser(): {
   }
   if (ua.includes("micromessenger")) {
     return { isInApp: true, appName: "WeChat" };
+  }
+  if (ua.includes("line/")) {
+    return { isInApp: true, appName: "Line" };
+  }
+  if (ua.includes("kakaotalk")) {
+    return { isInApp: true, appName: "KakaoTalk" };
+  }
+  if (ua.includes("snapchat")) {
+    return { isInApp: true, appName: "Snapchat" };
+  }
+  if (ua.includes("twitter") || ua.includes("tweetie")) {
+    return { isInApp: true, appName: "Twitter / X" };
+  }
+  if (ua.includes("linkedin")) {
+    return { isInApp: true, appName: "LinkedIn" };
+  }
+  if (ua.includes("pinterest")) {
+    return { isInApp: true, appName: "Pinterest" };
+  }
+  if (ua.includes("gsa/")) {
+    return { isInApp: true, appName: "Google App" };
+  }
+
+  // Nhận diện Android WebView tổng quát (; wv)
+  if (ua.includes("; wv") || (ua.includes("version/4.0") && ua.includes("chrome/"))) {
+    return { isInApp: true, appName: "Trình Duyệt Nhúng (WebView)" };
   }
 
   return { isInApp: false, appName: "" };
@@ -46,7 +72,10 @@ export function getMobileOperatingSystem(): "ios" | "android" | "other" {
   const ua = navigator.userAgent;
 
   // iOS detection
-  if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+  if (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  ) {
     return "ios";
   }
 
