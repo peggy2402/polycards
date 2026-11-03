@@ -267,6 +267,10 @@ export function useArGestures({
    */
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      // Triệt tiêu tap-to-pause HUD của iOS Safari WebKit trên phần tử video camera
+      if (e.cancelable) {
+        e.preventDefault();
+      }
       try {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       } catch {}

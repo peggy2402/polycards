@@ -85,17 +85,19 @@ function sanitizeVideoElement(video: HTMLVideoElement) {
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
-    video.setAttribute("playsinline", "true");
+    video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "true");
     video.setAttribute("x5-playsinline", "true");
     video.setAttribute("x5-video-player-type", "h5-page");
     video.setAttribute("x5-video-player-fullscreen", "false");
     video.setAttribute("disablePictureInPicture", "true");
     video.setAttribute("disableRemotePlayback", "true");
-    video.style.pointerEvents = "none";
-    video.style.userSelect = "none";
-    (video.style as any).webkitUserSelect = "none";
-    (video.style as any).webkitTouchCallout = "none";
+    video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
+    video.setAttribute("x-webkit-airplay", "deny");
+    video.style.setProperty("pointer-events", "none", "important");
+    video.style.setProperty("user-select", "none", "important");
+    video.style.setProperty("-webkit-user-select", "none", "important");
+    video.style.setProperty("-webkit-touch-callout", "none", "important");
 
     const blockTouch = (e: Event) => {
       e.preventDefault();
@@ -108,12 +110,22 @@ function sanitizeVideoElement(video: HTMLVideoElement) {
     video.addEventListener("pointerdown", blockTouch, { passive: false });
     video.addEventListener("click", blockTouch, { passive: false });
 
-    // Ngăn chặn Safari tạm dừng camera làm xuất hiện nút pause
-    video.addEventListener("pause", () => {
-      if (video.srcObject) {
+    // Ngăn chặn Safari tạm dừng camera làm xuất hiện nút pause (đặc biệt khi Low Power Mode bật)
+    const keepPlaying = () => {
+      video.controls = false;
+      video.removeAttribute("controls");
+      if (video.paused && video.srcObject) {
         video.play().catch(() => {});
       }
+    };
+
+    ["pause", "suspend", "loadedmetadata", "canplay", "playing", "emptied"].forEach((ev) => {
+      video.addEventListener(ev, keepPlaying);
     });
+
+    if (video.srcObject && video.paused) {
+      video.play().catch(() => {});
+    }
   } catch {}
 }
 
@@ -282,8 +294,23 @@ export function WebArCardView({
 
     observer.observe(container, { childList: true, subtree: true });
 
+    // Heartbeat: Định kỳ kiểm tra bảo đảm video luôn ở trạng thái playing và controls = false
+    const heartbeatTimer = setInterval(() => {
+      const v = (mindarRef.current?.video || container.querySelector("video") || document.querySelector("#webar-camera-viewport video")) as HTMLVideoElement | null;
+      if (v) {
+        if (v.controls) {
+          v.controls = false;
+          v.removeAttribute("controls");
+        }
+        if (v.paused && v.srcObject) {
+          v.play().catch(() => {});
+        }
+      }
+    }, 1000);
+
     return () => {
       observer.disconnect();
+      clearInterval(heartbeatTimer);
     };
   }, []);
 
@@ -1199,8 +1226,12 @@ export function WebArCardView({
 
       {/* 2. Lớp bắt cử chỉ cảm ứng Pointer Events (Xoay 360, Giữ để kéo 1:1, Pinch Zoom, Tap hit test) */}
       <div
-        className="absolute inset-0 z-10 touch-none cursor-grab active:cursor-grabbing"
+        className="absolute inset-0 z-10 touch-none cursor-grab active:cursor-grabbing select-none"
         style={{ touchAction: "none" }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         {...pointerHandlers}
       />
 

@@ -142,6 +142,17 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      - **Desktop**: Bố cục 2 cột cân đối tổng quan (Cột trái: Thùng hàng Stack + Form giao hàng; Cột phải: Hóa đơn tóm tắt cố định gọn gàng).
      - **Mobile**: Sticky Footer bám đáy màn hình chuẩn TikTok Shop kèm Safe Area Inset cho iPhone.
 
+8. **Khắc Phục Triệt Để Lỗi Play/Pause Video Overlay Của iOS Safari Trên WebAR**:
+   - *Hiện tượng & Nguyên nhân gốc rễ:*
+     1. **Cơ chế CSS Selector Fallback của trình duyệt:** Trước đây các pseudo-element `video::-webkit-media-controls-*` được gom chung bằng dấu phẩy `,`. Theo chuẩn CSS W3C, nếu có bất kỳ 1 selector nào không được phiên bản WebKit cụ thể nhận diện, toàn bộ block CSS đó sẽ bị trình duyệt hủy bỏ hoàn toàn (`invalid selector list`).
+     2. **MindAR không gọi `.play()` chủ động:** Trong [`public/lib/mindar-image-three.prod.js`](file:///Users/peggy2402/Projects/polycards/public/lib/mindar-image-three.prod.js), video camera chỉ gán `srcObject = stream` và dựa vào thuộc tính `autoplay`. Khi thiết bị bật **Chế độ tiết kiệm pin (Low Power Mode - biểu tượng pin màu vàng trên iPhone)**, iOS Safari tự động đình chỉ (suspend) autoplay và kích hoạt native AVPlayer HUD (vòng tròn mờ đen có biểu tượng `||` Pause/Play ở giữa màn hình).
+     3. **Unprevented Tap Gesture:** Khi người dùng chạm ngón tay vào màn hình để xoay hoặc tương tác mô hình 3D, sự kiện tap không được gọi `preventDefault()`, khiến WebKit hiểu nhầm là người dùng muốn kích hoạt điều khiển video.
+   - *Giải pháp triệt để 4 tầng:*
+     1. **CSS Độc lập:** Trong [`src/app/globals.css`](file:///Users/peggy2402/Projects/polycards/src/app/globals.css), tách rời toàn bộ các selector `video::-webkit-media-controls-*` thành các rule CSS riêng biệt, đảm bảo không bao giờ bị parser bỏ qua.
+     2. **MindAR Core Patch:** Bổ sung các thuộc tính `controlslist="nodownload nofullscreen noremoteplayback"`, `x-webkit-airplay="deny"`, `playsinline`, `webkit-playsinline`, và gọi `this.video.play()` chủ động ngay khi gán stream và khi `loadedmetadata` kích hoạt.
+     3. **Gesture Event Isolation:** Trong [`use-ar-gestures.ts`](file:///Users/peggy2402/Projects/polycards/src/components/ar/hooks/use-ar-gestures.ts) và [`webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx), gọi `e.preventDefault()` trên `onPointerDown` và `onClick` của gesture layer, triệt tiêu hoàn toàn khả năng WebKit chặn bắt cử chỉ tap để hiển thị native HUD.
+     4. **Auto-Play Heartbeat Enforcement:** Đăng ký các event listener `['pause', 'suspend', 'loadedmetadata', 'canplay', 'playing', 'emptied']` và vòng lặp heartbeat 1s trong `WebArCardView`, tự động ép `video.play()` và hủy bỏ thuộc tính `controls` nếu Safari cố tình bật lại trong Low Power Mode.
+
 
 
 
