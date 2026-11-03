@@ -132,7 +132,7 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
   }
 
   try {
-    window.speechSynthesis.resume();
+    // Khắc phục bug Chrome: cancel() đồng bộ có thể nuốt luôn utterance tiếp theo
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -153,13 +153,19 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
     }
 
     // Ưu tiên chọn voice phù hợp với ngôn ngữ nếu trình duyệt đã load voices
-    const voices = window.speechSynthesis.getVoices();
-    if (voices && voices.length > 0) {
-      const prefix = lang === "en" ? "en" : lang === "vi" ? "vi" : "zh";
-      const matched = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
-      if (matched) {
-        utterance.voice = matched;
+    const applyVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const prefix = lang === "en" ? "en" : lang === "vi" ? "vi" : "zh";
+        const matched = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
+        if (matched) {
+          utterance.voice = matched;
+        }
       }
+    };
+    applyVoice();
+    if (typeof window.speechSynthesis.onvoiceschanged !== "undefined") {
+      window.speechSynthesis.onvoiceschanged = applyVoice;
     }
 
     let isDone = false;
@@ -172,10 +178,19 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
     utterance.onend = finish;
     utterance.onerror = finish;
 
-    // Timeout an toàn 2.5s phòng khi browser không kích hoạt onend
-    setTimeout(finish, 2500);
+    // Timeout an toàn 3s phòng khi browser không kích hoạt onend
+    setTimeout(finish, 3000);
 
-    window.speechSynthesis.speak(utterance);
+    // Sử dụng setTimeout 40ms để tránh bug cancel() của Chromium
+    setTimeout(() => {
+      try {
+        window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        finish();
+      }
+    }, 40);
+
     return true;
   } catch (err) {
     console.warn("[Speech Engine] Lỗi khi phát âm:", err);

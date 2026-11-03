@@ -13,7 +13,6 @@ import { draco, dedup, prune } from "@gltf-transform/functions";
 // @ts-ignore
 import draco3d from "draco3dgltf";
 import { MeshoptSimplifier } from "meshoptimizer";
-import sharp from "sharp";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -93,22 +92,35 @@ async function optimizeGlbWithGltfTransform(
   }
 
   // 3. Tối ưu & Resize texture bằng sharp nếu vượt quá maxTextureSize (giảm hàng chục MB dung lượng)
-  for (const texture of doc.getRoot().listTextures()) {
-    const rawImage = texture.getImage();
-    if (!rawImage || rawImage.byteLength === 0) continue;
+  try {
+    let sharpModule: any = null;
     try {
-      const meta = await sharp(Buffer.from(rawImage)).metadata();
-      if (meta.width && meta.height && (meta.width > maxTextureSize || meta.height > maxTextureSize)) {
-        const resizedBuffer = await sharp(Buffer.from(rawImage))
-          .resize({ width: maxTextureSize, height: maxTextureSize, fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality: 85 })
-          .toBuffer();
-        texture.setImage(new Uint8Array(resizedBuffer));
-        texture.setMimeType("image/jpeg");
-      }
+      sharpModule = (await import("sharp")).default;
     } catch {
-      // bỏ qua nếu sharp không parse được định dạng ảnh lạ
+      sharpModule = null;
     }
+
+    if (sharpModule) {
+      for (const texture of doc.getRoot().listTextures()) {
+        const rawImage = texture.getImage();
+        if (!rawImage || rawImage.byteLength === 0) continue;
+        try {
+          const meta = await sharpModule(Buffer.from(rawImage)).metadata();
+          if (meta.width && meta.height && (meta.width > maxTextureSize || meta.height > maxTextureSize)) {
+            const resizedBuffer = await sharpModule(Buffer.from(rawImage))
+              .resize({ width: maxTextureSize, height: maxTextureSize, fit: "inside", withoutEnlargement: true })
+              .jpeg({ quality: 85 })
+              .toBuffer();
+            texture.setImage(new Uint8Array(resizedBuffer));
+            texture.setMimeType("image/jpeg");
+          }
+        } catch {
+          // bỏ qua nếu texture không parse được
+        }
+      }
+    }
+  } catch (texErr) {
+    console.warn("Bỏ qua tối ưu texture:", texErr);
   }
 
   // 4. Nén Draco + Dedup + Prune

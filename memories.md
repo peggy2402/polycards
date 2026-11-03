@@ -117,4 +117,9 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 3. **Sửa Tận Gốc "Bác Sĩ 3D" Xuất File Phình To 235.84 MB**:
    - *Nguyên nhân gốc:* Client Three.js `GLTFExporter` xuất raw uncompressed binary từ mô hình 2.25 triệu đa giác, gây phình to lên đúng 235.84 MB và ghi đè lên Cloudflare R2.
    - *Giải pháp:* Chặn triệt để tại [`src/lib/client-3d-optimizer.ts`](file:///Users/peggy2402/Projects/polycards/src/lib/client-3d-optimizer.ts), cấm xuất file uncompressed lớn hơn file gốc. Tối ưu mô hình `strawberry.glb` bằng Meshopt Sloppy simplifier + Draco còn đúng **0.80 MB** (37k polygons), xuất USDZ **2.43 MB** bằng Blender, đã tải lên Cloudflare R2 và xác nhận `HeadObject` thành công.
+4. **Tối Ưu Hoá Giao Diện `/order` & Trải Nghiệm Giọng Đọc**:
+   - Trang [`/order`](file:///Users/peggy2402/Projects/polycards/src/app/order/page.tsx): Bổ sung thanh tìm kiếm bộ thẻ thông minh, bộ lọc tabs theo danh mục (Tất cả, VIP 120 thẻ, Động vật, Hành động, Xe cộ, Trái cây), và ẩn triệt để mã kỹ thuật "Mã: POLY30-...".
+   - Nút "Nghe giọng đọc" trong [`ar-demo-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/ar-demo-section.tsx): Khắc phục lỗi Chromium nuốt giọng khi gọi `speechSynthesis.cancel()` đồng thời bổ sung Web Audio chime phản hồi ngay lập tức khi bé nhấn nút, luân phiên đọc Tiếng Anh "Butterfly" và Tiếng Việt "Con bướm".
+   - Tối ưu API [`/api/tools/optimize-3d`](file:///Users/peggy2402/Projects/polycards/src/app/api/tools/optimize-3d/route.ts): Bọc `sharp` qua dynamic import an toàn và thêm vào `package.json`, bảo đảm pipeline nén Draco + Decimate serverless không bao giờ văng 500.
+
 
