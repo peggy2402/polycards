@@ -22,11 +22,11 @@ interface ComboPackCardProps {
 export function ComboPackCard({ pack, isVipBanner = false }: ComboPackCardProps) {
   const isVip = isVipBanner || pack.id === "pack-combo-vip-120";
   const [imgSrc, setImgSrc] = useState<string>(
-    pack.imageSrc || "/images/cards/lion-cards.jpg"
+    pack.imageSrc || "/images/cards/butterfly-card.png"
   );
 
   useEffect(() => {
-    setImgSrc(pack.imageSrc || "/images/cards/lion-cards.jpg");
+    setImgSrc(pack.imageSrc || "/images/cards/butterfly-card.png");
   }, [pack.imageSrc]);
 
   const detailHref =
@@ -54,7 +54,7 @@ export function ComboPackCard({ pack, isVipBanner = false }: ComboPackCardProps)
               alt={`Bộ thẻ học ${pack.name}`}
               fill
               unoptimized
-              onError={() => setImgSrc("/images/cards/lion-cards.jpg")}
+              onError={() => setImgSrc("/images/cards/butterfly-card.png")}
               className="object-cover transition-transform duration-500 group-hover:scale-105"
               sizes="(max-width: 1024px) 100vw, 45vw"
             />
@@ -178,7 +178,7 @@ export function ComboPackCard({ pack, isVipBanner = false }: ComboPackCardProps)
           alt={`Bộ thẻ học ${pack.name}`}
           fill
           unoptimized
-          onError={() => setImgSrc("/images/cards/lion-card.jpg")}
+          onError={() => setImgSrc("/images/cards/butterfly-card.png")}
           className="object-cover transition-transform duration-500 group-hover:scale-106"
           sizes="(max-width: 768px) 100vw, 50vw"
         />

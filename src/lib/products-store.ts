@@ -146,9 +146,9 @@ export function deleteProductCategory(id: string): void {
 }
 
 const KNOWN_STATIC_CARD_IMAGES = new Set([
-  "/images/cards/lion-card.jpg",
-  "/images/cards/walk-card.jpg",
-  "/images/cards/jump-template.jpg",
+  "/images/cards/butterfly-card.png",
+  "/images/cards/butterfly-card.png",
+  "/images/cards/butterfly-card.png",
 ]);
 
 /**
@@ -172,7 +172,7 @@ export function isBrokenCardImageUrl(url?: string): boolean {
 export function resolveValidProductImage(
   primaryUrl?: string,
   secondaryUrl?: string,
-  fallback = "/images/cards/jump-template.jpg"
+  fallback = "/images/cards/butterfly-card.png"
 ): string {
   if (primaryUrl && !isBrokenCardImageUrl(primaryUrl)) {
     return primaryUrl;
@@ -301,7 +301,7 @@ export function cleanStorageQuota(): void {
               isBrokenCardImageUrl(img))
           ) {
             changed = true;
-            return "/images/cards/jump-template.jpg";
+            return "/images/cards/butterfly-card.png";
           }
           return img;
         });
@@ -313,7 +313,7 @@ export function cleanStorageQuota(): void {
           isBrokenCardImageUrl(newPoster))
       ) {
         changed = true;
-        newPoster = newImages?.[0] || "/images/cards/jump-template.jpg";
+        newPoster = newImages?.[0] || "/images/cards/butterfly-card.png";
       }
 
       if (changed) {
@@ -369,12 +369,12 @@ export function saveProductToLanding(productData: Partial<Animal> & {
   let safeImage = resolveValidProductImage(
     primaryInputImg,
     productData.posterUrl,
-    "/images/cards/jump-template.jpg"
+    "/images/cards/butterfly-card.png"
   );
 
   // Chỉ cắt bỏ nếu chuỗi base64 vượt quá 450KB để tránh tràn localStorage
   if (safeImage.startsWith("data:image/") && safeImage.length > 450000) {
-    safeImage = "/images/cards/jump-template.jpg";
+    safeImage = "/images/cards/butterfly-card.png";
   }
 
   const safeImages = [safeImage];
@@ -441,15 +441,15 @@ export function saveProductToLanding(productData: Partial<Animal> & {
         images: Array.isArray(item.images)
           ? item.images.map((img) =>
               typeof img === "string" && img.startsWith("data:image/") && img.length > 150000
-                ? "/images/cards/jump-template.jpg"
+                ? "/images/cards/butterfly-card.png"
                 : img
             )
-          : ["/images/cards/jump-template.jpg"],
+          : ["/images/cards/butterfly-card.png"],
         posterUrl:
           typeof item.posterUrl === "string" &&
           item.posterUrl.startsWith("data:image/") &&
           item.posterUrl.length > 150000
-            ? "/images/cards/jump-template.jpg"
+            ? "/images/cards/butterfly-card.png"
             : item.posterUrl,
       }));
       localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(reducedList));

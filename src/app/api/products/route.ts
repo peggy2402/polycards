@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
       body.posterUrl ||
       (Array.isArray(body.images) && body.images.length > 0 ? body.images[0] : "") ||
       existingItem?.posterUrl ||
-      "/images/cards/jump-template.jpg";
+      "/images/cards/butterfly-card.png";
 
     if (typeof finalImageUrl === "string" && finalImageUrl.startsWith("data:image/")) {
       finalImageUrl = await persistBase64Image(finalImageUrl, `${cleanSlug}-card`);

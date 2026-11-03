@@ -57,7 +57,7 @@ export function SubjectFocusImage({
   rawUrl,
   primaryUrl,
   secondaryUrl,
-  fallbackUrl = "/images/cards/lion-card.jpg",
+  fallbackUrl = "/images/cards/butterfly-card.png",
   alt,
   className = "",
 }: SubjectFocusImageProps) {

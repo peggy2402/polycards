@@ -187,7 +187,7 @@ export function ModelViewerView({
             </p>
             <div className="relative h-48 w-48 rounded-2xl overflow-hidden shadow-md bg-stone-100">
               <Image
-                src={animal.images?.[0] || animal.posterUrl || `/images/cards/${animal.slug}-card.jpg`}
+                src={animal.images?.[0] || animal.posterUrl || "/images/cards/butterfly-card.png"}
                 alt={animal.nameVi}
                 fill
                 sizes="192px"

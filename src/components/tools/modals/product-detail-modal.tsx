@@ -65,7 +65,7 @@ export function ProductDetailModal({
   const fullCardImg = resolveValidProductImage(
     card.images?.[0],
     card.posterUrl,
-    "/images/cards/jump-template.jpg"
+    "/images/cards/butterfly-card.png"
   );
   const showEn = card.enableEnVi !== false;
   const showZh =

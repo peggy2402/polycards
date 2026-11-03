@@ -161,7 +161,7 @@ export function CatalogPickerModal({
                 const thumb =
                   sampleCard?.posterUrl ||
                   sampleCard?.images?.[0] ||
-                  "/images/cards/lion-template.jpg";
+                  "/images/cards/butterfly-card.png";
 
                 return (
                   <div
@@ -267,7 +267,7 @@ export function CatalogPickerModal({
                 const img =
                   card.posterUrl ||
                   (Array.isArray(card.images) && card.images[0]) ||
-                  "/images/cards/lion-template.jpg";
+                  "/images/cards/butterfly-card.png";
 
                 return (
                   <div

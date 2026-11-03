@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Html5Qrcode } from "html5-qrcode";
 import { parseAndValidateQr, QrParseResult } from "@/lib/qr-parser";
-import { getMergedProducts } from "@/lib/products-store";
-import { getAllAnimals, SYSTEM_POLYCARDS_ANIMAL } from "@/lib/animals";
 import { Animal } from "@/types/animal";
 import {
   ArrowLeft,
@@ -17,14 +15,8 @@ import {
   UploadCloud,
   Sparkles,
   Camera,
-  Layers,
   SwitchCamera,
   HelpCircle,
-  ZoomIn,
-  Flame,
-  Activity,
-  Smile,
-  Check,
 } from "lucide-react";
 
 interface QrCameraScannerProps {
@@ -32,7 +24,7 @@ interface QrCameraScannerProps {
   onOpenGuide: () => void;
 }
 
-// Hàm phát âm thanh Beep nhẹ nhàng khi quét trúng thẻ (Native Web Audio, zero external mp3)
+// Phát âm thanh Beep nhẹ nhàng khi khóa mục tiêu QR (Web Audio API native)
 function playBeepSuccess() {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -42,8 +34,8 @@ function playBeepSuccess() {
     const gain = ctx.createGain();
 
     osc.type = "sine";
-    osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+    osc.frequency.setValueAtTime(659.25, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
 
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
@@ -56,86 +48,11 @@ function playBeepSuccess() {
   } catch {}
 }
 
-// Component Thẻ Mẫu Ảo với Safe Avatar (Không bao giờ vỡ ảnh)
-function VirtualCardBadge({
-  item,
-  onClick,
-}: {
-  item: Animal;
-  onClick: () => void;
-}) {
-  const [imgError, setImgError] = useState(false);
-  const isSystemHero = item.slug === "polycards" || item.slug === "butterfly";
-
-  // Lấy ảnh ưu tiên, nếu là dạng /api/tools/upload có thể lỗi thì fallback an toàn
-  const rawImage = item.images?.[0] || item.posterUrl;
-  const isApiUpload = typeof rawImage === "string" && rawImage.startsWith("/api/tools/upload");
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold backdrop-blur-md transition-all active:scale-95 cursor-pointer ${
-        isSystemHero
-          ? "border-amber-400/80 bg-gradient-to-r from-amber-500/25 to-yellow-500/20 text-amber-200 hover:bg-amber-500/35 ring-1 ring-amber-400/40 shadow-sm"
-          : "border-white/15 bg-white/10 text-white hover:bg-white/20 hover:border-white/30"
-      }`}
-    >
-      <div className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-amber-300/80 bg-stone-800 text-[10px] font-black text-amber-400">
-        {!imgError && rawImage && !isApiUpload ? (
-          // Dùng thẻ img native kèm onError để tránh hoàn toàn Next Image Optimization 400
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={rawImage}
-            alt={item.nameVi || item.nameEn}
-            className="h-full w-full object-cover"
-            loading="lazy"
-            onError={() => setImgError(true)}
-          />
-        ) : isSystemHero ? (
-          <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-spin" />
-        ) : item.categorySlug === "hanh-dong" ? (
-          <Activity className="h-3.5 w-3.5 text-sky-400" />
-        ) : (
-          <span>{item.nameEn.charAt(0).toUpperCase()}</span>
-        )}
-      </div>
-
-      <div className="flex flex-col text-left leading-none">
-        <span className="font-extrabold flex items-center gap-1">
-          {item.nameEn}
-          {isSystemHero && (
-            <span className="rounded bg-amber-400 px-1 py-0.2 text-[8px] font-black text-stone-950">
-              HOT
-            </span>
-          )}
-        </span>
-        <span className="text-[9px] text-stone-400 font-medium mt-0.5 truncate max-w-[80px]">
-          {item.nameVi}
-        </span>
-      </div>
-    </button>
-  );
-}
-
 export function QrCameraScanner({
   expectedAnimal,
   onOpenGuide,
 }: QrCameraScannerProps) {
   const router = useRouter();
-
-  // Danh sách sản phẩm
-  const [animals, setAnimals] = useState<Animal[]>(() => {
-    const merged = getMergedProducts();
-    const base = merged.length > 0 ? merged : getAllAnimals();
-    return [SYSTEM_POLYCARDS_ANIMAL, ...base.filter((a) => a.slug !== "polycards")];
-  });
-
-  // Giữ reference tới animals để tránh re-bind camera listener gây MaxListenersExceededWarning
-  const animalsRef = useRef<Animal[]>(animals);
-  useEffect(() => {
-    animalsRef.current = animals;
-  }, [animals]);
 
   const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -146,34 +63,13 @@ export function QrCameraScanner({
   const [maxZoom, setMaxZoom] = useState<number>(1);
   const [scanStatus, setScanStatus] = useState<"scanning" | "success" | "warning">("scanning");
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [detectedAnimal, setDetectedAnimal] = useState<Animal | null>(null);
+  const [detectedSlug, setDetectedSlug] = useState<string | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isNavigatingRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerContainerId = "qr-reader-container";
-
-  // Đồng bộ sản phẩm từ DB một lần duy nhất
-  useEffect(() => {
-    let isCancelled = false;
-    fetch("/api/products")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (!isCancelled && json?.success && Array.isArray(json.data) && json.data.length > 0) {
-          const merged = getMergedProducts(json.data);
-          const fullList = [
-            SYSTEM_POLYCARDS_ANIMAL,
-            ...merged.filter((a) => a.slug !== "polycards"),
-          ];
-          setAnimals(fullList);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
 
   // Hàm dừng Camera an toàn, không rò rỉ listener
   const safeStopScanner = useCallback(async (inst: Html5Qrcode | null) => {
@@ -188,7 +84,7 @@ export function QrCameraScanner({
     } catch {}
   }, []);
 
-  // Xử lý mã QR khi được giải mã
+  // Xử lý khi quét trúng mã QR
   const handleQrDecoded = useCallback(
     async (decodedText: string) => {
       if (isNavigatingRef.current) return;
@@ -201,23 +97,14 @@ export function QrCameraScanner({
       if (parseResult.valid && parseResult.slug) {
         isNavigatingRef.current = true;
         setScanStatus("success");
+        setDetectedSlug(parseResult.slug);
         setFeedbackMessage(`Đã nhận diện: ${parseResult.animalNameEn || parseResult.slug}!`);
 
-        // Tìm con vật trong list hiện tại
-        const found = animalsRef.current.find(
-          (a) => a.slug.toLowerCase() === parseResult.slug?.toLowerCase()
-        );
-        if (found) {
-          setDetectedAnimal(found);
-        }
-
-        // Âm thanh và rung phản hồi
         playBeepSuccess();
         try {
           navigator.vibrate?.([80, 50, 80]);
         } catch {}
 
-        // Dừng camera sạch sẽ trước khi chuyển trang
         if (scannerRef.current) {
           try {
             const stream = (scannerRef.current as any).localMediaStream as MediaStream | undefined;
@@ -257,13 +144,12 @@ export function QrCameraScanner({
     [expectedAnimal, router, safeStopScanner]
   );
 
-  // Giữ ref tới callback để useEffect của camera không bị re-trigger liên tục
   const handleQrDecodedRef = useRef(handleQrDecoded);
   useEffect(() => {
     handleQrDecodedRef.current = handleQrDecoded;
   }, [handleQrDecoded]);
 
-  // Khởi động Camera chỉ khi cameraFacingMode thay đổi hoặc khi mount
+  // Khởi động Camera duy nhất 1 lần khi mount hoặc khi chủ động đổi facingMode
   useEffect(() => {
     let isMounted = true;
     let scannerInstance: Html5Qrcode | null = null;
@@ -305,7 +191,6 @@ export function QrCameraScanner({
           return;
         }
 
-        // Kiểm tra khả năng Đèn Flash & Zoom của Camera
         try {
           const stream = (scannerInstance as any).localMediaStream as MediaStream | undefined;
           if (stream) {
@@ -341,11 +226,11 @@ export function QrCameraScanner({
           );
         } else if (err.name === "NotFoundError" || err.message?.includes("NotFound")) {
           setCameraError(
-            "Không tìm thấy camera trên thiết bị. Bạn có thể bấm nút Tải Ảnh QR hoặc thử thẻ mẫu bên dưới."
+            "Không tìm thấy camera trên thiết bị. Bạn có thể bấm nút Tải Ảnh QR để quét từ hình chụp."
           );
         } else {
           setCameraError(
-            "Không thể kích hoạt camera tự động. Bạn có thể bấm nút Tải Ảnh QR từ album hoặc bấm thử các thẻ mẫu AR bên dưới."
+            "Không thể kích hoạt camera tự động. Bạn có thể bấm nút Tải Ảnh QR từ album để mở mô hình 3D AR."
           );
         }
       }
@@ -403,29 +288,6 @@ export function QrCameraScanner({
     }
   };
 
-  // Quét nhanh từ thẻ mẫu ảo (Virtual Demo Cards)
-  const handleQuickDemoSelect = (animal: Animal) => {
-    if (isNavigatingRef.current) return;
-    isNavigatingRef.current = true;
-
-    setScanStatus("success");
-    setDetectedAnimal(animal);
-    setFeedbackMessage(`Đã chọn thẻ mẫu: ${animal.nameEn} (${animal.nameVi})!`);
-
-    playBeepSuccess();
-    try {
-      navigator.vibrate?.(100);
-    } catch {}
-
-    if (scannerRef.current) {
-      safeStopScanner(scannerRef.current);
-    }
-
-    setTimeout(() => {
-      router.push(`/ar/${animal.slug}?ar=1`);
-    }, 450);
-  };
-
   // Quét mã QR từ file ảnh người dùng tải lên
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -462,7 +324,7 @@ export function QrCameraScanner({
         id="qr-file-upload-input"
       />
 
-      {/* 1. THANH ĐIỀU KHIỂN NỔI PHÍA TRÊN (TOP CONTROLS) */}
+      {/* 1. THANH ĐIỀU KHIỂN NỔI PHÍA TRÊN */}
       <header className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-3.5 sm:p-5 bg-gradient-to-b from-black/90 via-black/50 to-transparent">
         <Link
           href="/"
@@ -488,12 +350,11 @@ export function QrCameraScanner({
 
         {/* Các Nút Tiện Ích: Đổi Camera, Flash, Zoom, Tải Ảnh, Hướng Dẫn */}
         <div className="flex items-center gap-1.5">
-          {/* Nút Zoom (nếu thiết bị hỗ trợ) */}
           {zoomAvailable && (
             <button
               type="button"
               onClick={toggleZoom}
-              className={`flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full p-2 backdrop-blur-md text-xs font-black transition-all active:scale-90 ${
+              className={`flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full p-2 backdrop-blur-md text-xs font-black transition-all active:scale-90 cursor-pointer ${
                 currentZoom > 1
                   ? "bg-emerald-500 text-stone-950 shadow-md"
                   : "bg-white/20 text-white hover:bg-white/30"
@@ -504,7 +365,6 @@ export function QrCameraScanner({
             </button>
           )}
 
-          {/* Nút Đổi Camera Trước/Sau */}
           <button
             type="button"
             onClick={handleSwitchCamera}
@@ -514,7 +374,6 @@ export function QrCameraScanner({
             <SwitchCamera className="h-4.5 w-4.5" />
           </button>
 
-          {/* Nút Flashlight (nếu hỗ trợ) */}
           {torchAvailable && (
             <button
               type="button"
@@ -530,7 +389,6 @@ export function QrCameraScanner({
             </button>
           )}
 
-          {/* Nút Tải Ảnh QR */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -540,7 +398,6 @@ export function QrCameraScanner({
             <UploadCloud className="h-4.5 w-4.5" />
           </button>
 
-          {/* Nút Mở Hướng Dẫn */}
           <button
             type="button"
             onClick={onOpenGuide}
@@ -594,7 +451,7 @@ export function QrCameraScanner({
               }}
             />
 
-            {/* Glowing AR Reticle HUD Overlay (Khung Ngắm Laser Quét Siêu Đẹp) */}
+            {/* Glowing AR Reticle HUD Overlay */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div
                 className={`relative aspect-square w-64 max-w-[70vw] rounded-3xl border-2 transition-all duration-300 ${
@@ -605,13 +462,13 @@ export function QrCameraScanner({
                     : "border-emerald-400/80 shadow-[0_0_35px_rgba(16,185,129,0.35)]"
                 }`}
               >
-                {/* 4 Góc Marker AR Định Vị */}
+                {/* 4 Góc Marker AR */}
                 <div className="absolute -top-1.5 -left-1.5 h-7 w-7 border-t-4 border-l-4 border-emerald-400 rounded-tl-2xl" />
                 <div className="absolute -top-1.5 -right-1.5 h-7 w-7 border-t-4 border-r-4 border-emerald-400 rounded-tr-2xl" />
                 <div className="absolute -bottom-1.5 -left-1.5 h-7 w-7 border-b-4 border-l-4 border-emerald-400 rounded-bl-2xl" />
                 <div className="absolute -bottom-1.5 -right-1.5 h-7 w-7 border-b-4 border-r-4 border-emerald-400 rounded-br-2xl" />
 
-                {/* Laser Scanning Beam Di Chuyển Nhịp Nhàng */}
+                {/* Laser Scanning Beam */}
                 <div
                   className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399]"
                   style={{
@@ -619,7 +476,7 @@ export function QrCameraScanner({
                   }}
                 />
 
-                {/* Dòng Chữ Hướng Dẫn Trong Khung */}
+                {/* Hướng Dẫn Trong Khung */}
                 <div className="absolute -bottom-10 inset-x-0 text-center">
                   <span className="inline-block rounded-full bg-black/75 px-3.5 py-1 text-[11px] font-bold text-emerald-300 backdrop-blur-md border border-white/10 shadow-sm">
                     Đặt mã QR thẻ bài vào khung
@@ -629,7 +486,7 @@ export function QrCameraScanner({
             </div>
 
             {/* Modal Thông Báo Đã Khóa Mục Tiêu AR Thành Công */}
-            {scanStatus === "success" && detectedAnimal && (
+            {scanStatus === "success" && detectedSlug && (
               <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 mx-auto max-w-sm rounded-3xl border-2 border-emerald-300 bg-stone-900/95 p-5 text-center shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 shadow-md mb-3 border border-emerald-400/40">
                   <Sparkles className="h-8 w-8 animate-pulse text-amber-300" />
@@ -638,9 +495,9 @@ export function QrCameraScanner({
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span>ĐÃ KHÓA MỤC TIÊU 3D</span>
                 </div>
-                <h3 className="text-2xl font-black text-white">{detectedAnimal.nameEn}</h3>
+                <h3 className="text-2xl font-black text-white uppercase">{detectedSlug}</h3>
                 <p className="text-xs font-bold text-amber-300 mt-1">
-                  {detectedAnimal.nameVi} • Đang khởi tạo thế giới WebAR...
+                  Đang khởi tạo thế giới WebAR 3D...
                 </p>
               </div>
             )}
@@ -648,9 +505,8 @@ export function QrCameraScanner({
         )}
       </div>
 
-      {/* 3. KHU VỰC ĐÁY: PHẢN HỒI & KHAY THẺ BÀI MẪU ẢO */}
+      {/* 3. KHU VỰC ĐÁY: NÚT TẢI ẢNH QR & THÔNG TIN TIỆN ÍCH */}
       <div className="relative z-30 p-3.5 sm:p-5 bg-gradient-to-t from-black via-black/90 to-transparent space-y-2.5">
-        {/* Tin nhắn trạng thái / Cảnh báo */}
         {scanStatus === "warning" ? (
           <div className="mx-auto max-w-sm rounded-2xl bg-amber-500 px-4 py-2.5 text-xs font-black text-stone-950 shadow-lg text-center animate-in zoom-in-95 duration-150">
             {feedbackMessage}
@@ -661,32 +517,16 @@ export function QrCameraScanner({
           </div>
         ) : null}
 
-        {/* Khay Thẻ Bài Mẫu Ảo (Thử Ngay Không Cần Thẻ Giấy) */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] font-bold text-stone-300 px-1">
-            <span className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 text-amber-400" />
-              <span>Chưa có thẻ giấy? Bấm thử thẻ mẫu ảo:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-black cursor-pointer"
-            >
-              <UploadCloud className="h-3.5 w-3.5" />
-              <span>Tải ảnh QR</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {animals.slice(0, 14).map((item) => (
-              <VirtualCardBadge
-                key={item.id || item.slug}
-                item={item}
-                onClick={() => handleQuickDemoSelect(item)}
-              />
-            ))}
-          </div>
+        {/* Thanh công cụ quét ảnh QR */}
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-102 active:scale-95 cursor-pointer"
+          >
+            <UploadCloud className="h-4 w-4" />
+            <span>Tải Ảnh Mã QR Từ Thư Viện</span>
+          </button>
         </div>
 
         <div className="text-center text-[10px] text-stone-400 font-medium">

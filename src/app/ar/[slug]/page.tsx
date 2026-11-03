@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: ArPageProps): Promise<Metadat
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://polycards.vn";
-  const rawImage = animal.posterUrl || animal.images?.[0] || "/images/cards/jump-template.jpg";
+  const rawImage = animal.posterUrl || animal.images?.[0] || "/images/cards/butterfly-card.png";
   const ogImageUrl = rawImage.startsWith("http://") || rawImage.startsWith("https://")
     ? rawImage
     : `${siteUrl.replace(/\/$/, "")}${rawImage.startsWith("/") ? "" : "/"}${rawImage}`;

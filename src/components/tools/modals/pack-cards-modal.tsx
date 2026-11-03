@@ -68,7 +68,7 @@ export function PackCardsModal({
                 const img =
                   card.posterUrl ||
                   (Array.isArray(card.images) && card.images[0]) ||
-                  "/images/cards/lion-template.jpg";
+                  "/images/cards/butterfly-card.png";
 
                 return (
                   <div
