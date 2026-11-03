@@ -40,6 +40,8 @@ export interface Animal {
   categoryId?: string;
   categorySlug?: string;
   packCode?: string;
+  basePackCode?: string;
+  allowedPackCodes?: string[];
   images: string[];
   audioUrl: string;
   audios?: AnimalAudio;

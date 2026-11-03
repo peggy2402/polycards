@@ -139,6 +139,13 @@ export async function optimizeGlbInBrowser(
   const glbBlob = new Blob([exportedGlbBuffer], { type: "model/gltf-binary" });
   const optimizedSizeMB = Number((glbBlob.size / 1024 / 1024).toFixed(2));
 
+  // Kiểm tra an toàn: Nếu file sau export lớn hơn file gốc (do Three.js GLTFExporter xuất uncompressed raw binary)
+  if (glbBlob.size > glbArrayBuffer.byteLength * 1.1 && glbBlob.size > 10 * 1024 * 1024) {
+    throw new Error(
+      `Cảnh báo an toàn: Mô hình xuất thô uncompressed bị phình to (${optimizedSizeMB} MB so với gốc ${originalSizeMB} MB). Đã tự động chặn tải lên Cloudflare R2 để tránh sập RAM điện thoại. Vui lòng chạy nén Draco + Decimate qua Server API.`
+    );
+  }
+
   // 2. Xuất USDZ cho iPhone
   let usdzBlob: Blob | undefined = undefined;
   try {

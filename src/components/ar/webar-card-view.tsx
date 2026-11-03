@@ -822,14 +822,202 @@ export function WebArCardView({
                 camera.updateProjectionMatrix();
               }
 
-              // 6. Khởi động Camera stream
+              // 6. Khởi động Render Loop & Hiển thị 3D Ngay Tức Thì (Zero-Latency Instant 3D)
               clockRef.current = new THREE.Clock();
 
+              // Đối tượng toán học tái sử dụng cho Render Loop (Không cấp phát object trong frame)
+              const anchorPosTarget = new THREE.Vector3();
+              const anchorQuatTarget = new THREE.Quaternion();
+              const anchorScaleTarget = new THREE.Vector3(1, 1, 1);
+              const qCamInv = new THREE.Quaternion();
+
+              // Quả cầu quỹ đạo (Orbit Sphere) A0, A1, A2, A3
+              const qSmooth = new THREE.Quaternion();
+              const eulerYXZ = new THREE.Euler(0, 0, 0, "YXZ");
+              const eulerClamped = new THREE.Euler(0, 0, 0, "YXZ");
+              const qView = new THREE.Quaternion();
+              const oLocalVec = new THREE.Vector3();
+              const pScreenVec = new THREE.Vector3();
+              const quatOLocal = new THREE.Vector3();
+
+              // Chuyển tiếp mượt giữa Thẻ bài và Fallback / Gyro (300ms easing)
+              const lastTrackingMatrix = new THREE.Matrix4();
+              const savedWorldMatrix = new THREE.Matrix4();
+              const smoothedMatrix = new THREE.Matrix4();
+              const qCamMatrix = new THREE.Matrix4();
+              const qCamInvMatrix = new THREE.Matrix4();
+              let hasSavedWorldPose = false;
+              let trackingEaseTime = 1.0;
+              let wasTargetFoundLastFrame = false;
+
+              // RENDER LOOP CHUẨN HIỆU NĂNG CAO (Chạy ngay không đợi Camera)
+              renderer.setAnimationLoop(() => {
+                // Đo FPS
+                frameCountRef.current++;
+                const now = performance.now();
+                if (now - lastFpsTimeRef.current >= 1000) {
+                  setFps(frameCountRef.current);
+                  frameCountRef.current = 0;
+                  lastFpsTimeRef.current = now;
+                }
+
+                // Bảo đảm camera near clipping plane luôn là 0.05
+                if (camera && camera.near !== 0.05) {
+                  camera.near = 0.05;
+                  camera.far = 10000;
+                  camera.updateProjectionMatrix();
+                }
+
+                const dt = clockRef.current ? Math.min(0.1, clockRef.current.getDelta()) : 0.016;
+
+                // Cập nhật AnimationMixer của mô hình
+                if (mixerRef.current) {
+                  mixerRef.current.update(dt);
+                }
+
+                // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Quả cầu quỹ đạo (Orbit Sphere)
+                const isTargetFoundNow = isTargetFoundRef.current;
+                const isManual360 = isManual360ActiveRef.current;
+                const isTrackingCard = isTargetFoundNow && !isManual360;
+
+                // Gán gesture space và anchor quaternion trước khi cập nhật vật lý cử chỉ
+                gestureSpaceRef.current = isTrackingCard ? "tracking" : "free";
+                anchorQuatRef.current = anchorQuatTarget;
+
+                // Cập nhật hệ thống cử chỉ Damping vật lý (đọc qua ref, không re-run effect)
+                if (updatePhysicsRef.current) {
+                  updatePhysicsRef.current(dt);
+                }
+
+                // Cập nhật hệ thống phản ứng 3D lò xo (P2)
+                if (reactionSystemRef.current) {
+                  reactionSystemRef.current.update(dt);
+                }
+
+                const isMotionActive =
+                  isMotionEnabledRef.current &&
+                  isMotionPermissionGrantedRef.current &&
+                  gyroQuatRefLatest.current?.current &&
+                  facingModeRef.current !== "user";
+
+                const qCamTarget = isMotionActive ? gyroQuatRefLatest.current.current : null;
+
+                displayRoot.visible = true;
+
+                if (isTrackingCard) {
+                  // 1. Khi đang nhận diện thẻ bài vật lý (MindAR 6DoF):
+                  lastTrackingMatrix.copy(anchorGroupRef.current.matrix);
+                  hasSavedWorldPose = false;
+
+                  // Nối mượt 300ms khi thẻ vừa xuất hiện lại
+                  if (!wasTargetFoundLastFrame) {
+                    trackingEaseTime = 0.0;
+                  }
+                  if (trackingEaseTime < 1.0) {
+                    trackingEaseTime = Math.min(1.0, trackingEaseTime + dt / 0.3);
+                    const tEase = 1 - Math.pow(1 - trackingEaseTime, 3);
+                    displayRoot.matrix.lerpMatrices(
+                      smoothedMatrix,
+                      anchorGroupRef.current.matrix,
+                      tEase
+                    );
+                    displayRoot.matrixWorldNeedsUpdate = true;
+                  } else {
+                    displayRoot.matrix.copy(anchorGroupRef.current.matrix);
+                    displayRoot.matrixWorldNeedsUpdate = true;
+                  }
+                } else {
+                  // 2. Chế độ "Quả cầu quỹ đạo" (Orbit Sphere) khi chưa/mất thẻ hoặc chủ động xem 360°:
+                  const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+                  const freeArDist = isLandNow ? 2.4 : 1.9;
+                  const yPos = isLandNow ? -0.28 : -0.36;
+
+                  const panCam = panCamCurrentRefLatest.current?.current || { x: 0, y: 0 };
+                  pScreenVec.set(panCam.x, yPos + panCam.y, -freeArDist);
+                  anchorScaleTarget.set(1.0, 1.0, 1.0);
+
+                  if (wasTargetFoundLastFrame && qCamTarget) {
+                    if (motionModeRef.current === "orbit-sphere") {
+                      resetBasePoseRef.current?.();
+                    }
+                    qCamMatrix.makeRotationFromQuaternion(qCamTarget);
+                    savedWorldMatrix.multiplyMatrices(qCamMatrix, lastTrackingMatrix);
+                    hasSavedWorldPose = true;
+                  }
+
+                  if (qCamTarget) {
+                    qSmooth.slerp(qCamTarget, 1 - Math.exp(-18 * dt));
+
+                    if (motionModeRef.current === "orbit-sphere") {
+                      eulerYXZ.setFromQuaternion(qSmooth, "YXZ");
+                      const yaw = eulerYXZ.y;
+                      const pitch = eulerYXZ.x;
+                      const roll = lockRollRef.current ? 0 : eulerYXZ.z;
+
+                      const minPitch = -85 * (Math.PI / 180);
+                      const maxPitch = 20 * (Math.PI / 180);
+                      const pitchClamped = Math.max(minPitch, Math.min(maxPitch, pitch));
+
+                      eulerClamped.set(pitchClamped, yaw, roll, "YXZ");
+                      qView.setFromEuler(eulerClamped);
+                      anchorQuatTarget.copy(qView).invert();
+
+                      const curScale = pivotGroupRef.current
+                        ? pivotGroupRef.current.scale.x / (baseDim / (maxDimRef.current || 1))
+                        : 1.0;
+                      const hH = halfHRef.current || 0.36;
+                      oLocalVec.set(0, hH * curScale, 0);
+
+                      quatOLocal.copy(oLocalVec).applyQuaternion(anchorQuatTarget);
+                      anchorPosTarget.subVectors(pScreenVec, quatOLocal);
+                    } else if (motionModeRef.current === "world-lock") {
+                      qCamInv.copy(qSmooth).invert();
+                      if (hasSavedWorldPose) {
+                        qCamInvMatrix.makeRotationFromQuaternion(qCamInv);
+                        displayRoot.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
+                        displayRoot.matrix.elements[12] += panCam.x;
+                        displayRoot.matrix.elements[13] += panCam.y;
+                        smoothedMatrix.copy(displayRoot.matrix);
+                        displayRoot.matrixWorldNeedsUpdate = true;
+                        wasTargetFoundLastFrame = isTrackingCard;
+                        renderer.render(scene, camera);
+                        return;
+                      } else {
+                        anchorPosTarget.copy(pScreenVec).applyQuaternion(qCamInv);
+                        anchorQuatTarget.copy(qCamInv);
+                      }
+                    } else {
+                      anchorPosTarget.copy(pScreenVec);
+                      anchorQuatTarget.set(0, 0, 0, 1);
+                    }
+                  } else {
+                    anchorPosTarget.copy(pScreenVec);
+                    anchorQuatTarget.set(0, 0, 0, 1);
+                  }
+
+                  displayRoot.matrix.compose(
+                    anchorPosTarget,
+                    anchorQuatTarget,
+                    anchorScaleTarget
+                  );
+                  smoothedMatrix.copy(displayRoot.matrix);
+                  displayRoot.matrixWorldNeedsUpdate = true;
+                }
+
+                wasTargetFoundLastFrame = isTrackingCard;
+                renderer.render(scene, camera);
+              });
+
+              // HIỂN THỊ MODEL 3D NGAY LẬP TỨC (Không để màn hình xoay 100% che mất)
+              if (!isCancelled) {
+                setIsLoading(false);
+              }
+
+              // 7. Khởi động Camera stream & Target Tracking trong background (Không chặn luồng xem 3D)
               mindarThree
                 .start()
                 .then(() => {
                   if (isCancelled) return;
-                  setIsLoading(false);
 
                   // Triệt tiêu controls và native play/pause icon của iOS Safari trên video camera
                   const videoEl = (mindarThree.video || containerRef.current?.querySelector("video")) as HTMLVideoElement | null;
@@ -837,219 +1025,17 @@ export function WebArCardView({
                     sanitizeVideoElement(videoEl);
                   }
 
-                  // Cập nhật lại camera near sau khi MindAR khởi tạo
                   if (camera) {
                     camera.near = 0.05;
                     camera.far = 10000;
                     camera.updateProjectionMatrix();
                   }
-
-                  // Đối tượng toán học tái sử dụng cho Render Loop (Không cấp phát object trong frame)
-                  const anchorPosTarget = new THREE.Vector3();
-                  const anchorQuatTarget = new THREE.Quaternion();
-                  const anchorScaleTarget = new THREE.Vector3(1, 1, 1);
-                  const qCamInv = new THREE.Quaternion();
-
-                  // Quả cầu quỹ đạo (Orbit Sphere) A0, A1, A2, A3
-                  const qSmooth = new THREE.Quaternion();
-                  const eulerYXZ = new THREE.Euler(0, 0, 0, "YXZ");
-                  const eulerClamped = new THREE.Euler(0, 0, 0, "YXZ");
-                  const qView = new THREE.Quaternion();
-                  const oLocalVec = new THREE.Vector3();
-                  const pScreenVec = new THREE.Vector3();
-                  const quatOLocal = new THREE.Vector3();
-
-                  // Chuyển tiếp mượt giữa Thẻ bài và Fallback / Gyro (300ms easing)
-                  const lastTrackingMatrix = new THREE.Matrix4();
-                  const savedWorldMatrix = new THREE.Matrix4();
-                  const smoothedMatrix = new THREE.Matrix4();
-                  const qCamMatrix = new THREE.Matrix4();
-                  const qCamInvMatrix = new THREE.Matrix4();
-                  let hasSavedWorldPose = false;
-                  let trackingEaseTime = 1.0;
-                  let wasTargetFoundLastFrame = false;
-
-                  // RENDER LOOP CHUẨN HIỆU NĂNG CAO (Không cấp phát object trong frame)
-                  renderer.setAnimationLoop(() => {
-                    // Đo FPS
-                    frameCountRef.current++;
-                    const now = performance.now();
-                    if (now - lastFpsTimeRef.current >= 1000) {
-                      setFps(frameCountRef.current);
-                      frameCountRef.current = 0;
-                      lastFpsTimeRef.current = now;
-                    }
-
-                    // Bảo đảm camera near clipping plane luôn là 0.05 (ngăn MindAR.resize ghi đè near=10 làm mất model khi xoay ngang)
-                    if (camera && camera.near !== 0.05) {
-                      camera.near = 0.05;
-                      camera.far = 10000;
-                      camera.updateProjectionMatrix();
-                    }
-
-                    const dt = clockRef.current ? Math.min(0.1, clockRef.current.getDelta()) : 0.016;
-
-                    // Cập nhật AnimationMixer của mô hình
-                    if (mixerRef.current) {
-                      mixerRef.current.update(dt);
-                    }
-
-                    // Quản lý trạng thái chuyển tiếp giữa Tracking thẻ bài và Quả cầu quỹ đạo (Orbit Sphere)
-                    const isTargetFoundNow = isTargetFoundRef.current;
-                    const isManual360 = isManual360ActiveRef.current;
-                    const isTrackingCard = isTargetFoundNow && !isManual360;
-
-                    // Gán gesture space và anchor quaternion trước khi cập nhật vật lý cử chỉ
-                    gestureSpaceRef.current = isTrackingCard ? "tracking" : "free";
-                    anchorQuatRef.current = anchorQuatTarget;
-
-                    // Cập nhật hệ thống cử chỉ Damping vật lý (đọc qua ref, không re-run effect)
-                    if (updatePhysicsRef.current) {
-                      updatePhysicsRef.current(dt);
-                    }
-
-                    // Cập nhật hệ thống phản ứng 3D lò xo (P2)
-                    if (reactionSystemRef.current) {
-                      reactionSystemRef.current.update(dt);
-                    }
-
-                    const isMotionActive =
-                      isMotionEnabledRef.current &&
-                      isMotionPermissionGrantedRef.current &&
-                      gyroQuatRefLatest.current?.current &&
-                      facingModeRef.current !== "user"; // A5: Selfie camera mặc định tắt motion sensor tránh ngược hướng
-
-                    const qCamTarget = isMotionActive ? gyroQuatRefLatest.current.current : null;
-
-                    displayRoot.visible = true;
-
-                    if (isTrackingCard) {
-                      // 1. Khi đang nhận diện thẻ bài vật lý (MindAR 6DoF):
-                      lastTrackingMatrix.copy(anchorGroupRef.current.matrix);
-                      hasSavedWorldPose = false;
-
-                      // Nối mượt 300ms khi thẻ vừa xuất hiện lại
-                      if (!wasTargetFoundLastFrame) {
-                        trackingEaseTime = 0.0;
-                      }
-                      if (trackingEaseTime < 1.0) {
-                        trackingEaseTime = Math.min(1.0, trackingEaseTime + dt / 0.3);
-                        // Ease-out cubic: 1 - (1 - t)^3
-                        const tEase = 1 - Math.pow(1 - trackingEaseTime, 3);
-                        displayRoot.matrix.lerpMatrices(
-                          smoothedMatrix,
-                          anchorGroupRef.current.matrix,
-                          tEase
-                        );
-                        displayRoot.matrixWorldNeedsUpdate = true;
-                      } else {
-                        displayRoot.matrix.copy(anchorGroupRef.current.matrix);
-                        displayRoot.matrixWorldNeedsUpdate = true;
-                      }
-                    } else {
-                      // 2. Chế độ "Quả cầu quỹ đạo" (Orbit Sphere) khi chưa/mất thẻ hoặc chủ động xem 360°:
-                      // Điều chỉnh khoảng cách và độ cao theo hướng màn hình Dọc / Ngang
-                      const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
-                      const freeArDist = isLandNow ? 2.4 : 1.9;
-                      const yPos = isLandNow ? -0.28 : -0.36;
-
-                      // Lấy độ dịch chuyển pan trong không gian màn hình camera (Prompt 2c & 3)
-                      const panCam = panCamCurrentRefLatest.current?.current || { x: 0, y: 0 };
-                      pScreenVec.set(panCam.x, yPos + panCam.y, -freeArDist);
-                      anchorScaleTarget.set(1.0, 1.0, 1.0);
-
-                      // Khi thẻ vừa mất khỏi tầm nhìn: lưu pose cuối đổi sang không gian thế giới
-                      if (wasTargetFoundLastFrame && qCamTarget) {
-                        if (motionModeRef.current === "orbit-sphere") {
-                          resetBasePoseRef.current?.();
-                        }
-                        qCamMatrix.makeRotationFromQuaternion(qCamTarget);
-                        savedWorldMatrix.multiplyMatrices(qCamMatrix, lastTrackingMatrix);
-                        hasSavedWorldPose = true;
-                      }
-
-                      if (qCamTarget) {
-                        // A3: Làm mượt qSmooth độc lập tần số cảm biến (1 - exp(-18 * dt))
-                        qSmooth.slerp(qCamTarget, 1 - Math.exp(-18 * dt));
-
-                        if (motionModeRef.current === "orbit-sphere") {
-                          // A0 & A2: Chế độ "Quả cầu quỹ đạo" (Orbit Sphere)
-                          eulerYXZ.setFromQuaternion(qSmooth, "YXZ");
-                          const yaw = eulerYXZ.y;
-                          const pitch = eulerYXZ.x;
-                          const roll = lockRollRef.current ? 0 : eulerYXZ.z;
-
-                          // Kẹp pitch trong [-85°, +20°] (đơn vị radian: [-1.48, +0.35])
-                          // Âm = nhìn xuống đỉnh đầu con vật (camera ở trên đỉnh A), dương = ngẩng nhìn lên (đáy B)
-                          const minPitch = -85 * (Math.PI / 180);
-                          const maxPitch = 20 * (Math.PI / 180);
-                          const pitchClamped = Math.max(minPitch, Math.min(maxPitch, pitch));
-
-                          eulerClamped.set(pitchClamped, yaw, roll, "YXZ");
-                          qView.setFromEuler(eulerClamped);
-
-                          // anchorQuat = qView^-1
-                          anchorQuatTarget.copy(qView).invert();
-
-                          // O_local = vị trí tâm model trong không gian displayRoot
-                          // BẮT BUỘC (Prompt 2c & 3): KHÔNG cộng pan của người dùng vào O_local
-                          // vì pan đã nằm riêng trong không gian camera (panCam) và được cộng vào pScreenVec ở trên.
-                          const curScale = pivotGroupRef.current
-                            ? pivotGroupRef.current.scale.x / (baseDim / (maxDimRef.current || 1))
-                            : 1.0;
-                          const hH = halfHRef.current || 0.36;
-                          oLocalVec.set(0, hH * curScale, 0);
-
-                          // anchorPos = P_screen - anchorQuat * O_local
-                          quatOLocal.copy(oLocalVec).applyQuaternion(anchorQuatTarget);
-                          anchorPosTarget.subVectors(pScreenVec, quatOLocal);
-                        } else if (motionModeRef.current === "world-lock") {
-                          // BƯỚC 2: Chế độ "Đứng yên trong phòng" (World-lock 3DoF)
-                          qCamInv.copy(qSmooth).invert();
-                          if (hasSavedWorldPose) {
-                            qCamInvMatrix.makeRotationFromQuaternion(qCamInv);
-                            displayRoot.matrix.multiplyMatrices(qCamInvMatrix, savedWorldMatrix);
-                            // Áp dụng pan trong không gian màn hình vào ma trận thế giới (Prompt 2c)
-                            displayRoot.matrix.elements[12] += panCam.x;
-                            displayRoot.matrix.elements[13] += panCam.y;
-                            smoothedMatrix.copy(displayRoot.matrix);
-                            displayRoot.matrixWorldNeedsUpdate = true;
-                            wasTargetFoundLastFrame = isTrackingCard;
-                            renderer.render(scene, camera);
-                            return;
-                          } else {
-                            anchorPosTarget.copy(pScreenVec).applyQuaternion(qCamInv);
-                            anchorQuatTarget.copy(qCamInv);
-                          }
-                        } else {
-                          // Chế độ "off": Khóa cố định phía trước camera
-                          anchorPosTarget.copy(pScreenVec);
-                          anchorQuatTarget.set(0, 0, 0, 1);
-                        }
-                      } else {
-                        // Không kích hoạt cảm biến: Cố định thẳng trước mặt camera
-                        anchorPosTarget.copy(pScreenVec);
-                        anchorQuatTarget.set(0, 0, 0, 1);
-                      }
-
-                      displayRoot.matrix.compose(
-                        anchorPosTarget,
-                        anchorQuatTarget,
-                        anchorScaleTarget
-                      );
-                      smoothedMatrix.copy(displayRoot.matrix);
-                      displayRoot.matrixWorldNeedsUpdate = true;
-                    }
-
-                    wasTargetFoundLastFrame = isTrackingCard;
-                    renderer.render(scene, camera);
-                  });
                 })
                 .catch((err: any) => {
-                  console.error("[MindAR Start Error]:", err);
+                  console.warn("[MindAR Start Warning]:", err);
+                  // Không báo lỗi gián đoạn nếu camera bị từ chối hoặc đang trong in-app browser, tự động chuyển Free 3D Mode
                   if (!isCancelled) {
-                    setLoadError("Không thể truy cập camera. Vui lòng cấp quyền máy ảnh trong trình duyệt.");
-                    setIsLoading(false);
+                    setIsFreeArMode(true);
                   }
                 });
             },

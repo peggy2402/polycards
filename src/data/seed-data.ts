@@ -374,6 +374,8 @@ export const INITIAL_PRODUCTS: Animal[] = [
     category: "Hoa Quả & Trái Cây",
     categorySlug: "hoa-qua",
     packCode: "POLY30-HOAQUA-ENVI",
+    basePackCode: "POLY30-HOAQUA",
+    allowedPackCodes: ["POLY30-HOAQUA", "POLY30-HOAQUA-ENVI"],
     badge: "Mới ra mắt",
     price: 219000,
     originalPrice: 299000,

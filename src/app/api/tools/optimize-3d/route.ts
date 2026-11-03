@@ -16,6 +16,7 @@ import { MeshoptSimplifier } from "meshoptimizer";
 import sharp from "sharp";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const execFileAsync = promisify(execFile);
 
