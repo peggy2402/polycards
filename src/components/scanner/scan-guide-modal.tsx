@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
-import Image from "next/image";
-import { Animal } from "@/types/animal";
+import React, { useEffect, useRef } from "react";
 import {
   X,
   Sparkles,
@@ -12,8 +10,16 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+interface GuideCardSummary {
+  slug?: string;
+  nameEn?: string;
+  nameVi?: string;
+  posterUrl?: string;
+  images?: string[];
+}
+
 interface ScanGuideModalProps {
-  expectedAnimal?: Animal;
+  expectedAnimal?: GuideCardSummary;
   onStartScan: () => void;
 }
 
@@ -21,23 +27,64 @@ export function ScanGuideModal({
   expectedAnimal,
   onStartScan,
 }: ScanGuideModalProps) {
-  // Khóa cuộn nền khi mở modal
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
+  // Focus trap & Khóa cuộn nền khi mở modal
   useEffect(() => {
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    // Focus vào phần tử đầu tiên có thể focus trong modal
+    const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const firstFocusable = modalRef.current?.querySelector<HTMLElement>(focusableSelectors);
+    firstFocusable?.focus();
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         onStartScan();
+        return;
+      }
+
+      if (e.key === "Tab") {
+        if (!modalRef.current) return;
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
+      // Trả focus về phần tử ban đầu khi đóng modal
+      previousActiveElementRef.current?.focus?.();
     };
   }, [onStartScan]);
+
+  const posterImageSrc =
+    expectedAnimal?.posterUrl ||
+    expectedAnimal?.images?.[0] ||
+    "/images/cards/walk-card.jpg";
 
   return (
     <div
@@ -48,6 +95,7 @@ export function ScanGuideModal({
       onClick={onStartScan}
     >
       <div
+        ref={modalRef}
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-lg rounded-t-[2rem] sm:rounded-3xl border-t sm:border border-amber-200/60 bg-gradient-to-b from-[#FFFDF9] to-[#FBF8EF] p-5 sm:p-7 shadow-2xl animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-stone-900 max-h-[90dvh] overflow-y-auto"
       >
@@ -79,12 +127,14 @@ export function ScanGuideModal({
         {/* Mục tiêu hiện tại nếu có ?expect= */}
         {expectedAnimal && (
           <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-2.5">
-            <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-amber-300 bg-white shadow-xs shrink-0">
-              <Image
-                src={expectedAnimal.posterUrl || expectedAnimal.images?.[0] || "/images/cards/butterfly-card.png"}
-                alt={expectedAnimal.nameEn}
-                fill
-                className="object-cover"
+            <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-amber-300 bg-white shadow-xs shrink-0 flex items-center justify-center">
+              <img
+                src={posterImageSrc}
+                alt={expectedAnimal.nameEn || "Target card"}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "/images/cards/walk-card.jpg";
+                }}
               />
             </div>
             <div className="min-w-0 flex-1">
@@ -92,7 +142,8 @@ export function ScanGuideModal({
                 Thẻ mục tiêu cần quét:
               </div>
               <div className="truncate text-xs font-black text-stone-900">
-                {expectedAnimal.nameEn} ({expectedAnimal.nameVi})
+                {expectedAnimal.nameEn || expectedAnimal.slug}
+                {expectedAnimal.nameVi ? ` (${expectedAnimal.nameVi})` : ""}
               </div>
             </div>
           </div>
@@ -137,7 +188,7 @@ export function ScanGuideModal({
                 3. Có thể dùng ảnh chụp từ thư viện
               </div>
               <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                Nếu camera mờ hoặc không xin được quyền, bấm nút <strong>"Tải Ảnh Mã QR"</strong> ở dưới đáy để quét từ album ảnh máy.
+                Nếu camera mờ hoặc không xin được quyền, bấm nút <strong>&quot;Tải Ảnh Mã QR&quot;</strong> ở dưới đáy để quét từ album ảnh máy.
               </p>
             </div>
           </div>

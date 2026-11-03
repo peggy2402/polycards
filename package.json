@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:qr": "tsx scripts/test-qr-parser.ts",
     "generate-qr": "tsx scripts/generate-qr.ts",
     "seed:mongodb": "tsx --env-file=.env scripts/seed-mongodb.ts",
     "convert-usdz": "blender --background --python scripts/convert_glb_to_usdz.py --"

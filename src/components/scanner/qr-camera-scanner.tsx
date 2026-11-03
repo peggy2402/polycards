@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Html5Qrcode } from "html5-qrcode";
 import { parseAndValidateQr, QrParseResult } from "@/lib/qr-parser";
-import { Animal } from "@/types/animal";
+import { ScanCardSummary } from "@/app/scan/page";
 import { getMobileOperatingSystem } from "@/lib/user-agent";
 import {
   ArrowLeft,
@@ -21,11 +21,11 @@ import {
   MoreVertical,
   Sliders,
   AlertCircle,
-  X,
+  RotateCcw,
 } from "lucide-react";
 
 interface QrCameraScannerProps {
-  expectedAnimal?: Animal;
+  expectedAnimal?: ScanCardSummary;
   onOpenGuide: () => void;
   allowMismatchContinue?: boolean;
 }
@@ -188,6 +188,9 @@ export function QrCameraScanner({
   const [cameraError, setCameraError] = useState<NormalizedCameraError | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
+  // Kích thước đồng bộ giữa viewfinder và reticle HUD (Mục B5)
+  const [reticleBoxSize, setReticleBoxSize] = useState<number>(260);
+
   // Tính năng phần cứng
   const [torchAvailable, setTorchAvailable] = useState<boolean>(false);
   const [torchOn, setTorchOn] = useState<boolean>(false);
@@ -203,16 +206,26 @@ export function QrCameraScanner({
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
   const [visualFlash, setVisualFlash] = useState<boolean>(false);
 
+  // Trạng thái watchdog điều hướng (Mục A1)
+  const [navSlowNotice, setNavSlowNotice] = useState<boolean>(false);
+
   // Refs điều khiển vòng đời
   const scannerContainerId = "qr-reader-container";
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileDecoderRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Cờ chặn race-condition khi xử lý mã và chuyển trang (Mục A1 & A2)
   const isNavigatingRef = useRef<boolean>(false);
+  const isResolvingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const lastScannedContentRef = useRef<{ text: string; time: number }>({ text: "", time: 0 });
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const slowNavTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeVideoTrackRef = useRef<MediaStreamTrack | null>(null);
 
   // Hàng đợi tuần tự (Mutex Promise Chain) ngăn chặn triệt để race-condition
@@ -228,7 +241,7 @@ export function QrCameraScanner({
     return operationLockRef.current;
   }, []);
 
-  // Lắng nghe pointerdown 1 lần để unlock Web Audio trên Safari
+  // Lắng nghe pointerdown 1 lần để unlock Web Audio trên Safari iOS
   useEffect(() => {
     const handlePointerDown = () => {
       unlockAudioContext();
@@ -240,7 +253,48 @@ export function QrCameraScanner({
     };
   }, []);
 
-  // Lấy video track đang chạy một cách an toàn qua container
+  // Mục C3: Đóng bảng "⋯" khi click ra ngoài hoặc bấm Escape
+  useEffect(() => {
+    if (!showMoreMenu) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowMoreMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showMoreMenu]);
+
+  // Mục B5: Tính toán kích thước Reticle HUD khớp chuẩn với qrbox (70% minDim, 220px - 320px)
+  useEffect(() => {
+    const updateSize = () => {
+      if (!containerRef.current) return;
+      const { clientWidth, clientHeight } = containerRef.current;
+      const minDim = Math.min(clientWidth || window.innerWidth, clientHeight || window.innerHeight);
+      const computedSize = Math.max(220, Math.min(Math.floor(minDim * 0.70), 320));
+      setReticleBoxSize(computedSize);
+    };
+
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => {
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
+
+  // Lấy video track đang chạy một cách an toàn
   const updateHardwareCapabilities = useCallback(() => {
     try {
       const container = document.getElementById(scannerContainerId);
@@ -252,7 +306,6 @@ export function QrCameraScanner({
       }
 
       if (!track && scannerRef.current) {
-        // Fallback kiểm tra track của scanner
         const inst = scannerRef.current as any;
         if (inst.localMediaStream instanceof MediaStream) {
           track = inst.localMediaStream.getVideoTracks()[0] || null;
@@ -312,12 +365,31 @@ export function QrCameraScanner({
     setZoomAvailable(false);
   }, []);
 
-  // Điều hướng sang trang AR sau khi xác thực thành công
+  // Mục A1: Khôi phục lại trạng thái quét và bật lại camera khi hủy hoặc timeout
+  const cancelNavigationAndRestoreCamera = useCallback(() => {
+    isNavigatingRef.current = false;
+    isResolvingRef.current = false;
+    setScanStatus("scanning");
+    setVisualFlash(false);
+    setDetectedResult(null);
+    setNavSlowNotice(false);
+
+    if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+    if (slowNavTimerRef.current) clearTimeout(slowNavTimerRef.current);
+
+    runSequentially(async () => {
+      await startCameraInternal();
+    });
+  }, [runSequentially]);
+
+  // Điều hướng sang trang AR sau khi xác thực thành công (Mục A1)
   const navigateToAr = useCallback(
     (slug: string, code?: string) => {
       isNavigatingRef.current = true;
+      isResolvingRef.current = false;
       setScanStatus("success");
       setVisualFlash(true);
+      setNavSlowNotice(false);
 
       // Rung phản hồi (nếu trình duyệt hỗ trợ)
       try {
@@ -326,20 +398,25 @@ export function QrCameraScanner({
 
       playBeepSuccess();
 
-      // Dừng video stream ngay lập tức để tiết kiệm tài nguyên
+      // Dừng video stream ngay lập tức để giải phóng RAM cho AR Viewer
       stopCameraSafe();
 
-      // Watchdog 4 giây: nếu sau 4 giây vẫn còn trên trang (lỗi mạng hoặc huỷ), mở lại camera
+      // Hẹn giờ hiển thị nút "Hủy / Quét lại" sau 6 giây nếu mạng chậm
+      if (slowNavTimerRef.current) clearTimeout(slowNavTimerRef.current);
+      slowNavTimerRef.current = setTimeout(() => {
+        if (isNavigatingRef.current) {
+          setNavSlowNotice(true);
+        }
+      }, 6000);
+
+      // Watchdog 10 giây: nếu sau 10 giây vẫn còn trên trang, khôi phục camera (Mục A1)
       if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
       watchdogTimerRef.current = setTimeout(() => {
         if (isNavigatingRef.current) {
-          console.warn("Watchdog: Điều hướng mất quá nhiều thời gian, khôi phục camera...");
-          isNavigatingRef.current = false;
-          setScanStatus("scanning");
-          setVisualFlash(false);
-          setDetectedResult(null);
+          console.warn("Watchdog 10s: Điều hướng mất quá nhiều thời gian, khôi phục camera...");
+          cancelNavigationAndRestoreCamera();
         }
-      }, 4000);
+      }, 10000);
 
       const query = code
         ? `?ar=1&code=${encodeURIComponent(code)}`
@@ -349,13 +426,14 @@ export function QrCameraScanner({
         router.push(`/ar/${slug}${query}`);
       }, 450);
     },
-    [router, stopCameraSafe]
+    [router, stopCameraSafe, cancelNavigationAndRestoreCamera]
   );
 
-  // Xử lý khi quét trúng mã QR
+  // Xử lý khi quét trúng mã QR (Mục A2, A4)
   const handleQrDecoded = useCallback(
     async (decodedText: string) => {
-      if (isNavigatingRef.current) return;
+      // Chặn ngay lập tức nếu đang resolve fetch hoặc đang điều hướng (Mục A2)
+      if (isNavigatingRef.current || isResolvingRef.current) return;
 
       const now = Date.now();
       // Cooldown 2.5s với cùng một chuỗi mã để chống spam
@@ -375,23 +453,41 @@ export function QrCameraScanner({
       // Trường hợp 1: Mã hợp lệ
       if (parseResult.valid && parseResult.slug) {
         const slug = parseResult.slug;
+        isResolvingRef.current = true; // Khóa ngay lập tức (Mục A2)
+
         setDetectedResult(parseResult);
         setFeedbackMessage(`Đã nhận diện: ${parseResult.animalNameEn || slug}!`);
 
-        // Xác thực trước với máy chủ (MongoDB / System) để đảm bảo thẻ tồn tại, tránh lỗi 404
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
+        // Hủy request trước đó nếu còn chạy
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
 
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        try {
           const res = await fetch(`/api/products/${slug}`, {
             signal: controller.signal,
           });
           clearTimeout(timeoutId);
 
           if (res.ok) {
+            const json = await res.json();
+            // Mục A4: Cập nhật tên thực tế nameEn / nameVi từ API trước khi chuyển màn hình
+            if (json.success && json.data) {
+              const apiCard = json.data;
+              setDetectedResult({
+                ...parseResult,
+                animalNameEn: apiCard.nameEn || parseResult.animalNameEn,
+                animalNameVi: apiCard.nameVi || parseResult.animalNameVi,
+              });
+            }
             navigateToAr(slug, parseResult.code);
             return;
           } else if (res.status === 404) {
+            isResolvingRef.current = false;
             setScanStatus("warning");
             setFeedbackMessage(`Thẻ "${slug}" chưa có trên hệ sinh thái Poly Cards.`);
             if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
@@ -402,7 +498,7 @@ export function QrCameraScanner({
             return;
           }
         } catch {
-          // Nếu mạng chậm, vẫn tiến hành chuyển trang để trải nghiệm không bị gián đoạn
+          // Mạng chậm hoặc timeout: vẫn tiếp tục chuyển sang AR để không chặn người dùng
           navigateToAr(slug, parseResult.code);
           return;
         }
@@ -447,95 +543,117 @@ export function QrCameraScanner({
     handleQrDecodedRef.current = handleQrDecoded;
   }, [handleQrDecoded]);
 
-  // Khởi động Camera chính
+  // Khởi động Camera nội bộ (chạy tuần tự qua mutex, Mục B4 & B5)
+  const startCameraInternal = useCallback(async () => {
+    setIsInitializing(true);
+    setCameraError(null);
+
+    // Kiểm tra DOM container
+    const container = document.getElementById(scannerContainerId);
+    if (!container) {
+      setIsInitializing(false);
+      return;
+    }
+
+    // Nếu scanner cũ không hợp lệ hoặc đã bị lỗi DOM, xóa và tạo mới
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch {
+        try {
+          await scannerRef.current.clear();
+        } catch {}
+        scannerRef.current = null;
+      }
+    }
+
+    if (!scannerRef.current) {
+      try {
+        scannerRef.current = new Html5Qrcode(scannerContainerId, {
+          verbose: false,
+        });
+      } catch (e) {
+        console.warn("Lỗi khởi tạo Html5Qrcode:", e);
+        setIsInitializing(false);
+        setCameraError(normalizeCameraError(e));
+        return;
+      }
+    }
+
+    const scanner = scannerRef.current;
+
+    try {
+      await scanner.start(
+        { facingMode: cameraFacingMode },
+        {
+          fps: 15,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+            const boxSize = Math.max(220, Math.min(Math.floor(minDim * 0.70), 320));
+            return { width: boxSize, height: boxSize };
+          },
+          videoConstraints: {
+            facingMode: cameraFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        },
+        (decodedText) => {
+          handleQrDecodedRef.current(decodedText);
+        },
+        () => {}
+      );
+
+      setIsInitializing(false);
+      updateHardwareCapabilities();
+    } catch (err) {
+      setIsInitializing(false);
+      setCameraError(normalizeCameraError(err));
+    }
+  }, [cameraFacingMode, updateHardwareCapabilities]);
+
   const startCamera = useCallback(async () => {
     await runSequentially(async () => {
-      setIsInitializing(true);
-      setCameraError(null);
-
-      // Tạo instance nếu chưa có
-      if (!scannerRef.current) {
-        try {
-          scannerRef.current = new Html5Qrcode(scannerContainerId, {
-            verbose: false,
-          });
-        } catch (e) {
-          console.warn("Lỗi khởi tạo Html5Qrcode:", e);
-          setIsInitializing(false);
-          setCameraError(normalizeCameraError(e));
-          return;
-        }
-      }
-
-      const scanner = scannerRef.current;
-
-      // Dừng phiên cũ nếu còn chạy
-      if (scanner.isScanning) {
-        try {
-          await scanner.stop();
-        } catch {}
-      }
-
-      try {
-        await scanner.start(
-          { facingMode: cameraFacingMode },
-          {
-            fps: 15,
-            qrbox: (viewfinderWidth, viewfinderHeight) => {
-              const minDim = Math.min(viewfinderWidth, viewfinderHeight);
-              const boxSize = Math.max(220, Math.min(Math.floor(minDim * 0.72), 340));
-              return { width: boxSize, height: boxSize };
-            },
-            videoConstraints: {
-              facingMode: cameraFacingMode,
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          },
-          (decodedText) => {
-            handleQrDecodedRef.current(decodedText);
-          },
-          () => {}
-        );
-
-        setIsInitializing(false);
-        updateHardwareCapabilities();
-      } catch (err) {
-        setIsInitializing(false);
-        setCameraError(normalizeCameraError(err));
-      }
+      await startCameraInternal();
     });
-  }, [cameraFacingMode, runSequentially, updateHardwareCapabilities]);
+  }, [runSequentially, startCameraInternal]);
 
-  // Khởi chạy camera khi mount hoặc facingMode đổi
+  // Mục A3: Khởi chạy camera khi mount hoặc facingMode đổi, không chạy stop ngoài hàng đợi
   useEffect(() => {
-    let isCancelled = false;
-
-    startCamera().then(() => {
-      if (isCancelled) {
-        stopCameraSafe();
-      }
-    });
+    startCamera();
 
     return () => {
-      isCancelled = true;
       runSequentially(async () => {
         await stopCameraSafe();
       });
+      if (abortControllerRef.current) abortControllerRef.current.abort();
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+      if (slowNavTimerRef.current) clearTimeout(slowNavTimerRef.current);
     };
   }, [cameraFacingMode, runSequentially, startCamera, stopCameraSafe]);
 
-  // Xử lý BFCache: khi người dùng bấm Back từ AR quay lại /scan
+  // Mục C6: BFCache & Visibility Change không bị khởi động kép
   useEffect(() => {
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted || isNavigatingRef.current) {
         isNavigatingRef.current = false;
+        isResolvingRef.current = false;
         setScanStatus("scanning");
         setVisualFlash(false);
         setDetectedResult(null);
-        startCamera();
+        setNavSlowNotice(false);
+
+        // Kiểm tra nếu camera chưa chạy thì mới start
+        const isHealthy =
+          scannerRef.current?.isScanning &&
+          activeVideoTrackRef.current?.readyState === "live";
+
+        if (!isHealthy) {
+          startCamera();
+        }
       }
     };
 
@@ -545,13 +663,19 @@ export function QrCameraScanner({
     };
   }, [startCamera]);
 
-  // Xử lý Tab Ẩn / Khóa Màn Hình (Visibility Change & Page Hide)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         stopCameraSafe();
       } else if (document.visibilityState === "visible" && !isNavigatingRef.current) {
-        startCamera();
+        // Kiểm tra tránh start lặp lại nếu track đang live
+        const isHealthy =
+          scannerRef.current?.isScanning &&
+          activeVideoTrackRef.current?.readyState === "live";
+
+        if (!isHealthy) {
+          startCamera();
+        }
       }
     };
 
@@ -611,7 +735,19 @@ export function QrCameraScanner({
     }
   }, [currentZoom, maxZoom, updateHardwareCapabilities]);
 
-  // Quét ảnh QR từ Thư viện độc lập (không chạm vào Camera đang chạy)
+  // Dọn dẹp fileDecoder khi unmount (Mục B3)
+  useEffect(() => {
+    return () => {
+      if (fileDecoderRef.current) {
+        try {
+          fileDecoderRef.current.clear();
+        } catch {}
+        fileDecoderRef.current = null;
+      }
+    };
+  }, []);
+
+  // Mục B3: Nâng cấp giải mã file ảnh theo thứ tự đa tầng (ảnh gốc <= 2400px -> 2048px -> 1024px -> gốc)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -619,21 +755,58 @@ export function QrCameraScanner({
     setIsProcessingFile(true);
 
     try {
-      // Khởi tạo decoder riêng nếu chưa có
       if (!fileDecoderRef.current) {
         fileDecoderRef.current = new Html5Qrcode("qr-file-decoder", {
           verbose: false,
         });
       }
+      const decoder = fileDecoderRef.current;
 
-      // Xử lý nén ảnh nếu ảnh quá lớn (> 1600px) để quét nhanh hơn
-      const processedFile = await preprocessImageForQr(file);
-      const decodedResult = await fileDecoderRef.current.scanFile(processedFile, false);
+      // Đặt timeout tổng 6.5 giây
+      const decodeWithStages = async (): Promise<string> => {
+        let lastErr: unknown = null;
 
+        // Tầng 1: Thử ảnh gốc (nếu <= 2400px) hoặc thu về 2048px
+        try {
+          const stage1File = await resizeImageToMaxDim(file, 2048, true);
+          return await decoder.scanFile(stage1File, false);
+        } catch (err1) {
+          lastErr = err1;
+        }
+
+        // Tầng 2: Thử thu nhỏ về 1024px
+        try {
+          const stage2File = await resizeImageToMaxDim(file, 1024, false);
+          return await decoder.scanFile(stage2File, false);
+        } catch (err2) {
+          lastErr = err2;
+        }
+
+        // Tầng 3: Thử file gốc nguyên bản (không qua canvas)
+        try {
+          return await decoder.scanFile(file, false);
+        } catch (err3) {
+          lastErr = err3;
+          throw lastErr;
+        }
+      };
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout khi quét ảnh")), 6500)
+      );
+
+      const decodedResult = await Promise.race([decodeWithStages(), timeoutPromise]);
       handleQrDecoded(decodedResult);
-    } catch {
+    } catch (err: any) {
+      const isFormatError =
+        err?.message?.includes("format") || err?.name === "NotSupportedError";
+      const errMsg = isFormatError
+        ? "Định dạng ảnh không được hỗ trợ. Vui lòng chọn tệp JPG hoặc PNG."
+        : "Không tìm thấy mã QR trong bức ảnh này. Vui lòng thử ảnh rõ nét hơn!";
+
       setScanStatus("warning");
-      setFeedbackMessage("Không tìm thấy mã QR trong bức ảnh này. Vui lòng thử ảnh rõ nét hơn!");
+      setFeedbackMessage(errMsg);
+
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       warningTimerRef.current = setTimeout(() => {
         setScanStatus("scanning");
@@ -648,7 +821,10 @@ export function QrCameraScanner({
   };
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col justify-between bg-stone-950 text-white overflow-hidden select-none">
+    <div
+      ref={containerRef}
+      className="relative flex min-h-[100dvh] w-full flex-col justify-between bg-stone-950 text-white overflow-hidden select-none"
+    >
       {/* Container ẩn phục vụ giải mã File ảnh độc lập */}
       <div id="qr-file-decoder" className="hidden" aria-hidden="true" />
 
@@ -662,7 +838,7 @@ export function QrCameraScanner({
         id="qr-file-upload-input"
       />
 
-      {/* 1. THANH ĐIỀU KHIỂN NỔI PHÍA TRÊN (Responsive hoàn hảo cho 360px+) */}
+      {/* 1. THANH ĐIỀU KHIỂN NỔI PHÍA TRÊN */}
       <header className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-3 sm:p-4 bg-gradient-to-b from-black/85 via-black/45 to-transparent">
         {/* Nút Về Trang Chủ */}
         <Link
@@ -675,7 +851,7 @@ export function QrCameraScanner({
 
         {/* Nhãn Mục Tiêu AR */}
         {expectedAnimal ? (
-          <div className="flex items-center gap-1.5 rounded-full bg-emerald-600/90 px-3 py-1 text-xs font-black text-white backdrop-blur-md shadow-md border border-emerald-400/40 max-w-[160px] truncate">
+          <div className="flex items-center gap-1.5 rounded-full bg-emerald-600/90 px-3 py-1 text-xs font-black text-white backdrop-blur-md shadow-md border border-emerald-400/40 max-w-[170px] truncate">
             <span className="h-2 w-2 rounded-full bg-amber-300 animate-ping shrink-0" />
             <span className="truncate">{expectedAnimal.nameEn}</span>
           </div>
@@ -686,7 +862,7 @@ export function QrCameraScanner({
           </div>
         )}
 
-        {/* Cụm Nút Điều Khiển Gọn Gàng (Tối đa 3 nút để không tràn màn hình 360px) */}
+        {/* Cụm Nút Điều Khiển Gọn Gàng */}
         <div className="flex items-center gap-1.5">
           {/* Nút Đổi Camera */}
           <button
@@ -699,7 +875,7 @@ export function QrCameraScanner({
             <SwitchCamera className="h-4.5 w-4.5" />
           </button>
 
-          {/* Nút Đèn Flash (nếu thiết bị hỗ trợ) */}
+          {/* Nút Đèn Flash */}
           {torchAvailable && (
             <button
               type="button"
@@ -717,7 +893,7 @@ export function QrCameraScanner({
           )}
 
           {/* Nút Menu Tùy Chọn "⋯" */}
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setShowMoreMenu((prev) => !prev)}
@@ -728,16 +904,16 @@ export function QrCameraScanner({
               <MoreVertical className="h-4.5 w-4.5" />
             </button>
 
-            {/* Menu Popup Khi Bấm "⋯" */}
+            {/* Menu Popup Khi Bấm "⋯" (Mục C3) */}
             {showMoreMenu && (
-              <div
-                className="absolute right-0 top-12 z-50 w-44 rounded-2xl border border-white/20 bg-stone-900/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
-                onClick={() => setShowMoreMenu(false)}
-              >
+              <div className="absolute right-0 top-12 z-50 w-48 rounded-2xl border border-white/20 bg-stone-900/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
                 {zoomAvailable && (
                   <button
                     type="button"
-                    onClick={toggleZoom}
+                    onClick={() => {
+                      toggleZoom();
+                      setShowMoreMenu(false);
+                    }}
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-stone-200 hover:bg-white/10 active:scale-98 transition-all cursor-pointer"
                   >
                     <Sliders className="h-4 w-4 text-emerald-400" />
@@ -747,7 +923,10 @@ export function QrCameraScanner({
 
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setShowMoreMenu(false);
+                  }}
                   className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-stone-200 hover:bg-white/10 active:scale-98 transition-all cursor-pointer"
                 >
                   <UploadCloud className="h-4 w-4 text-sky-400" />
@@ -756,7 +935,10 @@ export function QrCameraScanner({
 
                 <button
                   type="button"
-                  onClick={onOpenGuide}
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    onOpenGuide();
+                  }}
                   className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-amber-300 hover:bg-white/10 active:scale-98 transition-all cursor-pointer"
                 >
                   <HelpCircle className="h-4 w-4 text-amber-400" />
@@ -770,148 +952,171 @@ export function QrCameraScanner({
 
       {/* 2. KHU VỰC CAMERA VIEWPORT */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-black">
-        {/* Màn hình Báo Lỗi Camera */}
-        {cameraError ? (
-          <div className="m-4 max-w-sm rounded-3xl border border-stone-800 bg-stone-900/95 p-6 text-center shadow-2xl space-y-4 animate-in fade-in duration-200">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400">
-              <Camera className="h-8 w-8" />
+        {/* Mục B4: HTML5 QR Video Container LUÔN nằm trong DOM */}
+        <div
+          id={scannerContainerId}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+
+        {/* Lớp Phủ Báo Lỗi Camera (Overlay phủ lên trên mà không gỡ container khỏi DOM) */}
+        {cameraError && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-stone-950/90 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="max-w-sm rounded-3xl border border-stone-800 bg-stone-900/95 p-6 text-center shadow-2xl space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400">
+                <Camera className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-black text-white">{cameraError.message}</h3>
+              <p className="text-xs text-stone-300 leading-relaxed">{cameraError.guide}</p>
+
+              <div className="pt-2 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-2.5 text-xs font-black text-stone-950 shadow-md hover:bg-amber-400 active:scale-95 cursor-pointer"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Thử Lại Khởi Động Camera</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-stone-800 px-4 py-2 text-xs font-bold text-stone-200 hover:bg-stone-700 active:scale-95 cursor-pointer"
+                >
+                  <UploadCloud className="h-4 w-4 text-sky-400" />
+                  <span>Chọn Ảnh Mã QR Từ Máy</span>
+                </button>
+              </div>
             </div>
-            <h3 className="text-base font-black text-white">{cameraError.message}</h3>
-            <p className="text-xs text-stone-300 leading-relaxed">{cameraError.guide}</p>
+          </div>
+        )}
 
-            <div className="pt-2 flex flex-col gap-2.5">
+        {/* Loading Indicator khi đang xin quyền/khởi tạo */}
+        {isInitializing && !cameraError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20">
+            <div className="h-10 w-10 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            <span className="mt-3 text-xs font-semibold text-stone-300">
+              Đang khởi động Camera...
+            </span>
+          </div>
+        )}
+
+        {/* Mục B5: Glowing AR Reticle HUD Overlay (Kích thước reticleBoxSize đồng bộ 100% với qrbox) */}
+        {!cameraError && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 z-10">
+            <div
+              style={{
+                width: `${reticleBoxSize}px`,
+                height: `${reticleBoxSize}px`,
+              }}
+              className={`relative rounded-3xl border-2 transition-all duration-300 ${
+                visualFlash
+                  ? "border-emerald-300 bg-emerald-400/20 shadow-[0_0_60px_rgba(52,211,153,1)] scale-105"
+                  : scanStatus === "success"
+                  ? "border-emerald-400 shadow-[0_0_50px_rgba(52,211,153,0.8)] scale-105"
+                  : scanStatus === "warning"
+                  ? "border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.6)]"
+                  : "border-emerald-400/80 shadow-[0_0_35px_rgba(16,185,129,0.35)]"
+              }`}
+            >
+              {/* 4 Góc Marker AR */}
+              <div className="absolute -top-1.5 -left-1.5 h-7 w-7 border-t-4 border-l-4 border-emerald-400 rounded-tl-2xl" />
+              <div className="absolute -top-1.5 -right-1.5 h-7 w-7 border-t-4 border-r-4 border-emerald-400 rounded-tr-2xl" />
+              <div className="absolute -bottom-1.5 -left-1.5 h-7 w-7 border-b-4 border-l-4 border-emerald-400 rounded-bl-2xl" />
+              <div className="absolute -bottom-1.5 -right-1.5 h-7 w-7 border-b-4 border-r-4 border-emerald-400 rounded-br-2xl" />
+
+              {/* Laser Scanning Beam */}
+              <div
+                className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399]"
+                style={{
+                  animation: "cameraScanBeam 2s ease-in-out infinite alternate",
+                }}
+              />
+
+              {/* Hướng Dẫn Trong Khung */}
+              <div className="absolute -bottom-10 inset-x-0 text-center">
+                <span className="inline-block rounded-full bg-black/75 px-3.5 py-1 text-[11px] font-bold text-emerald-300 backdrop-blur-md border border-white/10 shadow-sm">
+                  Đặt mã QR thẻ bài vào khung
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Màn hình Khóa Mục Tiêu AR Thành Công (Mục A1 & A4) */}
+        {scanStatus === "success" && detectedResult && (
+          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 mx-auto max-w-sm rounded-3xl border-2 border-emerald-300 bg-stone-900/95 p-6 text-center shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 shadow-md mb-3 border border-emerald-400/40">
+              <Sparkles className="h-8 w-8 animate-pulse text-amber-300" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-extrabold text-emerald-400 mb-2">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>ĐÃ KHÓA MỤC TIÊU 3D</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white uppercase">
+              {detectedResult.animalNameEn || detectedResult.slug}
+            </h3>
+            {detectedResult.animalNameVi && (
+              <p className="text-xs font-bold text-stone-300 mt-0.5">
+                ({detectedResult.animalNameVi})
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-col items-center justify-center gap-2">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-24 rounded-full bg-stone-800 overflow-hidden">
+                  <div className="h-full bg-emerald-400 rounded-full animate-pulse w-full" />
+                </div>
+                <span className="text-[10px] font-bold text-emerald-400">
+                  {navSlowNotice ? "Đang chuẩn bị mô hình..." : "Đang nạp 3D..."}
+                </span>
+              </div>
+
+              {/* Mục A1: Nút Hủy / Quét lại xuất hiện sau 6 giây nếu kết nối mạng chậm */}
+              {navSlowNotice && (
+                <button
+                  type="button"
+                  onClick={cancelNavigationAndRestoreCamera}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-stone-700 bg-stone-800/90 px-3 py-1.5 text-xs font-bold text-amber-300 hover:bg-stone-700 active:scale-95 transition-all cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Mạng chậm? Hủy &amp; Quét lại</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Màn hình Mismatch nếu bật allowMismatchContinue */}
+        {allowMismatchContinue && scanStatus === "warning" && detectedResult?.isMismatched && (
+          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 mx-auto max-w-sm rounded-3xl border-2 border-amber-300 bg-stone-900/95 p-5 text-center shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <AlertCircle className="mx-auto h-10 w-10 text-amber-400 mb-2" />
+            <h4 className="text-sm font-bold text-white">Thẻ không trùng với mục tiêu</h4>
+            <p className="text-xs text-stone-300 mt-1">{feedbackMessage}</p>
+            <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={startCamera}
-                className="btn-toy-3d inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-2.5 text-xs font-black text-stone-950 shadow-md hover:bg-amber-400 active:scale-95 cursor-pointer"
+                onClick={() => {
+                  if (detectedResult.slug) {
+                    navigateToAr(detectedResult.slug, detectedResult.code);
+                  }
+                }}
+                className="flex-1 rounded-xl bg-amber-500 py-2 text-xs font-bold text-stone-950 shadow-sm hover:bg-amber-400 active:scale-95 cursor-pointer"
               >
-                <RefreshCw className="h-4 w-4" />
-                <span>Thử Lại Khởi Động Camera</span>
+                Xem thẻ này
               </button>
-
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-stone-800 px-4 py-2 text-xs font-bold text-stone-200 hover:bg-stone-700 active:scale-95 cursor-pointer"
+                onClick={() => {
+                  setScanStatus("scanning");
+                  setFeedbackMessage(null);
+                }}
+                className="flex-1 rounded-xl bg-stone-800 py-2 text-xs font-bold text-stone-300 hover:bg-stone-700 active:scale-95 cursor-pointer"
               >
-                <UploadCloud className="h-4 w-4 text-sky-400" />
-                <span>Chọn Ảnh Mã QR Từ Máy</span>
+                Quét lại
               </button>
             </div>
           </div>
-        ) : (
-          <>
-            {/* HTML5 QR Video Container */}
-            <div
-              id={scannerContainerId}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-
-            {/* Loading Indicator khi đang xin quyền/khởi tạo */}
-            {isInitializing && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20">
-                <div className="h-10 w-10 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                <span className="mt-3 text-xs font-semibold text-stone-300">
-                  Đang khởi động Camera...
-                </span>
-              </div>
-            )}
-
-            {/* Glowing AR Reticle HUD Overlay (Khung ngắm chuẩn) */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 z-10">
-              <div
-                className={`relative aspect-square w-64 max-w-[70vw] rounded-3xl border-2 transition-all duration-300 ${
-                  visualFlash
-                    ? "border-emerald-300 bg-emerald-400/20 shadow-[0_0_60px_rgba(52,211,153,1)] scale-105"
-                    : scanStatus === "success"
-                    ? "border-emerald-400 shadow-[0_0_50px_rgba(52,211,153,0.8)] scale-105"
-                    : scanStatus === "warning"
-                    ? "border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.6)]"
-                    : "border-emerald-400/80 shadow-[0_0_35px_rgba(16,185,129,0.35)]"
-                }`}
-              >
-                {/* 4 Góc Marker AR */}
-                <div className="absolute -top-1.5 -left-1.5 h-7 w-7 border-t-4 border-l-4 border-emerald-400 rounded-tl-2xl" />
-                <div className="absolute -top-1.5 -right-1.5 h-7 w-7 border-t-4 border-r-4 border-emerald-400 rounded-tr-2xl" />
-                <div className="absolute -bottom-1.5 -left-1.5 h-7 w-7 border-b-4 border-l-4 border-emerald-400 rounded-bl-2xl" />
-                <div className="absolute -bottom-1.5 -right-1.5 h-7 w-7 border-b-4 border-r-4 border-emerald-400 rounded-br-2xl" />
-
-                {/* Laser Scanning Beam */}
-                <div
-                  className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399]"
-                  style={{
-                    animation: "cameraScanBeam 2s ease-in-out infinite alternate",
-                  }}
-                />
-
-                {/* Hướng Dẫn Trong Khung */}
-                <div className="absolute -bottom-10 inset-x-0 text-center">
-                  <span className="inline-block rounded-full bg-black/75 px-3.5 py-1 text-[11px] font-bold text-emerald-300 backdrop-blur-md border border-white/10 shadow-sm">
-                    Đặt mã QR thẻ bài vào khung
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Màn hình Khóa Mục Tiêu AR Thành Công */}
-            {scanStatus === "success" && detectedResult && (
-              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 mx-auto max-w-sm rounded-3xl border-2 border-emerald-300 bg-stone-900/95 p-6 text-center shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 shadow-md mb-3 border border-emerald-400/40">
-                  <Sparkles className="h-8 w-8 animate-pulse text-amber-300" />
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-extrabold text-emerald-400 mb-2">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>ĐÃ KHÓA MỤC TIÊU 3D</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white uppercase">
-                  {detectedResult.animalNameEn || detectedResult.slug}
-                </h3>
-                {detectedResult.animalNameVi && (
-                  <p className="text-xs font-bold text-stone-300 mt-0.5">
-                    ({detectedResult.animalNameVi})
-                  </p>
-                )}
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  <div className="h-1.5 w-24 rounded-full bg-stone-800 overflow-hidden">
-                    <div className="h-full bg-emerald-400 rounded-full animate-pulse w-full" />
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400">Đang nạp 3D...</span>
-                </div>
-              </div>
-            )}
-
-            {/* Màn hình Mismatch nếu bật allowMismatchContinue */}
-            {allowMismatchContinue && scanStatus === "warning" && detectedResult?.isMismatched && (
-              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 mx-auto max-w-sm rounded-3xl border-2 border-amber-300 bg-stone-900/95 p-5 text-center shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
-                <AlertCircle className="mx-auto h-10 w-10 text-amber-400 mb-2" />
-                <h4 className="text-sm font-bold text-white">Thẻ không trùng với mục tiêu</h4>
-                <p className="text-xs text-stone-300 mt-1">{feedbackMessage}</p>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (detectedResult.slug) {
-                        navigateToAr(detectedResult.slug, detectedResult.code);
-                      }
-                    }}
-                    className="flex-1 rounded-xl bg-amber-500 py-2 text-xs font-bold text-stone-950 shadow-sm hover:bg-amber-400 active:scale-95"
-                  >
-                    Xem thẻ này
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setScanStatus("scanning");
-                      setFeedbackMessage(null);
-                    }}
-                    className="flex-1 rounded-xl bg-stone-800 py-2 text-xs font-bold text-stone-300 hover:bg-stone-700 active:scale-95"
-                  >
-                    Quét lại
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
         )}
       </div>
 
@@ -954,7 +1159,6 @@ export function QrCameraScanner({
           height: 100% !important;
           object-fit: cover !important;
         }
-        /* Ẩn hoàn toàn khung mờ và viền tự vẽ mặc định của html5-qrcode */
         #qr-reader-container #qr-shaded-region {
           display: none !important;
         }
@@ -984,18 +1188,17 @@ export function QrCameraScanner({
   );
 }
 
-// Hàm hỗ trợ tiền xử lý ảnh: nếu kích thước > 1600px thì vẽ lại canvas để giảm dung lượng trước khi decode
-async function preprocessImageForQr(file: File): Promise<File> {
+// Hàm hỗ trợ tiền xử lý ảnh với giới hạn kích thước tối đa (Mục B3)
+async function resizeImageToMaxDim(file: File, maxDim: number, passIfSmall: boolean): Promise<File> {
   return new Promise((resolve) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
 
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const maxDim = 1600;
       let { width, height } = img;
 
-      if (width <= maxDim && height <= maxDim) {
+      if (passIfSmall && width <= maxDim && height <= maxDim) {
         resolve(file);
         return;
       }
@@ -1018,14 +1221,18 @@ async function preprocessImageForQr(file: File): Promise<File> {
       }
 
       ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          resolve(file);
-          return;
-        }
-        const resizedFile = new File([blob], file.name, { type: file.type });
-        resolve(resizedFile);
-      }, file.type || "image/jpeg", 0.92);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const resizedFile = new File([blob], file.name, { type: file.type || "image/jpeg" });
+          resolve(resizedFile);
+        },
+        file.type || "image/jpeg",
+        0.95
+      );
     };
 
     img.onerror = () => {

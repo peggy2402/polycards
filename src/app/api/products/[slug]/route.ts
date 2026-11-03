@@ -1,6 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbGetProductBySlug } from "@/lib/mongodb";
 import { getAnimalBySlug } from "@/lib/animals";
+import { Animal } from "@/types/animal";
+
+export interface ScanCardSummary {
+  slug: string;
+  nameEn: string;
+  nameVi: string;
+  posterUrl: string;
+}
+
+const SLUG_REGEX = /^[a-z0-9-]{1,64}$/;
+
+/**
+ * Chuẩn hóa alias hệ thống: 'butterfly' và 'polycards' là hai tên gọi tương đương của thẻ mẫu
+ */
+export function normalizeSystemSlug(raw: string): string {
+  const clean = raw.toLowerCase().trim();
+  if (clean === "butterfly" || clean === "polycards") {
+    return "polycards";
+  }
+  return clean;
+}
+
+/**
+ * Chuyển đổi dữ liệu thẻ thành định dạng công khai rút gọn cho việc quét & kiểm tra
+ */
+function toPublicCard(item: Animal): ScanCardSummary {
+  return {
+    slug: item.slug,
+    nameEn: item.nameEn,
+    nameVi: item.nameVi,
+    posterUrl: item.posterUrl || item.images?.[0] || "/images/cards/butterfly-card.png",
+  };
+}
 
 export async function GET(
   request: NextRequest,
@@ -8,86 +41,79 @@ export async function GET(
 ) {
   try {
     const { slug } = await context.params;
-    if (!slug) {
+
+    if (!slug || !SLUG_REGEX.test(slug.trim().toLowerCase())) {
       return NextResponse.json(
-        { success: false, error: "Missing slug parameter" },
-        { status: 400 }
+        { success: false, error: "Tham số slug không hợp lệ (chỉ chấp nhận a-z, 0-9, dấu gạch nối, tối đa 64 ký tự)" },
+        {
+          status: 400,
+          headers: {
+            "Cache-Control": "public, s-maxage=30",
+          },
+        }
       );
     }
 
-    const cleanSlug = slug.toLowerCase().trim();
+    const cleanSlug = normalizeSystemSlug(slug);
 
     // 1. Kiểm tra thẻ mẫu đặc biệt / mặc định hệ thống
-    if (cleanSlug === "polycards" || cleanSlug === "butterfly") {
+    if (cleanSlug === "polycards") {
       const systemItem = getAnimalBySlug("polycards");
       if (systemItem) {
-        return NextResponse.json({
-          success: true,
-          data: {
-            slug: systemItem.slug,
-            nameEn: systemItem.nameEn,
-            nameVi: systemItem.nameVi,
-            qrCode: systemItem.qrCode,
-            posterUrl: systemItem.posterUrl || "/images/cards/butterfly-card.png",
-            images: systemItem.images || ["/images/cards/butterfly-card.png"],
-            modelUrl: systemItem.modelUrl,
-            iosModelUrl: systemItem.iosModelUrl,
-            audioUrl: systemItem.audioUrl,
-            audios: systemItem.audios,
-            category: systemItem.category,
-            categorySlug: systemItem.categorySlug,
+        return NextResponse.json(
+          {
+            success: true,
+            data: toPublicCard(systemItem),
           },
-        });
+          {
+            headers: {
+              "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+            },
+          }
+        );
       }
     }
 
     // 2. Tra cứu cơ sở dữ liệu MongoDB Atlas
     const dbItem = await dbGetProductBySlug(cleanSlug);
     if (dbItem) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          slug: dbItem.slug,
-          nameEn: dbItem.nameEn,
-          nameVi: dbItem.nameVi,
-          qrCode: dbItem.qrCode,
-          posterUrl: dbItem.posterUrl || "/images/cards/butterfly-card.png",
-          images: dbItem.images || ["/images/cards/butterfly-card.png"],
-          modelUrl: dbItem.modelUrl,
-          iosModelUrl: dbItem.iosModelUrl,
-          audioUrl: dbItem.audioUrl,
-          audios: dbItem.audios,
-          category: dbItem.category,
-          categorySlug: dbItem.categorySlug,
+      return NextResponse.json(
+        {
+          success: true,
+          data: toPublicCard(dbItem),
         },
-      });
+        {
+          headers: {
+            "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          },
+        }
+      );
     }
 
-    // 3. Fallback bộ thẻ tĩnh nếu MongoDB chưa có
+    // 3. Fallback bộ thẻ tĩnh
     const fallbackItem = getAnimalBySlug(cleanSlug);
     if (fallbackItem) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          slug: fallbackItem.slug,
-          nameEn: fallbackItem.nameEn,
-          nameVi: fallbackItem.nameVi,
-          qrCode: fallbackItem.qrCode,
-          posterUrl: fallbackItem.posterUrl || "/images/cards/butterfly-card.png",
-          images: fallbackItem.images || ["/images/cards/butterfly-card.png"],
-          modelUrl: fallbackItem.modelUrl,
-          iosModelUrl: fallbackItem.iosModelUrl,
-          audioUrl: fallbackItem.audioUrl,
-          audios: fallbackItem.audios,
-          category: fallbackItem.category,
-          categorySlug: fallbackItem.categorySlug,
+      return NextResponse.json(
+        {
+          success: true,
+          data: toPublicCard(fallbackItem),
         },
-      });
+        {
+          headers: {
+            "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          },
+        }
+      );
     }
 
     return NextResponse.json(
       { success: false, error: "Thẻ bài không tồn tại" },
-      { status: 404 }
+      {
+        status: 404,
+        headers: {
+          "Cache-Control": "public, s-maxage=30",
+        },
+      }
     );
   } catch (error: any) {
     console.error("API /api/products/[slug] error:", error);

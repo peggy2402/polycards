@@ -13,10 +13,17 @@ export function isInAppBrowser(): {
 
   const ua = navigator.userAgent.toLowerCase();
 
+  // 1. Nhận diện các ứng dụng in-app cụ thể
   if (ua.includes("zalo")) {
     return { isInApp: true, appName: "Zalo" };
   }
-  if (ua.includes("fban") || ua.includes("fbav") || ua.includes("fb_iab") || ua.includes("fb4a") || ua.includes("fbios")) {
+  if (
+    ua.includes("fban") ||
+    ua.includes("fbav") ||
+    ua.includes("fb_iab") ||
+    ua.includes("fb4a") ||
+    ua.includes("fbios")
+  ) {
     return { isInApp: true, appName: "Facebook" };
   }
   if (ua.includes("musical_ly") || ua.includes("tiktok") || ua.includes("bytedance")) {
@@ -53,8 +60,27 @@ export function isInAppBrowser(): {
     return { isInApp: true, appName: "Google App" };
   }
 
-  // Nhận diện Android WebView tổng quát (; wv)
-  if (ua.includes("; wv") || (ua.includes("version/4.0") && ua.includes("chrome/"))) {
+  // 2. Danh sách loại trừ các trình duyệt Android thật (chạy camera bình thường, không được coi là WebView bị hạn chế)
+  const isKnownFullBrowser =
+    ua.includes("samsungbrowser") ||
+    ua.includes("miuibrowser") ||
+    ua.includes("ucbrowser") ||
+    ua.includes("huaweibrowser") ||
+    ua.includes("heytapbrowser") ||
+    ua.includes("vivobrowser") ||
+    ua.includes("edga/") ||
+    ua.includes("opr/") ||
+    ua.includes("opera") ||
+    ua.includes("firefox/") ||
+    ua.includes("fxios") ||
+    ua.includes("crios");
+
+  if (isKnownFullBrowser) {
+    return { isInApp: false, appName: "" };
+  }
+
+  // 3. Nhận diện Android WebView độc lập khi có cờ đặc trưng "; wv)"
+  if (ua.includes("; wv") || ua.includes("; wv;")) {
     return { isInApp: true, appName: "Trình Duyệt Nhúng (WebView)" };
   }
 

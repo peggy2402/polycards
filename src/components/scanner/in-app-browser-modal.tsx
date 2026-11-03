@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { AlertTriangle, Copy, Check, ExternalLink, ArrowRight, ShieldAlert } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { AlertTriangle, Copy, Check, ExternalLink, ArrowRight } from "lucide-react";
 import { getMobileOperatingSystem } from "@/lib/user-agent";
 
 interface InAppBrowserModalProps {
@@ -11,7 +11,12 @@ interface InAppBrowserModalProps {
 
 export function InAppBrowserModal({ appName, onContinueAnyway }: InAppBrowserModalProps) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [showAndroidIntentHint, setShowAndroidIntentHint] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const os = getMobileOperatingSystem();
+
+  const currentUrl = typeof window !== "undefined" ? window.location.href : "https://polycards.vn/scan";
 
   const handleCopyLink = () => {
     if (typeof window === "undefined") return;
@@ -22,6 +27,7 @@ export function InAppBrowserModal({ appName, onContinueAnyway }: InAppBrowserMod
         .writeText(url)
         .then(() => {
           setCopied(true);
+          setCopyFailed(false);
           setTimeout(() => setCopied(false), 2500);
         })
         .catch(() => fallbackCopy(url));
@@ -32,21 +38,20 @@ export function InAppBrowserModal({ appName, onContinueAnyway }: InAppBrowserMod
 
   const fallbackCopy = (text: string) => {
     try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.top = "0";
-      textArea.style.left = "0";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch (e) {
-      console.warn("Không thể sao chép liên kết:", e);
+      if (inputRef.current) {
+        inputRef.current.select();
+        inputRef.current.setSelectionRange(0, 99999);
+      }
+      const successful = document.execCommand("copy");
+      if (successful) {
+        setCopied(true);
+        setCopyFailed(false);
+        setTimeout(() => setCopied(false), 2500);
+      } else {
+        setCopyFailed(true);
+      }
+    } catch {
+      setCopyFailed(true);
     }
   };
 
@@ -55,6 +60,11 @@ export function InAppBrowserModal({ appName, onContinueAnyway }: InAppBrowserMod
     const { host, pathname, search } = window.location;
     const intentUrl = `intent://${host}${pathname}${search}#Intent;scheme=https;package=com.android.chrome;end`;
     window.location.href = intentUrl;
+
+    // Sau 1.5 giây nếu vẫn còn ở trang này (trình duyệt không mở được intent Chrome), hiện gợi ý sao chép
+    setTimeout(() => {
+      setShowAndroidIntentHint(true);
+    }, 1500);
   };
 
   return (
@@ -81,23 +91,57 @@ export function InAppBrowserModal({ appName, onContinueAnyway }: InAppBrowserMod
             1. Bấm vào biểu tượng <strong>dấu 3 chấm (⋯)</strong> hoặc <strong>biểu tượng chia sẻ</strong> ở góc màn hình.
           </p>
           <p className="text-xs text-stone-700 leading-relaxed">
-            2. Chọn <strong>"Mở bằng trình duyệt ngoài"</strong> (hoặc{" "}
+            2. Chọn <strong>&quot;Mở bằng trình duyệt ngoài&quot;</strong> (hoặc{" "}
             <strong>{os === "ios" ? "Safari" : "Chrome"}</strong>).
           </p>
         </div>
 
-        {/* Các nút hành động */}
-        <div className="mt-5 space-y-2.5">
-          {/* Nút mở Chrome nếu là Android */}
-          {os === "android" && (
+        {/* Ô liên kết chỉ đọc dự phòng copy khi clipboard API bị chặn */}
+        <div className="mt-3">
+          <div className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 p-1.5">
+            <input
+              ref={inputRef}
+              type="text"
+              readOnly
+              value={currentUrl}
+              onFocus={(e) => e.target.select()}
+              className="flex-1 bg-transparent px-2 text-xs font-mono text-stone-700 outline-none select-all"
+              aria-label="Đường dẫn trang web"
+            />
             <button
               type="button"
-              onClick={handleOpenAndroidChrome}
-              className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-black text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 active:scale-95 transition-all cursor-pointer"
+              onClick={handleCopyLink}
+              className="rounded-lg bg-stone-200 hover:bg-stone-300 px-2.5 py-1 text-[11px] font-bold text-stone-800 transition-colors"
             >
-              <ExternalLink className="h-4 w-4" />
-              <span>Mở Trực Tiếp Bằng Chrome</span>
+              {copied ? "Đã chép" : "Sao chép"}
             </button>
+          </div>
+          {copyFailed && (
+            <p className="mt-1 text-[11px] text-amber-700 font-semibold">
+              Vui lòng chạm giữ vào ô đường dẫn ở trên để chọn &quot;Sao chép&quot; rồi dán vào {os === "ios" ? "Safari" : "Chrome"}.
+            </p>
+          )}
+        </div>
+
+        {/* Các nút hành động */}
+        <div className="mt-4 space-y-2">
+          {/* Nút mở Chrome nếu là Android */}
+          {os === "android" && (
+            <>
+              <button
+                type="button"
+                onClick={handleOpenAndroidChrome}
+                className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-black text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 active:scale-95 transition-all cursor-pointer"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>Mở Trực Tiếp Bằng Chrome</span>
+              </button>
+              {showAndroidIntentHint && (
+                <p className="text-[11px] text-stone-500 italic">
+                  Nếu Chrome không tự mở, bạn vui lòng dùng nút &quot;Sao Chép&quot; ở trên và mở trình duyệt thủ công.
+                </p>
+              )}
+            </>
           )}
 
           {/* Copy Link Button */}
