@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   HardDrive,
@@ -17,6 +17,10 @@ import {
   Volume2,
   FileQuestion,
   Filter,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 interface R2UsedByProduct {
@@ -172,6 +176,10 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     }
   };
 
+  // Phân trang danh sách tệp R2
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+
   // Lọc danh sách tệp: hỗ trợ tìm theo tên tệp (key), định dạng, tên thẻ bài hoặc slug sản phẩm
   const displayedItems = (activeTab === "orphans" ? orphans : items).filter((item) => {
     const q = searchQuery.toLowerCase().trim();
@@ -189,6 +197,36 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     if (filterExt === "all") return true;
     return item.extension.toLowerCase() === filterExt.toLowerCase();
   });
+
+  // Tự động chuyển về trang 1 khi thay đổi tab, từ khóa tìm kiếm, bộ lọc đuôi hoặc số tệp/trang
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, filterExt, pageSize]);
+
+  const totalItems = displayedItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedItems = displayedItems.slice(startIndex, endIndex);
+
+  // Danh sách các số trang thông minh với dấu chấm lửng
+  const pageNumbers = useMemo(() => {
+    const pages: (number | "dots")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (safeCurrentPage > 3) pages.push("dots");
+    const start = Math.max(2, safeCurrentPage - 1);
+    const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (safeCurrentPage < totalPages - 2) pages.push("dots");
+    pages.push(totalPages);
+    return pages;
+  }, [totalPages, safeCurrentPage]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/80 backdrop-blur-md">
@@ -379,7 +417,8 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
               <select
                 value={filterExt}
                 onChange={(e) => setFilterExt(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-300 text-xs font-medium focus:outline-none focus:border-emerald-500"
+                className="px-2.5 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-300 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
+                title="Lọc theo định dạng tệp"
               >
                 <option value="all">Tất cả đuôi</option>
                 <option value="glb">.glb (3D)</option>
@@ -387,6 +426,19 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                 <option value="mind">.mind (Target)</option>
                 <option value="png">.png</option>
                 <option value="jpg">.jpg</option>
+              </select>
+
+              {/* Bộ chọn số lượng tệp mỗi trang */}
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="px-2.5 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-300 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
+                title="Số tệp hiển thị mỗi trang"
+              >
+                <option value={15}>15 tệp/trang</option>
+                <option value={20}>20 tệp/trang</option>
+                <option value={50}>50 tệp/trang</option>
+                <option value={100}>100 tệp/trang</option>
               </select>
 
               <button
@@ -434,100 +486,184 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-800/60 font-mono text-[11px]">
-                    {displayedItems.map((item, index) => (
-                      <tr key={item.key} className="hover:bg-stone-900/40 transition-colors">
-                        <td className="px-3 py-2.5 text-center font-sans text-stone-500 font-medium">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[220px] truncate" title={item.key}>
-                          {item.key}
-                        </td>
-                        <td className="px-4 py-2.5 uppercase text-stone-400 font-semibold">
-                          .{item.extension}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-stone-300">
-                          {(item.size / 1024 / 1024).toFixed(2)} MB
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {item.usedBy && item.usedBy.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-1 max-w-[280px]">
-                              {item.usedBy.slice(0, 2).map((u, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-stone-900 border border-emerald-500/30 text-[10px] text-stone-200"
-                                  title={`${u.name} (slug: ${u.slug}) - ${u.role}`}
+                    {paginatedItems.map((item, index) => {
+                      const stt = startIndex + index + 1;
+                      return (
+                        <tr key={item.key} className="hover:bg-stone-900/40 transition-colors">
+                          <td className="px-3 py-2.5 text-center font-sans text-stone-500 font-medium">
+                            {stt}
+                          </td>
+                          <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[220px] truncate" title={item.key}>
+                            {item.key}
+                          </td>
+                          <td className="px-4 py-2.5 uppercase text-stone-400 font-semibold">
+                            .{item.extension}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-stone-300">
+                            {(item.size / 1024 / 1024).toFixed(2)} MB
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {item.usedBy && item.usedBy.length > 0 ? (
+                              <div className="flex flex-wrap items-center gap-1 max-w-[280px]">
+                                {item.usedBy.slice(0, 2).map((u, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-stone-900 border border-emerald-500/30 text-[10px] text-stone-200"
+                                    title={`${u.name} (slug: ${u.slug}) - ${u.role}`}
+                                  >
+                                    <span className="font-bold text-emerald-400 truncate max-w-[110px]">
+                                      {u.name}
+                                    </span>
+                                    <span className="text-[9px] text-stone-400 font-sans">
+                                      ({u.role})
+                                    </span>
+                                  </span>
+                                ))}
+                                {item.usedBy.length > 2 && (
+                                  <span className="px-1.5 py-0.5 rounded bg-stone-800 text-[9px] text-stone-400">
+                                    +{item.usedBy.length - 2} thẻ khác
+                                  </span>
+                                )}
+                              </div>
+                            ) : item.isProtected ? (
+                              <span className="text-sky-300 text-[10px] font-sans italic">
+                                Hệ thống mặc định
+                              </span>
+                            ) : (
+                              <span className="text-amber-400/80 text-[10px] font-sans italic">
+                                Chưa gắn thẻ bài nào
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {item.isProtected ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">
+                                Hệ thống
+                              </span>
+                            ) : item.isOrphan ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                Cần dọn dẹp
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                                Đang dùng
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-stone-100 transition-colors cursor-pointer"
+                                title="Mở URL công khai"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+
+                              {!item.isProtected && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSingle(item.key)}
+                                  disabled={isCleaning}
+                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+                                  title="Xóa tệp khỏi R2"
                                 >
-                                  <span className="font-bold text-emerald-400 truncate max-w-[110px]">
-                                    {u.name}
-                                  </span>
-                                  <span className="text-[9px] text-stone-400 font-sans">
-                                    ({u.role})
-                                  </span>
-                                </span>
-                              ))}
-                              {item.usedBy.length > 2 && (
-                                <span className="px-1.5 py-0.5 rounded bg-stone-800 text-[9px] text-stone-400">
-                                  +{item.usedBy.length - 2} thẻ khác
-                                </span>
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
                               )}
                             </div>
-                          ) : item.isProtected ? (
-                            <span className="text-sky-300 text-[10px] font-sans italic">
-                              Hệ thống mặc định
-                            </span>
-                          ) : (
-                            <span className="text-amber-400/80 text-[10px] font-sans italic">
-                              Chưa gắn thẻ bài nào
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          {item.isProtected ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">
-                              Hệ thống
-                            </span>
-                          ) : item.isOrphan ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
-                              Cần dọn dẹp
-                            </span>
-                          ) : (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-                              Đang dùng
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-stone-100 transition-colors cursor-pointer"
-                              title="Mở URL công khai"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-
-                            {!item.isProtected && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteSingle(item.key)}
-                                disabled={isCleaning}
-                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
-                                title="Xóa tệp khỏi R2"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
+
+          {/* Thanh Điều Hướng Phân Trang */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-stone-950/60 border border-stone-800 rounded-2xl">
+              <div className="text-xs text-stone-400 font-medium">
+                Hiển thị <span className="text-emerald-400 font-bold">{startIndex + 1} - {endIndex}</span> trong tổng số <span className="text-stone-200 font-bold">{totalItems}</span> tệp (Trang {safeCurrentPage}/{totalPages})
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                {/* Trang đầu */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safeCurrentPage === 1}
+                  className="p-1.5 rounded-lg border border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-100 hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Về trang đầu"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
+
+                {/* Trang trước */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safeCurrentPage === 1}
+                  className="p-1.5 rounded-lg border border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-100 hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Trang trước"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                {/* Các số trang */}
+                {pageNumbers.map((p, idx) => {
+                  if (p === "dots") {
+                    return (
+                      <span key={`dots-${idx}`} className="px-2 text-stone-600 font-bold select-none text-xs">
+                        ...
+                      </span>
+                    );
+                  }
+                  const isCurrent = p === safeCurrentPage;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setCurrentPage(p)}
+                      className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? "bg-emerald-500 text-stone-950 shadow-md shadow-emerald-500/20 font-black"
+                          : "border border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-100 hover:bg-stone-800"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+
+                {/* Trang sau */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={safeCurrentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-100 hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Trang sau"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+
+                {/* Trang cuối */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safeCurrentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-100 hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Đến trang cuối"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}

@@ -175,3 +175,9 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
 10. **Bổ Sung Cột STT Trong Bảng Quản Lý Tệp Cloudflare R2**:
    - Thêm cột `STT` (Số Thứ Tự) ở đầu bảng trong [`src/components/tools/modals/r2-storage-modal.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/tools/modals/r2-storage-modal.tsx).
    - Tự động đánh số theo thứ tự danh sách hiển thị `index + 1`, căn giữa với font sans thanh mảnh, giúp quản trị viên dễ dàng theo dõi số lượng và đối chiếu các tệp lưu trữ trên R2.
+11. **Bổ Sung Bộ Lọc Phân Trang Trong Modal Quản Lý Tệp Cloudflare R2**:
+   - Thêm bộ chọn số lượng tệp hiển thị mỗi trang: `15`, `20`, `50`, `100` tệp/trang.
+   - Thêm thanh điều hướng phân trang hiện đại: Nút về đầu trang `<<`, trang trước `<`, dãy số trang thông minh với dấu chấm lửng `...`, trang sau `>`, và đến trang cuối `>>`.
+   - Hiển thị dải số tệp đang xem: `Hiển thị X - Y trong tổng số Z tệp (Trang A/B)`.
+   - Cột STT tự động tính lũy tiến chuẩn xác theo trang: `(currentPage - 1) * pageSize + index + 1`.
+   - Tự động reset về trang 1 khi thay đổi tab (Tệp chưa dùng / Tất cả tệp), từ khóa tìm kiếm, bộ lọc đuôi hoặc số tệp/trang.
