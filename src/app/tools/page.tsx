@@ -1031,8 +1031,13 @@ export default function ToolsPage() {
           renderOverlaysAndResolve();
         };
         cardImg.onerror = () => reject(new Error("Lỗi nạp ảnh thẻ bài"));
+        // Cloudflare R2 CDN đã cấu hình Access-Control-Allow-Origin: * -> tải trực tiếp 0% băng thông Vercel
+        const isR2Url =
+          cardImageSrc.includes(".r2.dev") ||
+          cardImageSrc.includes(".r2.cloudflarestorage.com");
         const finalSrc =
-          cardImageSrc.startsWith("http://") || cardImageSrc.startsWith("https://")
+          !isR2Url &&
+          (cardImageSrc.startsWith("http://") || cardImageSrc.startsWith("https://"))
             ? `/api/proxy/image?url=${encodeURIComponent(cardImageSrc)}`
             : cardImageSrc;
         cardImg.src = finalSrc;
@@ -1296,9 +1301,13 @@ export default function ToolsPage() {
           (Array.isArray(card.images) && card.images[0]) ||
           `/images/cards/${card.slug}-card.jpg`;
 
-        // Nếu ảnh là URL ngoài (Cloudflare R2 CDN), định tuyến qua API proxy để vượt qua 100% rào cản CORS trên Canvas
+        // Cloudflare R2 CDN đã hỗ trợ CORS 100% -> tải trực tiếp tiết kiệm 100% băng thông Vercel
+        const isR2Card =
+          rawCardImgSrc.includes(".r2.dev") ||
+          rawCardImgSrc.includes(".r2.cloudflarestorage.com");
         const cardImgSrc =
-          rawCardImgSrc.startsWith("http://") || rawCardImgSrc.startsWith("https://")
+          !isR2Card &&
+          (rawCardImgSrc.startsWith("http://") || rawCardImgSrc.startsWith("https://"))
             ? `/api/proxy/image?url=${encodeURIComponent(rawCardImgSrc)}`
             : rawCardImgSrc;
 
@@ -2117,8 +2126,12 @@ export default function ToolsPage() {
         (Array.isArray(product.images) && product.images[0]) ||
         `/images/cards/${product.slug}-template.jpg`;
 
+    const isR2Raw =
+      rawCardImg.includes(".r2.dev") ||
+      rawCardImg.includes(".r2.cloudflarestorage.com");
     const cardImg =
-      rawCardImg.startsWith("http://") || rawCardImg.startsWith("https://")
+      !isR2Raw &&
+      (rawCardImg.startsWith("http://") || rawCardImg.startsWith("https://"))
         ? `/api/proxy/image?url=${encodeURIComponent(rawCardImg)}`
         : rawCardImg;
 

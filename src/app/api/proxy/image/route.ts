@@ -43,7 +43,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Server-to-Server fetch (không bị hạn chế CORS trình duyệt)
+    // Nếu là Cloudflare R2 CDN (đã có sẵn CORS *), chuyển hướng 307 ngay lập tức
+    // Trình duyệt tải thẳng từ R2 với 0% chi phí băng thông Vercel (Fast Origin Transfer = 0 bytes)
+    const isR2Url =
+      targetUrl.includes(".r2.dev") ||
+      targetUrl.includes(".r2.cloudflarestorage.com");
+
+    if (isR2Url) {
+      return NextResponse.redirect(targetUrl, {
+        status: 307,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+          "Cache-Control": "public, max-age=604800, immutable",
+        },
+      });
+    }
+
+    // Server-to-Server fetch (đối với external URL lạ không hỗ trợ CORS)
     const res = await fetch(targetUrl, {
       headers: {
         "User-Agent": "PolyCards-Image-Proxy/1.0",

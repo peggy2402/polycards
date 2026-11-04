@@ -200,11 +200,21 @@ export function ModelDoctorModal({
         } else if (selectedSlug) {
           const matched = products.find((p) => p.slug === selectedSlug);
           if (matched?.modelUrl) {
-            setStatusText("Đang tải tệp mô hình nguồn...");
-            const proxyUrl = `/api/proxy/model?url=${encodeURIComponent(matched.modelUrl)}`;
-            const modelRes = await fetch(proxyUrl);
-            if (modelRes.ok) {
-              arrayBuffer = await modelRes.arrayBuffer();
+            setStatusText("Đang tải tệp mô hình nguồn trực tiếp từ CDN...");
+            try {
+              const directRes = await fetch(matched.modelUrl);
+              if (directRes.ok) {
+                arrayBuffer = await directRes.arrayBuffer();
+              }
+            } catch (fetchErr) {
+              console.warn("Direct fetch model error, fallback to proxy:", fetchErr);
+            }
+            if (!arrayBuffer) {
+              const proxyUrl = `/api/proxy/model?url=${encodeURIComponent(matched.modelUrl)}`;
+              const modelRes = await fetch(proxyUrl);
+              if (modelRes.ok) {
+                arrayBuffer = await modelRes.arrayBuffer();
+              }
             }
           }
         }

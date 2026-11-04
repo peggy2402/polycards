@@ -181,3 +181,10 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
    - Hiển thị dải số tệp đang xem: `Hiển thị X - Y trong tổng số Z tệp (Trang A/B)`.
    - Cột STT tự động tính lũy tiến chuẩn xác theo trang: `(currentPage - 1) * pageSize + index + 1`.
    - Tự động reset về trang 1 khi thay đổi tab (Tệp chưa dùng / Tất cả tệp), từ khóa tìm kiếm, bộ lọc đuôi hoặc số tệp/trang.
+
+12. **Triệt Tiêu Hoàn Toàn Băng Thông Vercel (Zero Egress Transfer - Ngăn Chặn Vercel Quota Pause)**:
+   - *Bối Cảnh Sự Cố:* Vercel kích hoạt cơ chế khóa tài khoản Hobby "Deployments Paused for Fast Origin Transfer" (vượt hạn mức 100GB/tháng) do trước đây các tệp ảnh và mô hình 3D (.glb, .usdz, .mind) bị tải thông qua API proxy của Vercel Serverless Function.
+   - *Giải Pháp Kiến Trúc Triệt Để:*
+     1. **Khai Thác 100% Cloudflare R2 Zero-Egress**: Cloudflare R2 miễn phí 100% băng thông tải xuống (Zero Egress Fees) và đã cấu hình sẵn header `Access-Control-Allow-Origin: *`.
+     2. **Bypass Proxy Vercel Đối Với Ảnh & 3D**: Trong [`src/app/tools/page.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/tools/page.tsx) và [`src/components/tools/modals/model-doctor-modal.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/tools/modals/model-doctor-modal.tsx), toàn bộ luồng nạp ảnh thẻ và tải tệp GLB nguồn được nhận diện `isR2Url` và chuyển sang fetch trực tiếp từ R2 CDN, giảm tải 100% dung lượng đi qua Vercel.
+     3. **HTTP 307 Redirect Thay Vì Buffer Trong Proxy**: Trong [`src/app/api/proxy/image/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/proxy/image/route.ts), nếu URL thuộc Cloudflare R2, route lập tức phản hồi `307 Temporary Redirect` (< 200 bytes) để trình duyệt tự động tải trực tiếp từ R2 Edge, ngăn chặn hoàn toàn việc buffer hàng chục MB tệp vào RAM và bandwidth của Vercel Serverless Function.
