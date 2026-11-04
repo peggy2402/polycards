@@ -424,6 +424,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                 <table className="w-full text-left text-xs">
                   <thead className="bg-stone-900/80 text-stone-400 text-[11px] border-b border-stone-800">
                     <tr>
+                      <th className="px-3 py-3 font-semibold text-center w-12 text-stone-500">STT</th>
                       <th className="px-4 py-3 font-semibold">Tên Tệp (Key)</th>
                       <th className="px-4 py-3 font-semibold">Định Dạng</th>
                       <th className="px-4 py-3 font-semibold text-right">Kích Thước</th>
@@ -433,8 +434,11 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-800/60 font-mono text-[11px]">
-                    {displayedItems.map((item) => (
+                    {displayedItems.map((item, index) => (
                       <tr key={item.key} className="hover:bg-stone-900/40 transition-colors">
+                        <td className="px-3 py-2.5 text-center font-sans text-stone-500 font-medium">
+                          {index + 1}
+                        </td>
                         <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[220px] truncate" title={item.key}>
                           {item.key}
                         </td>

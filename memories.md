@@ -171,3 +171,7 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      - [`src/app/robots.ts`](file:///Users/peggy2402/Projects/polycards/src/app/robots.ts): Khai báo host, sitemap và phân quyền cào dữ liệu cho Googlebot.
    - *PWA Manifest*: [`src/app/manifest.ts`](file:///Users/peggy2402/Projects/polycards/src/app/manifest.ts) giúp nâng điểm Google Mobile-First Indexing lên 100/100.
    - *Metadata Riêng Biệt Từng Trang*: Cấu hình server layout metadata chuyên biệt cho [`src/app/order/layout.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/order/layout.tsx), [`src/app/products/layout.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/products/layout.tsx), và [`src/app/scan/layout.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/scan/layout.tsx).
+
+10. **Bổ Sung Cột STT Trong Bảng Quản Lý Tệp Cloudflare R2**:
+   - Thêm cột `STT` (Số Thứ Tự) ở đầu bảng trong [`src/components/tools/modals/r2-storage-modal.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/tools/modals/r2-storage-modal.tsx).
+   - Tự động đánh số theo thứ tự danh sách hiển thị `index + 1`, căn giữa với font sans thanh mảnh, giúp quản trị viên dễ dàng theo dõi số lượng và đối chiếu các tệp lưu trữ trên R2.
