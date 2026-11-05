@@ -203,3 +203,12 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      2. Tự động tính toán các danh mục và mã bộ duy nhất từ dữ liệu tệp R2 (`availableCategories`, `availablePackCodes`).
      3. Nâng cấp cột "Tên Tệp (Key)" với icon nhận diện trực quan cho từng loại tệp (.glb/.usdz -> Box tím, .png/.jpg -> Image vàng, .mind -> ScanLine cyan, .mp3 -> Volume2 hồng).
      4. Nâng cấp cột "Thẻ Bài & Mô Hình 3D Sử Dụng": Hiển thị card chip chi tiết cho từng thẻ, gắn badge mô hình 3D đang liên kết (`Box 3D: [modelName].glb`), badge Mã bộ (`POLY30-...`) và badge Song ngữ (`EN-VI`/`ZH-VI`).
+
+15. **Hỗ Trợ Tính Năng "Play All" Animations & Chế Độ Clean View Thu Gọn Trong WebAR**:
+   - *Bối Cảnh & Nhu Cầu:* Mô hình 3D phức tạp (như Thuyền buồm `sailboat.glb`, sóng biển, cánh buồm, xe cộ, phong cảnh) có nhiều animation clips riêng lẻ. Trước đây WebAR chỉ chạy clip đầu tiên (`animations[0]`), khiến các bộ phận còn lại (như sóng, thân thuyền, cánh buồm) đứng im, trong khi trên `gltf-viewer.donmccurdy.com` phải bật "Play all" mới chuyển động toàn bộ. Đồng thời người dùng cần giao diện WebAR clean, thoáng đãng hơn, không che khuất thẻ bài.
+   - *Triển Khai Tính Năng Play All:*
+     1. Trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx): Khi nạp model có từ 2 clips trở lên, hệ thống MẶC ĐỊNH tự động kích hoạt tất cả các animations đồng thời (`Object.values(actionsRef.current).forEach(a => a.reset().play())`) và gán `playingClipName = "__PLAY_ALL__"`.
+     2. Trong thanh chọn động tác ngang và [`src/components/ar/components/ar-action-sheet.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/components/ar-action-sheet.tsx): Nút đầu tiên luôn là `✨ Tất cả (Play All)`. Người dùng có thể bấm để chạy tất cả đồng loạt hoặc chọn từng động tác cụ thể.
+   - *Triển Khai Clean View & Tinh Giản Giao Diện:*
+     1. Tích hợp nút **Thu Gọn / Mở Rộng (Clean View Toggle)** ngay trên mini header của Bottom Card: Khi thu gọn, khối từ vựng song ngữ to được giấu đi, giảm chiều cao thanh điều khiển từ 220px xuống còn 55px, nhường 100% không gian thoáng đãng cho mô hình 3D AR.
+     2. Tinh gọn nút Gyro 360° trên Top Bar thành dạng pill nhỏ gọn sang trọng (`360° Gyro`), không còn nút to chói lóa choáng tầm nhìn.

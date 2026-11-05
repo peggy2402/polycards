@@ -29,6 +29,8 @@ import {
   Compass,
   Activity,
   Check,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { ArReactionSystem } from "./effects/ar-reaction-system";
 import { useArGestures } from "./hooks/use-ar-gestures";
@@ -184,6 +186,7 @@ export function WebArCardView({
 
   // Auto-hide UI (sau 4s không chạm thì mờ dần để xem toàn cảnh)
   const [isUiFaded, setIsUiFaded] = useState<boolean>(false);
+  const [isVocabCollapsed, setIsVocabCollapsed] = useState<boolean>(false);
   const uiActivityTimerRef = useRef<any>(null);
 
   // Phát hiện chế độ xoay ngang (Landscape Mode)
@@ -738,11 +741,15 @@ export function WebArCardView({
                 });
                 setAvailableClips(clipNames);
                 if (clipNames.length > 1) {
+                  // Mặc định tự động kích hoạt TẤT CẢ các animation đồng thời (Play All)
+                  // Tương thích chuẩn glTF Viewer (Don McCurdy) giúp các model phức tạp (Thuyền buồm, xe cộ, nhân vật) chuyển động đầy đủ 100%
+                  Object.values(actionsRef.current).forEach((action: any) => {
+                    action.reset().play();
+                  });
+                  setPlayingClipName("__PLAY_ALL__");
                   setIsActionSelectorOpen(true);
                   resetActionSelectorTimer();
-                }
-
-                if (animal.slug !== "cat") {
+                } else if (clipNames.length === 1 && animal.slug !== "cat") {
                   let matchedClip = gltf.animations[0];
                   if (matchedClip && actionsRef.current[matchedClip.name]) {
                     actionsRef.current[matchedClip.name].play();
@@ -1197,15 +1204,29 @@ export function WebArCardView({
     );
   };
 
-  // Chuyển đổi clip animation
+  // Chuyển đổi clip animation (Hỗ trợ phát riêng lẻ hoặc "Play All" tất cả animations đồng thời)
   const handleSwitchClip = (clipName: string) => {
     wakeUi();
-    if (!actionsRef.current || !actionsRef.current[clipName]) return;
-    if (playingClipName && actionsRef.current[playingClipName] && playingClipName !== clipName) {
-      actionsRef.current[playingClipName].fadeOut(0.25);
+    if (!actionsRef.current) return;
+
+    if (clipName === "__PLAY_ALL__") {
+      Object.values(actionsRef.current).forEach((action: any) => {
+        action.reset().fadeIn(0.25).play();
+      });
+      setPlayingClipName("__PLAY_ALL__");
+      return;
     }
-    const nextAction = actionsRef.current[clipName];
-    nextAction.reset().fadeIn(0.25).play();
+
+    if (!actionsRef.current[clipName]) return;
+
+    // Dừng tất cả các clip khác và chỉ phát clip được chọn
+    Object.entries(actionsRef.current).forEach(([name, action]: [string, any]) => {
+      if (name === clipName) {
+        action.reset().fadeIn(0.25).play();
+      } else {
+        action.fadeOut(0.25);
+      }
+    });
     setPlayingClipName(clipName);
   };
 
@@ -1301,10 +1322,10 @@ export function WebArCardView({
                   showToast("Quyền cảm biến chuyển động bị từ chối", "warning");
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 text-white font-bold text-xs shadow-lg backdrop-blur-md active:scale-95 transition-all border border-emerald-300/40 animate-pulse cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-900/80 text-emerald-300 font-bold text-xs backdrop-blur-md active:scale-95 transition-all border border-emerald-400/30 cursor-pointer shadow-md"
             >
-              <Compass className="h-4 w-4 text-white" />
-              <span>Bật xoay 360° (Gyro)</span>
+              <Compass className="h-3.5 w-3.5 text-emerald-400" />
+              <span>360° Gyro</span>
             </button>
           )}
 
@@ -1322,14 +1343,14 @@ export function WebArCardView({
                 });
                 resetBasePose();
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all cursor-pointer ${
                 isMotionEnabled
-                  ? "bg-emerald-950/70 text-emerald-300 border-emerald-500/40"
-                  : "bg-black/50 text-stone-400 border-white/10"
+                  ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40 shadow-sm"
+                  : "bg-stone-900/60 text-stone-400 border-white/10"
               }`}
             >
               <Compass className={`h-3.5 w-3.5 ${isMotionEnabled ? "text-emerald-400" : "text-stone-400"}`} />
-              <span>{isMotionEnabled ? "360° Gyro Bật" : "360° Gyro Tắt"}</span>
+              <span>{isMotionEnabled ? "360° Bật" : "360° Tắt"}</span>
             </button>
           )}
         </div>
@@ -1693,78 +1714,118 @@ export function WebArCardView({
             </button>
           </div>
         ) : (
-          /* Giao diện chuẩn khi màn hình dọc (Portrait) */
-          <div className="w-full max-w-md pointer-events-auto rounded-3xl bg-stone-950/85 border border-white/20 p-2.5 backdrop-blur-xl shadow-2xl flex flex-col gap-2">
-            {/* 1. KHỐI SONG NGỮ (EN/ZH & VI) */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* Thẻ Tiếng Anh (hoặc Tiếng Trung) */}
+          /* Giao diện chuẩn khi màn hình dọc (Portrait) - Hỗ trợ Clean View Thu Gọn */
+          <div className="w-full max-w-md pointer-events-auto rounded-3xl bg-stone-950/75 border border-white/15 p-2 backdrop-blur-xl shadow-2xl flex flex-col gap-1.5 transition-all duration-300">
+            {/* Thanh Mini Header: Tên sản phẩm & Nút chuyển đổi Clean View */}
+            <div className="flex items-center justify-between px-2 pt-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-300">
+                <span className="truncate max-w-[180px]">{animal.nameVi}</span>
+                <span className="text-[10px] text-stone-400 font-normal">({animal.nameEn})</span>
+              </div>
               <button
                 type="button"
-                onClick={() => handleSpeak(languageTrack === "zh-vi" ? "zh" : "en")}
-                className={`flex flex-col items-start p-2 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 ${
-                  activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
-                    ? "bg-amber-400/25 border-amber-400 shadow-md shadow-amber-400/25 scale-[1.02]"
-                    : "bg-white/10 border-white/15 hover:bg-white/15"
-                }`}
-                title={`Nhấn để nghe phát âm ${languageTrack === "zh-vi" ? "Tiếng Trung" : "Tiếng Anh"}`}
+                onClick={() => setIsVocabCollapsed((prev) => !prev)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-stone-300 text-[10px] font-bold cursor-pointer transition-colors"
+                title={isVocabCollapsed ? "Mở rộng thẻ từ vựng" : "Thu gọn để xem toàn cảnh Clean View"}
               >
-                <div className="flex items-center justify-between w-full mb-0.5">
-                  <span className="text-[10px] font-bold text-amber-300 tracking-wider flex items-center gap-1">
-                    <Languages className="h-3 w-3" />
-                    {languageTrack === "zh-vi" ? "TIẾNG TRUNG (ZH)" : "TIẾNG ANH (EN)"}
-                  </span>
-                  <Volume2
-                    className={`h-3.5 w-3.5 ${
-                      activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
-                        ? "text-amber-300 animate-pulse"
-                        : "text-stone-400"
-                    }`}
-                  />
-                </div>
-                <span className="text-sm font-black text-white truncate max-w-full">
-                  {languageTrack === "zh-vi" ? animal.nameZh || animal.nameEn : animal.nameEn}
-                </span>
-                <span className="text-[10px] text-amber-200/90 font-mono truncate max-w-full">
-                  {languageTrack === "zh-vi" ? animal.pinyinZh || "pīnyīn" : animal.ipa || "/ipa/"}
-                </span>
-              </button>
-
-              {/* Thẻ Tiếng Việt */}
-              <button
-                type="button"
-                onClick={() => handleSpeak("vi")}
-                className={`flex flex-col items-start p-2 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 ${
-                  activeLang === "vi"
-                    ? "bg-emerald-500/25 border-emerald-400 shadow-md shadow-emerald-400/25 scale-[1.02]"
-                    : "bg-white/10 border-white/15 hover:bg-white/15"
-                }`}
-                title="Nhấn để nghe phát âm Tiếng Việt"
-              >
-                <div className="flex items-center justify-between w-full mb-0.5">
-                  <span className="text-[10px] font-bold text-emerald-300 tracking-wider flex items-center gap-1">
-                    <Languages className="h-3 w-3" />
-                    TIẾNG VIỆT (VI)
-                  </span>
-                  <Volume2
-                    className={`h-3.5 w-3.5 ${
-                      activeLang === "vi" ? "text-emerald-300 animate-pulse" : "text-stone-400"
-                    }`}
-                  />
-                </div>
-                <span className="text-sm font-black text-white truncate max-w-full">
-                  {animal.nameVi}
-                </span>
-                <span className="text-[10px] text-emerald-200/80 truncate max-w-full">
-                  Tiếng Mẹ Đẻ
-                </span>
+                <span>{isVocabCollapsed ? "Mở rộng" : "Thu gọn"}</span>
+                {isVocabCollapsed ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               </button>
             </div>
 
-            {/* 2. CHỌN ĐỘNG TÁC 3D (Tự Động Ẩn Sau 4 Giây) */}
+            {/* 1. KHỐI SONG NGỮ (EN/ZH & VI) - Ẩn khi ở chế độ Clean View để màn hình thoáng đãng */}
+            {!isVocabCollapsed && (
+              <div className="grid grid-cols-2 gap-1.5 animate-in fade-in duration-200">
+                {/* Thẻ Tiếng Anh (hoặc Tiếng Trung) */}
+                <button
+                  type="button"
+                  onClick={() => handleSpeak(languageTrack === "zh-vi" ? "zh" : "en")}
+                  className={`flex flex-col items-start p-2 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 ${
+                    activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
+                      ? "bg-amber-400/25 border-amber-400 shadow-md shadow-amber-400/25 scale-[1.02]"
+                      : "bg-white/10 border-white/15 hover:bg-white/15"
+                  }`}
+                  title={`Nhấn để nghe phát âm ${languageTrack === "zh-vi" ? "Tiếng Trung" : "Tiếng Anh"}`}
+                >
+                  <div className="flex items-center justify-between w-full mb-0.5">
+                    <span className="text-[10px] font-bold text-amber-300 tracking-wider flex items-center gap-1">
+                      <Languages className="h-3 w-3" />
+                      {languageTrack === "zh-vi" ? "TIẾNG TRUNG (ZH)" : "TIẾNG ANH (EN)"}
+                    </span>
+                    <Volume2
+                      className={`h-3.5 w-3.5 ${
+                        activeLang === (languageTrack === "zh-vi" ? "zh" : "en")
+                          ? "text-amber-300 animate-pulse"
+                          : "text-stone-400"
+                      }`}
+                    />
+                  </div>
+                  <span className="text-sm font-black text-white truncate max-w-full">
+                    {languageTrack === "zh-vi" ? animal.nameZh || animal.nameEn : animal.nameEn}
+                  </span>
+                  <span className="text-[10px] text-amber-200/90 font-mono truncate max-w-full">
+                    {languageTrack === "zh-vi" ? animal.pinyinZh || "pīnyīn" : animal.ipa || "/ipa/"}
+                  </span>
+                </button>
+
+                {/* Thẻ Tiếng Việt */}
+                <button
+                  type="button"
+                  onClick={() => handleSpeak("vi")}
+                  className={`flex flex-col items-start p-2 rounded-2xl border transition-all text-left cursor-pointer active:scale-98 ${
+                    activeLang === "vi"
+                      ? "bg-emerald-500/25 border-emerald-400 shadow-md shadow-emerald-400/25 scale-[1.02]"
+                      : "bg-white/10 border-white/15 hover:bg-white/15"
+                  }`}
+                  title="Nhấn để nghe phát âm Tiếng Việt"
+                >
+                  <div className="flex items-center justify-between w-full mb-0.5">
+                    <span className="text-[10px] font-bold text-emerald-300 tracking-wider flex items-center gap-1">
+                      <Languages className="h-3 w-3" />
+                      TIẾNG VIỆT (VI)
+                    </span>
+                    <Volume2
+                      className={`h-3.5 w-3.5 ${
+                        activeLang === "vi" ? "text-emerald-300 animate-pulse" : "text-stone-400"
+                      }`}
+                    />
+                  </div>
+                  <span className="text-sm font-black text-white truncate max-w-full">
+                    {animal.nameVi}
+                  </span>
+                  <span className="text-[10px] text-emerald-200/80 truncate max-w-full">
+                    Tiếng Mẹ Đẻ
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* 2. CHỌN ĐỘNG TÁC 3D (Hỗ Trợ Play All Tất Cả & Từng Động Tác) */}
             {availableClips.length > 1 && isActionSelectorOpen && (
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 px-1 border-t border-white/10 pt-2 animate-in fade-in duration-200">
-                <span className="text-[11px] font-black text-amber-300 shrink-0">Động tác:</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 px-1 border-t border-white/10 pt-1.5 animate-in fade-in duration-200">
+                <span className="text-[10px] font-bold text-amber-300 shrink-0 flex items-center gap-1">
+                  <Activity className="h-3 w-3" />
+                  Động tác:
+                </span>
                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                  {/* Nút Play All - Phát tất cả animations */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSwitchClip("__PLAY_ALL__");
+                      resetActionSelectorTimer();
+                    }}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 ${
+                      playingClipName === "__PLAY_ALL__"
+                        ? "bg-gradient-to-r from-amber-400 to-orange-400 text-stone-950 shadow-md shadow-amber-400/30 scale-102"
+                        : "bg-white/10 text-amber-200 hover:bg-white/20"
+                    }`}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    <span>Tất cả (Play All)</span>
+                  </button>
+
+                  {/* Từng clip riêng lẻ */}
                   {availableClips.map((clip) => {
                     const isSelected = playingClipName === clip;
                     return (
@@ -1775,7 +1836,7 @@ export function WebArCardView({
                           handleSwitchClip(clip);
                           resetActionSelectorTimer();
                         }}
-                        className={`px-3 py-1 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                           isSelected
                             ? "bg-amber-400 text-stone-950 shadow-md shadow-amber-400/30 scale-102"
                             : "bg-white/10 text-stone-200 hover:bg-white/20"
@@ -1795,7 +1856,7 @@ export function WebArCardView({
               <button
                 type="button"
                 onClick={handleAnimalSound}
-                className={`flex-1 flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border transition-all active:scale-98 cursor-pointer ${
+                className={`flex-1 flex min-h-[42px] items-center justify-center gap-2 rounded-2xl border transition-all active:scale-98 cursor-pointer ${
                   isPlayingSound
                     ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-lg shadow-amber-400/30"
                     : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20 font-bold"
@@ -1821,7 +1882,7 @@ export function WebArCardView({
                       languageTrack === "zh-vi" ? "zh" : "en"
                     );
                   }}
-                  className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-2xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
                     isListening
                       ? "bg-rose-500 text-white border-rose-300 shadow-rose-500/50 animate-pulse scale-105"
                       : "bg-white/10 text-emerald-300 border-white/15 hover:bg-white/20"
@@ -1835,30 +1896,37 @@ export function WebArCardView({
                 </button>
               )}
 
-              {/* Nút mở lại động tác nếu đã tự đóng sau 4s */}
-              {availableClips.length > 1 && !isActionSelectorOpen && (
+              {/* Nút bật/tắt thanh động tác */}
+              {availableClips.length > 1 && (
                 <button
                   type="button"
                   onClick={() => {
-                    setIsActionSelectorOpen(true);
+                    setIsActionSelectorOpen((prev) => !prev);
                     resetActionSelectorTimer();
                   }}
-                  className="flex h-11 px-3 items-center justify-center gap-1 rounded-2xl bg-white/10 text-amber-300 border border-white/15 hover:bg-white/20 active:scale-95 transition-all text-xs font-bold cursor-pointer shrink-0"
-                  title="Chọn động tác 3D"
+                  className={`flex h-10 px-2.5 items-center justify-center gap-1 rounded-2xl border transition-all text-xs font-bold cursor-pointer shrink-0 ${
+                    isActionSelectorOpen
+                      ? "bg-amber-400 text-stone-950 border-amber-300 shadow-md"
+                      : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20"
+                  }`}
+                  title="Chọn động tác 3D / Phát tất cả (Play All)"
                 >
                   <Activity className="h-4 w-4" />
                   <span>Động tác</span>
+                  {playingClipName === "__PLAY_ALL__" && (
+                    <span className="text-[9px] px-1 rounded bg-stone-950/40 text-amber-950 font-black">All</span>
+                  )}
                 </button>
               )}
 
-              {/* Nút LẬT CAMERA MẶT TRƯỚC / SAU (thay thế nút chụp ảnh) */}
+              {/* Nút LẬT CAMERA MẶT TRƯỚC / SAU */}
               <button
                 type="button"
                 onClick={handleToggleCamera}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-400 text-stone-950 font-black shadow-lg shadow-amber-400/30 active:scale-90 transition-transform shrink-0 cursor-pointer border border-amber-300"
+                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-400 text-stone-950 font-black shadow-lg shadow-amber-400/30 active:scale-90 transition-transform shrink-0 cursor-pointer border border-amber-300"
                 title={facingMode === "user" ? "Chuyển sang Camera sau" : "Chuyển sang Camera trước (Selfie)"}
               >
-                <SwitchCamera className="h-5 w-5" />
+                <SwitchCamera className="h-4 w-4" />
               </button>
             </div>
           </div>

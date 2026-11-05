@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { ChevronUp, ChevronDown, Activity, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Activity, X, Sparkles } from "lucide-react";
 
 interface ArActionSheetProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ interface ArActionSheetProps {
 }
 
 export function getClipFriendlyLabel(name: string): string {
+  if (name === "__PLAY_ALL__") return "Tất Cả (Play All)";
   const n = name.toLowerCase();
   if (n.includes("highjump") || n.startsWith("_01a")) return "Nhảy Cao";
   if (n.includes("spin") || n.includes("360")) return "Nhảy Xoay";
@@ -25,6 +26,11 @@ export function getClipFriendlyLabel(name: string): string {
   if (n.includes("roar") || n.includes("gam")) return "Gầm";
   if (n.includes("dance") || n.includes("vua")) return "Nhảy Múa";
   if (n.includes("idle") || n.includes("stand")) return "Đứng Yên";
+  if (n.includes("wave") || n.includes("song")) return "Sóng Biển";
+  if (n.includes("sail") || n.includes("buom")) return "Căng Buồm";
+  if (n.includes("float") || n.includes("dapdanh")) return "Lắc Lư";
+  if (n.includes("swim") || n.includes("boi")) return "Bơi Lội";
+  if (n.includes("fly") || n.includes("bay")) return "Bay Lượn";
   return name;
 }
 
@@ -57,6 +63,20 @@ export function ArActionSheet({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin">
+          {/* Nút phát tất cả động tác (Play All) */}
+          <button
+            type="button"
+            onClick={() => onSelectClip("__PLAY_ALL__")}
+            className={`w-full py-2 px-3 rounded-xl text-left text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeClip === "__PLAY_ALL__"
+                ? "bg-gradient-to-r from-amber-400 to-orange-400 text-stone-950 shadow-md"
+                : "bg-white/10 text-amber-300 hover:bg-white/15"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Tất cả (Play All)</span>
+          </button>
+
           {clips.map((clip) => {
             const isSelected = activeClip === clip;
             return (
@@ -98,6 +118,20 @@ export function ArActionSheet({
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto scrollbar-none py-0.5">
+            {/* Nút phát tất cả động tác (Play All) */}
+            <button
+              type="button"
+              onClick={() => onSelectClip("__PLAY_ALL__")}
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer flex items-center gap-1 ${
+                activeClip === "__PLAY_ALL__"
+                  ? "bg-gradient-to-r from-amber-400 to-orange-400 text-stone-950 shadow-md scale-102"
+                  : "bg-white/15 text-amber-200 hover:bg-white/20"
+              }`}
+            >
+              <Sparkles className="h-3 w-3" />
+              <span>Tất cả (Play All)</span>
+            </button>
+
             {clips.map((clip) => {
               const isSelected = activeClip === clip;
               return (
