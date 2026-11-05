@@ -80,6 +80,10 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterExt, setFilterExt] = useState<string>("all");
 
+  // Phân trang danh sách tệp R2
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+
   const [isCleaning, setIsCleaning] = useState<boolean>(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -111,8 +115,6 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
       setFeedbackMessage(null);
     }
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   // Xóa tất cả tệp cần dọn dẹp
   const handleCleanAllOrphans = async () => {
@@ -176,10 +178,6 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     }
   };
 
-  // Phân trang danh sách tệp R2
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(20);
-
   // Lọc danh sách tệp: hỗ trợ tìm theo tên tệp (key), định dạng, tên thẻ bài hoặc slug sản phẩm
   const displayedItems = (activeTab === "orphans" ? orphans : items).filter((item) => {
     const q = searchQuery.toLowerCase().trim();
@@ -227,6 +225,8 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     pages.push(totalPages);
     return pages;
   }, [totalPages, safeCurrentPage]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/80 backdrop-blur-md">
