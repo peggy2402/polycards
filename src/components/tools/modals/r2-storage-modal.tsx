@@ -21,12 +21,21 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  PackageCheck,
+  Languages,
+  RotateCcw,
 } from "lucide-react";
 
 interface R2UsedByProduct {
   slug: string;
   name: string;
   category?: string;
+  categorySlug?: string;
+  packCode?: string;
+  enableEnVi?: boolean;
+  enableZhVi?: boolean;
+  modelName?: string;
+  modelUrl?: string;
   role: string;
 }
 
@@ -79,6 +88,9 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
   const [activeTab, setActiveTab] = useState<"orphans" | "all">("orphans");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterExt, setFilterExt] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterPackCode, setFilterPackCode] = useState<string>("all");
+  const [filterLanguage, setFilterLanguage] = useState<"all" | "en-vi" | "zh-vi">("all");
 
   // Phân trang danh sách tệp R2
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -178,8 +190,57 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     }
   };
 
-  // Lọc danh sách tệp: hỗ trợ tìm theo tên tệp (key), định dạng, tên thẻ bài hoặc slug sản phẩm
+  // Danh sách các Danh mục duy nhất có trong R2
+  const availableCategories = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item) => {
+      item.usedBy?.forEach((u) => {
+        if (u.category && u.category.trim()) {
+          const cat = u.category.trim();
+          map.set(cat, (map.get(cat) || 0) + 1);
+        }
+      });
+    });
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [items]);
+
+  // Danh sách các Mã bộ duy nhất có trong R2
+  const availablePackCodes = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item) => {
+      item.usedBy?.forEach((u) => {
+        if (u.packCode && u.packCode.trim()) {
+          const code = u.packCode.trim();
+          map.set(code, (map.get(code) || 0) + 1);
+        }
+      });
+    });
+    return Array.from(map.entries())
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [items]);
+
+  // Kiểm tra nếu có bất kỳ bộ lọc nào đang được kích hoạt
+  const hasActiveFilters =
+    searchQuery !== "" ||
+    filterExt !== "all" ||
+    filterCategory !== "all" ||
+    filterPackCode !== "all" ||
+    filterLanguage !== "all";
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setFilterExt("all");
+    setFilterCategory("all");
+    setFilterPackCode("all");
+    setFilterLanguage("all");
+  };
+
+  // Lọc danh sách tệp: hỗ trợ tìm theo tên tệp (key), định dạng, tên thẻ bài, model 3D, danh mục, mã bộ, song ngữ
   const displayedItems = (activeTab === "orphans" ? orphans : items).filter((item) => {
+    // 1. Tìm kiếm theo từ khóa
     const q = searchQuery.toLowerCase().trim();
     if (q) {
       const matchKey = item.key.toLowerCase().includes(q);
@@ -188,18 +249,59 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
           u.name.toLowerCase().includes(q) ||
           u.slug.toLowerCase().includes(q) ||
           (u.category && u.category.toLowerCase().includes(q)) ||
+          (u.packCode && u.packCode.toLowerCase().includes(q)) ||
+          (u.modelName && u.modelName.toLowerCase().includes(q)) ||
           u.role.toLowerCase().includes(q)
       );
       if (!matchKey && !matchProduct) return false;
     }
-    if (filterExt === "all") return true;
-    return item.extension.toLowerCase() === filterExt.toLowerCase();
+
+    // 2. Lọc theo định dạng đuôi
+    if (filterExt !== "all" && item.extension.toLowerCase() !== filterExt.toLowerCase()) {
+      return false;
+    }
+
+    // 3. Lọc theo Danh mục
+    if (filterCategory !== "all") {
+      const matchCat = item.usedBy?.some(
+        (u) =>
+          (u.category && u.category.toLowerCase() === filterCategory.toLowerCase()) ||
+          (u.categorySlug && u.categorySlug.toLowerCase() === filterCategory.toLowerCase())
+      );
+      if (!matchCat) return false;
+    }
+
+    // 4. Lọc theo Mã bộ (Pack Code)
+    if (filterPackCode !== "all") {
+      if (filterPackCode === "none") {
+        const hasPackCode = item.usedBy?.some((u) => u.packCode && u.packCode.trim() !== "");
+        if (hasPackCode) return false;
+      } else {
+        const matchPack = item.usedBy?.some(
+          (u) => u.packCode && u.packCode.toLowerCase() === filterPackCode.toLowerCase()
+        );
+        if (!matchPack) return false;
+      }
+    }
+
+    // 5. Lọc theo Song ngữ
+    if (filterLanguage !== "all") {
+      if (filterLanguage === "en-vi") {
+        const matchEnVi = item.usedBy?.some((u) => u.enableEnVi === true);
+        if (!matchEnVi) return false;
+      } else if (filterLanguage === "zh-vi") {
+        const matchZhVi = item.usedBy?.some((u) => u.enableZhVi === true);
+        if (!matchZhVi) return false;
+      }
+    }
+
+    return true;
   });
 
   // Tự động chuyển về trang 1 khi thay đổi tab, từ khóa tìm kiếm, bộ lọc đuôi hoặc số tệp/trang
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery, filterExt, pageSize]);
+  }, [activeTab, searchQuery, filterExt, filterCategory, filterPackCode, filterLanguage, pageSize]);
 
   const totalItems = displayedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -372,84 +474,186 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
           )}
 
           {/* Thanh công cụ lọc & tìm kiếm */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Tabs */}
-            <div className="flex items-center p-1 rounded-xl bg-stone-950/80 border border-stone-800">
-              <button
-                type="button"
-                onClick={() => setActiveTab("orphans")}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === "orphans"
-                    ? "bg-amber-500 text-stone-950 shadow-md"
-                    : "text-stone-400 hover:text-stone-200"
-                }`}
-              >
-                <FileQuestion className="h-3.5 w-3.5" />
-                <span>Cần Dọn Dẹp ({orphans.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("all")}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === "all"
-                    ? "bg-emerald-500 text-stone-950 shadow-md"
-                    : "text-stone-400 hover:text-stone-200"
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>Tất Cả Tệp ({items.length})</span>
-              </button>
-            </div>
+          <div className="flex flex-col gap-2.5">
+            {/* Hàng 1: Tabs & Tìm kiếm & Phân trang */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Tabs */}
+              <div className="flex items-center p-1 rounded-xl bg-stone-950/80 border border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("orphans")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === "orphans"
+                      ? "bg-amber-500 text-stone-950 shadow-md"
+                      : "text-stone-400 hover:text-stone-200"
+                  }`}
+                >
+                  <FileQuestion className="h-3.5 w-3.5" />
+                  <span>Cần Dọn Dẹp ({orphans.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("all")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === "all"
+                      ? "bg-emerald-500 text-stone-950 shadow-md"
+                      : "text-stone-400 hover:text-stone-200"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Tất Cả Tệp ({items.length})</span>
+                </button>
+              </div>
 
-            {/* Bộ lọc & Tìm kiếm */}
-            <div className="flex items-center gap-2.5 flex-1 max-w-md">
-              <div className="relative flex-1">
+              {/* Ô tìm kiếm đa năng */}
+              <div className="relative flex-1 min-w-[240px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-500" />
                 <input
                   type="text"
-                  placeholder="Tìm tên tệp hoặc tên thẻ (VD: Đi bộ, walk, card)..."
+                  placeholder="Tìm theo tên tệp, tên thẻ bài, model 3D (VD: dautay, strawberry.glb)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs font-medium focus:outline-none focus:border-emerald-500"
+                  className="w-full pl-8 pr-8 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs font-medium focus:outline-none focus:border-emerald-500"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-200"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
-              <select
-                value={filterExt}
-                onChange={(e) => setFilterExt(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-300 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
-                title="Lọc theo định dạng tệp"
-              >
-                <option value="all">Tất cả đuôi</option>
-                <option value="glb">.glb (3D)</option>
-                <option value="usdz">.usdz (iOS)</option>
-                <option value="mind">.mind (Target)</option>
-                <option value="png">.png</option>
-                <option value="jpg">.jpg</option>
-              </select>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Bộ chọn số lượng tệp mỗi trang */}
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="px-2.5 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-300 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  title="Số tệp hiển thị mỗi trang"
+                >
+                  <option value={15}>15 tệp/trang</option>
+                  <option value={20}>20 tệp/trang</option>
+                  <option value={50}>50 tệp/trang</option>
+                  <option value={100}>100 tệp/trang</option>
+                </select>
 
-              {/* Bộ chọn số lượng tệp mỗi trang */}
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="px-2.5 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-300 text-xs font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
-                title="Số tệp hiển thị mỗi trang"
-              >
-                <option value={15}>15 tệp/trang</option>
-                <option value={20}>20 tệp/trang</option>
-                <option value={50}>50 tệp/trang</option>
-                <option value={100}>100 tệp/trang</option>
-              </select>
+                {/* Nút Làm mới */}
+                <button
+                  type="button"
+                  onClick={fetchR2Data}
+                  disabled={isLoading}
+                  className="p-2 rounded-xl bg-stone-950 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer"
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-emerald-400" : ""}`} />
+                </button>
 
-              <button
-                type="button"
-                onClick={fetchR2Data}
-                disabled={isLoading}
-                className="p-2 rounded-xl bg-stone-950 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer"
-                title="Làm mới danh sách"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-emerald-400" : ""}`} />
-              </button>
+                {/* Nút Đặt lại bộ lọc */}
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="px-2.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                    title="Đặt lại tất cả bộ lọc"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span className="hidden sm:inline">Đặt lại</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Hàng 2: Bộ lọc Chuyên Sâu (Danh mục, Mã bộ, Song ngữ, Định dạng) */}
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl bg-stone-950/60 border border-stone-800/80">
+              {/* Lọc Theo Danh Mục */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300">
+                <Filter className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="bg-transparent text-stone-200 font-bold text-xs focus:outline-none cursor-pointer max-w-[150px] truncate"
+                  title="Lọc theo Danh mục thẻ bài"
+                >
+                  <option value="all" className="bg-stone-900 text-white">
+                    Tất Cả Danh Mục
+                  </option>
+                  {availableCategories.map((c) => (
+                    <option key={c.name} value={c.name} className="bg-stone-900 text-amber-300">
+                      {c.name} ({c.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Lọc Theo Mã Bộ (Pack Code) */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300">
+                <PackageCheck className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                <select
+                  value={filterPackCode}
+                  onChange={(e) => setFilterPackCode(e.target.value)}
+                  className="bg-transparent text-stone-200 font-bold text-xs focus:outline-none cursor-pointer max-w-[170px] truncate font-mono"
+                  title="Lọc theo Mã bộ thẻ bài"
+                >
+                  <option value="all" className="bg-stone-900 text-white font-sans">
+                    Tất Cả Mã Bộ
+                  </option>
+                  <option value="none" className="bg-stone-900 text-amber-300 font-sans">
+                    Chưa Có Mã Bộ
+                  </option>
+                  {availablePackCodes.map((p) => (
+                    <option key={p.code} value={p.code} className="bg-stone-900 text-purple-300 font-mono">
+                      Bộ: {p.code} ({p.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Lọc Theo Song Ngữ */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300">
+                <Languages className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <select
+                  value={filterLanguage}
+                  onChange={(e) => setFilterLanguage(e.target.value as "all" | "en-vi" | "zh-vi")}
+                  className="bg-transparent text-stone-200 font-bold text-xs focus:outline-none cursor-pointer"
+                  title="Lọc theo Chế độ Song ngữ"
+                >
+                  <option value="all" className="bg-stone-900 text-white">
+                    Tất Cả Song Ngữ
+                  </option>
+                  <option value="en-vi" className="bg-stone-900 text-amber-300">
+                    Anh - Việt (EN-VI)
+                  </option>
+                  <option value="zh-vi" className="bg-stone-900 text-rose-300">
+                    Trung - Việt (ZH-VI)
+                  </option>
+                </select>
+              </div>
+
+              {/* Lọc Theo Định Dạng Tệp */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300">
+                <select
+                  value={filterExt}
+                  onChange={(e) => setFilterExt(e.target.value)}
+                  className="bg-transparent text-stone-200 font-bold text-xs focus:outline-none cursor-pointer"
+                  title="Lọc theo định dạng tệp"
+                >
+                  <option value="all" className="bg-stone-900 text-white">Tất cả đuôi</option>
+                  <option value="glb" className="bg-stone-900 text-indigo-300">.glb (Mô hình 3D)</option>
+                  <option value="usdz" className="bg-stone-900 text-sky-300">.usdz (Apple AR)</option>
+                  <option value="mind" className="bg-stone-900 text-cyan-300">.mind (Target AR)</option>
+                  <option value="png" className="bg-stone-900 text-amber-300">.png (Ảnh thẻ/Phôi)</option>
+                  <option value="jpg" className="bg-stone-900 text-amber-300">.jpg (Ảnh thẻ)</option>
+                  <option value="mp3" className="bg-stone-900 text-rose-300">.mp3 (Âm thanh)</option>
+                </select>
+              </div>
+
+              {/* Badge số tệp khớp bộ lọc */}
+              <div className="ml-auto text-[11px] text-stone-400 font-medium">
+                Khớp: <strong className="text-emerald-400">{displayedItems.length}</strong> tệp
+              </div>
             </div>
           </div>
 
@@ -480,7 +684,7 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                       <th className="px-4 py-3 font-semibold">Tên Tệp (Key)</th>
                       <th className="px-4 py-3 font-semibold">Định Dạng</th>
                       <th className="px-4 py-3 font-semibold text-right">Kích Thước</th>
-                      <th className="px-4 py-3 font-semibold">Thẻ Bài Sử Dụng</th>
+                      <th className="px-4 py-3 font-semibold">Thẻ Bài & Mô Hình 3D Sử Dụng</th>
                       <th className="px-4 py-3 font-semibold text-center">Trạng Thái</th>
                       <th className="px-4 py-3 font-semibold text-right">Thao Tác</th>
                     </tr>
@@ -493,8 +697,21 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                           <td className="px-3 py-2.5 text-center font-sans text-stone-500 font-medium">
                             {stt}
                           </td>
-                          <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[220px] truncate" title={item.key}>
-                            {item.key}
+                          <td className="px-4 py-2.5 font-bold text-stone-200 max-w-[220px]" title={item.key}>
+                            <div className="flex items-center gap-2">
+                              {item.extension === "glb" || item.extension === "usdz" ? (
+                                <Box className="h-4 w-4 text-indigo-400 shrink-0" />
+                              ) : ["jpg", "jpeg", "png", "webp"].includes(item.extension) ? (
+                                <ImageIcon className="h-4 w-4 text-amber-400 shrink-0" />
+                              ) : item.extension === "mind" ? (
+                                <ScanLine className="h-4 w-4 text-cyan-400 shrink-0" />
+                              ) : ["mp3", "wav", "m4a", "ogg"].includes(item.extension) ? (
+                                <Volume2 className="h-4 w-4 text-rose-400 shrink-0" />
+                              ) : (
+                                <HardDrive className="h-4 w-4 text-stone-400 shrink-0" />
+                              )}
+                              <span className="truncate">{item.key}</span>
+                            </div>
                           </td>
                           <td className="px-4 py-2.5 uppercase text-stone-400 font-semibold">
                             .{item.extension}
@@ -504,34 +721,74 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
                           </td>
                           <td className="px-4 py-2.5">
                             {item.usedBy && item.usedBy.length > 0 ? (
-                              <div className="flex flex-wrap items-center gap-1 max-w-[280px]">
+                              <div className="flex flex-col gap-1.5 max-w-[340px]">
                                 {item.usedBy.slice(0, 2).map((u, idx) => (
-                                  <span
+                                  <div
                                     key={idx}
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-stone-900 border border-emerald-500/30 text-[10px] text-stone-200"
-                                    title={`${u.name} (slug: ${u.slug}) - ${u.role}`}
+                                    className="p-1.5 rounded-lg bg-stone-900/90 border border-stone-800 text-[10px] flex flex-col gap-1 hover:border-emerald-500/40 transition-colors"
                                   >
-                                    <span className="font-bold text-emerald-400 truncate max-w-[110px]">
-                                      {u.name}
-                                    </span>
-                                    <span className="text-[9px] text-stone-400 font-sans">
-                                      ({u.role})
-                                    </span>
-                                  </span>
+                                    {/* Tên thẻ bài và vai trò của tệp */}
+                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                      <span className="font-bold text-emerald-300 truncate" title={`${u.name} (slug: ${u.slug})`}>
+                                        {u.name}
+                                      </span>
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-stone-800 text-stone-400 font-sans">
+                                        {u.role}
+                                      </span>
+                                    </div>
+
+                                    {/* Model 3D đang sử dụng & Mã bộ */}
+                                    <div className="flex items-center gap-1.5 flex-wrap text-[9px]">
+                                      {u.modelName ? (
+                                        <span
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold"
+                                          title={`Thẻ này đang sử dụng mô hình 3D: ${u.modelName}`}
+                                        >
+                                          <Box className="h-3 w-3 text-indigo-400 shrink-0" />
+                                          <span className="truncate max-w-[130px]">3D: {u.modelName}</span>
+                                        </span>
+                                      ) : (
+                                        <span className="text-stone-500 italic font-sans">
+                                          Chưa gắn 3D
+                                        </span>
+                                      )}
+
+                                      {/* Mã bộ */}
+                                      {u.packCode && (
+                                        <span
+                                          className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono truncate max-w-[110px]"
+                                          title={`Mã bộ: ${u.packCode}`}
+                                        >
+                                          {u.packCode}
+                                        </span>
+                                      )}
+
+                                      {/* Song ngữ */}
+                                      <span
+                                        className={`px-1 py-0.5 rounded border text-[9px] font-bold ${
+                                          u.enableZhVi
+                                            ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                                            : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                                        }`}
+                                      >
+                                        {u.enableZhVi ? "ZH-VI" : "EN-VI"}
+                                      </span>
+                                    </div>
+                                  </div>
                                 ))}
                                 {item.usedBy.length > 2 && (
-                                  <span className="px-1.5 py-0.5 rounded bg-stone-800 text-[9px] text-stone-400">
-                                    +{item.usedBy.length - 2} thẻ khác
+                                  <span className="text-[9px] text-stone-400 italic">
+                                    +{item.usedBy.length - 2} thẻ bài khác cùng sử dụng
                                   </span>
                                 )}
                               </div>
                             ) : item.isProtected ? (
-                              <span className="text-sky-300 text-[10px] font-sans italic">
-                                Hệ thống mặc định
+                              <span className="text-sky-300 text-[10px] font-sans italic flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3 text-sky-400" /> Hệ thống mặc định
                               </span>
                             ) : (
-                              <span className="text-amber-400/80 text-[10px] font-sans italic">
-                                Chưa gắn thẻ bài nào
+                              <span className="text-amber-400/80 text-[10px] font-sans italic flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3 text-amber-400" /> Chưa gắn thẻ bài nào
                               </span>
                             )}
                           </td>

@@ -194,3 +194,12 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
    - *Giải Pháp:*
      1. Chuyển toàn bộ các khai báo `useState(currentPage)`, `useState(pageSize)` lên cùng nhóm Hook ở đầu component [`src/components/tools/modals/r2-storage-modal.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/tools/modals/r2-storage-modal.tsx).
      2. Di dời điều kiện `if (!isOpen) return null;` xuống ngay sát trước câu lệnh `return (...)`, đảm bảo 100% các hook luôn được thực thi theo thứ tự cố định và nhất quán trong mọi lần render.
+
+14. **Bổ Sung Bộ Lọc Chuyên Sâu (Danh Mục, Mã Bộ, Song Ngữ) & Hiển Thị Liên Kết Model 3D Trong Kho R2**:
+   - *Mục Tiêu:* Giúp quản trị viên nắm rõ các ảnh thẻ bài nào đang liên kết và sử dụng mô hình 3D (.glb) nào, đồng thời lọc nhanh kho tệp R2 theo Danh mục, Mã bộ (Pack Code), và Chế độ Song ngữ (Anh-Việt / Trung-Việt).
+   - *Triển Khai API Backend:* Trong [`src/app/api/tools/r2-storage/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/tools/r2-storage/route.ts), mở rộng metadata `R2UsedByProduct` bổ sung `categorySlug`, `packCode`, `enableEnVi`, `enableZhVi`, `modelName` (tên tệp .glb) và `modelUrl`.
+   - *Triển Khai Giao Diện Modal:* Trong [`src/components/tools/modals/r2-storage-modal.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/tools/modals/r2-storage-modal.tsx):
+     1. Tích hợp thanh bộ lọc chuyên sâu 2 tầng: Dropdown Danh mục (Filter), Dropdown Mã bộ (PackageCheck), Dropdown Song ngữ (Languages), Dropdown Định dạng đuôi tệp và nút "Đặt lại bộ lọc" (RotateCcw).
+     2. Tự động tính toán các danh mục và mã bộ duy nhất từ dữ liệu tệp R2 (`availableCategories`, `availablePackCodes`).
+     3. Nâng cấp cột "Tên Tệp (Key)" với icon nhận diện trực quan cho từng loại tệp (.glb/.usdz -> Box tím, .png/.jpg -> Image vàng, .mind -> ScanLine cyan, .mp3 -> Volume2 hồng).
+     4. Nâng cấp cột "Thẻ Bài & Mô Hình 3D Sử Dụng": Hiển thị card chip chi tiết cho từng thẻ, gắn badge mô hình 3D đang liên kết (`Box 3D: [modelName].glb`), badge Mã bộ (`POLY30-...`) và badge Song ngữ (`EN-VI`/`ZH-VI`).

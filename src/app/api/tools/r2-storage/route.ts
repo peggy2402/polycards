@@ -22,6 +22,12 @@ export interface R2UsedByProduct {
   slug: string;
   name: string;
   category?: string;
+  categorySlug?: string;
+  packCode?: string;
+  enableEnVi?: boolean;
+  enableZhVi?: boolean;
+  modelName?: string;
+  modelUrl?: string;
   role: string;
 }
 
@@ -49,7 +55,17 @@ export async function GET() {
 
     const registerKeyUsage = (
       url: string | undefined,
-      product: { slug: string; name?: string; nameVi?: string; category?: string },
+      product: {
+        slug: string;
+        name?: string;
+        nameVi?: string;
+        category?: string;
+        categorySlug?: string;
+        packCode?: string;
+        enableEnVi?: boolean;
+        enableZhVi?: boolean;
+        modelUrl?: string;
+      },
       role: string
     ) => {
       const fn = extractFileNameFromUrl(url);
@@ -58,10 +74,18 @@ export async function GET() {
       usedKeysSet.add(fn.toLowerCase());
       usedKeysSet.add(fn);
 
+      const modelFn = extractFileNameFromUrl(product.modelUrl);
+
       const info: R2UsedByProduct = {
         slug: product.slug,
         name: product.nameVi || product.name || product.slug,
         category: product.category,
+        categorySlug: product.categorySlug,
+        packCode: product.packCode,
+        enableEnVi: product.enableEnVi,
+        enableZhVi: product.enableZhVi,
+        modelName: modelFn || undefined,
+        modelUrl: product.modelUrl,
         role,
       };
 
