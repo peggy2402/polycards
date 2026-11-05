@@ -212,3 +212,18 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
    - *Triển Khai Clean View & Tinh Giản Giao Diện:*
      1. Tích hợp nút **Thu Gọn / Mở Rộng (Clean View Toggle)** ngay trên mini header của Bottom Card: Khi thu gọn, khối từ vựng song ngữ to được giấu đi, giảm chiều cao thanh điều khiển từ 220px xuống còn 55px, nhường 100% không gian thoáng đãng cho mô hình 3D AR.
      2. Tinh gọn nút Gyro 360° trên Top Bar thành dạng pill nhỏ gọn sang trọng (`360° Gyro`), không còn nút to chói lóa choáng tầm nhìn.
+
+
+16. **Khắc Phục Lỗi MindAR MsgPack RangeError & Tích Hợp Mô Hình Xe Ô Tô (Car) Chuẩn Hoạt Ảnh**:
+   - *Nguyên Nhân Lỗi:*
+     1. Lỗi Console `Uncaught (in promise) RangeError: Extra 35167 byte(s) found at buffer[1]` xảy ra khi MindAR cố nạp file `.mind` target của thẻ (ví dụ `/targets/car.mind`) không tồn tại trên hệ thống. Server trả về trang lỗi 404 HTML có kích thước đúng 35,168 bytes. Bộ giải mã MsgPack của MindAR giải mã byte đầu tiên rồi phát hiện còn dư 35,167 bytes (nội dung mã HTML trang 404) nên ném RangeError và làm crash toàn bộ tiến trình nhận diện camera của WebAR.
+     2. Thẻ bài `car` (xe ô tô) chưa được khai báo trong `INITIAL_PRODUCTS`, chưa liên kết mô hình hoạt ảnh chuẩn `o-to-animated.glb` trên Cloudflare R2, và mã bộ `POLY30-XECO-ENVI` cần ánh xạ chính xác về gói `POLY30-XECO`.
+   - *Giải Pháp Thực Hiện:*
+     1. **Cơ Chế Deep Byte Verification Cho Tệp Target `.mind`**: Trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx), tạo hàm `verifyMindTargetSrc(url)` để fetch trước 16 byte đầu tiên. Nếu kết quả trả về `text/html`, `application/json` hoặc byte đầu bắt đầu bằng `0x3C` (`<`) hay `0x7B` (`{`), hệ thống lập tức loại bỏ target hỏng và fallback an toàn sang `polycards.mind` (local hoặc Cloudflare R2).
+     2. **Chế Độ Tự Phục Hồi (Self-Healing / Graceful Degradation)**:
+        - Bọc trình lắng nghe `unhandledrejection` toàn cục để ngăn MindAR MsgPack RangeError làm crash ứng dụng.
+        - Nếu target `.mind` bị lỗi, tự động kích hoạt chế độ **Free AR / 3D Mode** (`setIsFreeArMode(true)`), vẫn giữ luồng camera nền và đưa mô hình 3D lên màn hình để bé vẫn xoay 360°, phóng to thu nhỏ và nghe phát âm bình thường.
+     3. **Cấu Hình Thẻ Bài Xe Ô Tô (Car)**:
+        - Thêm thẻ `car` vào `INITIAL_PRODUCTS` trong [`src/data/seed-data.ts`](file:///Users/peggy2402/Projects/polycards/src/data/seed-data.ts) với `modelUrl: "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb"`, danh mục `Xe Cộ & Giao Thông` (`xe-co`), mã bộ `POLY30-XECO-ENVI`.
+        - Bổ sung mã đơn hàng `ORD-POLY30-XECO-ENVI` tương thích hoàn toàn với mã quét `code=POLY30-XECO-ENVI`.
+        - Đảm bảo trong [`src/app/ar/[slug]/page.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/ar/[slug]/page.tsx) và [`src/app/ar/[slug]/ar-viewer-container.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/ar/[slug]/ar-viewer-container.tsx), thẻ `car` luôn nạp đúng đường link mô hình hoạt ảnh `o-to-animated.glb` và kích hoạt chế độ "Play All" để tất cả chuyển động của xe (bánh xe, nhún nhảy) cùng chạy mượt mà.

@@ -82,5 +82,5 @@ export function getAnimalByQrCode(qrCode: string): Animal | undefined {
  * Lấy danh sách slug phục vụ generateStaticParams (Chỉ pre-render các thẻ tĩnh an toàn)
  */
 export function getAnimalSlugs(): string[] {
-  return ["polycards", "butterfly"];
+  return ["polycards", "butterfly", "car"];
 }

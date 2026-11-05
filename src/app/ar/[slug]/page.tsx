@@ -100,6 +100,17 @@ export default async function ArDetailPage({ params }: ArPageProps) {
     animal = (await dbGetProductBySlug(cleanSlug)) || getAnimalBySlug(cleanSlug);
   }
 
+  // Tự động đảm bảo thẻ xe ô tô (car) nhận đúng link model chuẩn o-to-animated.glb
+  if (animal && cleanSlug === "car") {
+    if (!animal.modelUrl || animal.modelUrl.includes("car.glb") || animal.modelUrl.includes("polycards.glb")) {
+      animal = {
+        ...animal,
+        modelUrl: "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb",
+        iosModelUrl: "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb",
+      };
+    }
+  }
+
   // Nếu thẻ chưa tồn tại trên hệ thống, kích hoạt ngay trang 404 chuẩn của Poly Cards
   if (!animal) {
     notFound();

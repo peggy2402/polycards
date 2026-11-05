@@ -37,11 +37,22 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
   // Đồng bộ dữ liệu thẻ mới nhất từ MongoDB API hoặc Local Store (hỗ trợ thẻ mới tạo từ /tools tức thì)
   useEffect(() => {
     const cleanSlug = initialAnimal.slug.toLowerCase().trim();
+    const normalizeCarModel = (item: Animal): Animal => {
+      if (cleanSlug === "car" && (!item.modelUrl || item.modelUrl.includes("car.glb") || item.modelUrl.includes("polycards.glb"))) {
+        return {
+          ...item,
+          modelUrl: "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb",
+          iosModelUrl: "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb",
+        };
+      }
+      return item;
+    };
+
     const localMatched = getMergedProducts().find(
       (p) => p.slug.toLowerCase() === cleanSlug
     );
     if (localMatched) {
-      setAnimal(localMatched);
+      setAnimal(normalizeCarModel(localMatched));
     }
 
     fetch("/api/products")
@@ -52,7 +63,7 @@ export function ArViewerContainer({ animal: initialAnimal }: ArViewerContainerPr
             (p: Animal) => p.slug.toLowerCase() === cleanSlug
           );
           if (serverMatched) {
-            setAnimal(serverMatched);
+            setAnimal(normalizeCarModel(serverMatched));
           }
         }
       })

@@ -549,6 +549,23 @@ export function WebArCardView({
   useEffect(() => {
     let isCancelled = false;
 
+    // Bắt lỗi ngầm từ bên trong Web Worker / Promise của MindAR MsgPack Decoder
+    const handleUnhandledRejection = (evt: PromiseRejectionEvent) => {
+      const errMsg = String(evt.reason?.message || evt.reason || "");
+      if (errMsg.includes("Extra") && errMsg.includes("byte")) {
+        evt.preventDefault();
+        console.warn(
+          "[PolyCards WebAR Engine] Đã ngăn MindAR Target MsgPack RangeError và tự động kích hoạt Free AR / 3D Mode:",
+          errMsg
+        );
+        if (!isCancelled) {
+          setIsFreeArMode(true);
+          setIsLoading(false);
+        }
+      }
+    };
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
     async function startAR() {
       try {
         startArCallCountRef.current++;
@@ -593,27 +610,62 @@ export function WebArCardView({
         const THREE = window.THREE;
         const { MindARThree } = window.MINDAR!.IMAGE;
 
-        // 3. Chuẩn bị Target MindAR với fallback thông minh
+        // 3. Chuẩn bị Target MindAR với cơ chế Deep Byte Verification & Self-Healing
+        // Ngăn chặn hoàn toàn lỗi RangeError khi file .mind không tồn tại hoặc server trả về trang 404 HTML (35KB)
+        async function verifyMindTargetSrc(url: string): Promise<boolean> {
+          if (!url) return false;
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const res = await fetch(url, {
+              method: "GET",
+              headers: { Range: "bytes=0-15" },
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok && res.status !== 206) return false;
+
+            const contentType = (res.headers.get("content-type") || "").toLowerCase();
+            if (
+              contentType.includes("text/html") ||
+              contentType.includes("application/json") ||
+              contentType.includes("text/plain")
+            ) {
+              return false;
+            }
+
+            const buf = await res.arrayBuffer();
+            if (!buf || buf.byteLength < 2) return false;
+            const u8 = new Uint8Array(buf);
+            // Header HTML thường bắt đầu bằng '<' (0x3C) hoặc '{' (0x7B)
+            if (u8[0] === 0x3c || u8[0] === 0x7b) {
+              return false;
+            }
+            return true;
+          } catch {
+            return false;
+          }
+        }
+
         let resolvedTargetSrc = animal.targetUrl || `/targets/${animal.slug}.mind`;
         let isFallbackTarget = false;
 
-        // Nếu targetUrl là link R2 chưa có hoặc file không tồn tại, kiểm tra an toàn
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2500);
-          const checkRes = await fetch(resolvedTargetSrc, {
-            method: "GET",
-            headers: { Range: "bytes=0-10" },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-          if (!checkRes.ok && checkRes.status !== 206) {
-            resolvedTargetSrc = "/targets/polycards.mind";
+        const isMainTargetValid = await verifyMindTargetSrc(resolvedTargetSrc);
+        if (!isMainTargetValid) {
+          const localFallback = "/targets/polycards.mind";
+          if (await verifyMindTargetSrc(localFallback)) {
+            resolvedTargetSrc = localFallback;
             isFallbackTarget = true;
+          } else {
+            const r2Fallback = "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/polycards.mind";
+            if (await verifyMindTargetSrc(r2Fallback)) {
+              resolvedTargetSrc = r2Fallback;
+              isFallbackTarget = true;
+            } else {
+              resolvedTargetSrc = "/targets/polycards.mind";
+              isFallbackTarget = true;
+            }
           }
-        } catch {
-          resolvedTargetSrc = "/targets/polycards.mind";
-          isFallbackTarget = true;
         }
 
         if (isFallbackTarget && !isCancelled) {
@@ -697,6 +749,16 @@ export function WebArCardView({
 
         const fallbackModelUrl = "/models/polycards.glb";
         let cleanModelUrl = animal.modelUrl || fallbackModelUrl;
+
+        // Tự động nhận diện và gán URL mô hình 3D hoạt ảnh chuẩn cho thẻ Xe ô tô (car)
+        if (
+          animal.slug === "car" &&
+          (!cleanModelUrl ||
+            cleanModelUrl.includes("car.glb") ||
+            cleanModelUrl === fallbackModelUrl)
+        ) {
+          cleanModelUrl = "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb";
+        }
 
         // Bóc tách URL gốc nếu đã bị bọc proxy trước đó để chống double encoding
         if (cleanModelUrl.includes("/api/proxy/model?url=")) {
@@ -1118,6 +1180,7 @@ export function WebArCardView({
 
     return () => {
       isCancelled = true;
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
       if (uiActivityTimerRef.current) clearTimeout(uiActivityTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (actionSelectorTimerRef.current) clearTimeout(actionSelectorTimerRef.current);
