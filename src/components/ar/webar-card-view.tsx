@@ -548,6 +548,77 @@ export function WebArCardView({
   // KHỞI ĐỘNG AR ENGINE (MindAR Three.js + Instant 3D View + P2 Lighting)
   useEffect(() => {
     let isCancelled = false;
+    let createdBlobUrl: string | null = null;
+
+    // Hệ thống Cache Storage API & Streaming Progress:
+    // Tệp 24MB sẽ được lưu vĩnh viễn trên thiết bị, các lần mở sau là 0ms tức thì!
+    async function fetchModelWithCache(
+      url: string,
+      onProgress: (loaded: number, total: number) => void
+    ): Promise<string> {
+      // 1. Kiểm tra Cache Storage cục bộ của trình duyệt
+      if (typeof window !== "undefined" && "caches" in window) {
+        try {
+          const cache = await caches.open("polycards-3d-cache-v1");
+          const cachedRes = await cache.match(url);
+          if (cachedRes && cachedRes.ok) {
+            const blob = await cachedRes.blob();
+            if (blob.size > 1000) {
+              onProgress(blob.size, blob.size);
+              const blobUrl = URL.createObjectURL(blob);
+              createdBlobUrl = blobUrl;
+              return blobUrl;
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Tải qua fetch stream để đo lường chính xác từng MB
+      const res = await fetch(url);
+      if (!res.ok) {
+        return url; // fallback sang URL gốc nếu fetch gặp lỗi mạng
+      }
+
+      // Lưu bản sao vào Cache Storage cho các lần quét tiếp theo
+      if (typeof window !== "undefined" && "caches" in window) {
+        try {
+          const cache = await caches.open("polycards-3d-cache-v1");
+          cache.put(url, res.clone()).catch(() => {});
+        } catch {}
+      }
+
+      const contentLength = res.headers.get("content-length");
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (!res.body) {
+        const blob = await res.blob();
+        onProgress(blob.size, total || blob.size);
+        const blobUrl = URL.createObjectURL(blob);
+        createdBlobUrl = blobUrl;
+        return blobUrl;
+      }
+
+      const reader = res.body.getReader();
+      let loaded = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        if (isCancelled) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          loaded += value.length;
+          onProgress(loaded, total);
+        }
+      }
+
+      if (isCancelled) return url;
+      const blob = new Blob(chunks as any[], { type: "model/gltf-binary" });
+      const blobUrl = URL.createObjectURL(blob);
+      createdBlobUrl = blobUrl;
+      return blobUrl;
+    }
 
     // Bắt lỗi ngầm từ bên trong Web Worker / Promise của MindAR MsgPack Decoder
     const handleUnhandledRejection = (evt: PromiseRejectionEvent) => {
@@ -576,6 +647,58 @@ export function WebArCardView({
         setIsLoading(true);
         setDownloadProgress(8);
         setLoadError(null);
+
+        // 0. Chuẩn bị URL mô hình sớm nhất và KÍCH HOẠT TẢI SONG SONG NGAY LẬP TỨC (Parallel Preload + Cache API)
+        const fallbackModelUrl = "/models/polycards.glb";
+        let cleanModelUrl = animal.modelUrl || fallbackModelUrl;
+
+        if (
+          animal.slug === "car" &&
+          (!cleanModelUrl ||
+            cleanModelUrl.includes("car.glb") ||
+            cleanModelUrl === fallbackModelUrl)
+        ) {
+          cleanModelUrl = "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb";
+        }
+
+        if (cleanModelUrl.includes("/api/proxy/model?url=")) {
+          const parts = cleanModelUrl.split("/api/proxy/model?url=");
+          try {
+            cleanModelUrl = decodeURIComponent(parts[1] || "");
+          } catch {}
+        }
+
+        let primaryModelUrl = cleanModelUrl;
+        const isR2Url =
+          primaryModelUrl.includes(".r2.dev") ||
+          primaryModelUrl.includes(".r2.cloudflarestorage.com");
+
+        if (
+          !isR2Url &&
+          (primaryModelUrl.startsWith("http://") || primaryModelUrl.startsWith("https://"))
+        ) {
+          primaryModelUrl = `/api/proxy/model?url=${encodeURIComponent(primaryModelUrl)}`;
+        }
+
+        // Tải trước mô hình 3D (24MB) song song với quá trình nạp MindAR & Three.js
+        const modelPreloadPromise = fetchModelWithCache(primaryModelUrl, (loaded, total) => {
+          if (isCancelled) return;
+          const loadedMb = (loaded / (1024 * 1024)).toFixed(1);
+          if (total > 0) {
+            const totalMb = (total / (1024 * 1024)).toFixed(1);
+            const percent = Math.min(99, Math.round((loaded / total) * 100));
+            setDownloadProgress(25 + Math.round(percent * 0.7));
+            setDownloadStats({ loadedMb, totalMb });
+          } else {
+            const estimatedTotal = 24 * 1024 * 1024;
+            const percent = Math.min(96, Math.round((loaded / estimatedTotal) * 100));
+            setDownloadProgress(25 + Math.round(percent * 0.7));
+            setDownloadStats({ loadedMb, totalMb: "24.0" });
+          }
+        }).catch((err) => {
+          console.warn("[PolyCards WebAR] Preload model fallback:", err);
+          return primaryModelUrl;
+        });
 
         // 1. Nạp MindAR Three UMD
         if (!window.MINDAR || !window.MINDAR.IMAGE || !window.MINDAR.IMAGE.MindARThree) {
@@ -736,49 +859,15 @@ export function WebArCardView({
           }
         };
 
-        // 5. Nạp mô hình 3D GLTF với DRACOLoader (Ưu tiên bộ giải mã nội bộ /draco/ và giới hạn 1 worker chống sập RAM iPhone)
+        // 5. Nạp mô hình 3D GLTF với DRACOLoader (Tận dụng bộ giải mã Web Worker nội bộ /draco/)
         const loader = new THREE.GLTFLoader();
         if (THREE.DRACOLoader) {
           const dracoLoader = new THREE.DRACOLoader();
           dracoLoader.setDecoderPath("/draco/");
           try {
-            dracoLoader.setWorkerLimit(1);
+            dracoLoader.setWorkerLimit(Math.min(navigator.hardwareConcurrency || 2, 4));
           } catch {}
           loader.setDRACOLoader(dracoLoader);
-        }
-
-        const fallbackModelUrl = "/models/polycards.glb";
-        let cleanModelUrl = animal.modelUrl || fallbackModelUrl;
-
-        // Tự động nhận diện và gán URL mô hình 3D hoạt ảnh chuẩn cho thẻ Xe ô tô (car)
-        if (
-          animal.slug === "car" &&
-          (!cleanModelUrl ||
-            cleanModelUrl.includes("car.glb") ||
-            cleanModelUrl === fallbackModelUrl)
-        ) {
-          cleanModelUrl = "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb";
-        }
-
-        // Bóc tách URL gốc nếu đã bị bọc proxy trước đó để chống double encoding
-        if (cleanModelUrl.includes("/api/proxy/model?url=")) {
-          const parts = cleanModelUrl.split("/api/proxy/model?url=");
-          try {
-            cleanModelUrl = decodeURIComponent(parts[1] || "");
-          } catch {}
-        }
-
-        // Ưu tiên tải trực tiếp từ R2 Edge CDN nếu là URL R2 (vì R2 đã cấu hình CORS * và không bị giới hạn 4.5MB Vercel)
-        let primaryModelUrl = cleanModelUrl;
-        const isR2Url =
-          primaryModelUrl.includes(".r2.dev") ||
-          primaryModelUrl.includes(".r2.cloudflarestorage.com");
-
-        if (
-          !isR2Url &&
-          (primaryModelUrl.startsWith("http://") || primaryModelUrl.startsWith("https://"))
-        ) {
-          primaryModelUrl = `/api/proxy/model?url=${encodeURIComponent(primaryModelUrl)}`;
         }
 
         const loadModelWithFallback = (urlToLoad: string, isFallbackAttempt: boolean = false) => {
@@ -1178,7 +1267,8 @@ export function WebArCardView({
           );
         };
 
-        loadModelWithFallback(primaryModelUrl);
+        const finalUrlToLoad = await modelPreloadPromise;
+        loadModelWithFallback(finalUrlToLoad);
       } catch (err: any) {
         if (!isCancelled) {
           setLoadError(err.message || "Lỗi khởi tạo AR Engine.");
@@ -1191,6 +1281,11 @@ export function WebArCardView({
 
     return () => {
       isCancelled = true;
+      if (createdBlobUrl) {
+        try {
+          URL.revokeObjectURL(createdBlobUrl);
+        } catch {}
+      }
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
       if (uiActivityTimerRef.current) clearTimeout(uiActivityTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);

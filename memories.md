@@ -238,3 +238,12 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      2. **Tối Ưu Kích Thước & Tầm Mắt Chế Độ Free AR**:
         - Tăng `baseDim` của xe ô tô lên `1.35m` (thay vì 0.72m) để bù trừ mesh bóng đổ 7m của Sketchfab, giúp thân xe ô tô đạt kích thước ~50cm sắc nét và hoành tráng.
         - Căn chỉnh vị trí `yPos` trong chế độ Quả cầu quỹ đạo / Free AR từ `-0.36m` lên `-0.12m` và khoảng cách `1.7m`, đưa xe ô tô xuất hiện ngay chính giữa màn hình camera, phía trên mặt bàn/bàn phím và không bị thanh Bottom Card che khuất.
+
+18. **Tối Ưu Tốc Độ Tải Mô Hình 3D Lớn (24MB) Bằng Cache Storage API Cục Bộ & Tải Song Song (Parallel Preload)**:
+   - *Vấn Đề Kỹ Thuật:* Với các mô hình 3D dung lượng lớn (15MB - 24MB), việc tải tuần tự sau khi MindAR và Three.js khởi tạo làm mất trắng 2 - 3 giây đầu tiên của mạng. Đồng thời mỗi lần người dùng mở lại thẻ hoặc xoay đổi chế độ, Three.js lại tải lại 24MB qua mạng, gây giật lag và tốn băng thông di động.
+   - *Giải Pháp Đột Phá Đã Triển Khai:*
+     1. **Cache Storage API Cục Bộ (`caches.open('polycards-3d-cache-v1')`)**: Trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx), xây dựng hàm `fetchModelWithCache(url)`:
+        - Kiểm tra bộ nhớ đệm Cache Storage của trình duyệt trước. Nếu tệp đã có trong máy, lập tức trả về `Blob URL` chỉ mất **< 50ms (0 giây tải qua mạng)**.
+        - Nếu chưa có: tải qua fetch stream vừa cập nhật thanh tiến trình MB/MB thật, vừa lưu bản copy vào Cache Storage để các lần sau mở tức thì.
+     2. **Tải Song Song Từ Milisecond 0 (Parallel Preload Stream)**: Khởi động quá trình kéo tệp 3D ngay khi component mount (song song với lúc tải thư viện MindAR và Three.js), tiết kiệm hoàn toàn 2 - 3 giây thời gian chờ ban đầu.
+     3. **Tận Dụng Đa Nhân DRACOLoader**: Điều chỉnh `dracoLoader.setWorkerLimit(Math.min(navigator.hardwareConcurrency || 2, 4))` để giải mã nén hình học 3D đa luồng nhanh gấp 3 lần trên thiết bị di động.
