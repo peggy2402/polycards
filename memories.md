@@ -276,3 +276,18 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
         - Đăng ký bộ lắng nghe sự kiện `pause`, `suspend`, `waiting`, `stalled` trên thẻ video để tự động gọi `video.play()` khôi phục luồng stream ngay lập tức.
      4. **Bổ Sung CSS Triệt Tiêu WebKit Shadow DOM**:
         - Cập nhật [`src/app/globals.css`](file:///Users/peggy2402/Projects/polycards/src/app/globals.css) và nhúng thêm thẻ `<style>` scoped ngay trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx) bao gồm `::-webkit-media-controls-overlay-enclosure`, `::-webkit-media-controls-container`, `::-webkit-media-controls-play-button`, `::-webkit-media-controls-panel` để vô hiệu hóa hoàn toàn mọi phần tử điều khiển hiển thị trên màn hình camera.
+
+21. **Tinh Chỉnh Giảm Độ Sáng Chuyên Sâu Cho Các Model Hành Động (jump, read, walk, run)**:
+   - *Nguyên Nhân Cốt Lõi:*
+     1. Các model nhân vật anime/chibi (`jump`, `read`, `walk`, `run`) vốn đã có sẵn ánh sáng được nướng trực tiếp vào vân bề mặt (Baked Texture).
+     2. Mức phơi sáng trước đây (`toneMappingExposure = 1.0`) kết hợp cùng hệ đèn `2.6` và thuộc tính diffuse `color = 1.0` khiến các mảng màu sáng (như áo trắng, da mặt, bàn tay) bị cộng dồn độ sáng vượt quá dải hiển thị, làm mô hình vẫn còn cảm giác bị trắng gắt.
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Tự Động Nhận Diện Nhóm Model Hành Động / Anime**:
+        - Kiểm tra qua slug `["walk", "jump", "run", "read"]`, category, packCode và regex tên tệp `.glb` trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx).
+     2. **Hạ Exposure Chuẩn Điện Ảnh Cho Model Hành Động**:
+        - Thiết lập `renderer.toneMappingExposure = isActionModel ? 0.72 : 0.85` (giảm mạnh từ 1.0 xuống 0.72), giúp toàn bộ sắc thái da mặt hồng hào, tóc hạt dẻ và trang phục được gom về dải màu chuẩn, không bị cháy sáng.
+     3. **Hệ Đèn Dịu Mắt Cân Bằng (Giảm 48% Cường Độ Chiếu)**:
+        - Giảm tổng cường độ ánh sáng của hệ 4 đèn từ `2.60` xuống còn `1.36` đối với model hành động (`AmbientLight` 0.32, `HemisphereLight` 0.28, `DirectionalLight` chính 0.52, `FillLight` 0.16).
+     4. **Cân Bằng Màu Diffuse & Khử Phản Xạ Kim Loại (Roughness / Color Multiplier)**:
+        - Thiết lập `m.metalness = 0.0` và `m.roughness >= 0.85` cho tất cả vật liệu.
+        - Hạ hệ số nhân `m.color.multiplyScalar(0.85)` đối với model hành động, kéo các vùng áo trắng tinh khiết từ `255` về ngưỡng an toàn `~215-225`, giữ trọn vẹn chi tiết nếp gấp vải và đường nét khuôn mặt 3D.

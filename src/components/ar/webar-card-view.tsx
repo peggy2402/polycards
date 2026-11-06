@@ -839,25 +839,35 @@ export function WebArCardView({
           renderer.outputColorSpace = THREE.SRGBColorSpace;
         }
 
+        // Nhận diện model thuộc nhóm Hành Động (walk, jump, run, read) hoặc anime/chibi có Baked Material
+        const isActionModel =
+          ["walk", "jump", "run", "read"].includes(animal.slug) ||
+          Boolean(animal.category && animal.category.toLowerCase().includes("hanhdong")) ||
+          Boolean(animal.categorySlug && animal.categorySlug.toLowerCase().includes("hanhdong")) ||
+          Boolean(animal.packCode && animal.packCode.toLowerCase().includes("hanhdong")) ||
+          Boolean(animal.modelUrl && /(walk|jump|run|read)\.glb/i.test(animal.modelUrl));
+
         // Bật ACES Filmic Tone Mapping chuẩn đồ họa điện ảnh (giống hệt Google <model-viewer>)
         // Giữ nguyên độ sâu màu da hồng hào tự nhiên, ngăn chặn hoàn toàn cháy sáng trắng bệt (overexposed)
         if (THREE.ACESFilmicToneMapping !== undefined) {
           renderer.toneMapping = THREE.ACESFilmicToneMapping;
-          renderer.toneMappingExposure = 1.0;
+          // Với các model hành động (walk, jump, run, read) hạ exposure xuống 0.72 để da người hồng hào, màu sắc đậm đà
+          // Với các model khác đặt 0.85 để ánh sáng dịu mát, không bị chói
+          renderer.toneMappingExposure = isActionModel ? 0.72 : 0.85;
         }
 
         // 4. Hệ Thống Ánh Sáng Cân Bằng Chuẩn Điện Ảnh (Mềm mại, nổi khối, màu da tự nhiên)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        const ambientLight = new THREE.AmbientLight(0xfffbf5, isActionModel ? 0.32 : 0.45);
         scene.add(ambientLight);
 
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 0.55);
+        const hemiLight = new THREE.HemisphereLight(0xf1f5f9, 0x334155, isActionModel ? 0.28 : 0.38);
         scene.add(hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+        const dirLight = new THREE.DirectionalLight(0xfffbeb, isActionModel ? 0.52 : 0.72);
         dirLight.position.set(2, 8, 4);
         scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.35);
+        const fillLight = new THREE.DirectionalLight(0xe0f2fe, isActionModel ? 0.16 : 0.22);
         fillLight.position.set(-3, 2, -2);
         scene.add(fillLight);
 
@@ -960,12 +970,16 @@ export function WebArCardView({
                         m.map.colorSpace = THREE.SRGBColorSpace;
                         m.map.needsUpdate = true;
                       }
-                      // Nếu là vật liệu Baked nướng sẵn ánh sáng (như walk, run, jump, read)
-                      // Triệt tiêu phản xạ kim loại giả và giảm độ chói lóa
-                      if (m.name && m.name.toLowerCase().includes("baked")) {
-                        if (m.isMeshStandardMaterial) {
-                          m.metalness = 0.0;
-                          m.roughness = 0.85;
+                      // Triệt tiêu phản xạ kim loại giả và giảm độ chói lóa trên mọi vật liệu nhân vật
+                      if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+                        m.metalness = 0.0;
+                        m.roughness = Math.max(m.roughness ?? 0.8, 0.85);
+                      }
+                      // Đối với các model hành động (walk, run, jump, read) có texture da và áo nướng sẵn
+                      if (isActionModel) {
+                        // Giảm độ trắng gắt của vật liệu, khôi phục chi tiết má hồng, tóc nâu và nếp gấp áo
+                        if (m.color && typeof m.color.multiplyScalar === "function") {
+                          m.color.multiplyScalar(0.85);
                         }
                       }
                     });
