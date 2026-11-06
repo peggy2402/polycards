@@ -79,14 +79,18 @@ function disposeMaterial(mat: any) {
 
 /**
  * Triệt tiêu hoàn toàn nút native play/pause overlay và media controls của WebKit trên iOS Safari
+ * Đặc biệt xử lý trường hợp iOS Low Power Mode (Chế độ tiết kiệm pin) tự động ép controls overlay
  */
 function sanitizeVideoElement(video: HTMLVideoElement) {
   try {
     video.controls = false;
     video.removeAttribute("controls");
+    video.removeAttribute("autoplay");
+    video.autoplay = false;
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
+    video.setAttribute("muted", "");
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "true");
     video.setAttribute("x5-playsinline", "true");
@@ -94,12 +98,13 @@ function sanitizeVideoElement(video: HTMLVideoElement) {
     video.setAttribute("x5-video-player-fullscreen", "false");
     video.setAttribute("disablePictureInPicture", "true");
     video.setAttribute("disableRemotePlayback", "true");
-    video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
+    video.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback noplaybackrate");
     video.setAttribute("x-webkit-airplay", "deny");
     video.style.setProperty("pointer-events", "none", "important");
     video.style.setProperty("user-select", "none", "important");
     video.style.setProperty("-webkit-user-select", "none", "important");
     video.style.setProperty("-webkit-touch-callout", "none", "important");
+    video.style.setProperty("outline", "none", "important");
 
     const blockTouch = (e: Event) => {
       e.preventDefault();
@@ -121,7 +126,7 @@ function sanitizeVideoElement(video: HTMLVideoElement) {
       }
     };
 
-    ["pause", "suspend", "loadedmetadata", "canplay", "playing", "emptied"].forEach((ev) => {
+    ["pause", "suspend", "loadedmetadata", "canplay", "playing", "emptied", "stalled", "waiting"].forEach((ev) => {
       video.addEventListener(ev, keepPlaying);
     });
 
@@ -463,7 +468,7 @@ export function WebArCardView({
     onShowToast: showToast,
   });
 
-  // Reset timer auto-hide UI mỗi khi người dùng tương tác
+  // Reset timer auto-hide UI mỗi khi người dùng tương tác và tự động duy trì camera video không bị iOS Safari tạm dừng
   const wakeUi = useCallback(() => {
     setIsUiFaded(false);
     if (uiActivityTimerRef.current) clearTimeout(uiActivityTimerRef.current);
@@ -471,6 +476,18 @@ export function WebArCardView({
       setIsUiFaded(true);
       setIsMenuOpen(false);
     }, 4000);
+
+    // Xử lý trực tiếp trong User Gesture: Triệt tiêu Controls và Resume video camera ngay tức thì
+    const v = (mindarRef.current?.video || containerRef.current?.querySelector("video")) as HTMLVideoElement | null;
+    if (v && v.srcObject) {
+      if (v.controls) {
+        v.controls = false;
+        v.removeAttribute("controls");
+      }
+      if (v.paused) {
+        v.play().catch(() => {});
+      }
+    }
   }, []);
 
   // Lắng nghe kích thước và hướng xoay màn hình (Portrait vs Landscape)
@@ -1433,6 +1450,28 @@ export function WebArCardView({
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={wakeUi}
     >
+      {/* 0. CSS Scoped triệt tiêu 100% Native Media Controls / Pause Overlay của iOS Safari WebKit */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        #webar-camera-viewport video::-webkit-media-controls,
+        #webar-camera-viewport video::-webkit-media-controls-start-playback-button,
+        #webar-camera-viewport video::-webkit-media-controls-play-button,
+        #webar-camera-viewport video::-webkit-media-controls-overlay-play-button,
+        #webar-camera-viewport video::-webkit-media-controls-overlay-enclosure,
+        #webar-camera-viewport video::-webkit-media-controls-container,
+        #webar-camera-viewport video::-webkit-media-controls-panel,
+        #webar-camera-viewport video::-webkit-media-controls-enclosure,
+        video::-webkit-media-controls-overlay-enclosure,
+        video::-webkit-media-controls-container {
+          display: none !important;
+          -webkit-appearance: none !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+          width: 0 !important;
+          height: 0 !important;
+        }
+      `}} />
+
       {/* 1. Camera Viewport: Ép full màn hình 100dvh, lật gương CHỈ video khi ở Selfie mode (không lật canvas để cử chỉ và tia raycast đúng hướng) */}
       <div
         ref={containerRef}

@@ -150,6 +150,22 @@ video::-webkit-media-controls-panel {
   pointer-events: none !important;
 }
 
+video::-webkit-media-controls-overlay-enclosure {
+  display: none !important;
+  -webkit-appearance: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+video::-webkit-media-controls-container {
+  display: none !important;
+  -webkit-appearance: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 video::-webkit-media-controls-enclosure {
   display: none !important;
   -webkit-appearance: none !important;

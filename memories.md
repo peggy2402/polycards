@@ -257,3 +257,22 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      2. **Cân Chỉnh Lại Hệ Đèn Dịu Nhẹ Cân Bằng**: Giảm tổng cường độ ánh sáng từ `5.6` xuống `2.6` (Ambient 0.75, Hemisphere 0.55, Directional 0.95 với sắc vàng ấm `0xfffbeb`, Fill light 0.35 sắc xanh dịu `0xe0f2fe`).
      3. **Chuẩn Hóa Vật Liệu Baked & sRGB ColorSpace**: Thiết lập `map.colorSpace = THREE.SRGBColorSpace` cho tất cả textures và tự động đưa `metalness = 0, roughness = 0.85` đối với `BakedMaterial` để bề mặt da và vải không bị phản chiếu kim loại giả.
      4. **Cập Nhật Dữ Liệu Model Chuẩn**: Cập nhật URL `walk.glb`, `jump.glb`, bổ sung thẻ `run.glb`, `read.glb` và mã kích hoạt `ORD-POLY30-HANHDONG-ENVI` trong [`src/data/seed-data.ts`](file:///Users/peggy2402/Projects/polycards/src/data/seed-data.ts).
+
+
+20. **Triệt Tiêu Hoàn Toàn Biểu Tượng Nút Tạm Dừng (Pause `||`) Native Của iOS Safari WebKit Trong WebAR**:
+   - *Nguyên Nhân Cốt Lõi:*
+     1. Biểu tượng nút hình tròn màu đen mờ chứa 2 thanh dọc trắng (`||`) ở chính giữa màn hình camera là **Native Media Controls Overlay** của hệ điều hành iOS (thuộc framework AVPlayer / WebKit UIProcess).
+     2. Hiện tượng này đặc biệt xuất hiện khi iPhone đang bật **Chế Độ Nguồn Điện Thấp (Low Power Mode - Biểu tượng Pin màu vàng)**: Apple tự động áp dụng chính sách `LowPowerModeAutoPlayPolicy`, tự động ép controls overlay lên bất kỳ thẻ `<video>` nào mang thuộc tính HTML `autoplay` hoặc có sự kiện `pause`/`suspend`.
+     3. Thẻ `<video>` do MindAR UMD tạo ra mang thuộc tính `this.video.setAttribute("autoplay", "")`, đồng thời thiếu thuộc tính HTML bắt buộc `muted=""` trong DOM string, khiến WebKit coi video camera là đối tượng media cần hiển thị overlay điều khiển.
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Loại Bỏ Hoàn Toàn Thuộc Tính `autoplay`**:
+        - Patch tệp [`public/lib/mindar-image-three.prod.js`](file:///Users/peggy2402/Projects/polycards/public/lib/mindar-image-three.prod.js): Thay thế `this.video.setAttribute("autoplay","")` thành `this.video.removeAttribute("autoplay")`. Thẻ video khi vừa sinh ra sẽ không mang cờ `autoplay`, ngăn chặn Safari Low Power Mode kích hoạt heuristic tự động gắn controls overlay.
+        - Trong hàm `sanitizeVideoElement(video)` tại [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx): Thực thi `video.removeAttribute("autoplay")` và `video.autoplay = false`.
+     2. **Chuẩn Hóa Thuộc Tính DOM Bắt Buộc Của WebKit**:
+        - Gán cứng thuộc tính HTML `video.setAttribute("muted", "")` vào DOM string (cực kỳ quan trọng để WebKit nhận diện đúng video câm không âm thanh).
+        - Bổ sung `playsinline`, `webkit-playsinline`, `loop`, `controlslist="nodownload nofullscreen noremoteplayback noplaybackrate"`, `disablepictureinpicture="true"`, `disableremoteplayback="true"`.
+     3. **Tự Động Kích Hoạt Lại Camera Khi Có Tương Tác (User Gesture Resume)**:
+        - Trong `wakeUi` (khi người dùng chạm vào màn hình hoặc xoay 360°), hệ thống lập tức kiểm tra: nếu `v.controls` bật thì xóa bỏ, nếu `v.paused` thì gọi `v.play().catch(() => {})`. Hành vi chạm tay trực tiếp của người dùng thỏa mãn 100% chính sách User Gesture của Safari, lập tức xóa sổ nút overlay.
+        - Đăng ký bộ lắng nghe sự kiện `pause`, `suspend`, `waiting`, `stalled` trên thẻ video để tự động gọi `video.play()` khôi phục luồng stream ngay lập tức.
+     4. **Bổ Sung CSS Triệt Tiêu WebKit Shadow DOM**:
+        - Cập nhật [`src/app/globals.css`](file:///Users/peggy2402/Projects/polycards/src/app/globals.css) và nhúng thêm thẻ `<style>` scoped ngay trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx) bao gồm `::-webkit-media-controls-overlay-enclosure`, `::-webkit-media-controls-container`, `::-webkit-media-controls-play-button`, `::-webkit-media-controls-panel` để vô hiệu hóa hoàn toàn mọi phần tử điều khiển hiển thị trên màn hình camera.
