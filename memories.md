@@ -227,3 +227,14 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
         - Thêm thẻ `car` vào `INITIAL_PRODUCTS` trong [`src/data/seed-data.ts`](file:///Users/peggy2402/Projects/polycards/src/data/seed-data.ts) với `modelUrl: "https://pub-bea002b1330d4e6f86ddfa6e381f66e4.r2.dev/o-to-animated.glb"`, danh mục `Xe Cộ & Giao Thông` (`xe-co`), mã bộ `POLY30-XECO-ENVI`.
         - Bổ sung mã đơn hàng `ORD-POLY30-XECO-ENVI` tương thích hoàn toàn với mã quét `code=POLY30-XECO-ENVI`.
         - Đảm bảo trong [`src/app/ar/[slug]/page.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/ar/[slug]/page.tsx) và [`src/app/ar/[slug]/ar-viewer-container.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/ar/[slug]/ar-viewer-container.tsx), thẻ `car` luôn nạp đúng đường link mô hình hoạt ảnh `o-to-animated.glb` và kích hoạt chế độ "Play All" để tất cả chuyển động của xe (bánh xe, nhún nhảy) cùng chạy mượt mà.
+
+17. **Khắc Phục Lỗi Tọa Độ Bounding Box (floorY) Khiến Mô Hình Xe Ô Tô Bị Dịch Lên Trời 137m Ngoài Tầm Nhìn Camera**:
+   - *Nguyên Nhân Cốt Lõi:*
+     1. Mô hình `o-to-animated.glb` (nguồn Sketchfab FBX) có mesh bóng đổ 2D `488_shadow_488_SHADOW_0` mang tọa độ vertex buffer cục bộ (chưa áp dụng node matrix transform) là `geomMin.y = -137.795`.
+     2. Code cũ lấy `floorY = geomMin.y` rồi đặt vị trí gốc `modelHolder.position.set(-center.x, -floorY, -center.z)`.
+     3. Việc lấy `-floorY = -(-137.795) = +137.795m` đã vô tình đẩy toàn bộ mô hình xe ô tô lên không trung ở độ cao 137 mét, hoàn toàn nằm ngoài tầm nhìn (Frustum) của camera điện thoại dù model và animation đã tải xong 100%.
+   - *Giải Pháp Thực Hiện:*
+     1. **Căn Đáy Chuẩn Xác Theo Bounding Box Thế Giới (World Space)**: Trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx), thay thế `floorY = geomMin.y` bằng `floorY = bbox.min.y` (được tính từ `new THREE.Box3().setFromObject(rawModel)` sau khi đã áp dụng mọi node transform trong GLTF scene graph). Đáy thật của xe ô tô là `bbox.min.y = -0.0036m`, giúp đáy xe tiếp đất chuẩn xác tại `Y = 0`.
+     2. **Tối Ưu Kích Thước & Tầm Mắt Chế Độ Free AR**:
+        - Tăng `baseDim` của xe ô tô lên `1.35m` (thay vì 0.72m) để bù trừ mesh bóng đổ 7m của Sketchfab, giúp thân xe ô tô đạt kích thước ~50cm sắc nét và hoành tráng.
+        - Căn chỉnh vị trí `yPos` trong chế độ Quả cầu quỹ đạo / Free AR từ `-0.36m` lên `-0.12m` và khoảng cách `1.7m`, đưa xe ô tô xuất hiện ngay chính giữa màn hình camera, phía trên mặt bàn/bàn phím và không bị thanh Bottom Card che khuất.

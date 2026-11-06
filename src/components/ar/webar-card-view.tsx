@@ -848,9 +848,10 @@ export function WebArCardView({
               // 3. Khắc phục lỗi Mixamo / Blender 0.01 Armature scale:
               // SkinnedMesh trong Blender thường bị root scale 0.01 khiến Box3.setFromObject trả về ~0.015m,
               // nhưng vertex shader render 1.5m thật. Ta dùng geometry bounds để lấy kích thước thật của nhân vật.
+              let geomMaxDim = maxDim;
               if (geomMin.x !== Infinity) {
                 const geomSize = new THREE.Vector3().subVectors(geomMax, geomMin);
-                const geomMaxDim = Math.max(geomSize.x, geomSize.y, geomSize.z);
+                geomMaxDim = Math.max(geomSize.x, geomSize.y, geomSize.z);
 
                 if (hasSkinnedMesh && (maxDim < 0.25 || maxDim / geomMaxDim < 0.1)) {
                   size = geomSize;
@@ -867,11 +868,20 @@ export function WebArCardView({
               }
               maxDimRef.current = maxDim;
 
-              // Căn đáy nhân vật/mô hình về y = 0 để đứng thẳng trên mặt sàn (ngay trên bóng đổ blob shadow)
-              const floorY =
-                isFinite(geomMin.y) && geomMin.y !== Infinity
-                  ? geomMin.y
-                  : center.y - size.y / 2;
+              // Căn đáy mô hình chuẩn xác theo Bounding Box thực tế (World Space) sau khi đã nhân toàn bộ Scene Graph transforms
+              // Ngăn chặn lỗi đẩy mô hình lên trời 137m do geomMin lấy tọa độ untransformed từ mesh shadow FBX
+              let floorY = bbox.min.y;
+              if (
+                hasSkinnedMesh &&
+                (maxDim < 0.25 || maxDim / (geomMaxDim || 1) < 0.1) &&
+                isFinite(geomMin.y)
+              ) {
+                floorY = geomMin.y;
+              }
+              if (!isFinite(floorY)) {
+                floorY = center.y - size.y / 2;
+              }
+
               const modelHolder = new THREE.Group();
               modelHolder.position.set(-center.x, -floorY, -center.z);
               modelHolder.add(rawModel);
@@ -895,7 +905,8 @@ export function WebArCardView({
               scene.add(displayRoot);
 
               // Kích thước chuẩn hiển thị vừa vặn, thanh thoát giữa khung nhìn camera
-              const baseDim = 0.72;
+              // Với thẻ xe ô tô (car), tăng baseDim tương ứng để bù trừ mesh bóng đổ 7m của Sketchfab, giúp thân xe hiển thị tỷ lệ chuẩn đẹp
+              const baseDim = animal.slug === "car" ? 1.35 : 0.72;
               const initialScale = baseDim / maxDim;
               pivot.scale.set(initialScale, initialScale, initialScale);
               pivot.position.set(0, 0, 0);
@@ -1025,8 +1036,8 @@ export function WebArCardView({
                 } else {
                   // 2. Chế độ "Quả cầu quỹ đạo" (Orbit Sphere) khi chưa/mất thẻ hoặc chủ động xem 360°:
                   const isLandNow = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
-                  const freeArDist = isLandNow ? 2.4 : 1.9;
-                  const yPos = isLandNow ? -0.28 : -0.36;
+                  const freeArDist = isLandNow ? 2.2 : 1.7;
+                  const yPos = isLandNow ? -0.15 : -0.12;
 
                   const panCam = panCamCurrentRefLatest.current?.current || { x: 0, y: 0 };
                   pScreenVec.set(panCam.x, yPos + panCam.y, -freeArDist);
