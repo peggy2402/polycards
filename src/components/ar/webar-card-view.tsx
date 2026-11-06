@@ -822,19 +822,26 @@ export function WebArCardView({
           renderer.outputColorSpace = THREE.SRGBColorSpace;
         }
 
-        // 4. Cải thiện Ánh Sáng P2 (Khối chân thực, rực rỡ, tránh tối vật liệu PBR)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
+        // Bật ACES Filmic Tone Mapping chuẩn đồ họa điện ảnh (giống hệt Google <model-viewer>)
+        // Giữ nguyên độ sâu màu da hồng hào tự nhiên, ngăn chặn hoàn toàn cháy sáng trắng bệt (overexposed)
+        if (THREE.ACESFilmicToneMapping !== undefined) {
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          renderer.toneMappingExposure = 1.0;
+        }
+
+        // 4. Hệ Thống Ánh Sáng Cân Bằng Chuẩn Điện Ảnh (Mềm mại, nổi khối, màu da tự nhiên)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
         scene.add(ambientLight);
 
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.2);
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 0.55);
         scene.add(hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
-        dirLight.position.set(0, 10, 8);
+        const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+        dirLight.position.set(2, 8, 4);
         scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0xfef3c7, 0.8);
-        fillLight.position.set(-5, -3, 5);
+        const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.35);
+        fillLight.position.set(-3, 2, -2);
         scene.add(fillLight);
 
         // A. Anchor bám theo thẻ bài
@@ -924,6 +931,27 @@ export function WebArCardView({
                   if (child.geometry.boundingBox) {
                     geomMin.min(child.geometry.boundingBox.min);
                     geomMax.max(child.geometry.boundingBox.max);
+                  }
+
+                  // Chuẩn hóa dải màu vật liệu (chống cháy sáng, bảo toàn màu da tự nhiên)
+                  const mat = child.material;
+                  if (mat) {
+                    const mats = Array.isArray(mat) ? mat : [mat];
+                    mats.forEach((m: any) => {
+                      m.toneMapped = true;
+                      if (m.map) {
+                        m.map.colorSpace = THREE.SRGBColorSpace;
+                        m.map.needsUpdate = true;
+                      }
+                      // Nếu là vật liệu Baked nướng sẵn ánh sáng (như walk, run, jump, read)
+                      // Triệt tiêu phản xạ kim loại giả và giảm độ chói lóa
+                      if (m.name && m.name.toLowerCase().includes("baked")) {
+                        if (m.isMeshStandardMaterial) {
+                          m.metalness = 0.0;
+                          m.roughness = 0.85;
+                        }
+                      }
+                    });
                   }
                 }
               });

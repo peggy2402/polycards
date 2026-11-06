@@ -247,3 +247,13 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
         - Nếu chưa có: tải qua fetch stream vừa cập nhật thanh tiến trình MB/MB thật, vừa lưu bản copy vào Cache Storage để các lần sau mở tức thì.
      2. **Tải Song Song Từ Milisecond 0 (Parallel Preload Stream)**: Khởi động quá trình kéo tệp 3D ngay khi component mount (song song với lúc tải thư viện MindAR và Three.js), tiết kiệm hoàn toàn 2 - 3 giây thời gian chờ ban đầu.
      3. **Tận Dụng Đa Nhân DRACOLoader**: Điều chỉnh `dracoLoader.setWorkerLimit(Math.min(navigator.hardwareConcurrency || 2, 4))` để giải mã nén hình học 3D đa luồng nhanh gấp 3 lần trên thiết bị di động.
+
+19. **Khắc Phục Hiện Tượng Mô Hình Bị Cháy Sáng "Bạch Tạng" Trong WebAR Bằng ACES Filmic Tone Mapping & Cân Bằng Ánh Sáng**:
+   - *Nguyên Nhân Kỹ Thuật:*
+     1. Các mô hình nhân vật hoạt hình anime/chibi (`walk.glb`, `jump.glb`, `run.glb`, `read.glb`) sử dụng vật liệu `BakedMaterial` — tức là toàn bộ ánh sáng, bóng đổ, má hồng và nếp gấp quần áo đã được nghệ sĩ 3D nướng (baked) sẵn vào vân bề mặt (Texture).
+     2. Trong WebAR (`WebArCardView`), hệ thống trước đây chiếu tổng cường độ ánh sáng lên tới `5.6` (Ambient 1.8 + Hemisphere 1.2 + Dir 1.8 + Fill 0.8), đồng thời Three.js chạy ở chế độ mặc định `NoToneMapping`. Bất kỳ điểm ảnh nào có độ sáng vượt ngưỡng lập tức bị cắt cụt (clipping) về màu trắng tinh `RGB(255, 255, 255)`, khiến làn da cô bé bị lóa trắng xóa mất hết chi tiết. Trong khi ở Tab 2 (`model-viewer`), Google sử dụng ACES Filmic Tone Mapping và IBL mềm mại nên hiển thị da người rất tự nhiên.
+   - *Giải Pháp Thực Hiện:*
+     1. **Kích Hoạt ACES Filmic Tone Mapping**: Trong [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx), cấu hình `renderer.toneMapping = THREE.ACESFilmicToneMapping` và `renderer.toneMappingExposure = 1.0` (thuật toán chuẩn điện ảnh uốn cong dải sáng cao S-curve), triệt tiêu hoàn toàn hiện tượng bệt trắng.
+     2. **Cân Chỉnh Lại Hệ Đèn Dịu Nhẹ Cân Bằng**: Giảm tổng cường độ ánh sáng từ `5.6` xuống `2.6` (Ambient 0.75, Hemisphere 0.55, Directional 0.95 với sắc vàng ấm `0xfffbeb`, Fill light 0.35 sắc xanh dịu `0xe0f2fe`).
+     3. **Chuẩn Hóa Vật Liệu Baked & sRGB ColorSpace**: Thiết lập `map.colorSpace = THREE.SRGBColorSpace` cho tất cả textures và tự động đưa `metalness = 0, roughness = 0.85` đối với `BakedMaterial` để bề mặt da và vải không bị phản chiếu kim loại giả.
+     4. **Cập Nhật Dữ Liệu Model Chuẩn**: Cập nhật URL `walk.glb`, `jump.glb`, bổ sung thẻ `run.glb`, `read.glb` và mã kích hoạt `ORD-POLY30-HANHDONG-ENVI` trong [`src/data/seed-data.ts`](file:///Users/peggy2402/Projects/polycards/src/data/seed-data.ts).
