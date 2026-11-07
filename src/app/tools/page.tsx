@@ -961,36 +961,24 @@ export default function ToolsPage() {
     } catch {}
   };
 
-  // Tạo ảnh thẻ thành phẩm full-res (Giữ 100% độ nét của ảnh gốc)
+  // Tạo ảnh thẻ thành phẩm full-res (Bảo toàn 100% độ phân giải tự nhiên của ảnh phôi gốc, tuyệt đối không co nén)
   const generateCompositeCanvas = useCallback((): Promise<HTMLCanvasElement> => {
     return new Promise((resolve, reject) => {
-      const width = cardDimensions.width;
-      const height = cardDimensions.height;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        reject(new Error("Không thể khởi tạo Canvas 2D"));
-        return;
-      }
-
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-
-      // Helper vẽ các lớp tiếp theo (Sticker & QR)
-      const renderOverlaysAndResolve = () => {
-        // Vẽ Sticker nếu có
+      // Helper vẽ các lớp tiếp theo (Sticker & QR) theo đúng kích thước thật của canvas
+      const renderOverlaysAndResolve = (
+        canvas: HTMLCanvasElement,
+        ctx: CanvasRenderingContext2D,
+        exportWidth: number,
+        exportHeight: number
+      ) => {
         const drawQr = () => {
           if (!isQrOverlayEnabled || !qrDataUrl) {
             resolve(canvas);
             return;
           }
-          const realQrX = (qrPos.x / 100) * width;
-          const realQrY = (qrPos.y / 100) * height;
-          const realQrSize = (qrPos.size / 100) * width;
+          const realQrX = (qrPos.x / 100) * exportWidth;
+          const realQrY = (qrPos.y / 100) * exportHeight;
+          const realQrSize = (qrPos.size / 100) * exportWidth;
 
           const qrImg = new window.Image();
           qrImg.crossOrigin = "anonymous";
@@ -1006,10 +994,10 @@ export default function ToolsPage() {
           const stickerImg = new window.Image();
           stickerImg.crossOrigin = "anonymous";
           stickerImg.onload = () => {
-            const stX = (stickerLayer.x / 100) * width;
-            const stY = (stickerLayer.y / 100) * height;
-            const stW = (stickerLayer.width / 100) * width;
-            const stH = (stickerLayer.height / 100) * width;
+            const stX = (stickerLayer.x / 100) * exportWidth;
+            const stY = (stickerLayer.y / 100) * exportHeight;
+            const stW = (stickerLayer.width / 100) * exportWidth;
+            const stH = (stickerLayer.height / 100) * exportWidth;
             ctx.drawImage(stickerImg, stX, stY, stW, stH);
             drawQr();
           };
@@ -1022,13 +1010,35 @@ export default function ToolsPage() {
         }
       };
 
-      // 1. Vẽ Lớp Nền Phôi Thẻ
+      // 1. Vẽ Lớp Nền Phôi Thẻ (Trích xuất 100% naturalWidth & naturalHeight từ file gốc)
       if (cardImageSrc && isBackgroundVisible) {
         const cardImg = new window.Image();
         cardImg.crossOrigin = "anonymous";
         cardImg.onload = () => {
-          ctx.drawImage(cardImg, 0, 0, width, height);
-          renderOverlaysAndResolve();
+          // Bắt buộc lấy kích thước thực tự nhiên của file ảnh phôi gốc (tránh bị ép theo state 997x1440)
+          const exportWidth = cardImg.naturalWidth > 0 ? cardImg.naturalWidth : (cardDimensions.width || 1063);
+          const exportHeight = cardImg.naturalHeight > 0 ? cardImg.naturalHeight : (cardDimensions.height || 1535);
+
+          // Tự động đồng bộ lại state kích thước bàn chế bản nếu phát hiện chênh lệch
+          if (cardDimensions.width !== exportWidth || cardDimensions.height !== exportHeight) {
+            setCardDimensions({ width: exportWidth, height: exportHeight });
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = exportWidth;
+          canvas.height = exportHeight;
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            reject(new Error("Không thể khởi tạo Canvas 2D"));
+            return;
+          }
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+
+          ctx.drawImage(cardImg, 0, 0, exportWidth, exportHeight);
+          renderOverlaysAndResolve(canvas, ctx, exportWidth, exportHeight);
         };
         cardImg.onerror = () => reject(new Error("Lỗi nạp ảnh thẻ bài"));
         // Cloudflare R2 CDN đã cấu hình Access-Control-Allow-Origin: * -> tải trực tiếp 0% băng thông Vercel
@@ -1042,10 +1052,26 @@ export default function ToolsPage() {
             : cardImageSrc;
         cardImg.src = finalSrc;
       } else {
+        const exportWidth = cardDimensions.width || 1063;
+        const exportHeight = cardDimensions.height || 1535;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = exportWidth;
+        canvas.height = exportHeight;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Không thể khởi tạo Canvas 2D"));
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
         // Nền trắng tinh khôi chuẩn in ấn nếu chưa nạp phôi
         ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, width, height);
-        renderOverlaysAndResolve();
+        ctx.fillRect(0, 0, exportWidth, exportHeight);
+        renderOverlaysAndResolve(canvas, ctx, exportWidth, exportHeight);
       }
     });
   }, [cardDimensions, cardImageSrc, isBackgroundVisible, stickerLayer, qrPos, qrDataUrl, isQrOverlayEnabled]);
@@ -1403,8 +1429,9 @@ export default function ToolsPage() {
         const baseImg = new window.Image();
         baseImg.crossOrigin = "anonymous";
         baseImg.onload = () => {
-          const width = baseImg.naturalWidth || 700;
-          const height = baseImg.naturalHeight || 1000;
+          // Bảo toàn 100% kích thước gốc tự nhiên của phôi thẻ (chuẩn xưởng in Poly Cards 1063 x 1535)
+          const width = baseImg.naturalWidth > 0 ? baseImg.naturalWidth : 1063;
+          const height = baseImg.naturalHeight > 0 ? baseImg.naturalHeight : 1535;
           canvas.width = width;
           canvas.height = height;
 
@@ -2140,6 +2167,19 @@ export default function ToolsPage() {
     setRawImageBlob(null);
     setSlug(product.slug);
     setCardFileName(`${product.slug}-card.jpg`);
+
+    // Tự động nhận diện và cập nhật kích thước chuẩn tự nhiên (naturalWidth x naturalHeight) của thẻ vừa nạp
+    const probeImg = new window.Image();
+    probeImg.crossOrigin = "anonymous";
+    probeImg.onload = () => {
+      if (probeImg.naturalWidth > 0 && probeImg.naturalHeight > 0) {
+        setCardDimensions({
+          width: probeImg.naturalWidth,
+          height: probeImg.naturalHeight,
+        });
+      }
+    };
+    probeImg.src = cardImg;
 
     // 2. Khôi phục tọa độ QR tùy chỉnh của thẻ hoặc vị trí chuẩn
     if (product.qrPosition && typeof product.qrPosition.x === "number") {

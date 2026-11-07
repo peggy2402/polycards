@@ -291,3 +291,16 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      4. **Cân Bằng Màu Diffuse & Khử Phản Xạ Kim Loại (Roughness / Color Multiplier)**:
         - Thiết lập `m.metalness = 0.0` và `m.roughness >= 0.85` cho tất cả vật liệu.
         - Hạ hệ số nhân `m.color.multiplyScalar(0.85)` đối với model hành động, kéo các vùng áo trắng tinh khiết từ `255` về ngưỡng an toàn `~215-225`, giữ trọn vẹn chi tiết nếp gấp vải và đường nét khuôn mặt 3D.
+
+
+22. **Bảo Toàn 100% Độ Phân Giải Gốc (1063 x 1535) Khi Xuất Thẻ In & Khắc Phục Lỗi Bị Co Nhỏ Về 997 x 1440**:
+   - *Nguyên Nhân Kỹ Thuật:*
+     1. Tỉ lệ toán học của hiện tượng co nhỏ: $1535 / 1440 = 1.065972...$ và $1063 / 997 = 1.066198...$ (Đúng bằng tỉ lệ $1063 \times (1440 / 1535) \approx 997.146\text{px}$). Kích thước $997 \times 1440$ xuất hiện do canvas bị ép theo chiều cao $1440\text{px}$ đã lưu trước trong React state `cardDimensions` của Studio từ các lần nạp trước.
+     2. Trong hàm `generateCompositeCanvas` tại [`src/app/tools/page.tsx`](file:///Users/peggy2402/Projects/polycards/src/app/tools/page.tsx), canvas HTML được khởi tạo trước bằng `const width = cardDimensions.width; const height = cardDimensions.height;` trước khi tệp ảnh phôi thật `cardImg` tải xong. Khi `cardImg.onload` hoàn tất, lệnh `ctx.drawImage(cardImg, 0, 0, width, height)` đã cưỡng ép nén ảnh gốc chuẩn in $1063 \times 1535$ xuống kích thước bị lệch $997 \times 1440$.
+     3. Trong hàm `handleLoadCardToCanvas(product)`: Khi nạp thẻ từ kho sản phẩm vào Studio, hệ thống chỉ gán `cardImageSrc` mà không thăm dò trước kích thước tự nhiên của ảnh, khiến `cardDimensions` giữ nguyên giá trị cũ.
+     4. Trong hàm `generateCardCompositeBlob(card)` (dùng xuất ZIP hàng loạt): Kích thước fallback bị hardcode ở mức `700 x 1000` thay vì chuẩn in ấn $1063 \times 1535$.
+   - *Giải Pháp Thực Hiện:*
+     1. **Tái Cấu Trúc `generateCompositeCanvas` Lấy Trực Tiếp Kích Thước Tự Nhiên Gốc**: Chuyển việc khởi tạo kích thước canvas vào bên trong callback `cardImg.onload`. Trích xuất trực tiếp `exportWidth = cardImg.naturalWidth > 0 ? cardImg.naturalWidth : 1063` và `exportHeight = cardImg.naturalHeight > 0 ? cardImg.naturalHeight : 1535`. Đảm bảo canvas luôn được tạo đúng tỉ lệ 1:1 pixel-perfect với phôi gốc, đồng thời tự động đồng bộ lại `setCardDimensions`.
+     2. **Tính Tọa Độ QR & Lớp Phủ Theo Kích Thước Thật**: Các tham số `realQrX`, `realQrY`, `realQrSize` và Sticker layer được tính toán trực tiếp theo `exportWidth` và `exportHeight` thực tế của canvas, đảm bảo vị trí và kích thước mã QR in ấn chính xác 100%.
+     3. **Tự Động Nhận Diện Kích Thước Khi Nạp Thẻ (`handleLoadCardToCanvas`)**: Thêm probe image nạp trước `naturalWidth` và `naturalHeight` từ tệp thẻ để tự động gán lại `cardDimensions` ngay khi bấm chọn thẻ trong kho sản phẩm.
+     4. **Chuẩn Hóa Fallback Xuất ZIP Hàng Loạt**: Cập nhật hàm `generateCardCompositeBlob` ưu tiên `baseImg.naturalWidth / naturalHeight` và fallback chuẩn xưởng in $1063 \times 1535$.
