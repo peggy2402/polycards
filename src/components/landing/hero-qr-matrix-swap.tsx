@@ -14,10 +14,10 @@ interface HeroQrMatrixSwapProps {
 
 export function HeroQrMatrixSwap({
   left = "7.2%",
-  bottom = "7.4%",
+  bottom = "1.4%",
   width = "22.8%",
   height = "17.2%",
-  href = "/ar/lion",
+  href = "/ar/butterfly",
 }: HeroQrMatrixSwapProps = {}) {
   // Chuỗi số / mã code ngẫu nhiên chạy liên tục
   const [hexCode, setHexCode] = useState("POLY-8A");

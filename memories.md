@@ -374,3 +374,28 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      3. **Nâng Z-Index Tuyệt Đối Lên Trên Tất Cả (`z-50` / `z-30`)**:
         - Gán `lg:col-span-5 relative z-30` tại [`src/components/landing/hero-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx).
         - Gán lớp Canvas Three.js thành `z-50 pointer-events-none` nổi lên trên toàn bộ nội dung xung quanh.
+
+
+27. **Khắc Phục Toàn Diện 3 Vấn Đề Bướm 3D AR: Góc Vỗ Cánh 3D Siêu Nét, Chống Cắt Xén Mép Canvas & Hiệu Ứng Xuất Hiện Mờ Mịn (Smooth Cross-Dissolve)**:
+   - *Nguyên Nhân Cốt Lõi 3 Vấn Đề Người Dùng Báo:*
+     1. **Vấn đề 1 (Vẫy cánh không thấy dù có animation):**
+        - File `buom-animated.glb` có clip `"Flutter"` xoay xương cánh quanh trục Y (trục đứng thẳng lên trời). Tổng góc quét của 3 xương cộng dồn lên tới $92^\circ$.
+        - Tuy nhiên, trên web bướm đang nhìn đối diện thẳng mặt (Front View với `targetRotY ≈ 0.1 rad`). Khi nhìn chính diện, cử động gập cánh theo trục Z chỉ làm bề rộng cánh co giãn theo $\cos \theta$, mắt người nhìn từ trước chỉ thấy cánh co dãn $\approx 8\%$. Thêm vào đó, chu kỳ gốc dài 2.4s là quá chậm, khiến người dùng nhìn thấy như con bướm đứng yên. Trong khi trên Don McCurdy viewer, bướm được quay nghiêng góc 3D Perspective ($35^\circ - 45^\circ$) nên cử động đập cánh phập phồng lộ rõ 100%.
+     2. **Vấn đề 2 (Con bướm bị khuất / bị cắt xén mép trái):**
+        - Thẻ canvas container chỉ mở rộng `-left-28` (112px). Khi bướm bay đến `targetX = -0.82`, sải cánh bên trái của nó vượt ra ngoài ranh giới thẻ HTML `<canvas>` và góc nhìn Frustum của camera Three.js, khiến WebGL renderer cắt phẳng (clip) nửa thân bướm bên trái một đường thẳng đứng như ảnh người dùng phản ánh.
+     3. **Vấn đề 3 (Xuất hiện bất ngờ, chưa smooth):**
+        - Chưa có cơ chế nội suy độ trong suốt (opacity fade-in) đồng bộ giữa thẻ tranh vẽ 2D và mô hình 3D, khiến bướm đột ngột hiện ra.
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Đổi Sang Góc Nghiêng 3D Perspective Isometric & Tăng Tốc Độ Vỗ Cánh:**
+        - Thiết lập góc nghiêng 3D tự nhiên chuẩn góc 3/4: `rotation.y = 0.55 rad` ($\approx 32^\circ$) và `rotation.x = 0.28 rad` ($\approx 16^\circ$) khi đậu trên hoa; khi bay sang trái nghiêng `targetRotY = -0.55 rad` và khi bay sang phải `targetRotY = 0.60 rad`.
+        - Nhờ góc nghiêng 3D này, toàn bộ chiều sâu và chuyển động vỗ cánh $92^\circ$ của đôi cánh hiển thị cực kỳ rõ nét, dập dờn sống động y hệt như trên Don McCurdy viewer.
+        - Đặt `action.setEffectiveTimeScale(2.6)`, rút ngắn chu kỳ vỗ cánh xuống còn ~0.9s/nhịp, tạo nhịp đập cánh dập dờn tự nhiên, thanh thoát và mềm mại.
+     2. **Mở Rộng Thẻ Canvas & Tinh Chỉnh Quỹ Đạo (Triệt Tiêu Hoàn Toàn Cắt Xén - Zero Clipping):**
+        - Mở rộng container canvas ra `-left-48 -right-48 -top-28 -bottom-24` (thêm gần 200px mỗi bên).
+        - Đặt camera `FOV = 44`, $z = 3.6$ bao trọn trường nhìn.
+        - Điều chỉnh biên độ bay lượn vừa vặn: Bay sang trái ra ngoài mép viền thẻ bài khoảng 60px ($X = -0.48$), bay sang phải ($X = +0.48$). Bướm bay thoát ra ngoài viền thẻ bài trong không gian thực nhưng hoàn toàn nằm gọn trong canvas và camera frustum.
+     3. **Hiệu Ứng Xuất Hiện Mờ Mịn Chuẩn Điện Ảnh (Cinematic Cross-Dissolve):**
+        - Clone toàn bộ material của bướm sang `transparent = true`, nội suy `material.opacity` từ $0.0 \rightarrow 1.0$ thông qua `lerp(opacity, targetOpacity, 0.05)`.
+        - Thẻ tranh vẽ 2D (`butterfly-card-truoc.png`) mờ dần trong 1500ms (`duration-1500 ease-in-out`), cùng lúc bướm 3D hiện hình dần dần ngay trên bông hoa, vỗ cánh nhẹ nhàng rồi mới từ từ nhấc mình bay lên, kèm hào quang lấp lánh (Sparkles & Golden Glow) huyền ảo.
+     4. **Tùy Chỉnh Kích Thước Bướm Nhỏ Gọn:**
+        - Đặt `BUTTERFLY_SCALE_MULTIPLIER = 0.52`, con bướm nhỏ nhắn, xinh xắn, cân đối chuẩn tỷ lệ vàng với thẻ bài học tiếng Anh.
