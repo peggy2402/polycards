@@ -321,3 +321,19 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
         - *Tầng 2 (Streaming TTS API):* Gọi `/api/tts` để phát giọng đọc bản xứ tự nhiên cho mọi từ vựng mới.
         - *Tầng 3 (Offline Fallback):* Web Speech API với con trỏ toàn cục `activeUtterance` chống GC và kích hoạt trực tiếp trong User Gesture Context. Loại bỏ hoàn toàn tiếng bíp sine wave 0.12s gây chói tai.
      4. **Cập Nhật [`src/components/landing/hero-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx) & [`src/components/landing/ar-demo-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/ar-demo-section.tsx)**: Truyền trực tiếp `preferredAudioUrl` cho cả hai nút Tiếng Anh (EN) và Tiếng Việt (VI), đảm bảo người dùng click là nghe thấy ngay lập tức với độ trễ 0ms.
+
+
+24. **Hiệu Ứng Chuyển Cảnh Ma Thuật Thẻ Bướm 2D Sang 3D AR Vỗ Cánh Tại Hero Section**:
+   - *Yêu Cầu Kỹ Thuật:*
+     1. Chuyển cảnh từ ảnh thẻ 2D nguyên bản ([`public/images/cards/butterfly-card-truoc.png`](file:///Users/peggy2402/Projects/polycards/public/images/cards/butterfly-card-truoc.png) có hình con bướm đậu trong hoa) mờ dần (fade out) để lộ phôi nền sạch ([`public/images/cards/butterfly-card-sau.png`](file:///Users/peggy2402/Projects/polycards/public/images/cards/butterfly-card-sau.png) không có con bướm).
+     2. Cùng lúc đó, mô hình 3D thực tế ([`public/models/buom-animated.glb`](file:///Users/peggy2402/Projects/polycards/public/models/buom-animated.glb)) xuất hiện tại đúng vị trí con bướm 2D, vỗ cánh sống động (`Flutter` animation) và bay nổi ra khỏi mặt phẳng thẻ bài (Z-axis float).
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Xây Dựng Component Chuyên Biệt ([`src/components/landing/hero-butterfly-ar-card.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-butterfly-ar-card.tsx))**:
+        - Thiết lập cấu trúc phân lớp xếp chồng (Stacked Layers): Layer đáy là `butterfly-card-sau.png`, Layer giữa là `butterfly-card-truoc.png` với hiệu ứng `transition-opacity duration-1000 ease-in-out`.
+        - Layer trên cùng là Canvas Three.js WebGL trong suốt (alpha: true, ACESFilmicToneMapping) tải mô hình `buom-animated.glb`, căn chỉnh vị trí khớp 100% với con bướm 2D trên thẻ.
+        - Khởi động Animation Mixer kích hoạt chuyển động `Flutter` vỗ cánh liên tục, kết hợp dao động nhấp nhô theo hàm sóng sin tự nhiên và phản hồi theo con trỏ chuột (Parallax Tilt).
+     2. **Cơ Chế Chu Kỳ Tự Động & Nút Bấm Tương Tác (Transformation Cycle)**:
+        - Tự động luân chuyển chu kỳ: Thẻ 2D tĩnh (5s) -> Hào quang lấp lánh (Sparkle Glow) bừng nở -> Bướm 3D bước ra vỗ cánh (7.5s) -> Lặp lại mượt mà.
+        - Tạm dừng auto-loop khi người dùng rê chuột vào thẻ để thoải mái tương tác.
+        - Bổ sung nút huy hiệu góc trên bên phải cho phép bấm chuyển đổi lập tức giữa "Chạm Hóa Thân 3D AR" và "3D AR Đang Vỗ Cánh".
+     3. **Tích Hợp Vào [`src/components/landing/hero-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx)**: Thay thế hoàn toàn thẻ tĩnh cũ, đồng bộ mượt mà với thanh nghe phát âm và ô quét QR Matrix Swap.

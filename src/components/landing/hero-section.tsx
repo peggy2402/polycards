@@ -2,25 +2,17 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   QrCode,
   Compass,
-  Sparkles,
   ShieldCheck,
   Volume2,
   Eye,
   Smartphone,
-  RotateCw,
-  Box,
   CheckCircle2,
 } from "lucide-react";
-import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
-import { HeroLion3DPopout } from "./hero-lion-3d-popout";
+import { HeroButterflyArCard } from "./hero-butterfly-ar-card";
 import { speakWord, stopAllCardAudio } from "@/lib/speech-audio";
-
-// Bật/tắt mô hình 3D bước ra từ thẻ ở trang chủ (tạm thời tắt theo yêu cầu để tránh lệch nhân vật với ảnh thẻ)
-const SHOW_HERO_3D_POPOUT = false;
 
 export function HeroSection() {
   const [playingLang, setPlayingLang] = useState<"en" | "vi" | null>(null);
@@ -149,47 +141,15 @@ export function HeroSection() {
             </div>
           </div>
 
-          {/* Right Column: Premium 3D Physical Card Showcase (Không đè mất chữ trên thẻ bài) */}
+          {/* Right Column: Premium 3D Physical Card Showcase với Hiệu ứng AR Hóa thân bướm vỗ cánh */}
           <div className="lg:col-span-5">
             <div className="relative mx-auto flex max-w-sm flex-col items-center">
-              {/* Realistic Physical Card Frame (Tỷ lệ dọc 3:4 thẻ thật, KHÔNG che chữ) */}
-              <div className="relative w-full overflow-hidden rounded-[2.5rem] border-4 border-white bg-white shadow-[0_25px_60px_-15px_rgba(217,119,6,0.3)] ring-4 ring-amber-200/70 transition-transform duration-300 hover:scale-[1.02]">
-                {/* Floating 360 Rotating Badge (Top Right of Card) */}
-                <div className="absolute top-3.5 right-3.5 z-20">
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3.5 py-1.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30 ring-2 ring-white/90 backdrop-blur-md">
-                    <RotateCw className="h-3.5 w-3.5 animate-spin text-amber-200" style={{ animationDuration: "6s" }} />
-                    <span>3D Xoay 360° Sống Động</span>
-                  </div>
-                </div>
-
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[2.2rem] bg-amber-50">
-                  <Image
-                    src="/images/cards/butterfly-card.png"
-                    alt="Thẻ bài học tiếng Anh Butterfly Poly Cards thật"
-                    fill
-                    priority
-                    className="object-cover"
-                    sizes="(max-width: 640px) 100vw, 420px"
-                  />
-
-                  {/* Hiệu ứng Matrix QR Swap nháy số ngẫu nhiên liên tục ở ô vuông trắng góc dưới bên trái.
-                      Bạn có thể dễ dàng điều chỉnh vị trí và kích thước ô QR theo ảnh thẻ bài tại đây: */}
-                  <HeroQrMatrixSwap
-                    left="6%"
-                    bottom="9.01%"
-                    width="24.8%"
-                    height="17.2%"
-                    href="/ar/butterfly"
-                  />
-
-                  {/* Mô hình 3D bước ra từ thẻ (Dành riêng cho Desktop / Macbook, có thể bật lại khi có ảnh thẻ khớp model) */}
-                  {SHOW_HERO_3D_POPOUT && (
-                    <div className="hidden lg:block">
-                      <HeroLion3DPopout modelUrl="/models/lion.glb" />
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* Thẻ biến hình AR 3D sống động (Card Trước 2D mờ dần -> Card Sau lộ ra + Bướm 3D vỗ cánh bay ra) */}
+              <HeroButterflyArCard
+                cardBeforeSrc="/images/cards/butterfly-card-truoc.png"
+                cardAfterSrc="/images/cards/butterfly-card-sau.png"
+                modelUrl="/models/buom-animated.glb"
+              />
 
               {/* Interactive Control Capsule Below the Card */}
               <div className="mt-4 w-full rounded-3xl border-2 border-amber-200/90 bg-white/98 p-4 shadow-xl shadow-amber-950/5 backdrop-blur-xl space-y-3">
