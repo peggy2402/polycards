@@ -30,9 +30,16 @@ export function HeroSection() {
       stopAllCardAudio();
       setPlayingLang(lang);
       const textToSpeak = lang === "en" ? "Butterfly" : "Con bướm";
-      const success = speakWord(textToSpeak, lang, () => {
-        setPlayingLang(null);
-      });
+      const preferredAudioUrl =
+        lang === "en" ? "/audio/en/butterfly.mp3" : "/audio/vi/butterfly.mp3";
+      const success = speakWord(
+        textToSpeak,
+        lang,
+        () => {
+          setPlayingLang(null);
+        },
+        preferredAudioUrl
+      );
       if (!success) {
         setPlayingLang(null);
       }

@@ -28,9 +28,9 @@ export const SYSTEM_POLYCARDS_ANIMAL: Animal = {
   audioUrl: "",
   animations: [],
   audios: {
-    en: "",
-    vi: "",
-    zh: "",
+    en: "/audio/en/butterfly.mp3",
+    vi: "/audio/vi/butterfly.mp3",
+    zh: "/audio/zh/butterfly.mp3",
   },
   arEnabled: true,
   enableEnVi: true,

@@ -23,13 +23,20 @@ export function ArDemoSection() {
       setIsPlayingAudio(true);
       const targetLang = currentLang;
       const textToSpeak = targetLang === "en" ? "Butterfly" : "Con bướm";
+      const preferredAudioUrl =
+        targetLang === "en" ? "/audio/en/butterfly.mp3" : "/audio/vi/butterfly.mp3";
 
       // Đổi ngôn ngữ cho lần nhấn tiếp theo
       setCurrentLang((prev) => (prev === "en" ? "vi" : "en"));
 
-      const success = speakWord(textToSpeak, targetLang, () => {
-        setIsPlayingAudio(false);
-      });
+      const success = speakWord(
+        textToSpeak,
+        targetLang,
+        () => {
+          setIsPlayingAudio(false);
+        },
+        preferredAudioUrl
+      );
       if (!success) {
         setIsPlayingAudio(false);
       }

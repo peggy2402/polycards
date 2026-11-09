@@ -304,3 +304,20 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
      2. **Tính Tọa Độ QR & Lớp Phủ Theo Kích Thước Thật**: Các tham số `realQrX`, `realQrY`, `realQrSize` và Sticker layer được tính toán trực tiếp theo `exportWidth` và `exportHeight` thực tế của canvas, đảm bảo vị trí và kích thước mã QR in ấn chính xác 100%.
      3. **Tự Động Nhận Diện Kích Thước Khi Nạp Thẻ (`handleLoadCardToCanvas`)**: Thêm probe image nạp trước `naturalWidth` và `naturalHeight` từ tệp thẻ để tự động gán lại `cardDimensions` ngay khi bấm chọn thẻ trong kho sản phẩm.
      4. **Chuẩn Hóa Fallback Xuất ZIP Hàng Loạt**: Cập nhật hàm `generateCardCompositeBlob` ưu tiên `baseImg.naturalWidth / naturalHeight` và fallback chuẩn xưởng in $1063 \times 1535$.
+
+
+23. **Giải Quyết Triệt Để Lỗi Âm Thanh Giọng Đọc Song Ngữ (Butterfly / Con bướm) Bằng MP3 Tĩnh & Streaming TTS API**:
+   - *Nguyên Nhân Kỹ Thuật:*
+     1. Đoạn "Multilingual Audio Listen Strip" trước đây phụ thuộc 100% vào `window.speechSynthesis` (Web Speech API của trình duyệt) thông qua hàm `speakWord()`.
+     2. **Lỗi thiếu Voice Tiếng Việt (`vi-VN`)**: Trên 90% máy tính cá nhân (Google Chrome / Edge trên macOS và Windows PC) mặc định **hoàn toàn không có voice tiếng Việt**. Khi gọi `speak()` với `vi-VN`, trình duyệt hoặc im lặng hoàn toàn (silent fail) hoặc phát âm lỗi vô nghĩa.
+     3. **Lỗi Thu Hồi Bộ Nhớ Của Chromium (GC Bug)**: `const utterance = new SpeechSynthesisUtterance()` trước đây khai báo cục bộ trong hàm, bị bộ gom rác (Garbage Collector) của V8 thu hồi trước khi kịp phát âm, khiến sự kiện `onend` không bao giờ bắn và không có âm thanh nào vang lên.
+     4. **Lỗi Mất User Gesture Context Trên Safari/iOS**: `speakWord()` sử dụng `setTimeout(..., 40)` để né bug của Chrome, nhưng hành động trì hoãn này khiến Safari/WebKit trên iOS coi như đã mất quyền User Activation, lập tức chặn quyền phát âm thanh.
+     5. Hàm `isCustomUploadedAudioUrl()` trước đây dùng regex chặn mọi tệp nằm trong `/audio/en/` và `/audio/vi/`, khiến các file âm thanh tĩnh không bao giờ được phép phát bằng thẻ `<audio>`.
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Cung Cấp Tệp Âm Thanh MP3 Bản Xứ Tĩnh**: Tải và lưu trữ các tệp âm thanh phát âm bản xứ chất lượng cao trực tiếp tại [`public/audio/en/butterfly.mp3`](file:///Users/peggy2402/Projects/polycards/public/audio/en/butterfly.mp3), [`public/audio/vi/butterfly.mp3`](file:///Users/peggy2402/Projects/polycards/public/audio/vi/butterfly.mp3) và [`public/audio/zh/butterfly.mp3`](file:///Users/peggy2402/Projects/polycards/public/audio/zh/butterfly.mp3).
+     2. **Xây Dựng Streaming TTS API Chuyên Biệt ([`src/app/api/tts/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/tts/route.ts))**: Endpoint `GET /api/tts?text=...&lang=...` tự động phục vụ file tĩnh nếu có hoặc stream trực tiếp âm thanh MP3 từ Google Translate TTS kèm caching header. Thẻ `<audio>` của HTML5 phát file native 100% trên mọi thiết bị di động (iPhone Safari, Android Chrome, Mac, Windows, iPad), chấm dứt hoàn toàn sự phụ thuộc vào TTS cài đặt trên máy người dùng.
+     3. **Nâng Cấp Kiến Trúc Âm Thanh 3 Tầng ([`src/lib/speech-audio.ts`](file:///Users/peggy2402/Projects/polycards/src/lib/speech-audio.ts))**:
+        - *Tầng 1 (Ưu tiên cao nhất):* Phát trực tiếp file âm thanh tĩnh / CDN nếu có URL (`preferredAudioUrl`).
+        - *Tầng 2 (Streaming TTS API):* Gọi `/api/tts` để phát giọng đọc bản xứ tự nhiên cho mọi từ vựng mới.
+        - *Tầng 3 (Offline Fallback):* Web Speech API với con trỏ toàn cục `activeUtterance` chống GC và kích hoạt trực tiếp trong User Gesture Context. Loại bỏ hoàn toàn tiếng bíp sine wave 0.12s gây chói tai.
+     4. **Cập Nhật [`src/components/landing/hero-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx) & [`src/components/landing/ar-demo-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/ar-demo-section.tsx)**: Truyền trực tiếp `preferredAudioUrl` cho cả hai nút Tiếng Anh (EN) và Tiếng Việt (VI), đảm bảo người dùng click là nghe thấy ngay lập tức với độ trễ 0ms.

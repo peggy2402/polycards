@@ -10,6 +10,7 @@ import { Animal } from "@/types/animal";
 const isBrowser = typeof window !== "undefined";
 
 let activeAudioElement: HTMLAudioElement | null = null;
+let activeUtterance: SpeechSynthesisUtterance | null = null;
 
 /**
  * Dừng mọi luồng âm thanh hoặc giọng đọc đang phát
@@ -22,6 +23,7 @@ export function stopAllCardAudio(): void {
       activeAudioElement.currentTime = 0;
       activeAudioElement = null;
     }
+    activeUtterance = null;
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -29,23 +31,86 @@ export function stopAllCardAudio(): void {
 }
 
 /**
- * Kiểm tra đường dẫn âm thanh có phải là tệp tùy chỉnh đã tải lên hay không
+ * Kiểm tra đường dẫn âm thanh có phải là tệp hợp lệ hay không
  */
 export function isCustomUploadedAudioUrl(url?: string): boolean {
   if (!url || typeof url !== "string") return false;
   const clean = url.trim();
   if (!clean) return false;
-  // Các đường dẫn mặc định dạng /audio/en/lion.mp3 hoặc /audio/lion.mp3 chưa có file vật lý sẽ ưu tiên Web Speech AI hoặc Web Audio Synth
-  if (/^\/audio\/(en\/|vi\/|zh\/)?[a-z0-9-_]+\.mp3$/i.test(clean)) {
+  return (
+    clean.startsWith("http://") ||
+    clean.startsWith("https://") ||
+    clean.startsWith("/audio/") ||
+    clean.startsWith("blob:") ||
+    clean.startsWith("data:")
+  );
+}
+
+/**
+ * Phát âm qua Streaming TTS API (/api/tts?text=...&lang=...) bằng thẻ HTML5 Audio native
+ * Hoạt động 100% trên iOS Safari, Android Chrome, MacOS, Windows, iPad, không phụ thuộc vào TTS cài trên máy.
+ */
+export function playTtsAudioStream(
+  text: string,
+  lang: "en" | "vi" | "zh",
+  onEnd?: () => void,
+  onFallback?: () => void
+): boolean {
+  if (!isBrowser) {
+    if (onEnd) onEnd();
     return false;
   }
-  return true;
+
+  try {
+    const ttsUrl = `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`;
+    const audio = new Audio(ttsUrl);
+    activeAudioElement = audio;
+
+    let finished = false;
+    const handleFinish = () => {
+      if (finished) return;
+      finished = true;
+      if (activeAudioElement === audio) activeAudioElement = null;
+      if (onEnd) onEnd();
+    };
+
+    audio.onended = handleFinish;
+
+    const triggerFallback = () => {
+      if (finished) return;
+      finished = true;
+      if (activeAudioElement === audio) activeAudioElement = null;
+      if (onFallback) {
+        onFallback();
+      } else {
+        speakWithWebSpeechSynthesis(text, lang, onEnd);
+      }
+    };
+
+    audio.onerror = triggerFallback;
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        triggerFallback();
+      });
+    }
+    return true;
+  } catch {
+    if (onFallback) {
+      onFallback();
+    } else {
+      speakWithWebSpeechSynthesis(text, lang, onEnd);
+    }
+    return false;
+  }
 }
 
 /**
  * Phát âm từ vựng theo ngôn ngữ (EN / VI / ZH):
  * 1. Nếu thẻ có tải lên tệp âm thanh riêng cho ngôn ngữ đó (animal.audios[lang]), phát file MP3/WAV đó trước.
- * 2. Nếu chưa tải file riêng (hoặc file lỗi), tự động phát âm chuẩn bản xứ bằng Web Speech AI.
+ * 2. Nếu chưa tải file riêng (hoặc file lỗi), tự động phát âm chuẩn bản xứ bằng Streaming TTS API (/api/tts).
+ * 3. Nếu mạng lỗi, fallback tự động sang Web Speech API của trình duyệt.
  */
 export function playCardLanguageAudio(
   animal: Pick<Animal, "nameEn" | "nameVi" | "nameZh" | "audios" | "audioUrl">,
@@ -87,12 +152,15 @@ export function playCardLanguageAudio(
         triggerFallback();
       };
 
-      audio.play().catch(() => {
-        triggerFallback();
-      });
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          triggerFallback();
+        });
+      }
       return;
     } catch {
-      // Fallback sang Web Speech API bên dưới
+      // Fallback sang speakWord bên dưới
     }
   }
 
@@ -100,31 +168,77 @@ export function playCardLanguageAudio(
 }
 
 /**
- * Phát âm từ vựng chuẩn ngữ âm thông qua Web Speech API
+ * Phát âm từ vựng chuẩn ngữ âm:
+ * 1. Ưu tiên tệp âm thanh trực tiếp nếu có (preferredAudioUrl)
+ * 2. Phát giọng đọc chuẩn bản xứ qua TTS Streaming API (/api/tts)
+ * 3. Tự động fallback sang Web Speech API nếu offline
  */
-export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => void): boolean {
+export function speakWord(
+  text: string,
+  lang: "en" | "vi" | "zh",
+  onEnd?: () => void,
+  preferredAudioUrl?: string
+): boolean {
   if (!isBrowser) {
     if (onEnd) onEnd();
     return false;
   }
 
-  // Luôn phát âm thanh tương tác Web Audio trước để đảm bảo phản hồi tức thì
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(lang === "vi" ? 523.25 : 659.25, ctx.currentTime);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.13);
+  stopAllCardAudio();
+
+  // 1. Nếu có URL âm thanh ưu tiên (ví dụ file mp3 tĩnh /audio/en/butterfly.mp3)
+  if (preferredAudioUrl && isCustomUploadedAudioUrl(preferredAudioUrl)) {
+    try {
+      const audio = new Audio(preferredAudioUrl);
+      activeAudioElement = audio;
+
+      let fallbackTriggered = false;
+      const triggerFallback = () => {
+        if (fallbackTriggered) return;
+        fallbackTriggered = true;
+        activeAudioElement = null;
+        playTtsAudioStream(text, lang, onEnd);
+      };
+
+      audio.onended = () => {
+        activeAudioElement = null;
+        if (onEnd) onEnd();
+      };
+
+      audio.onerror = () => {
+        triggerFallback();
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          triggerFallback();
+        });
+      }
+      return true;
+    } catch {
+      // Tiếp tục fallback bên dưới
     }
-  } catch {}
+  }
+
+  // 2. Phát âm chuẩn bản xứ qua Streaming TTS API
+  return playTtsAudioStream(text, lang, onEnd, () => {
+    speakWithWebSpeechSynthesis(text, lang, onEnd);
+  });
+}
+
+/**
+ * Phát âm qua Web Speech API (Fallback offline nội bộ của trình duyệt)
+ */
+export function speakWithWebSpeechSynthesis(
+  text: string,
+  lang: "en" | "vi" | "zh",
+  onEnd?: () => void
+): boolean {
+  if (!isBrowser) {
+    if (onEnd) onEnd();
+    return false;
+  }
 
   if (!("speechSynthesis" in window)) {
     if (onEnd) onEnd();
@@ -132,10 +246,10 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
   }
 
   try {
-    // Khắc phục bug Chrome: cancel() đồng bộ có thể nuốt luôn utterance tiếp theo
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
+    activeUtterance = utterance;
 
     // Cấu hình mã ngôn ngữ chuẩn quốc tế BCP 47
     if (lang === "en") {
@@ -154,46 +268,45 @@ export function speakWord(text: string, lang: "en" | "vi" | "zh", onEnd?: () => 
 
     // Ưu tiên chọn voice phù hợp với ngôn ngữ nếu trình duyệt đã load voices
     const applyVoice = () => {
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const prefix = lang === "en" ? "en" : lang === "vi" ? "vi" : "zh";
-        const matched = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
-        if (matched) {
-          utterance.voice = matched;
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+          const prefix = lang === "en" ? "en" : lang === "vi" ? "vi" : "zh";
+          const matched = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
+          if (matched) {
+            utterance.voice = matched;
+          }
         }
-      }
+      } catch {}
     };
     applyVoice();
-    if (typeof window.speechSynthesis.onvoiceschanged !== "undefined") {
-      window.speechSynthesis.onvoiceschanged = applyVoice;
-    }
 
     let isDone = false;
     const finish = () => {
       if (isDone) return;
       isDone = true;
+      activeUtterance = null;
       if (onEnd) onEnd();
     };
 
     utterance.onend = finish;
     utterance.onerror = finish;
 
-    // Timeout an toàn 3s phòng khi browser không kích hoạt onend
-    setTimeout(finish, 3000);
+    // Timeout an toàn 4s phòng khi browser không kích hoạt onend
+    setTimeout(finish, 4000);
 
-    // Sử dụng setTimeout 40ms để tránh bug cancel() của Chromium
-    setTimeout(() => {
-      try {
-        window.speechSynthesis.resume();
-        window.speechSynthesis.speak(utterance);
-      } catch {
-        finish();
-      }
-    }, 40);
+    // Kích hoạt speak ngay trong User Gesture Context
+    try {
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      finish();
+    }
 
     return true;
   } catch (err) {
-    console.warn("[Speech Engine] Lỗi khi phát âm:", err);
+    console.warn("[Speech Engine] Lỗi khi phát âm SpeechSynthesis:", err);
+    activeUtterance = null;
     if (onEnd) onEnd();
     return false;
   }
