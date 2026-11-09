@@ -299,6 +299,14 @@ export async function POST(request: NextRequest) {
             }
           : existingItem?.qrPosition,
       audioUrl: body.audioUrl || existingItem?.audioUrl || `/audio/${cleanSlug}.mp3`,
+      audioUrlEn:
+        body.audioUrlEn !== undefined
+          ? String(body.audioUrlEn).trim()
+          : existingItem?.audioUrlEn || "",
+      audioUrlZh:
+        body.audioUrlZh !== undefined
+          ? String(body.audioUrlZh).trim()
+          : existingItem?.audioUrlZh || "",
       audios: {
         en:
           body.audios?.en !== undefined && String(body.audios.en).trim() !== ""

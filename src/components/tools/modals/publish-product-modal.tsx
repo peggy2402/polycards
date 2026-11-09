@@ -465,6 +465,8 @@ export function PublishProductModal({
               iosModelUrl={productForm.iosModelUrl}
               targetUrl={productForm.targetUrl}
               audioUrl={productForm.audioUrl}
+              audioUrlEn={productForm.audioUrlEn}
+              audioUrlZh={productForm.audioUrlZh}
               audioEnUrl={productForm.audioEnUrl}
               audioViUrl={productForm.audioViUrl}
               audioZhUrl={productForm.audioZhUrl}
@@ -474,6 +476,8 @@ export function PublishProductModal({
               onChangeIosModelUrl={(url) => onChangeForm({ iosModelUrl: url })}
               onChangeTargetUrl={(url) => onChangeForm({ targetUrl: url })}
               onChangeAudioUrl={(url) => onChangeForm({ audioUrl: url })}
+              onChangeAudioUrlEn={(url) => onChangeForm({ audioUrlEn: url })}
+              onChangeAudioUrlZh={(url) => onChangeForm({ audioUrlZh: url })}
               onChangeAudioEnUrl={(url) => onChangeForm({ audioEnUrl: url })}
               onChangeAudioViUrl={(url) => onChangeForm({ audioViUrl: url })}
               onChangeAudioZhUrl={(url) => onChangeForm({ audioZhUrl: url })}

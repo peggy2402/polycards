@@ -399,3 +399,18 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
         - Thẻ tranh vẽ 2D (`butterfly-card-truoc.png`) mờ dần trong 1500ms (`duration-1500 ease-in-out`), cùng lúc bướm 3D hiện hình dần dần ngay trên bông hoa, vỗ cánh nhẹ nhàng rồi mới từ từ nhấc mình bay lên, kèm hào quang lấp lánh (Sparkles & Golden Glow) huyền ảo.
      4. **Tùy Chỉnh Kích Thước Bướm Nhỏ Gọn:**
         - Đặt `BUTTERFLY_SCALE_MULTIPLIER = 0.52`, con bướm nhỏ nhắn, xinh xắn, cân đối chuẩn tỷ lệ vàng với thẻ bài học tiếng Anh.
+
+
+28. **Tách Biệt Tiếng Động / Tiếng Kêu (.mp3) Theo Bộ Song Ngữ (Anh - Việt & Trung - Việt)**:
+   - *Yêu Cầu:*
+     1. Trong modal "Chỉnh Sửa Thông Tin Thẻ Bài" (/tools), tách trường "Tiếng Động / Tiếng Kêu (.mp3)" thành 2 ô riêng biệt cho hai bộ song ngữ "Anh - Việt" và "Trung - Việt".
+     2. Giao diện tự động đồng bộ theo toggle song ngữ (`enableEnVi` / `enableZhVi`): bật chế độ nào thì hiển thị ô tải tệp tương ứng.
+     3. Trong WebAR View ([`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx)), khi người dùng nhấn "Phát Tiếng Kêu ...", hệ thống tự động phát đúng tệp âm thanh `.mp3` theo chế độ song ngữ đang xem (`languageTrack === "zh-vi"` phát `audioUrlZh`, ngược lại phát `audioUrlEn`).
+   - *Triển Khai Kỹ Thuật:*
+     1. Mở rộng interface `Animal` trong [`src/types/animal.ts`](file:///Users/peggy2402/Projects/polycards/src/types/animal.ts) và `ProductFormData` / `EditProductFormData` trong [`src/components/tools/types.ts`](file:///Users/peggy2402/Projects/polycards/src/components/tools/types.ts): thêm `audioUrlEn?: string; audioUrlZh?: string;`.
+     2. Cập nhật API [`src/app/api/products/route.ts`](file:///Users/peggy2402/Projects/polycards/src/app/api/products/route.ts): lưu trữ an toàn `audioUrlEn` và `audioUrlZh` vào cơ sở dữ liệu MongoDB Atlas.
+     3. Tái cấu trúc Panel Tài Nguyên AR [`src/components/tools/widgets/ar-resource-panel.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/tools/widgets/ar-resource-panel.tsx):
+        - Tách riêng khối "Tiếng Kêu Bộ Anh - Việt" (Theme Amber ấm áp, nút "Tải .mp3 Tiếng Anh", nút "Nghe") và khối "Tiếng Kêu Bộ Trung - Việt" (Theme Rose ruby, nút "Tải .mp3 Tiếng Trung", nút "Nghe").
+        - Hỗ trợ tải trực tiếp lên Cloudflare R2 qua target `"sfx-en"` và `"sfx-zh"`.
+     4. Đồng bộ WebAR View [`src/components/ar/webar-card-view.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/ar/webar-card-view.tsx):
+        - Cập nhật các điểm kích hoạt âm thanh (`handleAnimalSound`, `handleTapModel`, `onTargetFound`): tự động chọn `effectiveSoundUrl = languageTrack === "zh-vi" ? (animal.audioUrlZh || animal.audioUrl) : (animal.audioUrlEn || animal.audioUrl)`.

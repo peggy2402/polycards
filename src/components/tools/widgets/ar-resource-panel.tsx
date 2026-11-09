@@ -38,6 +38,8 @@ interface ArResourcePanelProps {
   iosModelUrl: string;
   targetUrl: string;
   audioUrl: string;
+  audioUrlEn?: string;
+  audioUrlZh?: string;
   audioEnUrl?: string;
   audioViUrl?: string;
   audioZhUrl?: string;
@@ -48,6 +50,8 @@ interface ArResourcePanelProps {
   onChangeIosModelUrl: (url: string) => void;
   onChangeTargetUrl: (url: string) => void;
   onChangeAudioUrl: (url: string) => void;
+  onChangeAudioUrlEn?: (url: string) => void;
+  onChangeAudioUrlZh?: (url: string) => void;
   onChangeAudioEnUrl?: (url: string) => void;
   onChangeAudioViUrl?: (url: string) => void;
   onChangeAudioZhUrl?: (url: string) => void;
@@ -62,6 +66,8 @@ export function ArResourcePanel({
   iosModelUrl,
   targetUrl,
   audioUrl,
+  audioUrlEn = "",
+  audioUrlZh = "",
   audioEnUrl = "",
   audioViUrl = "",
   audioZhUrl = "",
@@ -72,6 +78,8 @@ export function ArResourcePanel({
   onChangeIosModelUrl,
   onChangeTargetUrl,
   onChangeAudioUrl,
+  onChangeAudioUrlEn,
+  onChangeAudioUrlZh,
   onChangeAudioEnUrl,
   onChangeAudioViUrl,
   onChangeAudioZhUrl,
@@ -151,7 +159,7 @@ export function ArResourcePanel({
   const handleUploadFile = async (
     file: File,
     type: "model" | "target" | "audio",
-    audioTarget?: "en" | "vi" | "zh" | "sfx"
+    audioTarget?: "en" | "vi" | "zh" | "sfx" | "sfx-en" | "sfx-zh"
   ) => {
     const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB / mảnh
     const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
@@ -290,6 +298,12 @@ export function ArResourcePanel({
           onChangeAudioViUrl(finalUrl);
         } else if (audioTarget === "zh" && onChangeAudioZhUrl) {
           onChangeAudioZhUrl(finalUrl);
+        } else if (audioTarget === "sfx-en") {
+          onChangeAudioUrlEn?.(finalUrl);
+          onChangeAudioUrl(finalUrl);
+        } else if (audioTarget === "sfx-zh") {
+          onChangeAudioUrlZh?.(finalUrl);
+          if (!audioUrl) onChangeAudioUrl(finalUrl);
         } else {
           onChangeAudioUrl(finalUrl);
         }
@@ -588,98 +602,167 @@ export function ArResourcePanel({
         </div>
       </div>
 
-      {/* 3. Tệp Target MindAR (.mind) & Hiệu Ứng Tiếng Động (.mp3) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {/* Target .mind */}
-        <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-stone-300">Target Marker (.mind):</span>
-            <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
-              <Upload className="h-2.5 w-2.5 shrink-0" />
-              <span>Tải .mind</span>
-              <input
-                type="file"
-                accept=".mind"
-                disabled={isUploading}
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (file) handleUploadFile(file, "target");
-                }}
-              />
-            </label>
+      {/* 3. Tệp Target MindAR (.mind) */}
+      <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-stone-300">Target Marker (.mind):</span>
+          <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
+            <Upload className="h-2.5 w-2.5 shrink-0" />
+            <span>Tải .mind</span>
+            <input
+              type="file"
+              accept=".mind"
+              disabled={isUploading}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) handleUploadFile(file, "target");
+              }}
+            />
+          </label>
+        </div>
+        <input
+          type="text"
+          value={targetUrl}
+          onChange={(e) => onChangeTargetUrl(e.target.value)}
+          placeholder="Để trống nếu chưa có file .mind (Tùy chọn)"
+          className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
+        />
+        <div className="pt-0.5 flex flex-col gap-0.5 text-[9px]">
+          <a
+            href="https://hiukim.github.io/mind-ar-js-doc/tools/compile/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold underline transition-colors"
+            title="Mở công cụ MindAR Compiler trực tuyến để tạo file .mind từ ảnh thẻ"
+          >
+            <span>Tạo file .mind online tại đây</span>
+            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+          </a>
+          <p className="text-stone-400">
+            Kéo ảnh thẻ vào link trên để tải về file .mind, sau đó nhấn nút &quot;Tải .mind&quot; ở trên.
+          </p>
+        </div>
+      </div>
+
+      {/* 4. TÁCH BIỆT TIẾNG ĐỘNG / TIẾNG KÊU THEO TỪNG BỘ SONG NGỮ (ANH - VIỆT & TRUNG - VIỆT) */}
+      <div className="p-2.5 sm:p-3 rounded-xl bg-stone-950/80 border border-amber-400/30 space-y-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+          <div className="flex items-center gap-1.5">
+            <Volume2 className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="text-[11px] font-black text-amber-300">
+              Tiếng Động / Tiếng Kêu (.mp3) Tách Biệt Theo Bộ Song Ngữ
+            </span>
           </div>
-          <input
-            type="text"
-            value={targetUrl}
-            onChange={(e) => onChangeTargetUrl(e.target.value)}
-            placeholder="Để trống nếu chưa có file .mind (Tùy chọn)"
-            className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
-          />
-          <div className="pt-0.5 flex flex-col gap-0.5 text-[9px]">
-            <a
-              href="https://hiukim.github.io/mind-ar-js-doc/tools/compile/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold underline transition-colors"
-              title="Mở công cụ MindAR Compiler trực tuyến để tạo file .mind từ ảnh thẻ"
-            >
-              <span>Tạo file .mind online tại đây</span>
-              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-            </a>
-            <p className="text-stone-400">
-              Kéo ảnh thẻ vào link trên để tải về file .mind, sau đó nhấn nút &quot;Tải .mind&quot; ở trên.
-            </p>
-          </div>
+          <span className="text-[9px] text-stone-400">
+            Đồng bộ theo Toggle Song Ngữ
+          </span>
         </div>
 
-        {/* Hiệu ứng tiếng kêu / tiếng động riêng (.mp3) */}
-        <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/10 space-y-1.5">
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-[10px] font-bold text-stone-300 flex items-center gap-1">
-              <Volume2 className="h-3 w-3 text-amber-400 shrink-0" />
-              <span>Tiếng Động / Tiếng Kêu (.mp3):</span>
-            </span>
-            <div className="flex items-center gap-1 shrink-0">
-              {audioUrl && (
-                <button
-                  type="button"
-                  onClick={() => handlePreviewAudioUrl(audioUrl, "Tiếng động")}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[9px] border border-emerald-400/30 cursor-pointer"
-                  title="Nghe thử tệp tiếng động"
-                >
-                  <Play className="h-2.5 w-2.5" />
-                  <span>Nghe</span>
-                </button>
-              )}
-              <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[9px] border border-white/10 transition-colors shrink-0">
-                <Upload className="h-2.5 w-2.5 shrink-0" />
-                <span>Tải .mp3</span>
-                <input
-                  type="file"
-                  accept=".mp3,.wav,.ogg"
-                  disabled={isUploading}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) handleUploadFile(file, "audio", "sfx");
-                  }}
-                />
-              </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+          {/* A. Tiếng Động / Tiếng Kêu Bộ Thẻ ANH - VIỆT (EN - VI) */}
+          {enableEnVi && (
+            <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-amber-300 font-bold flex items-center gap-1">
+                  <Volume2 className="h-3 w-3 text-amber-400 shrink-0" />
+                  <span>Tiếng Kêu Bộ Anh - Việt:</span>
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {(audioUrlEn || audioUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewAudioUrl(audioUrlEn || audioUrl, "Tiếng kêu Anh - Việt")}
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[9px] border border-amber-400/40 cursor-pointer"
+                      title="Nghe thử tiếng kêu bộ Anh - Việt"
+                    >
+                      <Play className="h-2.5 w-2.5" />
+                      <span>Nghe</span>
+                    </button>
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[9px] transition-colors shrink-0">
+                    <Upload className="h-2.5 w-2.5 shrink-0" />
+                    <span>Tải .mp3 Tiếng Anh</span>
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,.ogg"
+                      disabled={isUploading}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) handleUploadFile(file, "audio", "sfx-en");
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={audioUrlEn || audioUrl}
+                onChange={(e) => {
+                  onChangeAudioUrlEn?.(e.target.value);
+                  onChangeAudioUrl(e.target.value);
+                }}
+                placeholder="VD: /audio/butterfly.mp3 hoặc URL Cloudflare R2..."
+                className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-200 focus:outline-hidden focus:border-amber-400"
+              />
+              <p className="text-[9px] text-stone-400">
+                Phát khi quét thẻ <strong className="text-amber-300">Anh - Việt</strong> và bấm nút &quot;Phát Tiếng Kêu&quot;.
+              </p>
             </div>
-          </div>
-          <input
-            type="text"
-            value={audioUrl}
-            onChange={(e) => onChangeAudioUrl(e.target.value)}
-            placeholder="Để trống nếu chưa có file .mp3 (Tùy chọn)"
-            className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-stone-300 focus:outline-hidden focus:border-amber-400"
-          />
-          <p className="text-[9px] text-stone-400">
-            Âm thanh phát ra khi bé chạm vào mô hình 3D hoặc bấm nút &quot;Phát Tiếng Kêu&quot;.
-          </p>
+          )}
+
+          {/* B. Tiếng Động / Tiếng Kêu Bộ Thẻ TRUNG - VIỆT (ZH - VI) */}
+          {enableZhVi && (
+            <div className="p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-rose-300 font-bold flex items-center gap-1">
+                  <Volume2 className="h-3 w-3 text-rose-400 shrink-0" />
+                  <span>Tiếng Kêu Bộ Trung - Việt:</span>
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {audioUrlZh && (
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewAudioUrl(audioUrlZh, "Tiếng kêu Trung - Việt")}
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold text-[9px] border border-rose-400/40 cursor-pointer"
+                      title="Nghe thử tiếng kêu bộ Trung - Việt"
+                    >
+                      <Play className="h-2.5 w-2.5" />
+                      <span>Nghe</span>
+                    </button>
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500 hover:bg-rose-400 text-white font-black text-[9px] transition-colors shrink-0">
+                    <Upload className="h-2.5 w-2.5 shrink-0" />
+                    <span>Tải .mp3 Tiếng Trung</span>
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,.ogg"
+                      disabled={isUploading}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) handleUploadFile(file, "audio", "sfx-zh");
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={audioUrlZh}
+                onChange={(e) => onChangeAudioUrlZh?.(e.target.value)}
+                placeholder="VD: /audio/singer-zh.mp3 hoặc URL Cloudflare R2..."
+                className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-rose-200 focus:outline-hidden focus:border-rose-400"
+              />
+              <p className="text-[9px] text-stone-400">
+                Phát khi quét thẻ <strong className="text-rose-300">Trung - Việt</strong> và bấm nút &quot;Phát Tiếng Kêu&quot;.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

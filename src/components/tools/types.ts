@@ -57,6 +57,8 @@ export interface ProductFormData {
   iosModelUrl: string;
   targetUrl: string;
   audioUrl: string;
+  audioUrlEn?: string;
+  audioUrlZh?: string;
   audioEnUrl: string;
   audioViUrl: string;
   audioZhUrl: string;
@@ -83,6 +85,8 @@ export interface EditProductFormData {
   iosModelUrl: string;
   targetUrl: string;
   audioUrl: string;
+  audioUrlEn?: string;
+  audioUrlZh?: string;
   audioEnUrl: string;
   audioViUrl: string;
   audioZhUrl: string;

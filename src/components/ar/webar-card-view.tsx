@@ -386,7 +386,11 @@ export function WebArCardView({
 
   // Phản ứng khi chạm vào con vật (P2: Squash & stretch, parabolic jump, floating stars, audio)
   const handleTapModel = useCallback(() => {
-    playAnimalSoundEffect(animal.slug, undefined, animal.audioUrl);
+    const effectiveSoundUrl =
+      languageTrack === "zh-vi"
+        ? animal.audioUrlZh || animal.audioUrl
+        : animal.audioUrlEn || animal.audioUrl;
+    playAnimalSoundEffect(animal.slug, undefined, effectiveSoundUrl);
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
         navigator.vibrate([25, 30, 25]);
@@ -882,7 +886,11 @@ export function WebArCardView({
             setHasScannedOnce(true);
             hasScannedOnceRef.current = true;
             setTargetHitCount((prev) => prev + 1);
-            playAnimalSoundEffect(animal.slug);
+            const effectiveSoundUrl =
+              languageTrack === "zh-vi"
+                ? animal.audioUrlZh || animal.audioUrl
+                : animal.audioUrlEn || animal.audioUrl;
+            playAnimalSoundEffect(animal.slug, undefined, effectiveSoundUrl);
           }
         };
 
@@ -1425,10 +1433,15 @@ export function WebArCardView({
     if (reactionSystemRef.current) {
       reactionSystemRef.current.triggerAudioRipple();
     }
+    const effectiveSoundUrl =
+      languageTrack === "zh-vi"
+        ? animal.audioUrlZh || animal.audioUrl
+        : animal.audioUrlEn || animal.audioUrl;
+
     playAnimalSoundEffect(
       animal.slug,
       () => setIsPlayingSound(false),
-      animal.audioUrl
+      effectiveSoundUrl
     );
   };
 

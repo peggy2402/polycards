@@ -44,6 +44,8 @@ export interface Animal {
   allowedPackCodes?: string[];
   images: string[];
   audioUrl: string;
+  audioUrlEn?: string;
+  audioUrlZh?: string;
   audios?: AnimalAudio;
   modelUrl: string;
   iosModelUrl: string;
