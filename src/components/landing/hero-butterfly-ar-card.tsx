@@ -42,6 +42,12 @@ export function HeroButterflyArCard({
   const currentOpacityRef = useRef<number>(1.0);
   const is3DModeRef = useRef<boolean>(true);
 
+  // References cho các khớp xương cánh để khuếch đại biên độ vỗ cánh cực mạnh
+  const leftWing1Ref = useRef<any>(null);
+  const leftWing2Ref = useRef<any>(null);
+  const rightWing1Ref = useRef<any>(null);
+  const rightWing2Ref = useRef<any>(null);
+
   // Đồng bộ ref với state
   useEffect(() => {
     is3DModeRef.current = is3DMode;
@@ -108,6 +114,14 @@ export function HeroButterflyArCard({
       (gltf) => {
         const model = gltf.scene;
 
+        // Bắt các khớp xương cánh để khuếch đại biên độ vỗ cánh cực đại
+        model.traverse((child: any) => {
+          if (child.name === "WL1") leftWing1Ref.current = child;
+          if (child.name === "WL2") leftWing2Ref.current = child;
+          if (child.name === "WR1") rightWing1Ref.current = child;
+          if (child.name === "WR2") rightWing2Ref.current = child;
+        });
+
         // Tính toán kích thước bướm nhỏ gọn, thanh tú theo BUTTERFLY_SCALE_MULTIPLIER
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
@@ -121,40 +135,31 @@ export function HeroButterflyArCard({
         model.position.set(-center.x * baseScale, -center.y * baseScale, -center.z * baseScale);
         model.scale.set(baseScale, baseScale, baseScale);
 
-        // Chuẩn bị vật liệu trong suốt để tạo hiệu ứng Fade-in / Fade-out mượt mà như phép thuật
-        const extractedMaterials: any[] = [];
+        // Bật transparency trực tiếp trên material gốc để không làm hỏng skinning shaders
+        const originalMaterials: any[] = [];
         model.traverse((child: any) => {
-          if (child.isMesh) {
-            const mesh = child;
-            if (Array.isArray(mesh.material)) {
-              mesh.material = mesh.material.map((mat: any) => {
-                const cloned = mat.clone();
-                cloned.transparent = true;
-                cloned.opacity = 1.0;
-                extractedMaterials.push(cloned);
-                return cloned;
-              });
-            } else if (mesh.material) {
-              const cloned = mesh.material.clone();
-              cloned.transparent = true;
-              cloned.opacity = 1.0;
-              mesh.material = cloned;
-              extractedMaterials.push(cloned);
+          if (child.isMesh && child.material) {
+            if (Array.isArray(child.material)) {
+              for (const m of child.material) {
+                m.transparent = true;
+                originalMaterials.push(m);
+              }
+            } else {
+              child.material.transparent = true;
+              originalMaterials.push(child.material);
             }
           }
         });
-        butterflyMaterialsRef.current = extractedMaterials;
+        butterflyMaterialsRef.current = originalMaterials;
 
         // Đặt vị trí xuất phát: Đúng ngay vị trí con bướm trên bông hoa trong tranh vẽ
         group.position.set(-0.20, 0.14, 0.15);
 
         // GÓC XOAY 3D ISOMETRIC CHUẨN (Nghiêng 3/4 Perspective như Don McCurdy viewer)
-        // Nghiêng Y = 0.55 rad (khoảng 32 độ) và X = 0.28 rad (khoảng 16 độ)
-        // Nhờ góc nghiêng này, chuyển động vỗ cánh 92 độ theo trục Y sẽ hiển thị CỰC KỲ RÕ NÉT, phập phồng sống động!
         group.rotation.set(0.28, 0.55, -0.06);
         group.add(model);
 
-        // 4. KÍCH HOẠT CHÍNH XÁC ANIMATION "Flutter" VỚI TỐC ĐỘ VỖ CÁNH SINH ĐỘNG
+        // 4. KÍCH HOẠT CHÍNH XÁC DUY NHẤT ANIMATION "Flutter"
         if (gltf.animations && gltf.animations.length > 0) {
           const mixer = new THREE.AnimationMixer(model);
           mixerRef.current = mixer;
@@ -166,9 +171,8 @@ export function HeroButterflyArCard({
             ) || gltf.animations[0];
 
           const action = mixer.clipAction(flutterClip);
-          // Tốc độ vỗ cánh chuẩn sinh động: timeScale = 2.6 (khoảng 0.9s / nhịp vỗ mềm mại)
-          action.setEffectiveTimeScale(2.6);
-          action.setEffectiveWeight(1.0);
+          action.reset();
+          action.timeScale = 2.4;
           action.play();
         }
       },
@@ -199,6 +203,7 @@ export function HeroButterflyArCard({
     // 6. Vòng lặp Render: Chạy animation "Flutter" + Quỹ đạo bay (Trái -> Phải -> Về hoa)
     const clock = new THREE.Clock();
     const flightCycle = 13.0; // Chu kỳ bay trọn vẹn 13 giây
+    const yAxis = new THREE.Vector3(0, 1, 0);
 
     // Hàm nội suy mịn Hermite Smoothstep
     const smoothstep = (min: number, max: number, value: number) => {
@@ -212,10 +217,29 @@ export function HeroButterflyArCard({
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
-      // CẬP NHẬT CHUẨN XÁC ANIMATION "Flutter" NGUYÊN BẢN CỦA FILE GLB
+      // CẬP NHẬT ANIMATION "Flutter" TỪ TỆP GLB
       if (mixerRef.current) {
         mixerRef.current.update(delta);
       }
+
+      // =========================================================================
+      // 🦋 KHUẾCH ĐẠI BIÊN ĐỘ VỖ CÁNH CỰC ĐẠI (LAYERED QUATERNION FLAPPING)
+      // Nhân thêm góc xoay dao động 45 độ quanh trục Y trực tiếp lên các khớp xương
+      // Đảm bảo đôi cánh đập phập phồng, mở rộng hết cỡ và khép lại cực kỳ mãnh liệt!
+      // =========================================================================
+      const flapFrequency = 16.0; // ~2.5 nhịp đập mỗi giây
+      const flapAmplitude = 0.58; // Biên độ ~33 độ mỗi cánh (tổng góc quét ~66 độ)
+      const flapCycle = Math.sin(elapsed * flapFrequency);
+
+      const qFlapLeft = new (THREE as any).Quaternion().setFromAxisAngle(yAxis, flapCycle * flapAmplitude);
+      const qFlapRight = new (THREE as any).Quaternion().setFromAxisAngle(yAxis, -flapCycle * flapAmplitude);
+      const qTipLeft = new (THREE as any).Quaternion().setFromAxisAngle(yAxis, flapCycle * flapAmplitude * 0.4);
+      const qTipRight = new (THREE as any).Quaternion().setFromAxisAngle(yAxis, -flapCycle * flapAmplitude * 0.4);
+
+      if (leftWing1Ref.current) leftWing1Ref.current.quaternion.multiply(qFlapLeft);
+      if (rightWing1Ref.current) rightWing1Ref.current.quaternion.multiply(qFlapRight);
+      if (leftWing2Ref.current) leftWing2Ref.current.quaternion.multiply(qTipLeft);
+      if (rightWing2Ref.current) rightWing2Ref.current.quaternion.multiply(qTipRight);
 
       const butterfly = butterflyGroupRef.current;
       if (butterfly) {
