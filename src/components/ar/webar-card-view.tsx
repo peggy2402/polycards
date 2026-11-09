@@ -758,7 +758,43 @@ export function WebArCardView({
           }
         }
 
-        // 2. Nạp GLTFLoader và DRACOLoader
+        const THREE = window.THREE;
+        if (THREE && THREE.BufferAttribute && !(THREE.BufferAttribute.prototype as any).__polycardsNormalizedPatched) {
+          (THREE.BufferAttribute.prototype as any).__polycardsNormalizedPatched = true;
+          const origGetX = THREE.BufferAttribute.prototype.getX;
+          const origGetY = THREE.BufferAttribute.prototype.getY;
+          const origGetZ = THREE.BufferAttribute.prototype.getZ;
+          const origGetW = THREE.BufferAttribute.prototype.getW;
+
+          const denormalize = (val: number, array: any) => {
+            if (array instanceof Int16Array) return val / 32767;
+            if (array instanceof Uint16Array) return val / 65535;
+            if (array instanceof Int8Array) return val / 127;
+            if (array instanceof Uint8Array) return val / 255;
+            return val;
+          };
+
+          THREE.BufferAttribute.prototype.getX = function (index: number) {
+            const val = origGetX.call(this, index);
+            return (this as any).normalized ? denormalize(val, (this as any).array) : val;
+          };
+          THREE.BufferAttribute.prototype.getY = function (index: number) {
+            const val = origGetY.call(this, index);
+            return (this as any).normalized ? denormalize(val, (this as any).array) : val;
+          };
+          THREE.BufferAttribute.prototype.getZ = function (index: number) {
+            const val = origGetZ.call(this, index);
+            return (this as any).normalized ? denormalize(val, (this as any).array) : val;
+          };
+          if (origGetW) {
+            THREE.BufferAttribute.prototype.getW = function (index: number) {
+              const val = origGetW.call(this, index);
+              return (this as any).normalized ? denormalize(val, (this as any).array) : val;
+            };
+          }
+        }
+
+        // 2. Nạp GLTFLoader, DRACOLoader và MeshoptDecoder (Hỗ trợ EXT_meshopt_compression)
         if (!(window.THREE && window.THREE.GLTFLoader)) {
           await loadScript("/lib/GLTFLoader.js");
         }
@@ -767,11 +803,20 @@ export function WebArCardView({
             await loadScript("/lib/DRACOLoader.js");
           } catch {}
         }
+        if (!(window as any).MeshoptDecoder) {
+          try {
+            await loadScript("/lib/meshopt_decoder.js");
+            if ((window as any).MeshoptDecoder?.ready) {
+              await (window as any).MeshoptDecoder.ready;
+            }
+          } catch (e) {
+            console.warn("[PolyCards WebAR] MeshoptDecoder load failed:", e);
+          }
+        }
 
         if (isCancelled || !containerRef.current) return;
         setDownloadProgress(35);
 
-        const THREE = window.THREE;
         const { MindARThree } = window.MINDAR!.IMAGE;
 
         // 3. Chuẩn bị Target MindAR với cơ chế Deep Byte Verification & Self-Healing
@@ -931,7 +976,7 @@ export function WebArCardView({
           }
         };
 
-        // 5. Nạp mô hình 3D GLTF với DRACOLoader (Tận dụng bộ giải mã Web Worker nội bộ /draco/)
+        // 5. Nạp mô hình 3D GLTF với DRACOLoader và MeshoptDecoder (Hỗ trợ EXT_meshopt_compression)
         const loader = new THREE.GLTFLoader();
         if (THREE.DRACOLoader) {
           const dracoLoader = new THREE.DRACOLoader();
@@ -940,6 +985,9 @@ export function WebArCardView({
             dracoLoader.setWorkerLimit(Math.min(navigator.hardwareConcurrency || 2, 4));
           } catch {}
           loader.setDRACOLoader(dracoLoader);
+        }
+        if ((window as any).MeshoptDecoder) {
+          loader.setMeshoptDecoder((window as any).MeshoptDecoder);
         }
 
         const loadModelWithFallback = (urlToLoad: string, isFallbackAttempt: boolean = false) => {
@@ -950,6 +998,49 @@ export function WebArCardView({
               setDownloadProgress(100);
 
               const rawModel = gltf.scene;
+
+              // Chuẩn hóa và dequantize thuộc tính geometry (KHR_mesh_quantization: Int16/Uint16 normalized -> Float32Array)
+              // Khắc phục triệt để lỗi Three.js r136 không tự chia 32767 khi đọc BufferAttribute dạng Int16 normalized
+              // (tránh lỗi Bounding Box vọt lên 65,000 đơn vị khiến model bị co nhỏ 0.00001m và bay 31km ra không gian)
+              rawModel.traverse((child: any) => {
+                if (child.isMesh && child.geometry) {
+                  const geo = child.geometry;
+                  if (geo.attributes) {
+                    for (const name of Object.keys(geo.attributes)) {
+                      if (name === "position" || name.startsWith("morphPosition")) {
+                        const attr = geo.attributes[name];
+                        if (attr && attr.normalized && !(attr.array instanceof Float32Array)) {
+                          let scale = 1.0;
+                          if (attr.array instanceof Int16Array) scale = 1 / 32767;
+                          else if (attr.array instanceof Uint16Array) scale = 1 / 65535;
+                          else if (attr.array instanceof Int8Array) scale = 1 / 127;
+                          else if (attr.array instanceof Uint8Array) scale = 1 / 255;
+
+                          const count = attr.count;
+                          const itemSize = attr.itemSize;
+                          const floatArray = new Float32Array(count * itemSize);
+                          if (attr.isInterleavedBufferAttribute) {
+                            const data = attr.data.array;
+                            const stride = attr.data.stride;
+                            const offset = attr.offset;
+                            for (let i = 0; i < count; i++) {
+                              for (let j = 0; j < itemSize; j++) {
+                                floatArray[i * itemSize + j] = data[i * stride + offset + j] * scale;
+                              }
+                            }
+                          } else {
+                            for (let i = 0; i < floatArray.length; i++) {
+                              floatArray[i] = attr.array[i] * scale;
+                            }
+                          }
+                          geo.setAttribute(name, new THREE.BufferAttribute(floatArray, itemSize, false));
+                        }
+                      }
+                    }
+                    geo.computeBoundingBox();
+                  }
+                }
+              });
 
               // Khởi tạo Animations
               if (gltf.animations && gltf.animations.length > 0) {

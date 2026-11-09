@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { MeshoptDecoder } from "meshoptimizer/decoder";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { USDZExporter } from "three/examples/jsm/exporters/USDZExporter.js";
 
@@ -57,6 +58,9 @@ export async function optimizeGlbInBrowser(
   // Ưu tiên tải Draco Decoder nội bộ từ /draco/, fallback sang Google gstatic CDN
   dracoLoader.setDecoderPath("/draco/");
   loader.setDRACOLoader(dracoLoader);
+  if (MeshoptDecoder) {
+    loader.setMeshoptDecoder(MeshoptDecoder);
+  }
 
   let gltf: any = null;
   try {
