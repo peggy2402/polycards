@@ -1004,6 +1004,7 @@ export function WebArCardView({
               // (tránh lỗi Bounding Box vọt lên 65,000 đơn vị khiến model bị co nhỏ 0.00001m và bay 31km ra không gian)
               rawModel.traverse((child: any) => {
                 if (child.isMesh && child.geometry) {
+                  child.frustumCulled = false;
                   const geo = child.geometry;
                   if (geo.attributes) {
                     for (const name of Object.keys(geo.attributes)) {
@@ -1038,6 +1039,7 @@ export function WebArCardView({
                       }
                     }
                     geo.computeBoundingBox();
+                    geo.computeBoundingSphere();
                   }
                 }
               });
@@ -1055,12 +1057,18 @@ export function WebArCardView({
                 });
                 setAvailableClips(clipNames);
                 if (clipNames.length > 1) {
-                  // Mặc định tự động kích hoạt TẤT CẢ các animation đồng thời (Play All)
-                  // Tương thích chuẩn glTF Viewer (Don McCurdy) giúp các model phức tạp (Thuyền buồm, xe cộ, nhân vật) chuyển động đầy đủ 100%
-                  Object.values(actionsRef.current).forEach((action: any) => {
-                    action.reset().play();
-                  });
-                  setPlayingClipName("__PLAY_ALL__");
+                  // Với các mô hình có nhiều clip animation (như nhạc công 9 hành động, con sứa 3 hành động...):
+                  // Tuyệt đối không bật Play All cùng lúc vì sẽ làm CPU/GPU giật lag dữ dội (trộn 9 animation trên 650k vertex)
+                  // Mặc định ưu tiên chạy 1 clip chính tự nhiên nhất (Idle, Swim, Walk, Fly, hoặc clip đầu tiên):
+                  const primaryClip =
+                    clipNames.find((name) => /^(idle|stand|wait|swim|fly|breathe|default)/i.test(name)) ||
+                    clipNames.find((name) => /idle|swim/i.test(name)) ||
+                    clipNames[0];
+
+                  if (actionsRef.current[primaryClip]) {
+                    actionsRef.current[primaryClip].reset().play();
+                    setPlayingClipName(primaryClip);
+                  }
                   setIsActionSelectorOpen(true);
                   resetActionSelectorTimer();
                 } else if (clipNames.length === 1 && animal.slug !== "cat") {
@@ -1082,8 +1090,10 @@ export function WebArCardView({
 
               rawModel.traverse((child: any) => {
                 if (child.isMesh && child.geometry) {
+                  child.frustumCulled = false;
                   if (child.isSkinnedMesh) hasSkinnedMesh = true;
                   child.geometry.computeBoundingBox();
+                  child.geometry.computeBoundingSphere();
                   if (child.geometry.boundingBox) {
                     geomMin.min(child.geometry.boundingBox.min);
                     geomMax.max(child.geometry.boundingBox.max);

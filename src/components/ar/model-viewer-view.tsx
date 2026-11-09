@@ -82,9 +82,21 @@ export function ModelViewerView({
   }, [showArGuide]);
 
   useEffect(() => {
-    // Dynamic import Web Component @google/model-viewer on client
+    // 1. Cấu hình vị trí bộ giải mã Meshopt và Draco cho ModelViewerElement TRƯỚC KHI nạp thư viện
+    if (typeof window !== "undefined") {
+      (window as any).ModelViewerElement = (window as any).ModelViewerElement || {};
+      (window as any).ModelViewerElement.meshoptDecoderLocation = "/lib/meshopt_decoder.js";
+      (window as any).ModelViewerElement.dracoDecoderLocation = "/draco/";
+    }
+
+    // 2. Dynamic import Web Component @google/model-viewer on client
     import("@google/model-viewer")
       .then(() => {
+        const MVE = (window as any).customElements?.get("model-viewer");
+        if (MVE) {
+          MVE.meshoptDecoderLocation = "/lib/meshopt_decoder.js";
+          MVE.dracoDecoderLocation = "/draco/";
+        }
         setIsLoaded(true);
       })
       .catch((err) => {

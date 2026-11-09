@@ -669,8 +669,8 @@ export function useArGestures({
         rotVelocityYRef.current = 0;
       }
 
-      // Hệ số lò xo giảm chấn k = 14
-      const k = 14;
+      // Hệ số lò xo giảm chấn k = 18 (Tăng độ nhạy bám sát ngón tay tức thời khi vuốt xoay 360, loại bỏ hiện tượng khựng/trễ chuyển động)
+      const k = 18;
       const alpha = 1 - Math.exp(-k * dt);
 
       // 2. Nội suy vị trí Pan trong mặt phẳng thẻ ("tracking")
