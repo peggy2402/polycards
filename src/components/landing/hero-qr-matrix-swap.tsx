@@ -14,7 +14,7 @@ interface HeroQrMatrixSwapProps {
 
 export function HeroQrMatrixSwap({
   left = "7.2%",
-  bottom = "1.4%",
+  bottom = "60.4%",
   width = "22.8%",
   height = "17.2%",
   href = "/ar/butterfly",
