@@ -819,6 +819,27 @@ export function WebArCardView({
 
         const { MindARThree } = window.MINDAR!.IMAGE;
 
+        // Bảo vệ phương thức resize() của MindARThree chống ngoại lệ TypeError: Cannot read properties of undefined (reading 'getProjectionMatrix')
+        // Xảy ra khi resize event kích hoạt trước khi controller khởi tạo xong projectionMatrix
+        if (MindARThree && !(MindARThree.prototype as any).__polycardsResizePatched) {
+          (MindARThree.prototype as any).__polycardsResizePatched = true;
+          const origMindARResize = MindARThree.prototype.resize;
+          MindARThree.prototype.resize = function () {
+            if (!this.controller || typeof this.controller.getProjectionMatrix !== "function") {
+              return;
+            }
+            const proj = this.controller.getProjectionMatrix();
+            if (!proj || !proj[5]) {
+              return;
+            }
+            try {
+              return origMindARResize.apply(this, arguments);
+            } catch (err) {
+              console.warn("[PolyCards WebAR] Safe resize caught warning:", err);
+            }
+          };
+        }
+
         // 3. Chuẩn bị Target MindAR với cơ chế Deep Byte Verification & Self-Healing
         // Ngăn chặn hoàn toàn lỗi RangeError khi file .mind không tồn tại hoặc server trả về trang 404 HTML (35KB)
         async function verifyMindTargetSrc(url: string): Promise<boolean> {
@@ -999,9 +1020,39 @@ export function WebArCardView({
 
               const rawModel = gltf.scene;
 
+              const dequantizeAttr = (attr: any) => {
+                if (attr && attr.normalized && !(attr.array instanceof Float32Array)) {
+                  let scale = 1.0;
+                  if (attr.array instanceof Int16Array) scale = 1 / 32767;
+                  else if (attr.array instanceof Uint16Array) scale = 1 / 65535;
+                  else if (attr.array instanceof Int8Array) scale = 1 / 127;
+                  else if (attr.array instanceof Uint8Array) scale = 1 / 255;
+
+                  const count = attr.count;
+                  const itemSize = attr.itemSize;
+                  const floatArray = new Float32Array(count * itemSize);
+                  if (attr.isInterleavedBufferAttribute) {
+                    const data = attr.data.array;
+                    const stride = attr.data.stride;
+                    const offset = attr.offset;
+                    for (let i = 0; i < count; i++) {
+                      for (let j = 0; j < itemSize; j++) {
+                        floatArray[i * itemSize + j] = data[i * stride + offset + j] * scale;
+                      }
+                    }
+                  } else {
+                    for (let i = 0; i < floatArray.length; i++) {
+                      floatArray[i] = attr.array[i] * scale;
+                    }
+                  }
+                  return new THREE.BufferAttribute(floatArray, itemSize, false);
+                }
+                return null;
+              };
+
               // Chuẩn hóa và dequantize thuộc tính geometry (KHR_mesh_quantization: Int16/Uint16 normalized -> Float32Array)
-              // Khắc phục triệt để lỗi Three.js r136 không tự chia 32767 khi đọc BufferAttribute dạng Int16 normalized
-              // (tránh lỗi Bounding Box vọt lên 65,000 đơn vị khiến model bị co nhỏ 0.00001m và bay 31km ra không gian)
+              // Áp dụng cho CẢ geo.attributes (tọa độ cơ sở) VÀ geo.morphAttributes (shape keys / morph targets)
+              // (Khắc phục triệt để lỗi con sứa bị nổ bung 184 mét khi chạy animation Swim do morph target chưa được chia 32767)
               rawModel.traverse((child: any) => {
                 if (child.isMesh && child.geometry) {
                   child.frustumCulled = false;
@@ -1009,38 +1060,24 @@ export function WebArCardView({
                   if (geo.attributes) {
                     for (const name of Object.keys(geo.attributes)) {
                       if (name === "position" || name.startsWith("morphPosition")) {
-                        const attr = geo.attributes[name];
-                        if (attr && attr.normalized && !(attr.array instanceof Float32Array)) {
-                          let scale = 1.0;
-                          if (attr.array instanceof Int16Array) scale = 1 / 32767;
-                          else if (attr.array instanceof Uint16Array) scale = 1 / 65535;
-                          else if (attr.array instanceof Int8Array) scale = 1 / 127;
-                          else if (attr.array instanceof Uint8Array) scale = 1 / 255;
-
-                          const count = attr.count;
-                          const itemSize = attr.itemSize;
-                          const floatArray = new Float32Array(count * itemSize);
-                          if (attr.isInterleavedBufferAttribute) {
-                            const data = attr.data.array;
-                            const stride = attr.data.stride;
-                            const offset = attr.offset;
-                            for (let i = 0; i < count; i++) {
-                              for (let j = 0; j < itemSize; j++) {
-                                floatArray[i * itemSize + j] = data[i * stride + offset + j] * scale;
-                              }
-                            }
-                          } else {
-                            for (let i = 0; i < floatArray.length; i++) {
-                              floatArray[i] = attr.array[i] * scale;
-                            }
-                          }
-                          geo.setAttribute(name, new THREE.BufferAttribute(floatArray, itemSize, false));
+                        const newAttr = dequantizeAttr(geo.attributes[name]);
+                        if (newAttr) geo.setAttribute(name, newAttr);
+                      }
+                    }
+                  }
+                  if (geo.morphAttributes) {
+                    for (const name of Object.keys(geo.morphAttributes)) {
+                      const attrList = geo.morphAttributes[name];
+                      if (Array.isArray(attrList)) {
+                        for (let m = 0; m < attrList.length; m++) {
+                          const newAttr = dequantizeAttr(attrList[m]);
+                          if (newAttr) attrList[m] = newAttr;
                         }
                       }
                     }
-                    geo.computeBoundingBox();
-                    geo.computeBoundingSphere();
                   }
+                  geo.computeBoundingBox();
+                  geo.computeBoundingSphere();
                 }
               });
 

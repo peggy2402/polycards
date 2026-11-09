@@ -193,6 +193,9 @@ var MeshoptDecoder = (function () {
 	};
 })();
 
+if (typeof window !== 'undefined') window.MeshoptDecoder = MeshoptDecoder;
+if (typeof self !== 'undefined') self.MeshoptDecoder = MeshoptDecoder;
+if (typeof globalThis !== 'undefined') globalThis.MeshoptDecoder = MeshoptDecoder;
 if (typeof exports === 'object' && typeof module === 'object') module.exports = MeshoptDecoder;
 else if (typeof define === 'function' && define['amd']) define([], function () { return MeshoptDecoder; });
 else if (typeof exports === 'object') exports['MeshoptDecoder'] = MeshoptDecoder;
