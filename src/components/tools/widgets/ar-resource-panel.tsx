@@ -660,25 +660,25 @@ export function ArResourcePanel({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+        <div className="grid grid-cols-1 gap-2.5 text-[10px]">
           {/* A. Tiếng Động / Tiếng Kêu Bộ Thẻ ANH - VIỆT (EN - VI) */}
           {enableEnVi && (
             <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 space-y-1.5">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-amber-300 font-bold flex items-center gap-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                <span className="text-amber-300 font-bold flex items-center gap-1.5 whitespace-nowrap">
                   <Volume2 className="h-3 w-3 text-amber-400 shrink-0" />
                   <span>Tiếng Kêu Bộ Anh - Việt:</span>
                 </span>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {(audioUrlEn || audioUrl) && (
                     <button
                       type="button"
                       onClick={() => handlePreviewAudioUrl(audioUrlEn || audioUrl, "Tiếng kêu Anh - Việt")}
-                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[9px] border border-amber-400/40 cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[9px] border border-amber-400/40 cursor-pointer transition-colors"
                       title="Nghe thử tiếng kêu bộ Anh - Việt"
                     >
                       <Play className="h-2.5 w-2.5" />
-                      <span>Nghe</span>
+                      <span>Nghe thử</span>
                     </button>
                   )}
                   <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[9px] transition-colors shrink-0">
@@ -706,7 +706,7 @@ export function ArResourcePanel({
                   onChangeAudioUrl(e.target.value);
                 }}
                 placeholder="VD: /audio/butterfly.mp3 hoặc URL Cloudflare R2..."
-                className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-amber-200 focus:outline-hidden focus:border-amber-400"
+                className="w-full bg-black/60 border border-white/15 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-amber-200 focus:outline-hidden focus:border-amber-400"
               />
               <p className="text-[9px] text-stone-400">
                 Phát khi quét thẻ <strong className="text-amber-300">Anh - Việt</strong> và bấm nút &quot;Phát Tiếng Kêu&quot;.
@@ -717,21 +717,21 @@ export function ArResourcePanel({
           {/* B. Tiếng Động / Tiếng Kêu Bộ Thẻ TRUNG - VIỆT (ZH - VI) */}
           {enableZhVi && (
             <div className="p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 space-y-1.5">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-rose-300 font-bold flex items-center gap-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                <span className="text-rose-300 font-bold flex items-center gap-1.5 whitespace-nowrap">
                   <Volume2 className="h-3 w-3 text-rose-400 shrink-0" />
                   <span>Tiếng Kêu Bộ Trung - Việt:</span>
                 </span>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {audioUrlZh && (
                     <button
                       type="button"
                       onClick={() => handlePreviewAudioUrl(audioUrlZh, "Tiếng kêu Trung - Việt")}
-                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold text-[9px] border border-rose-400/40 cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold text-[9px] border border-rose-400/40 cursor-pointer transition-colors"
                       title="Nghe thử tiếng kêu bộ Trung - Việt"
                     >
                       <Play className="h-2.5 w-2.5" />
-                      <span>Nghe</span>
+                      <span>Nghe thử</span>
                     </button>
                   )}
                   <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500 hover:bg-rose-400 text-white font-black text-[9px] transition-colors shrink-0">
@@ -756,7 +756,7 @@ export function ArResourcePanel({
                 value={audioUrlZh}
                 onChange={(e) => onChangeAudioUrlZh?.(e.target.value)}
                 placeholder="VD: /audio/singer-zh.mp3 hoặc URL Cloudflare R2..."
-                className="w-full bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[10px] font-mono text-rose-200 focus:outline-hidden focus:border-rose-400"
+                className="w-full bg-black/60 border border-white/15 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-rose-200 focus:outline-hidden focus:border-rose-400"
               />
               <p className="text-[9px] text-stone-400">
                 Phát khi quét thẻ <strong className="text-rose-300">Trung - Việt</strong> và bấm nút &quot;Phát Tiếng Kêu&quot;.
