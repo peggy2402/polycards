@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { Sparkles, Wand2, RotateCw, Eye } from "lucide-react";
+import { Sparkles, Wand2, RotateCw } from "lucide-react";
 import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
 
 interface HeroButterflyArCardProps {
@@ -20,11 +20,10 @@ export function HeroButterflyArCard({
 }: HeroButterflyArCardProps) {
   // Trạng thái: false = Thẻ 2D gốc, true = Đã biến hình AR 3D bướm vỗ cánh bay ra
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
-  const [isModelLoaded, setIsModelLoaded] = useState<boolean>(false);
   const [isTransforming, setIsTransforming] = useState<boolean>(false);
+  const [flightPhaseText, setFlightPhaseText] = useState<string>("Bướm 3D đang cất cánh...");
   const [isHovered, setIsHovered] = useState<boolean>(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const mousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -32,15 +31,20 @@ export function HeroButterflyArCard({
   const butterflyGroupRef = useRef<THREE.Group | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const currentScaleRef = useRef<number>(0);
-  const targetScaleRef = useRef<number>(1);
   const is3DModeRef = useRef<boolean>(true);
+
+  // References cho các khớp xương cánh để tạo hiệu ứng vẫy cánh cực mạnh (Procedural Wing Flapping)
+  const leftWing1Ref = useRef<any>(null);
+  const leftWing2Ref = useRef<any>(null);
+  const rightWing1Ref = useRef<any>(null);
+  const rightWing2Ref = useRef<any>(null);
 
   // Đồng bộ ref với state
   useEffect(() => {
     is3DModeRef.current = is3DMode;
   }, [is3DMode]);
 
-  // Khởi tạo Three.js Scene cho mô hình bướm 3D vỗ cánh
+  // Khởi tạo Three.js Scene với Canvas mở rộng ra ngoài khung thẻ (Zero Clipping)
   useEffect(() => {
     const canvasContainer = canvasContainerRef.current;
     if (!canvasContainer) return;
@@ -48,13 +52,14 @@ export function HeroButterflyArCard({
     let animationFrameId: number;
     let renderer: THREE.WebGLRenderer | null = null;
 
-    const width = canvasContainer.clientWidth || 400;
-    const height = canvasContainer.clientHeight || 570;
+    // Kích thước canvas mở rộng bao quát cả khu vực bên ngoài thẻ bài
+    const width = canvasContainer.clientWidth || 640;
+    const height = canvasContainer.clientHeight || 750;
 
-    // 1. Tạo Three.js Scene & Camera
+    // 1. Tạo Three.js Scene & Camera góc rộng
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 50);
-    camera.position.set(0, 0, 3.2);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 50);
+    camera.position.set(0, 0, 3.4);
 
     try {
       renderer = new THREE.WebGLRenderer({
@@ -66,27 +71,27 @@ export function HeroButterflyArCard({
       renderer.setSize(width, height);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.1;
+      renderer.toneMappingExposure = 1.15;
       canvasContainer.appendChild(renderer.domElement);
     } catch (e) {
       console.warn("[Three.js] Không thể khởi tạo WebGL renderer:", e);
       return;
     }
 
-    // 2. Hệ thống ánh sáng ấm áp, rực rỡ tôn vinh màu sắc cánh bướm
-    const ambientLight = new THREE.AmbientLight(0xfff7ed, 1.8);
+    // 2. Hệ thống ánh sáng Studio ấm áp, rực rỡ
+    const ambientLight = new THREE.AmbientLight(0xfff7ed, 1.9);
     scene.add(ambientLight);
 
-    const mainLight = new THREE.DirectionalLight(0xffedd5, 2.2);
-    mainLight.position.set(1.5, 3, 2.5);
+    const mainLight = new THREE.DirectionalLight(0xffedd5, 2.4);
+    mainLight.position.set(1.5, 3.5, 3);
     scene.add(mainLight);
 
-    const softFillLight = new THREE.DirectionalLight(0xa5f3fc, 1.1);
-    softFillLight.position.set(-2, 1.5, 1);
+    const softFillLight = new THREE.DirectionalLight(0xa5f3fc, 1.2);
+    softFillLight.position.set(-2, 1.5, 1.5);
     scene.add(softFillLight);
 
-    const goldenGlowLight = new THREE.DirectionalLight(0xfef08a, 1.4);
-    goldenGlowLight.position.set(-0.2, 0.3, 1.2);
+    const goldenGlowLight = new THREE.DirectionalLight(0xfef08a, 1.6);
+    goldenGlowLight.position.set(-0.2, 0.5, 2);
     scene.add(goldenGlowLight);
 
     // 3. Tải mô hình bướm buom-animated.glb
@@ -100,40 +105,44 @@ export function HeroButterflyArCard({
       (gltf) => {
         const model = gltf.scene;
 
-        // Tính toán kích thước để căn chỉnh vừa vặn với ô hoa trên thẻ
+        // Bắt các khớp xương cánh để khuếch đại biên độ vỗ cánh
+        model.traverse((child: any) => {
+          if (child.name === "WL1") leftWing1Ref.current = child;
+          if (child.name === "WL2") leftWing2Ref.current = child;
+          if (child.name === "WR1") rightWing1Ref.current = child;
+          if (child.name === "WR2") rightWing2Ref.current = child;
+        });
+
+        // Tính toán bounding box
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         box.getSize(size);
         const maxDim = Math.max(size.x, size.y, size.z);
-        const baseScale = 1.35 / (maxDim || 1);
-        targetScaleRef.current = baseScale;
+        const baseScale = 1.45 / (maxDim || 1);
 
-        // Bắt đầu từ tâm của con bướm 2D trong thẻ
-        // (Vị trí con bướm trên thẻ nằm ở khoảng X: -0.25, Y: 0.18 trong không gian camera 3D)
         const center = new THREE.Vector3();
         box.getCenter(center);
         model.position.set(-center.x * baseScale, -center.y * baseScale, -center.z * baseScale);
         model.scale.set(baseScale, baseScale, baseScale);
 
-        group.position.set(-0.22, 0.16, 0.35); // Nổi lên trước mặt thẻ
-        group.rotation.set(0.1, 0.15, -0.05); // Góc nghiêng tự nhiên
+        // Vị trí gốc ban đầu của bướm 2D trên thẻ bài
+        group.position.set(-0.24, 0.16, 0.18);
+        group.rotation.set(0.12, 0.08, -0.04);
         group.add(model);
 
-        // Kích hoạt animation Flutter (Vỗ cánh) sống động
+        // Kích hoạt animation Flutter với tốc độ cao hơn
         if (gltf.animations && gltf.animations.length > 0) {
           const mixer = new THREE.AnimationMixer(model);
           mixerRef.current = mixer;
 
-          // Ưu tiên clip Flutter, fallback clip đầu tiên
           const flutterClip =
             gltf.animations.find((a: { name: string }) =>
               /flutter|fly|wing|idle/i.test(a.name)
             ) || gltf.animations[0];
           const action = mixer.clipAction(flutterClip);
+          action.timeScale = 3.2; // Tăng tốc độ vỗ cánh
           action.play();
         }
-
-        setIsModelLoaded(true);
       },
       undefined,
       (err) => {
@@ -159,8 +168,15 @@ export function HeroButterflyArCard({
     window.addEventListener("mousemove", handleMouseMove);
     canvasContainer.addEventListener("mouseleave", handleMouseLeave);
 
-    // 5. Vòng lặp Render (Bay lượn hình sin + Chuyển đổi mượt Scale/Z)
+    // 5. Vòng lặp Render: Quỹ đạo bay ra ngoài khung hình (Trái -> Phải -> Về chỗ cũ)
     const clock = new THREE.Clock();
+    const flightCycle = 13.0; // Chu kỳ bay trọn vẹn 13 giây
+
+    // Hàm nội suy mịn Hermite Smoothstep
+    const smoothstep = (min: number, max: number, value: number) => {
+      const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+      return x * x * (3 - 2 * x);
+    };
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -168,8 +184,9 @@ export function HeroButterflyArCard({
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
+      // Cập nhật mixer animation có sẵn trong file GLB
       if (mixerRef.current) {
-        mixerRef.current.update(delta);
+        mixerRef.current.update(delta * 2.8);
       }
 
       const butterfly = butterflyGroupRef.current;
@@ -185,35 +202,124 @@ export function HeroButterflyArCard({
         );
         butterfly.scale.setScalar(currentScaleRef.current);
 
-        // Bướm nhấp nhô bay lượn tự nhiên theo hàm sóng sin
         if (active && currentScaleRef.current > 0.05) {
-          const hoverOffset = Math.sin(elapsed * 2.8) * 0.045;
-          const swayOffset = Math.cos(elapsed * 1.6) * 0.035;
+          // Chu kỳ thời gian bay (từ 0s đến 13s)
+          const t = elapsed % flightCycle;
 
-          butterfly.position.y = 0.16 + hoverOffset;
-          butterfly.position.x = -0.22 + swayOffset;
+          let targetX = -0.24;
+          let targetY = 0.16;
+          let targetZ = 0.18;
+          let targetRotX = 0.12;
+          let targetRotY = 0.08;
+          let targetRotZ = -0.04;
+          let flapIntensity = 0.45; // Biên độ vỗ cánh
 
-          // Bay nổi hẳn ra khỏi mặt phẳng thẻ bài (Z-axis float)
-          const targetZ = 0.38 + Math.sin(elapsed * 2.0) * 0.06;
-          butterfly.position.z = THREE.MathUtils.lerp(butterfly.position.z, targetZ, 0.05);
+          // GIAI ĐOẠN 1: 0s -> 2.2s: Đậu trên hoa, vỗ cánh khởi động và cất cánh bay lên
+          if (t < 2.2) {
+            const p = smoothstep(0, 2.2, t);
+            targetX = -0.24 + Math.sin(t * 3) * 0.03;
+            targetY = 0.16 + p * 0.22; // Cất cánh lên
+            targetZ = 0.18 + p * 0.65; // Nhấc bổng nổi ra ngoài thẻ
+            targetRotX = 0.12 - p * 0.1;
+            targetRotY = 0.08;
+            targetRotZ = -0.04;
+            flapIntensity = 0.5 + p * 0.35;
+          }
+          // GIAI ĐOẠN 2: 2.2s -> 5.8s: BAY RA NGOÀI KHUNG THẺ SANG BÊN TRÁI
+          else if (t < 5.8) {
+            const p = smoothstep(2.2, 5.8, t);
+            // Bay từ -0.24 ra tận -1.15 (vượt hẳn ra ngoài mép trái của thẻ bài!)
+            targetX = -0.24 - p * 0.88;
+            targetY = 0.38 + Math.sin(p * Math.PI) * 0.18 + Math.sin(elapsed * 4) * 0.04;
+            targetZ = 0.83 + Math.sin(elapsed * 2.5) * 0.06;
 
-          // Cánh bướm nghiêng góc mềm mại khi bay và liếc nhẹ theo chuột
-          const targetRotX = 0.1 + Math.sin(elapsed * 2.8) * 0.08 - mousePos.current.y * 0.18;
-          const targetRotY = 0.15 + Math.cos(elapsed * 1.6) * 0.12 + mousePos.current.x * 0.28;
-          const targetRotZ = -0.05 + Math.sin(elapsed * 1.4) * 0.06;
+            // Nghiêng thân bướm theo hướng bay sang trái (Banking & Yaw)
+            targetRotY = -0.48; // Đầu hướng sang trái
+            targetRotZ = 0.26; // Cánh trái chúc xuống lượn
+            targetRotX = 0.16;
+            flapIntensity = 0.95; // Đập cánh mạnh mẽ
+          }
+          // GIAI ĐOẠN 3: 5.8s -> 9.6s: LƯỢN MỘT VÒNG CUNG LỚN QUA ĐỈNH THẺ SANG NGOÀI KHUNG BÊN PHẢI
+          else if (t < 9.6) {
+            const p = smoothstep(5.8, 9.6, t);
+            // Bay từ -1.12 sang tận +1.05 (vượt hẳn ra ngoài mép phải của thẻ bài!)
+            targetX = -1.12 + p * 2.15;
+            // Lượn một hình bán nguyệt bay vắt qua đỉnh hoa
+            targetY = 0.38 + Math.sin(p * Math.PI) * 0.32 + Math.sin(elapsed * 4) * 0.04;
+            targetZ = 0.85 - p * 0.15;
 
-          butterfly.rotation.x = THREE.MathUtils.lerp(butterfly.rotation.x, targetRotX, 0.06);
-          butterfly.rotation.y = THREE.MathUtils.lerp(butterfly.rotation.y, targetRotY, 0.06);
+            // Nghiêng thân bướm lượn sang phải (Banking & Yaw)
+            targetRotY = 0.52; // Đầu hướng sang phải
+            targetRotZ = -0.28; // Cánh phải chúc xuống lượn
+            targetRotX = 0.12;
+            flapIntensity = 0.95;
+          }
+          // GIAI ĐOẠN 4: 9.6s -> 12.0s: LƯỢN VÒNG CUNG BAY TRỞ VỀ LẠI VỊ TRÍ CŨ TRÊN HOA
+          else if (t < 12.0) {
+            const p = smoothstep(9.6, 12.0, t);
+            // Bay từ +1.03 trở về lại đúng vị trí -0.24 trên thẻ bài
+            targetX = 1.03 - p * 1.27;
+            targetY = 0.35 - p * 0.19;
+            targetZ = 0.7 - p * 0.52; // Hạ dần xuống mặt phẳng thẻ bài
+
+            // Cân bằng lại góc thân bướm về tư thế nhìn thẳng
+            targetRotY = THREE.MathUtils.lerp(0.52, 0.08, p);
+            targetRotZ = THREE.MathUtils.lerp(-0.28, -0.04, p);
+            targetRotX = THREE.MathUtils.lerp(0.12, 0.12, p);
+            flapIntensity = 0.9 - p * 0.45;
+          }
+          // GIAI ĐOẠN 5: 12.0s -> 13.0s: ĐẬU ÊM ÁI TRÊN BÔNG HOA
+          else {
+            targetX = -0.24;
+            targetY = 0.16 + Math.sin(elapsed * 2) * 0.015;
+            targetZ = 0.18;
+            targetRotY = 0.08;
+            targetRotZ = -0.04;
+            targetRotX = 0.12;
+            flapIntensity = 0.35; // Vỗ cánh nhẹ nhàng khi đậu
+          }
+
+          // Cập nhật vị trí và góc xoay với độ mượt mà cao
+          butterfly.position.x = THREE.MathUtils.lerp(butterfly.position.x, targetX, 0.08);
+          butterfly.position.y = THREE.MathUtils.lerp(butterfly.position.y, targetY, 0.08);
+          butterfly.position.z = THREE.MathUtils.lerp(butterfly.position.z, targetZ, 0.08);
+
+          // Tương tác chuột thêm vào góc nghiêng
+          const mouseTiltY = mousePos.current.x * 0.18;
+          const mouseTiltX = -mousePos.current.y * 0.12;
+
+          butterfly.rotation.x = THREE.MathUtils.lerp(butterfly.rotation.x, targetRotX + mouseTiltX, 0.06);
+          butterfly.rotation.y = THREE.MathUtils.lerp(butterfly.rotation.y, targetRotY + mouseTiltY, 0.06);
           butterfly.rotation.z = THREE.MathUtils.lerp(butterfly.rotation.z, targetRotZ, 0.06);
+
+          // KHUẾCH ĐẠI BIÊN ĐỘ VỖ CÁNH THỰC TẾ TRÊN CÁC XƯƠNG CÁNH (Procedural Bone Flapping)
+          // Tần số 18 rad/s (~3 lần vỗ/giây), biên độ lên tới 0.78 rad (~45 độ)
+          const flapSpeed = 18;
+          const flapWave = Math.sin(elapsed * flapSpeed) * flapIntensity * 0.78;
+
+          if (leftWing1Ref.current) {
+            leftWing1Ref.current.rotation.y = flapWave;
+            leftWing1Ref.current.rotation.z = Math.sin(elapsed * flapSpeed + 0.3) * (flapIntensity * 0.18);
+          }
+          if (rightWing1Ref.current) {
+            rightWing1Ref.current.rotation.y = -flapWave;
+            rightWing1Ref.current.rotation.z = -Math.sin(elapsed * flapSpeed + 0.3) * (flapIntensity * 0.18);
+          }
+          if (leftWing2Ref.current) {
+            leftWing2Ref.current.rotation.y = Math.sin(elapsed * flapSpeed - 0.4) * (flapIntensity * 0.38);
+          }
+          if (rightWing2Ref.current) {
+            rightWing2Ref.current.rotation.y = -Math.sin(elapsed * flapSpeed - 0.4) * (flapIntensity * 0.38);
+          }
         } else {
           butterfly.position.z = THREE.MathUtils.lerp(butterfly.position.z, -0.1, 0.1);
         }
       }
 
-      // Parallax camera nhẹ nhàng
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, mousePos.current.x * 0.2, 0.05);
-      camera.position.y = THREE.MathUtils.lerp(camera.position.y, mousePos.current.y * 0.15, 0.05);
-      camera.lookAt(0, 0.08, 0.1);
+      // Parallax camera nhẹ nhàng theo chuột
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, mousePos.current.x * 0.25, 0.04);
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, mousePos.current.y * 0.18, 0.04);
+      camera.lookAt(0, 0.15, 0.1);
 
       if (renderer) {
         renderer.render(scene, camera);
@@ -235,6 +341,23 @@ export function HeroButterflyArCard({
     };
   }, [modelUrl]);
 
+  // Cập nhật text trạng thái theo chu kỳ
+  useEffect(() => {
+    if (!is3DMode) {
+      setFlightPhaseText("Thẻ 2D nguyên bản • Sắp cất cánh");
+      return;
+    }
+    const interval = setInterval(() => {
+      const sec = (Date.now() / 1000) % 13.0;
+      if (sec < 2.2) setFlightPhaseText("Bướm 3D đang vỗ cánh cất cánh...");
+      else if (sec < 5.8) setFlightPhaseText("Bướm 3D bay lượn ra ngoài bên trái 🦋");
+      else if (sec < 9.6) setFlightPhaseText("Bướm 3D bay vắt ngang sang bên phải ✨");
+      else if (sec < 12.0) setFlightPhaseText("Bướm 3D lượn cánh quay về chỗ cũ 🌸");
+      else setFlightPhaseText("Bướm 3D đậu êm ái trên bông hoa");
+    }, 800);
+    return () => clearInterval(interval);
+  }, [is3DMode]);
+
   // Kích hoạt hiệu ứng chuyển cảnh mượt mà
   const triggerTransition = useCallback(() => {
     setIsTransforming(true);
@@ -244,11 +367,11 @@ export function HeroButterflyArCard({
     }, 1200);
   }, []);
 
-  // Tự động chuyển đổi chu kỳ ma thuật: Thẻ 2D (5s) -> Bướm 3D vỗ cánh (7s) -> Lặp lại
+  // Tự động chuyển đổi chu kỳ ma thuật: Thẻ 2D (5s) -> Bướm 3D bay lượn (15s) -> Lặp lại
   useEffect(() => {
     if (isHovered) return; // Dừng auto-loop nếu người dùng đang di chuột ngắm bướm
 
-    const intervalTime = is3DMode ? 7500 : 5000;
+    const intervalTime = is3DMode ? 15000 : 5500;
     const timer = setTimeout(() => {
       triggerTransition();
     }, intervalTime);
@@ -258,106 +381,104 @@ export function HeroButterflyArCard({
 
   return (
     <div
-      ref={containerRef}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative aspect-[1063/1535] w-full max-w-[420px] overflow-hidden rounded-[2.2rem] bg-gradient-to-b from-amber-100 to-amber-50 shadow-2xl shadow-amber-950/20 ring-4 ring-white/90 select-none transition-transform duration-300 hover:scale-[1.015]"
+      className="group relative w-full max-w-[420px] select-none"
     >
-      {/* 1. LỚP ẢNH DƯỚI: butterfly-card-sau.png (Phôi nền sạch KHÔNG CÓ BƯỚM) */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src={cardAfterSrc}
-          alt="Phôi sạch thẻ bài học tiếng Anh Butterfly Poly Cards"
-          fill
-          priority
-          sizes="(max-width: 640px) 100vw, 420px"
-          className="object-cover"
+      {/* KHUNG THẺ VẬT LÝ BO GÓC CAO CẤP (Chứa 2 lớp ảnh thẻ 1063x1535 và mã QR, bo góc và đổ bóng) */}
+      <div className="relative aspect-[1063/1535] w-full overflow-hidden rounded-[2.2rem] bg-gradient-to-b from-amber-100 to-amber-50 shadow-2xl shadow-amber-950/20 ring-4 ring-white/90 transition-transform duration-300 hover:scale-[1.015]">
+        {/* 1. LỚP ẢNH DƯỚI: butterfly-card-sau.png (Phôi nền sạch KHÔNG CÓ BƯỚM) */}
+        <div className="absolute inset-0 z-0">
+          <Image
+            src={cardAfterSrc}
+            alt="Phôi sạch thẻ bài học tiếng Anh Butterfly Poly Cards"
+            fill
+            priority
+            sizes="(max-width: 640px) 100vw, 420px"
+            className="object-cover"
+          />
+        </div>
+
+        {/* 2. LỚP ẢNH TRÊN: butterfly-card-truoc.png (Thẻ 2D CÓ CON BƯỚM TRONG TRANH) */}
+        <div
+          className={`absolute inset-0 z-10 transition-opacity duration-1000 ease-in-out ${
+            is3DMode ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        >
+          <Image
+            src={cardBeforeSrc}
+            alt="Thẻ bài học tiếng Anh Butterfly Poly Cards 2D gốc"
+            fill
+            priority
+            sizes="(max-width: 640px) 100vw, 420px"
+            className="object-cover"
+          />
+        </div>
+
+        {/* 3. HIỆU ỨNG ÁNH SÁNG PHÉP THUẬT LÚC BIẾN HÌNH (Magical Transformation Glow & Sparkles) */}
+        <div
+          className={`pointer-events-none absolute inset-0 z-15 flex items-center justify-center transition-opacity duration-700 ${
+            isTransforming ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="h-64 w-64 rounded-full bg-gradient-to-r from-amber-300/60 via-yellow-200/50 to-emerald-300/50 blur-2xl animate-ping" />
+          <div className="absolute top-[40%] left-[38%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+            <Sparkles className="h-14 w-14 text-amber-300 animate-spin" style={{ animationDuration: "3s" }} />
+          </div>
+        </div>
+
+        {/* 4. MÃ QR MATRIX SWAP GÓC DƯỚI BÊN TRÁI (Chuẩn kích thước ô vuông in thẻ) */}
+        <HeroQrMatrixSwap
+          left="6%"
+          bottom="9.01%"
+          width="24.8%"
+          height="17.2%"
+          href="/ar/butterfly"
         />
-      </div>
 
-      {/* 2. LỚP ẢNH TRÊN: butterfly-card-truoc.png (Thẻ 2D CÓ CON BƯỚM TRONG TRANH) */}
-      <div
-        className={`absolute inset-0 z-10 transition-opacity duration-1000 ease-in-out ${
-          is3DMode ? "opacity-0 pointer-events-none" : "opacity-100"
-        }`}
-      >
-        <Image
-          src={cardBeforeSrc}
-          alt="Thẻ bài học tiếng Anh Butterfly Poly Cards 2D gốc"
-          fill
-          priority
-          sizes="(max-width: 640px) 100vw, 420px"
-          className="object-cover"
-        />
-      </div>
+        {/* 5. NÚT HUY HIỆU TƯƠNG TÁC CHUYỂN ĐỔI CHẾ ĐỘ Ở GÓC TRÊN CÙNG BÊN PHẢI */}
+        <div className="absolute top-3.5 right-3.5 z-30">
+          <button
+            type="button"
+            onClick={triggerTransition}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black shadow-lg backdrop-blur-md ring-2 ring-white/90 transition-all active:scale-95 cursor-pointer ${
+              is3DMode
+                ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-emerald-600/30 hover:brightness-110"
+                : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-600/30 hover:brightness-110 animate-bounce"
+            }`}
+            title="Bấm để chuyển đổi giữa Thẻ 2D và Mô hình AR 3D bay ra"
+          >
+            {is3DMode ? (
+              <>
+                <RotateCw className="h-3.5 w-3.5 animate-spin text-amber-200" style={{ animationDuration: "5s" }} />
+                <span>3D AR Đang Vỗ Cánh</span>
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-3.5 w-3.5 text-amber-200 animate-pulse" />
+                <span>Chạm Hóa Thân 3D AR</span>
+              </>
+            )}
+          </button>
+        </div>
 
-      {/* 3. LỚP CANVASS THREE.JS 3D: Con bướm models/buom-animated.glb vỗ cánh bay ra */}
-      <div
-        ref={canvasContainerRef}
-        className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-700 ${
-          is3DMode ? "opacity-100" : "opacity-0"
-        }`}
-      />
-
-      {/* 4. HIỆU ỨNG ÁNH SÁNG PHÉP THUẬT LÚC BIẾN HÌNH (Magical Transformation Glow & Sparkles) */}
-      <div
-        className={`pointer-events-none absolute inset-0 z-25 flex items-center justify-center transition-opacity duration-700 ${
-          isTransforming ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        {/* Vòng hào quang bừng nở */}
-        <div className="h-64 w-64 rounded-full bg-gradient-to-r from-amber-300/60 via-yellow-200/50 to-emerald-300/50 blur-2xl animate-ping" />
-        <div className="absolute top-[40%] left-[38%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-          <Sparkles className="h-14 w-14 text-amber-300 animate-spin" style={{ animationDuration: "3s" }} />
+        {/* 6. BADGE CHỈ DẪN TRẢI NGHIỆM Ở ĐÁY THẺ */}
+        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-30 w-auto">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/85 px-3 py-1 text-[11px] font-bold text-amber-300 backdrop-blur-md border border-amber-400/30 shadow-md whitespace-nowrap">
+            <Sparkles className="h-3 w-3 text-amber-300 shrink-0" />
+            <span>{flightPhaseText}</span>
+          </span>
         </div>
       </div>
 
-      {/* 5. MÃ QR MATRIX SWAP GÓC DƯỚI BÊN TRÁI (Chuẩn kích thước ô vuông in thẻ) */}
-      <HeroQrMatrixSwap
-        left="6%"
-        bottom="9.01%"
-        width="24.8%"
-        height="17.2%"
-        href="/ar/butterfly"
+      {/* 7. LỚP CANVAS THREE.JS 3D MỞ RỘNG (OVERFLOW VISIBLE - BAY RA KHỎI VIỀN THẺ) */}
+      {/* Vươn ra ngoài thẻ bài tới 120px mỗi bên trái/phải và 90px trên/dưới để không bị cắt xén */}
+      <div
+        ref={canvasContainerRef}
+        className={`pointer-events-none absolute -left-28 -right-28 -top-24 -bottom-20 z-25 overflow-visible transition-opacity duration-700 ${
+          is3DMode ? "opacity-100" : "opacity-0"
+        }`}
       />
-
-      {/* 6. NÚT HUY HIỆU TƯƠNG TÁC CHUYỂN ĐỔI CHẾ ĐỘ Ở GÓC TRÊN CÙNG BÊN PHẢI */}
-      <div className="absolute top-3.5 right-3.5 z-30">
-        <button
-          type="button"
-          onClick={triggerTransition}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black shadow-lg backdrop-blur-md ring-2 ring-white/90 transition-all active:scale-95 cursor-pointer ${
-            is3DMode
-              ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-emerald-600/30 hover:brightness-110"
-              : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-600/30 hover:brightness-110 animate-bounce"
-          }`}
-          title="Bấm để chuyển đổi giữa Thẻ 2D và Mô hình AR 3D bay ra"
-        >
-          {is3DMode ? (
-            <>
-              <RotateCw className="h-3.5 w-3.5 animate-spin text-amber-200" style={{ animationDuration: "5s" }} />
-              <span>3D AR Đang Vỗ Cánh</span>
-            </>
-          ) : (
-            <>
-              <Wand2 className="h-3.5 w-3.5 text-amber-200 animate-pulse" />
-              <span>Chạm Hóa Thân 3D AR</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* 7. BADGE CHỈ DẪN TRẢI NGHIỆM Ở ĐÁY THẺ */}
-      <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-30 w-auto">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/80 px-3 py-1 text-[11px] font-bold text-amber-300 backdrop-blur-md border border-amber-400/30 shadow-md">
-          <Sparkles className="h-3 w-3 text-amber-300" />
-          <span>
-            {is3DMode
-              ? "Bướm 3D vỗ cánh bước ra từ thẻ bài"
-              : "Thẻ vật lý 2D • Sắp biến hình AR"}
-          </span>
-        </span>
-      </div>
     </div>
   );
 }

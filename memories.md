@@ -337,3 +337,23 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
         - Tạm dừng auto-loop khi người dùng rê chuột vào thẻ để thoải mái tương tác.
         - Bổ sung nút huy hiệu góc trên bên phải cho phép bấm chuyển đổi lập tức giữa "Chạm Hóa Thân 3D AR" và "3D AR Đang Vỗ Cánh".
      3. **Tích Hợp Vào [`src/components/landing/hero-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx)**: Thay thế hoàn toàn thẻ tĩnh cũ, đồng bộ mượt mà với thanh nghe phát âm và ô quét QR Matrix Swap.
+
+
+25. **Nâng Cấp Quỹ Đạo Bay Bướm 3D Ra Ngoài Khung Thẻ & Khuếch Đại Vỗ Cánh Cực Đại (Procedural Wing Flapping)**:
+   - *Nguyên Nhân Vẫy Cánh Mờ Nhạt Trước Đây:*
+     1. Animation clip `Flutter` mặc định trong tệp GLB chỉ xoay góc nhỏ ($\approx 0.12\text{ rad} \approx 6.8^\circ$) trong thời lượng dài 2.4 giây, kết hợp góc nhìn chính diện trực diện (Orthogonal-like view) khiến biên độ vẫy cánh trên màn hình chỉ dịch chuyển 1-2 pixel, mắt người nhìn vào tưởng như đứng yên.
+     2. Container thẻ mang class `overflow-hidden`, khiến bất kỳ chuyển động nào vượt ra ngoài biên thẻ đều bị cắt xén (clipping).
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Khuếch Đại Vỗ Cánh Trực Tiếp Lên Khớp Xương (Procedural Bone Flapping)**:
+        - Bắt trực tiếp các khớp xương cánh trái (`WL1`, `WL2`) và cánh phải (`WR1`, `WR2`) của `SkinnedMesh`.
+        - Mỗi frame render, ngoài `AnimationMixer` chạy ở tốc độ cao (`timeScale = 3.2`), hệ thống áp dụng dao động xoay xương cánh với tần số tự nhiên $18\text{ rad/s}$ ($\approx 3\text{ nhịp/giây}$) và biên độ mở rộng lên tới $0.78\text{ rad}$ ($\approx 45^\circ$).
+        - Đầu cánh (`WL2`, `WR2`) uốn lượn mềm mại theo độ trễ pha $0.4\text{ rad}$, tạo hiệu ứng đôi cánh bướm vỗ phập phồng, dập dờn sống động rõ rệt 100%.
+     2. **Mở Rộng Canvas Thoát Khỏi Viền Thẻ (Zero Clipping)**:
+        - Đưa Canvas Three.js ra container riêng biệt với `overflow-visible`, mở rộng biên độ ra ngoài thẻ bài tới 112px mỗi bên trái - phải và 96px trên - dưới.
+     3. **Quỹ Đạo Bay Lượn Hình Số 8 Hoàn Chỉnh (Trái -> Phải -> Về chỗ cũ)**:
+        - Chu kỳ 13 giây:
+          - $0\text{s} \rightarrow 2.2\text{s}$: Vỗ cánh khởi động và cất cánh bay nhô khỏi thẻ ($Z: 0.18 \rightarrow 0.83$).
+          - $2.2\text{s} \rightarrow 5.8\text{s}$: Bay vượt hẳn ra ngoài khung thẻ sang bên **TRÁI** ($X: -0.24 \rightarrow -1.15$), thân bướm nghiêng góc (banking) theo hướng bay.
+          - $5.8\text{s} \rightarrow 9.6\text{s}$: Lượn một vòng cung lớn qua đỉnh thẻ, bay sang ngoài khung thẻ bên **PHẢI** ($X: -1.15 \rightarrow +1.05$), thân bướm nghiêng lượn sang phải.
+          - $9.6\text{s} \rightarrow 12.0\text{s}$: Lượn vòng cung bay trở về lại đúng vị trí bông hoa cũ trên thẻ ($X: +1.05 \rightarrow -0.24, Z \rightarrow 0.18$).
+          - $12.0\text{s} \rightarrow 13.0\text{s}$: Đậu êm ái trên bông hoa, khép cánh nhẹ nhàng trước khi chuẩn bị chu kỳ mới.
