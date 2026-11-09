@@ -334,16 +334,19 @@ export function playAnimalSoundEffect(
     try {
       stopAllCardAudio();
       const audio = new Audio(customAudioUrl.trim());
+      audio.crossOrigin = "anonymous";
       activeAudioElement = audio;
       audio.onended = () => {
         activeAudioElement = null;
         if (onEnd) onEnd();
       };
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.warn("[playAnimalSoundEffect] Lỗi tải audio từ url:", customAudioUrl, e);
         activeAudioElement = null;
         playSynthSoundEffect(slug, onEnd);
       };
-      audio.play().catch(() => {
+      audio.play().catch((err) => {
+        console.warn("[playAnimalSoundEffect] Lỗi play audio từ url:", customAudioUrl, err);
         activeAudioElement = null;
         playSynthSoundEffect(slug, onEnd);
       });

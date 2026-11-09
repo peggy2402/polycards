@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Play,
+  Square,
   X,
   AlertTriangle,
   Loader2,
@@ -136,21 +137,92 @@ export function ArResourcePanel({
     onShowToast("Đã đồng bộ đường dẫn .usdz tương ứng thành công!", "success");
   };
 
-  // Phát thử file âm thanh ngay trong form
-  const handlePreviewAudioUrl = (url: string, label: string) => {
-    if (!url || !url.trim()) {
+  const [previewPlayingUrl, setPreviewPlayingUrl] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Dừng âm thanh preview đang phát khi component unmount
+  React.useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        try {
+          previewAudioRef.current.pause();
+          previewAudioRef.current = null;
+        } catch {}
+      }
+    };
+  }, []);
+
+  // Phát thử hoặc dừng file âm thanh ngay trong form
+  const handlePreviewAudioUrl = (rawUrl: string, label: string) => {
+    const url = rawUrl ? rawUrl.trim() : "";
+    if (!url) {
       onShowToast(`Chưa có đường dẫn tệp âm thanh ${label} để nghe thử.`, "warning");
       return;
     }
+
+    // Nếu đang phát chính file này -> Bấm vào để Dừng
+    if (previewPlayingUrl === url && previewAudioRef.current) {
+      try {
+        previewAudioRef.current.pause();
+        previewAudioRef.current.currentTime = 0;
+      } catch {}
+      previewAudioRef.current = null;
+      setPreviewPlayingUrl(null);
+      onShowToast(`Đã dừng nghe thử ${label}.`, "info");
+      return;
+    }
+
+    // Dừng file cũ nếu có
+    if (previewAudioRef.current) {
+      try {
+        previewAudioRef.current.pause();
+        previewAudioRef.current.currentTime = 0;
+      } catch {}
+      previewAudioRef.current = null;
+      setPreviewPlayingUrl(null);
+    }
+
     try {
       const audio = new Audio(url);
-      audio.onerror = () => {
-        onShowToast(`Không thể phát tệp "${url}". Hãy tải tệp .mp3 hợp lệ lên hệ thống.`, "warning");
+      audio.crossOrigin = "anonymous";
+      previewAudioRef.current = audio;
+      setPreviewPlayingUrl(url);
+
+      audio.onended = () => {
+        previewAudioRef.current = null;
+        setPreviewPlayingUrl(null);
       };
-      audio.play().catch(() => {
-        onShowToast(`Không thể phát tệp "${url}".`, "warning");
+
+      audio.onerror = () => {
+        previewAudioRef.current = null;
+        setPreviewPlayingUrl(null);
+        if (url.startsWith("/audio/")) {
+          onShowToast(
+            `Tệp cục bộ "${url}" chưa có trên máy chủ. Bạn hãy bấm "Tải .mp3" hoặc dán liên kết Cloudflare R2 để nghe thử.`,
+            "warning"
+          );
+        } else {
+          onShowToast(`Không thể phát tệp "${url}". Vui lòng kiểm tra lại liên kết âm thanh.`, "warning");
+        }
+      };
+
+      audio.play().then(() => {
+        onShowToast(`Đang phát nghe thử ${label}...`, "success");
+      }).catch(() => {
+        previewAudioRef.current = null;
+        setPreviewPlayingUrl(null);
+        if (url.startsWith("/audio/")) {
+          onShowToast(
+            `Tệp cục bộ "${url}" chưa có trên máy chủ. Bạn hãy bấm "Tải .mp3" hoặc dán liên kết Cloudflare R2 để nghe thử.`,
+            "warning"
+          );
+        } else {
+          onShowToast(`Không thể phát tệp "${url}".`, "warning");
+        }
       });
     } catch {
+      previewAudioRef.current = null;
+      setPreviewPlayingUrl(null);
       onShowToast(`Lỗi phát tệp âm thanh ${label}.`, "error");
     }
   };
@@ -674,11 +746,24 @@ export function ArResourcePanel({
                     <button
                       type="button"
                       onClick={() => handlePreviewAudioUrl(audioUrlEn || audioUrl, "Tiếng kêu Anh - Việt")}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[9px] border border-amber-400/40 cursor-pointer transition-colors"
-                      title="Nghe thử tiếng kêu bộ Anh - Việt"
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[9px] border cursor-pointer transition-colors ${
+                        previewPlayingUrl === (audioUrlEn || audioUrl)?.trim()
+                          ? "bg-amber-400 text-stone-950 border-amber-300 animate-pulse shadow-sm"
+                          : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-400/40"
+                      }`}
+                      title="Nghe thử hoặc dừng tiếng kêu bộ Anh - Việt"
                     >
-                      <Play className="h-2.5 w-2.5" />
-                      <span>Nghe thử</span>
+                      {previewPlayingUrl === (audioUrlEn || audioUrl)?.trim() ? (
+                        <>
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                          <span>Dừng</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-2.5 w-2.5" />
+                          <span>Nghe thử</span>
+                        </>
+                      )}
                     </button>
                   )}
                   <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-[9px] transition-colors shrink-0">
@@ -727,11 +812,24 @@ export function ArResourcePanel({
                     <button
                       type="button"
                       onClick={() => handlePreviewAudioUrl(audioUrlZh, "Tiếng kêu Trung - Việt")}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold text-[9px] border border-rose-400/40 cursor-pointer transition-colors"
-                      title="Nghe thử tiếng kêu bộ Trung - Việt"
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[9px] border cursor-pointer transition-colors ${
+                        previewPlayingUrl === audioUrlZh?.trim()
+                          ? "bg-rose-500 text-white border-rose-300 animate-pulse shadow-sm"
+                          : "bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border-rose-400/40"
+                      }`}
+                      title="Nghe thử hoặc dừng tiếng kêu bộ Trung - Việt"
                     >
-                      <Play className="h-2.5 w-2.5" />
-                      <span>Nghe thử</span>
+                      {previewPlayingUrl === audioUrlZh?.trim() ? (
+                        <>
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                          <span>Dừng</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-2.5 w-2.5" />
+                          <span>Nghe thử</span>
+                        </>
+                      )}
                     </button>
                   )}
                   <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500 hover:bg-rose-400 text-white font-black text-[9px] transition-colors shrink-0">
@@ -792,10 +890,24 @@ export function ArResourcePanel({
                   <button
                     type="button"
                     onClick={() => handlePreviewAudioUrl(audioViUrl, "Tiếng Việt")}
-                    className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 font-bold text-[9px] border border-emerald-400/40 cursor-pointer"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[9px] border cursor-pointer transition-colors ${
+                      previewPlayingUrl === audioViUrl?.trim()
+                        ? "bg-emerald-400 text-stone-950 border-emerald-300 animate-pulse shadow-sm"
+                        : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border-emerald-400/40"
+                    }`}
+                    title="Nghe thử hoặc dừng phát âm Tiếng Việt"
                   >
-                    <Play className="h-2.5 w-2.5" />
-                    <span>Nghe thử VI</span>
+                    {previewPlayingUrl === audioViUrl?.trim() ? (
+                      <>
+                        <Square className="h-2.5 w-2.5 fill-current" />
+                        <span>Dừng</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-2.5 w-2.5" />
+                        <span>Nghe thử VI</span>
+                      </>
+                    )}
                   </button>
                 )}
                 <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500 text-stone-950 font-black text-[9px] hover:bg-emerald-400 transition-colors">
@@ -835,10 +947,24 @@ export function ArResourcePanel({
                     <button
                       type="button"
                       onClick={() => handlePreviewAudioUrl(audioEnUrl, "Tiếng Anh")}
-                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[9px] border border-amber-400/40 cursor-pointer"
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[9px] border cursor-pointer transition-colors ${
+                        previewPlayingUrl === audioEnUrl?.trim()
+                          ? "bg-amber-400 text-stone-950 border-amber-300 animate-pulse shadow-sm"
+                          : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-400/40"
+                      }`}
+                      title="Nghe thử hoặc dừng phát âm Tiếng Anh"
                     >
-                      <Play className="h-2.5 w-2.5" />
-                      <span>Nghe thử EN</span>
+                      {previewPlayingUrl === audioEnUrl?.trim() ? (
+                        <>
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                          <span>Dừng</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-2.5 w-2.5" />
+                          <span>Nghe thử EN</span>
+                        </>
+                      )}
                     </button>
                   )}
                   <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400 text-stone-950 font-black text-[9px] hover:bg-amber-300 transition-colors">
@@ -879,10 +1005,24 @@ export function ArResourcePanel({
                     <button
                       type="button"
                       onClick={() => handlePreviewAudioUrl(audioZhUrl, "Tiếng Trung")}
-                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold text-[9px] border border-rose-400/40 cursor-pointer"
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[9px] border cursor-pointer transition-colors ${
+                        previewPlayingUrl === audioZhUrl?.trim()
+                          ? "bg-rose-500 text-white border-rose-300 animate-pulse shadow-sm"
+                          : "bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border-rose-400/40"
+                      }`}
+                      title="Nghe thử hoặc dừng phát âm Tiếng Trung"
                     >
-                      <Play className="h-2.5 w-2.5" />
-                      <span>Nghe thử ZH</span>
+                      {previewPlayingUrl === audioZhUrl?.trim() ? (
+                        <>
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                          <span>Dừng</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-2.5 w-2.5" />
+                          <span>Nghe thử ZH</span>
+                        </>
+                      )}
                     </button>
                   )}
                   <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500 text-white font-black text-[9px] hover:bg-rose-400 transition-colors">

@@ -179,6 +179,8 @@ export function WebArCardView({
 
   // Debug HUD & UI States
   const [isDebugOpen, setIsDebugOpen] = useState<boolean>(false);
+  const isDebugOpenRef = useRef<boolean>(isDebugOpen);
+  isDebugOpenRef.current = isDebugOpen;
   const [fps, setFps] = useState<number>(60);
   const [zoomPercent, setZoomPercent] = useState<number>(100);
   const lastFpsTimeRef = useRef<number>(performance.now());
@@ -411,8 +413,8 @@ export function WebArCardView({
     // 3. Phát tiếng kêu và cập nhật đồng bộ trạng thái isPlayingSound của nút bấm
     const effectiveSoundUrl =
       languageTrack === "zh-vi"
-        ? animal.audioUrlZh || animal.audioUrl
-        : animal.audioUrlEn || animal.audioUrl;
+        ? animal.audioUrlZh || (animal as any).soundUrlZh || animal.audioUrl
+        : animal.audioUrlEn || (animal as any).soundUrlEn || animal.audioUrl;
 
     stopAllCardAudio();
     setIsPlayingSound(true);
@@ -538,17 +540,35 @@ export function WebArCardView({
     };
   }, []);
 
-  // Kiểm tra tham số ?debug=1 trên URL
+  // Kiểm tra tham số ?debug=1, ?code=..., ?lang=... trên URL
   useEffect(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       if (sp.get("debug") === "1" || sp.get("debug") === "true") {
         setIsDebugOpen(true);
       }
-      const queryLang = sp.get("lang");
-      if (queryLang === "en-vi" || queryLang === "zh-vi") {
-        setUrlLockedTrack(queryLang);
-        setLanguageTrack(queryLang);
+      const queryCode = (sp.get("code") || "").toUpperCase();
+      const queryLang = (sp.get("lang") || sp.get("track") || "").toLowerCase();
+
+      const isZhRequested =
+        queryCode.includes("ZHVI") ||
+        queryCode.endsWith("-ZH") ||
+        queryLang === "zh-vi" ||
+        queryLang === "zh" ||
+        queryLang === "cn";
+
+      const isEnRequested =
+        queryCode.includes("ENVI") ||
+        queryCode.endsWith("-EN") ||
+        queryLang === "en-vi" ||
+        queryLang === "en";
+
+      if (isZhRequested) {
+        setUrlLockedTrack("zh-vi");
+        setLanguageTrack("zh-vi");
+      } else if (isEnRequested) {
+        setUrlLockedTrack("en-vi");
+        setLanguageTrack("en-vi");
       }
     }
   }, []);
@@ -923,8 +943,8 @@ export function WebArCardView({
         rendererRef.current = renderer;
         sceneRef.current = scene;
 
-        // Giới hạn PixelRatio tối đa 2 để tối ưu FPS và nhiệt độ máy
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        // Giới hạn PixelRatio tối ưu ở mức 1.5 để đảm bảo 60FPS mượt mà trên mọi thiết bị di động
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         if (renderer.outputColorSpace !== undefined) {
           renderer.outputColorSpace = THREE.SRGBColorSpace;
         }
@@ -978,8 +998,8 @@ export function WebArCardView({
             if (isFirstScan && !isSoundMutedByUserRef.current) {
               const effectiveSoundUrl =
                 languageTrack === "zh-vi"
-                  ? animal.audioUrlZh || animal.audioUrl
-                  : animal.audioUrlEn || animal.audioUrl;
+                  ? animal.audioUrlZh || (animal as any).soundUrlZh || animal.audioUrl
+                  : animal.audioUrlEn || (animal as any).soundUrlEn || animal.audioUrl;
               setIsPlayingSound(true);
               playAnimalSoundEffect(
                 animal.slug,
@@ -1287,7 +1307,9 @@ export function WebArCardView({
                 frameCountRef.current++;
                 const now = performance.now();
                 if (now - lastFpsTimeRef.current >= 1000) {
-                  setFps(frameCountRef.current);
+                  if (isDebugOpenRef.current) {
+                    setFps(frameCountRef.current);
+                  }
                   frameCountRef.current = 0;
                   lastFpsTimeRef.current = now;
                 }
@@ -1615,15 +1637,16 @@ export function WebArCardView({
     isSoundMutedByUserRef.current = false;
     stopAllCardAudio();
     setIsPlayingSound(true);
-    showToast(`Đang phát tiếng kêu ${animal.nameVi}`, "success");
+    const trackLabel = languageTrack === "zh-vi" ? "Trung - Việt" : "Anh - Việt";
+    showToast(`Đang phát tiếng kêu ${animal.nameVi} (${trackLabel})`, "success");
 
     if (reactionSystemRef.current) {
       reactionSystemRef.current.triggerAudioRipple();
     }
     const effectiveSoundUrl =
       languageTrack === "zh-vi"
-        ? animal.audioUrlZh || animal.audioUrl
-        : animal.audioUrlEn || animal.audioUrl;
+        ? animal.audioUrlZh || (animal as any).soundUrlZh || animal.audioUrl
+        : animal.audioUrlEn || (animal as any).soundUrlEn || animal.audioUrl;
 
     playAnimalSoundEffect(
       animal.slug,
@@ -2170,21 +2193,68 @@ export function WebArCardView({
         ) : (
           /* Giao diện chuẩn khi màn hình dọc (Portrait) - Hỗ trợ Clean View Thu Gọn */
           <div className="w-full max-w-md pointer-events-auto rounded-3xl bg-stone-950/75 border border-white/15 p-2 backdrop-blur-xl shadow-2xl flex flex-col gap-1.5 transition-all duration-300">
-            {/* Thanh Mini Header: Tên sản phẩm & Nút chuyển đổi Clean View */}
-            <div className="flex items-center justify-between px-2 pt-0.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-300">
-                <span className="truncate max-w-[180px]">{animal.nameVi}</span>
-                <span className="text-[10px] text-stone-400 font-normal">({animal.nameEn})</span>
+            {/* Thanh Mini Header: Tên sản phẩm, Chuyển Bộ Song Ngữ & Nút chuyển đổi Clean View */}
+            <div className="flex items-center justify-between px-2 pt-0.5 gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-300 min-w-0">
+                <span className="truncate max-w-[130px]">{animal.nameVi}</span>
+                <span className="text-[10px] text-stone-400 font-normal truncate max-w-[110px]">
+                  ({languageTrack === "zh-vi" ? animal.nameZh || animal.nameEn : animal.nameEn})
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsVocabCollapsed((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-stone-300 text-[10px] font-bold cursor-pointer transition-colors"
-                title={isVocabCollapsed ? "Mở rộng thẻ từ vựng" : "Thu gọn để xem toàn cảnh Clean View"}
-              >
-                <span>{isVocabCollapsed ? "Mở rộng" : "Thu gọn"}</span>
-                {isVocabCollapsed ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              </button>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Nút chuyển đổi nhanh Song Ngữ Anh-Việt <-> Trung-Việt khi thẻ hỗ trợ cả 2 bộ */}
+                {isEnViEnabled && isZhViEnabled && (
+                  <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/10 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        wakeUi();
+                        stopAllCardAudio();
+                        setIsPlayingSound(false);
+                        setLanguageTrack("en-vi");
+                        showToast("Đã chọn bộ Song Ngữ Anh - Việt", "info");
+                      }}
+                      className={`px-2 py-0.5 rounded-full text-[9px] font-black transition-all cursor-pointer ${
+                        languageTrack === "en-vi"
+                          ? "bg-amber-400 text-stone-950 shadow-xs"
+                          : "text-stone-300 hover:text-white"
+                      }`}
+                      title="Chuyển sang bộ Song Ngữ Anh - Việt"
+                    >
+                      EN-VI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        wakeUi();
+                        stopAllCardAudio();
+                        setIsPlayingSound(false);
+                        setLanguageTrack("zh-vi");
+                        showToast("Đã chọn bộ Song Ngữ Trung - Việt", "info");
+                      }}
+                      className={`px-2 py-0.5 rounded-full text-[9px] font-black transition-all cursor-pointer ${
+                        languageTrack === "zh-vi"
+                          ? "bg-rose-500 text-white shadow-xs"
+                          : "text-stone-300 hover:text-white"
+                      }`}
+                      title="Chuyển sang bộ Song Ngữ Trung - Việt"
+                    >
+                      ZH-VI
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsVocabCollapsed((prev) => !prev)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-stone-300 text-[10px] font-bold cursor-pointer transition-colors"
+                  title={isVocabCollapsed ? "Mở rộng thẻ từ vựng" : "Thu gọn để xem toàn cảnh Clean View"}
+                >
+                  <span>{isVocabCollapsed ? "Mở rộng" : "Thu gọn"}</span>
+                  {isVocabCollapsed ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+              </div>
             </div>
 
             {/* 1. KHỐI SONG NGỮ (EN/ZH & VI) - Ẩn khi ở chế độ Clean View để màn hình thoáng đãng */}
@@ -2326,7 +2396,9 @@ export function WebArCardView({
                 ) : (
                   <>
                     <Volume2 className="h-4 w-4 shrink-0" />
-                    <span className="text-xs">Phát Tiếng Kêu {animal.nameVi}</span>
+                    <span className="text-xs">
+                      Phát Tiếng Kêu {animal.nameVi} ({languageTrack === "zh-vi" ? "Trung - Việt" : "Anh - Việt"})
+                    </span>
                   </>
                 )}
               </button>

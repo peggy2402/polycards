@@ -189,25 +189,25 @@ export function useArGestures({
       // Cập nhật ma trận thế giới của model để hit-test chuẩn xác theo pose mới nhất
       pivot.updateMatrixWorld(true);
 
-      // 1. Kiểm tra va chạm trực tiếp với các Mesh của model
-      const intersects = threeRaycasterRef.current.intersectObject(pivot, true);
-      if (intersects && intersects.length > 0) {
-        return true;
-      }
-
-      // 2. Vùng đệm 10% Bounding Sphere quanh mô hình (hỗ trợ trẻ nhỏ bấm dễ trúng)
+      // 1. Tối ưu hóa cực hạn: Kiểm tra nhanh Bounding Sphere trước
+      // Nếu chạm ra ngoài Bounding Sphere (vùng trống để xoay 360), thoát ngay trong 0.001ms
+      // mà không phải raycast qua 650,000 đỉnh của mô hình!
       if (threeBox3Ref.current && threeSphereRef.current) {
         threeBox3Ref.current.setFromObject(pivot);
         if (!threeBox3Ref.current.isEmpty()) {
           threeBox3Ref.current.getBoundingSphere(threeSphereRef.current);
-          threeSphereRef.current.radius *= 1.1; // Nới rộng đúng 10% theo prompt 2b
-          if (threeRaycasterRef.current.ray.intersectsSphere(threeSphereRef.current)) {
-            return true;
+          threeSphereRef.current.radius *= 1.15; // Vùng đệm 15% Bounding Sphere hỗ trợ trẻ nhỏ chạm trúng
+          if (!threeRaycasterRef.current.ray.intersectsSphere(threeSphereRef.current)) {
+            return false;
           }
+          // Chạm trúng vùng đệm bounding sphere của mô hình
+          return true;
         }
       }
 
-      return false;
+      // 2. Fallback kiểm tra va chạm trực tiếp với các Mesh của model
+      const intersects = threeRaycasterRef.current.intersectObject(pivot, true);
+      return Boolean(intersects && intersects.length > 0);
     },
     [cameraRef, containerRef, ensureThreeHelpers, pivotGroupRef]
   );
@@ -659,19 +659,21 @@ export function useArGestures({
       if (!pivot) return;
 
       const THREE = ensureThreeHelpers();
+      const safeDt = Math.min(dt, 0.033);
 
       // 1. Quán tính xoay Y khi đã thả tay
       if (pointersMapRef.current.size === 0 && Math.abs(rotVelocityYRef.current) > 0.02) {
-        targetRotYRef.current += rotVelocityYRef.current * dt;
+        targetRotYRef.current += rotVelocityYRef.current * safeDt;
         // Phân rã theo hàm mũ: decay exp(-4.5 * dt)
-        rotVelocityYRef.current *= Math.exp(-4.5 * dt);
+        rotVelocityYRef.current *= Math.exp(-4.5 * safeDt);
+        currentRotYRef.current = targetRotYRef.current;
       } else if (pointersMapRef.current.size === 0) {
         rotVelocityYRef.current = 0;
       }
 
-      // Hệ số lò xo giảm chấn k = 18 (Tăng độ nhạy bám sát ngón tay tức thời khi vuốt xoay 360, loại bỏ hiện tượng khựng/trễ chuyển động)
-      const k = 18;
-      const alpha = 1 - Math.exp(-k * dt);
+      // Hệ số lò xo giảm chấn k cho Pan và Scale
+      const k = 22;
+      const alpha = 1 - Math.exp(-k * safeDt);
 
       // 2. Nội suy vị trí Pan trong mặt phẳng thẻ ("tracking")
       currentPosRef.current.x += (targetPosRef.current.x - currentPosRef.current.x) * alpha;
@@ -681,9 +683,17 @@ export function useArGestures({
       currentPanCamRef.current.x += (targetPanCamRef.current.x - currentPanCamRef.current.x) * alpha;
       currentPanCamRef.current.y += (targetPanCamRef.current.y - currentPanCamRef.current.y) * alpha;
 
-      // 4. Nội suy góc xoay RotY, RotX
-      currentRotYRef.current += (targetRotYRef.current - currentRotYRef.current) * alpha;
-      currentRotXRef.current += (targetRotXRef.current - currentRotXRef.current) * alpha;
+      // 4. Góc xoay RotY, RotX:
+      // KHI ĐANG VUỐT TAY (ROTATE / ONE_PENDING): Phản hồi trực tiếp 1:1 tức thời theo đầu ngón tay
+      // Loại bỏ hoàn toàn cảm giác giật lag, níu trễ do lò xo giảm chấn!
+      if (stateRef.current === "ROTATE" || (pointersMapRef.current.size === 1 && stateRef.current !== "HOLD")) {
+        currentRotYRef.current = targetRotYRef.current;
+        currentRotXRef.current = targetRotXRef.current;
+      } else {
+        // Khi ở trạng thái nghỉ hoặc sau khi thả tay: nội suy mượt mà
+        currentRotYRef.current += (targetRotYRef.current - currentRotYRef.current) * alpha;
+        currentRotXRef.current += (targetRotXRef.current - currentRotXRef.current) * alpha;
+      }
 
       // 5. Nội suy độ nhấc khi giữ (Hold lift)
       holdLiftYRef.current += (targetHoldLiftYRef.current - holdLiftYRef.current) * alpha;

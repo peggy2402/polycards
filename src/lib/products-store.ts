@@ -256,6 +256,8 @@ export function getMergedProducts(baseList?: Animal[]): Animal[] {
           modelUrl: serverMatch?.modelUrl || localItem.modelUrl || `/models/polycards.glb`,
           iosModelUrl: serverMatch?.iosModelUrl || localItem.iosModelUrl || `/models/polycards.usdz`,
           targetUrl: serverMatch?.targetUrl || localItem.targetUrl || `/targets/polycards.mind`,
+          audioUrlEn: serverMatch?.audioUrlEn || localItem.audioUrlEn || "",
+          audioUrlZh: serverMatch?.audioUrlZh || localItem.audioUrlZh || "",
         };
       });
 
@@ -404,6 +406,8 @@ export function saveProductToLanding(productData: Partial<Animal> & {
         : "",
     images: safeImages,
     audioUrl: productData.audioUrl || `/audio/${cleanSlug}.mp3`,
+    audioUrlEn: productData.audioUrlEn || productData.audioUrl || "",
+    audioUrlZh: productData.audioUrlZh || "",
     audios: productData.audios || {
       en: "",
       vi: "",
