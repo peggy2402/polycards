@@ -461,10 +461,10 @@ export function HeroButterflyArCard({
 
         {/* 4. MÃ QR MATRIX SWAP GÓC DƯỚI BÊN TRÁI (Chuẩn kích thước ô vuông in thẻ) */}
         <HeroQrMatrixSwap
-          left="6%"
-          bottom="9.01%"
-          width="24.8%"
-          height="17.2%"
+          left="6.4%"
+          bottom="12.5%"
+          width="24%"
+          height="15%"
           href="/ar/butterfly"
         />
 
