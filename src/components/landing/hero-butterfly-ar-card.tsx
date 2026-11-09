@@ -7,6 +7,14 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { Sparkles, Wand2, RotateCw } from "lucide-react";
 import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
 
+// =========================================================================
+// 🦋 CẤU HÌNH KÍCH THƯỚC CON BƯỚM 3D (BẠN CÓ THỂ ĐIỀU CHỈNH TẠI ĐÂY)
+// - Mặc định: 0.62 (Kích thước nhỏ gọn, xinh xắn, vừa vặn không bị quá to)
+// - Nếu muốn bướm to hơn: tăng lên 0.75 - 0.85
+// - Nếu muốn bướm nhỏ hơn nữa: giảm xuống 0.50 - 0.58
+// =========================================================================
+export const BUTTERFLY_SCALE_MULTIPLIER = 0.62;
+
 interface HeroButterflyArCardProps {
   cardBeforeSrc?: string; // Ảnh thẻ 2D có hình bướm gốc
   cardAfterSrc?: string; // Ảnh phôi nền sạch không có bướm
@@ -21,30 +29,24 @@ export function HeroButterflyArCard({
   // Trạng thái: false = Thẻ 2D gốc, true = Đã biến hình AR 3D bướm vỗ cánh bay ra
   const [is3DMode, setIs3DMode] = useState<boolean>(true);
   const [isTransforming, setIsTransforming] = useState<boolean>(false);
-  const [flightPhaseText, setFlightPhaseText] = useState<string>("Bướm 3D đang cất cánh...");
+  const [flightPhaseText, setFlightPhaseText] = useState<string>("Bướm 3D đang vỗ cánh Flutter...");
   const [isHovered, setIsHovered] = useState<boolean>(false);
 
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const mousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // References cho Three.js animation
+  // References cho Three.js
   const butterflyGroupRef = useRef<THREE.Group | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const currentScaleRef = useRef<number>(0);
   const is3DModeRef = useRef<boolean>(true);
-
-  // References cho các khớp xương cánh để tạo hiệu ứng vẫy cánh cực mạnh (Procedural Wing Flapping)
-  const leftWing1Ref = useRef<any>(null);
-  const leftWing2Ref = useRef<any>(null);
-  const rightWing1Ref = useRef<any>(null);
-  const rightWing2Ref = useRef<any>(null);
 
   // Đồng bộ ref với state
   useEffect(() => {
     is3DModeRef.current = is3DMode;
   }, [is3DMode]);
 
-  // Khởi tạo Three.js Scene với Canvas mở rộng ra ngoài khung thẻ (Zero Clipping)
+  // Khởi tạo Three.js Scene với Canvas nổi lên trên tất cả (z-index cực đại, không che khuất)
   useEffect(() => {
     const canvasContainer = canvasContainerRef.current;
     if (!canvasContainer) return;
@@ -56,10 +58,10 @@ export function HeroButterflyArCard({
     const width = canvasContainer.clientWidth || 640;
     const height = canvasContainer.clientHeight || 750;
 
-    // 1. Tạo Three.js Scene & Camera góc rộng
+    // 1. Tạo Three.js Scene & Camera góc nhìn 3D trực quan
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 50);
-    camera.position.set(0, 0, 3.4);
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 50);
+    camera.position.set(0, 0, 3.5);
 
     try {
       renderer = new THREE.WebGLRenderer({
@@ -90,7 +92,7 @@ export function HeroButterflyArCard({
     softFillLight.position.set(-2, 1.5, 1.5);
     scene.add(softFillLight);
 
-    const goldenGlowLight = new THREE.DirectionalLight(0xfef08a, 1.6);
+    const goldenGlowLight = new THREE.DirectionalLight(0xfef08a, 1.5);
     goldenGlowLight.position.set(-0.2, 0.5, 2);
     scene.add(goldenGlowLight);
 
@@ -105,42 +107,41 @@ export function HeroButterflyArCard({
       (gltf) => {
         const model = gltf.scene;
 
-        // Bắt các khớp xương cánh để khuếch đại biên độ vỗ cánh
-        model.traverse((child: any) => {
-          if (child.name === "WL1") leftWing1Ref.current = child;
-          if (child.name === "WL2") leftWing2Ref.current = child;
-          if (child.name === "WR1") rightWing1Ref.current = child;
-          if (child.name === "WR2") rightWing2Ref.current = child;
-        });
-
-        // Tính toán bounding box
+        // Tính toán kích thước bướm nhỏ gọn, vừa vặn không bị khổng lồ
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         box.getSize(size);
         const maxDim = Math.max(size.x, size.y, size.z);
-        const baseScale = 1.45 / (maxDim || 1);
+
+        // KÍCH THƯỚC CON BƯỚM NHỎ GỌN THEO HẰNG SỐ BUTTERFLY_SCALE_MULTIPLIER
+        const baseScale = (BUTTERFLY_SCALE_MULTIPLIER * 1.0) / (maxDim || 1);
 
         const center = new THREE.Vector3();
         box.getCenter(center);
         model.position.set(-center.x * baseScale, -center.y * baseScale, -center.z * baseScale);
         model.scale.set(baseScale, baseScale, baseScale);
 
-        // Vị trí gốc ban đầu của bướm 2D trên thẻ bài
-        group.position.set(-0.24, 0.16, 0.18);
-        group.rotation.set(0.12, 0.08, -0.04);
+        // Đặt góc nghiêng 3D tự nhiên nhẹ (như xem trên gltf-viewer)
+        group.position.set(-0.20, 0.14, 0.15);
+        group.rotation.set(0.18, 0.12, -0.06);
         group.add(model);
 
-        // Kích hoạt animation Flutter với tốc độ cao hơn
+        // 4. KÍCH HOẠT CHÍNH XÁC DUY NHẤT ANIMATION "Flutter"
         if (gltf.animations && gltf.animations.length > 0) {
+          // AnimationMixer gắn trực tiếp vào model/scene như Don McCurdy viewer
           const mixer = new THREE.AnimationMixer(model);
           mixerRef.current = mixer;
 
+          // Tìm chính xác animation "Flutter"
           const flutterClip =
-            gltf.animations.find((a: { name: string }) =>
-              /flutter|fly|wing|idle/i.test(a.name)
+            gltf.animations.find(
+              (a: { name: string }) => a.name.toLowerCase() === "flutter"
             ) || gltf.animations[0];
+
           const action = mixer.clipAction(flutterClip);
-          action.timeScale = 3.2; // Tăng tốc độ vỗ cánh
+          // Tốc độ vỗ cánh chuẩn tự nhiên và mượt mà
+          action.setEffectiveTimeScale(1.4);
+          action.setEffectiveWeight(1.0);
           action.play();
         }
       },
@@ -150,7 +151,7 @@ export function HeroButterflyArCard({
       }
     );
 
-    // 4. Lắng nghe chuyển động chuột Parallax
+    // 5. Lắng nghe chuyển động chuột Parallax
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvasContainer.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -168,7 +169,7 @@ export function HeroButterflyArCard({
     window.addEventListener("mousemove", handleMouseMove);
     canvasContainer.addEventListener("mouseleave", handleMouseLeave);
 
-    // 5. Vòng lặp Render: Quỹ đạo bay ra ngoài khung hình (Trái -> Phải -> Về chỗ cũ)
+    // 6. Vòng lặp Render: Chạy animation "Flutter" thuần túy + Quỹ đạo bay (Trái -> Phải -> Về chỗ cũ)
     const clock = new THREE.Clock();
     const flightCycle = 13.0; // Chu kỳ bay trọn vẹn 13 giây
 
@@ -184,9 +185,10 @@ export function HeroButterflyArCard({
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
-      // Cập nhật mixer animation có sẵn trong file GLB
+      // CẬP NHẬT CHUẨN XÁC ANIMATION "Flutter" NGUYÊN BẢN CỦA FILE GLB
+      // Không can thiệp ghi đè bone, để AnimationMixer tự do vẫy cánh 100% như trên gltf-viewer
       if (mixerRef.current) {
-        mixerRef.current.update(delta * 2.8);
+        mixerRef.current.update(delta);
       }
 
       const butterfly = butterflyGroupRef.current;
@@ -203,80 +205,73 @@ export function HeroButterflyArCard({
         butterfly.scale.setScalar(currentScaleRef.current);
 
         if (active && currentScaleRef.current > 0.05) {
-          // Chu kỳ thời gian bay (từ 0s đến 13s)
+          // Chu kỳ bay (từ 0s đến 13s)
           const t = elapsed % flightCycle;
 
-          let targetX = -0.24;
-          let targetY = 0.16;
-          let targetZ = 0.18;
-          let targetRotX = 0.12;
-          let targetRotY = 0.08;
-          let targetRotZ = -0.04;
-          let flapIntensity = 0.45; // Biên độ vỗ cánh
+          let targetX = -0.20;
+          let targetY = 0.14;
+          let targetZ = 0.15;
+          let targetRotX = 0.18;
+          let targetRotY = 0.12;
+          let targetRotZ = -0.06;
 
-          // GIAI ĐOẠN 1: 0s -> 2.2s: Đậu trên hoa, vỗ cánh khởi động và cất cánh bay lên
+          // GIAI ĐOẠN 1: 0s -> 2.2s: Đậu tại hoa trên thẻ, vỗ cánh Flutter và cất cánh bay lên
           if (t < 2.2) {
             const p = smoothstep(0, 2.2, t);
-            targetX = -0.24 + Math.sin(t * 3) * 0.03;
-            targetY = 0.16 + p * 0.22; // Cất cánh lên
-            targetZ = 0.18 + p * 0.65; // Nhấc bổng nổi ra ngoài thẻ
-            targetRotX = 0.12 - p * 0.1;
-            targetRotY = 0.08;
-            targetRotZ = -0.04;
-            flapIntensity = 0.5 + p * 0.35;
+            targetX = -0.20 + Math.sin(t * 3) * 0.02;
+            targetY = 0.14 + p * 0.18; // Bay nhấc lên
+            targetZ = 0.15 + p * 0.40; // Nổi ra ngoài thẻ
+            targetRotX = 0.18;
+            targetRotY = 0.12;
+            targetRotZ = -0.06;
           }
           // GIAI ĐOẠN 2: 2.2s -> 5.8s: BAY RA NGOÀI KHUNG THẺ SANG BÊN TRÁI
           else if (t < 5.8) {
             const p = smoothstep(2.2, 5.8, t);
-            // Bay từ -0.24 ra tận -1.15 (vượt hẳn ra ngoài mép trái của thẻ bài!)
-            targetX = -0.24 - p * 0.88;
-            targetY = 0.38 + Math.sin(p * Math.PI) * 0.18 + Math.sin(elapsed * 4) * 0.04;
-            targetZ = 0.83 + Math.sin(elapsed * 2.5) * 0.06;
+            // Bay từ -0.20 sang -0.82 (vượt ra ngoài viền trái của thẻ bài)
+            targetX = -0.20 - p * 0.62;
+            targetY = 0.32 + Math.sin(p * Math.PI) * 0.15 + Math.sin(elapsed * 3.5) * 0.03;
+            targetZ = 0.55 + Math.sin(elapsed * 2.0) * 0.05;
 
             // Nghiêng thân bướm theo hướng bay sang trái (Banking & Yaw)
-            targetRotY = -0.48; // Đầu hướng sang trái
-            targetRotZ = 0.26; // Cánh trái chúc xuống lượn
-            targetRotX = 0.16;
-            flapIntensity = 0.95; // Đập cánh mạnh mẽ
+            targetRotY = -0.35; // Hướng sang trái
+            targetRotZ = 0.22; // Nghiêng cánh lượn
+            targetRotX = 0.22;
           }
-          // GIAI ĐOẠN 3: 5.8s -> 9.6s: LƯỢN MỘT VÒNG CUNG LỚN QUA ĐỈNH THẺ SANG NGOÀI KHUNG BÊN PHẢI
+          // GIAI ĐOẠN 3: 5.8s -> 9.6s: LƯỢN MỘT VÒNG CUNG QUA ĐỈNH THẺ SANG NGOÀI KHUNG BÊN PHẢI
           else if (t < 9.6) {
             const p = smoothstep(5.8, 9.6, t);
-            // Bay từ -1.12 sang tận +1.05 (vượt hẳn ra ngoài mép phải của thẻ bài!)
-            targetX = -1.12 + p * 2.15;
-            // Lượn một hình bán nguyệt bay vắt qua đỉnh hoa
-            targetY = 0.38 + Math.sin(p * Math.PI) * 0.32 + Math.sin(elapsed * 4) * 0.04;
-            targetZ = 0.85 - p * 0.15;
+            // Bay từ -0.82 sang +0.78 (vượt ra ngoài viền phải của thẻ bài)
+            targetX = -0.82 + p * 1.60;
+            targetY = 0.32 + Math.sin(p * Math.PI) * 0.25 + Math.sin(elapsed * 3.5) * 0.03;
+            targetZ = 0.55 - p * 0.10;
 
-            // Nghiêng thân bướm lượn sang phải (Banking & Yaw)
-            targetRotY = 0.52; // Đầu hướng sang phải
-            targetRotZ = -0.28; // Cánh phải chúc xuống lượn
-            targetRotX = 0.12;
-            flapIntensity = 0.95;
+            // Nghiêng thân bướm lượn sang phải
+            targetRotY = 0.38; // Hướng sang phải
+            targetRotZ = -0.22;
+            targetRotX = 0.18;
           }
-          // GIAI ĐOẠN 4: 9.6s -> 12.0s: LƯỢN VÒNG CUNG BAY TRỞ VỀ LẠI VỊ TRÍ CŨ TRÊN HOA
+          // GIAI ĐOẠN 4: 9.6s -> 12.0s: LƯỢN VÒNG BAY TRỞ VỀ LẠI CHỖ CŨ TRÊN HOA
           else if (t < 12.0) {
             const p = smoothstep(9.6, 12.0, t);
-            // Bay từ +1.03 trở về lại đúng vị trí -0.24 trên thẻ bài
-            targetX = 1.03 - p * 1.27;
-            targetY = 0.35 - p * 0.19;
-            targetZ = 0.7 - p * 0.52; // Hạ dần xuống mặt phẳng thẻ bài
+            // Bay từ +0.78 trở về lại đúng vị trí -0.20 trên thẻ
+            targetX = 0.78 - p * 0.98;
+            targetY = 0.28 - p * 0.14;
+            targetZ = 0.45 - p * 0.30; // Hạ dần xuống vị trí bông hoa
 
-            // Cân bằng lại góc thân bướm về tư thế nhìn thẳng
-            targetRotY = THREE.MathUtils.lerp(0.52, 0.08, p);
-            targetRotZ = THREE.MathUtils.lerp(-0.28, -0.04, p);
-            targetRotX = THREE.MathUtils.lerp(0.12, 0.12, p);
-            flapIntensity = 0.9 - p * 0.45;
+            // Cân bằng lại góc nghiêng
+            targetRotY = THREE.MathUtils.lerp(0.38, 0.12, p);
+            targetRotZ = THREE.MathUtils.lerp(-0.22, -0.06, p);
+            targetRotX = 0.18;
           }
           // GIAI ĐOẠN 5: 12.0s -> 13.0s: ĐẬU ÊM ÁI TRÊN BÔNG HOA
           else {
-            targetX = -0.24;
-            targetY = 0.16 + Math.sin(elapsed * 2) * 0.015;
-            targetZ = 0.18;
-            targetRotY = 0.08;
-            targetRotZ = -0.04;
-            targetRotX = 0.12;
-            flapIntensity = 0.35; // Vỗ cánh nhẹ nhàng khi đậu
+            targetX = -0.20;
+            targetY = 0.14 + Math.sin(elapsed * 2) * 0.01;
+            targetZ = 0.15;
+            targetRotY = 0.12;
+            targetRotZ = -0.06;
+            targetRotX = 0.18;
           }
 
           // Cập nhật vị trí và góc xoay với độ mượt mà cao
@@ -284,42 +279,22 @@ export function HeroButterflyArCard({
           butterfly.position.y = THREE.MathUtils.lerp(butterfly.position.y, targetY, 0.08);
           butterfly.position.z = THREE.MathUtils.lerp(butterfly.position.z, targetZ, 0.08);
 
-          // Tương tác chuột thêm vào góc nghiêng
-          const mouseTiltY = mousePos.current.x * 0.18;
-          const mouseTiltX = -mousePos.current.y * 0.12;
+          // Tương tác chuột thêm góc nhìn 3D trực quan
+          const mouseTiltY = mousePos.current.x * 0.15;
+          const mouseTiltX = -mousePos.current.y * 0.10;
 
           butterfly.rotation.x = THREE.MathUtils.lerp(butterfly.rotation.x, targetRotX + mouseTiltX, 0.06);
           butterfly.rotation.y = THREE.MathUtils.lerp(butterfly.rotation.y, targetRotY + mouseTiltY, 0.06);
           butterfly.rotation.z = THREE.MathUtils.lerp(butterfly.rotation.z, targetRotZ, 0.06);
-
-          // KHUẾCH ĐẠI BIÊN ĐỘ VỖ CÁNH THỰC TẾ TRÊN CÁC XƯƠNG CÁNH (Procedural Bone Flapping)
-          // Tần số 18 rad/s (~3 lần vỗ/giây), biên độ lên tới 0.78 rad (~45 độ)
-          const flapSpeed = 18;
-          const flapWave = Math.sin(elapsed * flapSpeed) * flapIntensity * 0.78;
-
-          if (leftWing1Ref.current) {
-            leftWing1Ref.current.rotation.y = flapWave;
-            leftWing1Ref.current.rotation.z = Math.sin(elapsed * flapSpeed + 0.3) * (flapIntensity * 0.18);
-          }
-          if (rightWing1Ref.current) {
-            rightWing1Ref.current.rotation.y = -flapWave;
-            rightWing1Ref.current.rotation.z = -Math.sin(elapsed * flapSpeed + 0.3) * (flapIntensity * 0.18);
-          }
-          if (leftWing2Ref.current) {
-            leftWing2Ref.current.rotation.y = Math.sin(elapsed * flapSpeed - 0.4) * (flapIntensity * 0.38);
-          }
-          if (rightWing2Ref.current) {
-            rightWing2Ref.current.rotation.y = -Math.sin(elapsed * flapSpeed - 0.4) * (flapIntensity * 0.38);
-          }
         } else {
           butterfly.position.z = THREE.MathUtils.lerp(butterfly.position.z, -0.1, 0.1);
         }
       }
 
-      // Parallax camera nhẹ nhàng theo chuột
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, mousePos.current.x * 0.25, 0.04);
-      camera.position.y = THREE.MathUtils.lerp(camera.position.y, mousePos.current.y * 0.18, 0.04);
-      camera.lookAt(0, 0.15, 0.1);
+      // Parallax camera nhẹ nhàng
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, mousePos.current.x * 0.2, 0.04);
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, mousePos.current.y * 0.15, 0.04);
+      camera.lookAt(0, 0.12, 0.1);
 
       if (renderer) {
         renderer.render(scene, camera);
@@ -328,7 +303,7 @@ export function HeroButterflyArCard({
 
     animate();
 
-    // 6. Dọn dẹp tài nguyên khi unmount
+    // 7. Dọn dẹp tài nguyên khi unmount
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("mousemove", handleMouseMove);
@@ -349,7 +324,7 @@ export function HeroButterflyArCard({
     }
     const interval = setInterval(() => {
       const sec = (Date.now() / 1000) % 13.0;
-      if (sec < 2.2) setFlightPhaseText("Bướm 3D đang vỗ cánh cất cánh...");
+      if (sec < 2.2) setFlightPhaseText("Bướm 3D vỗ cánh Flutter cất cánh...");
       else if (sec < 5.8) setFlightPhaseText("Bướm 3D bay lượn ra ngoài bên trái 🦋");
       else if (sec < 9.6) setFlightPhaseText("Bướm 3D bay vắt ngang sang bên phải ✨");
       else if (sec < 12.0) setFlightPhaseText("Bướm 3D lượn cánh quay về chỗ cũ 🌸");
@@ -471,11 +446,11 @@ export function HeroButterflyArCard({
         </div>
       </div>
 
-      {/* 7. LỚP CANVAS THREE.JS 3D MỞ RỘNG (OVERFLOW VISIBLE - BAY RA KHỎI VIỀN THẺ) */}
-      {/* Vươn ra ngoài thẻ bài tới 120px mỗi bên trái/phải và 90px trên/dưới để không bị cắt xén */}
+      {/* 7. LỚP CANVAS THREE.JS 3D NỔI LÊN TRÊN TẤT CẢ (Z-INDEX CỰC ĐẠI z-50 / OVERFLOW VISIBLE) */}
+      {/* Vươn ra ngoài thẻ bài tới 110px mỗi bên trái/phải để bướm bay lượn tự do, không bao giờ bị che khuất */}
       <div
         ref={canvasContainerRef}
-        className={`pointer-events-none absolute -left-28 -right-28 -top-24 -bottom-20 z-25 overflow-visible transition-opacity duration-700 ${
+        className={`pointer-events-none absolute -left-28 -right-28 -top-20 -bottom-16 z-50 overflow-visible transition-opacity duration-700 ${
           is3DMode ? "opacity-100" : "opacity-0"
         }`}
       />

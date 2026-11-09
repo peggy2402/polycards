@@ -142,7 +142,7 @@ export function HeroSection() {
           </div>
 
           {/* Right Column: Premium 3D Physical Card Showcase với Hiệu ứng AR Hóa thân bướm vỗ cánh */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-5 relative z-30">
             <div className="relative mx-auto flex max-w-sm flex-col items-center">
               {/* Thẻ biến hình AR 3D sống động (Card Trước 2D mờ dần -> Card Sau lộ ra + Bướm 3D vỗ cánh bay ra) */}
               <HeroButterflyArCard

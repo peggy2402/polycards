@@ -357,3 +357,20 @@ Dự án áp dụng 5 tiêu chuẩn kỹ thuật cốt lõi (được lưu tại
           - $5.8\text{s} \rightarrow 9.6\text{s}$: Lượn một vòng cung lớn qua đỉnh thẻ, bay sang ngoài khung thẻ bên **PHẢI** ($X: -1.15 \rightarrow +1.05$), thân bướm nghiêng lượn sang phải.
           - $9.6\text{s} \rightarrow 12.0\text{s}$: Lượn vòng cung bay trở về lại đúng vị trí bông hoa cũ trên thẻ ($X: +1.05 \rightarrow -0.24, Z \rightarrow 0.18$).
           - $12.0\text{s} \rightarrow 13.0\text{s}$: Đậu êm ái trên bông hoa, khép cánh nhẹ nhàng trước khi chuẩn bị chu kỳ mới.
+
+
+26. **Tối Ưu Hoá Chuẩn Xác Animation "Flutter" Thuần Túy Của GLB, Thu Nhỏ Kích Thước Bướm & Nâng Z-Index Tuyệt Đối**:
+   - *Nguyên Nhân Cốt Lõi Vẫy Cánh Bị Liệt Trước Đó:*
+     1. Việc gán thủ công `rotation.y` lên các xương cánh mỗi frame đã vô tình ghi đè (override) và phá vỡ các track `quaternion` của `AnimationMixer`, khiến animation gốc `"Flutter"` bị khóa cứng và mất chuyển động tự nhiên.
+     2. Hệ số scale `1.45 / maxDim` kết hợp khoảng cách bay gần camera ($Z = 0.85$) khiến con bướm bị phóng to khổng lồ, che lấp chữ và tràn ra ngoài màn hình.
+     3. Khối canvas 3D nằm ở lớp `z-25` và cột phải chưa có stacking context riêng nên bị cột trái (`lg:col-span-7`) và các khối văn bản khác đè lên.
+   - *Giải Pháp Kỹ Thuật Đã Triển Khai:*
+     1. **Kích Hoạt Chuẩn Xác Duy Nhất Animation "Flutter"**:
+        - Tìm kiếm chính xác clip `name === "Flutter"`, phát qua `AnimationMixer` với `action.play()`.
+        - Loại bỏ 100% các đoạn mã can thiệp bone thủ công để Three.js tự do giải mã các track quaternion mượt mà y hệt như trên Don McCurdy gltf-viewer.
+     2. **Thu Nhỏ Kích Thước Bướm Nhỏ Gọn & Thiết Lập Hằng Số Tùy Chỉnh**:
+        - Đưa ra hằng số cấu hình rõ ràng ngay đầu file [`src/components/landing/hero-butterfly-ar-card.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-butterfly-ar-card.tsx): `export const BUTTERFLY_SCALE_MULTIPLIER = 0.62;`.
+        - Bướm nhỏ gọn hơn gần 60%, thanh thoát, vừa vặn trên bông hoa và không bao giờ che khuất tiêu đề hay khối chữ.
+     3. **Nâng Z-Index Tuyệt Đối Lên Trên Tất Cả (`z-50` / `z-30`)**:
+        - Gán `lg:col-span-5 relative z-30` tại [`src/components/landing/hero-section.tsx`](file:///Users/peggy2402/Projects/polycards/src/components/landing/hero-section.tsx).
+        - Gán lớp Canvas Three.js thành `z-50 pointer-events-none` nổi lên trên toàn bộ nội dung xung quanh.
