@@ -11,6 +11,7 @@ const isBrowser = typeof window !== "undefined";
 
 let activeAudioElement: HTMLAudioElement | null = null;
 let activeUtterance: SpeechSynthesisUtterance | null = null;
+let activeAudioContext: AudioContext | null = null;
 
 /**
  * Dừng mọi luồng âm thanh hoặc giọng đọc đang phát
@@ -26,6 +27,12 @@ export function stopAllCardAudio(): void {
     activeUtterance = null;
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
+    }
+    if (activeAudioContext) {
+      try {
+        activeAudioContext.close().catch(() => {});
+      } catch {}
+      activeAudioContext = null;
     }
   } catch {}
 }
@@ -358,7 +365,14 @@ function playSynthSoundEffect(slug: string, onEnd?: () => void): void {
   }
 
   try {
+    if (activeAudioContext) {
+      try {
+        activeAudioContext.close().catch(() => {});
+      } catch {}
+      activeAudioContext = null;
+    }
     const ctx = new AudioContextClass();
+    activeAudioContext = ctx;
     const now = ctx.currentTime;
 
     if (slug === "dog") {

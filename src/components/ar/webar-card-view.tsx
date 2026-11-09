@@ -6,11 +6,13 @@ import {
   playCardLanguageAudio,
   playAnimalSoundEffect,
   playCheerfulCelebrationSound,
+  stopAllCardAudio,
 } from "@/lib/speech-audio";
 import {
   Camera,
   X,
   Volume2,
+  VolumeX,
   Sparkles,
   Scan,
   RotateCcw,
@@ -226,6 +228,7 @@ export function WebArCardView({
   );
   const [activeLang, setActiveLang] = useState<"en" | "vi" | "zh" | null>(null);
   const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
+  const isSoundMutedByUserRef = useRef<boolean>(false);
 
   // Toast nhẹ thông báo
   const [toastMsg, setToastMsg] = useState<{ text: string; type: string } | null>(null);
@@ -384,13 +387,9 @@ export function WebArCardView({
     quickLookAnchor?.click();
   }, [supportsAppleAr]);
 
-  // Phản ứng khi chạm vào con vật (P2: Squash & stretch, parabolic jump, floating stars, audio)
+  // Phản ứng khi chạm vào con vật (Squash & stretch, parabolic jump, floating stars, audio)
   const handleTapModel = useCallback(() => {
-    const effectiveSoundUrl =
-      languageTrack === "zh-vi"
-        ? animal.audioUrlZh || animal.audioUrl
-        : animal.audioUrlEn || animal.audioUrl;
-    playAnimalSoundEffect(animal.slug, undefined, effectiveSoundUrl);
+    // 1. Luôn kích hoạt hiệu ứng xúc giác (rung nhẹ) và hiệu ứng thị giác 3D nhún nhảy
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
         navigator.vibrate([25, 30, 25]);
@@ -403,7 +402,28 @@ export function WebArCardView({
         playingClipName
       );
     }
-  }, [animal.slug, animal.audioUrl, animal.animations, playingClipName]);
+
+    // 2. Nếu người dùng đã chủ động tắt âm thanh (Muted) bằng nút điều khiển, không tự động phát lại khi chạm
+    if (isSoundMutedByUserRef.current) {
+      return;
+    }
+
+    // 3. Phát tiếng kêu và cập nhật đồng bộ trạng thái isPlayingSound của nút bấm
+    const effectiveSoundUrl =
+      languageTrack === "zh-vi"
+        ? animal.audioUrlZh || animal.audioUrl
+        : animal.audioUrlEn || animal.audioUrl;
+
+    stopAllCardAudio();
+    setIsPlayingSound(true);
+    playAnimalSoundEffect(
+      animal.slug,
+      () => {
+        setIsPlayingSound(false);
+      },
+      effectiveSoundUrl
+    );
+  }, [animal.slug, animal.audioUrl, animal.audioUrlEn, animal.audioUrlZh, animal.animations, playingClipName, languageTrack]);
 
   const gestureSpaceRef = useRef<"tracking" | "free">("free");
   const anchorQuatRef = useRef<any>(null);
@@ -883,14 +903,24 @@ export function WebArCardView({
           if (!isCancelled) {
             isTargetFoundRef.current = true;
             setIsTargetFound(true);
+            const isFirstScan = !hasScannedOnceRef.current;
             setHasScannedOnce(true);
             hasScannedOnceRef.current = true;
             setTargetHitCount((prev) => prev + 1);
-            const effectiveSoundUrl =
-              languageTrack === "zh-vi"
-                ? animal.audioUrlZh || animal.audioUrl
-                : animal.audioUrlEn || animal.audioUrl;
-            playAnimalSoundEffect(animal.slug, undefined, effectiveSoundUrl);
+
+            // CHỈ PHÁT ÂM THANH CHÀO MỪNG Ở LẦN QUÉT ĐẦU TIÊN VÀ KHI NGƯỜI DÙNG CHƯA TẮT ÂM
+            if (isFirstScan && !isSoundMutedByUserRef.current) {
+              const effectiveSoundUrl =
+                languageTrack === "zh-vi"
+                  ? animal.audioUrlZh || animal.audioUrl
+                  : animal.audioUrlEn || animal.audioUrl;
+              setIsPlayingSound(true);
+              playAnimalSoundEffect(
+                animal.slug,
+                () => setIsPlayingSound(false),
+                effectiveSoundUrl
+              );
+            }
           }
         };
 
@@ -1348,6 +1378,7 @@ export function WebArCardView({
 
     return () => {
       isCancelled = true;
+      stopAllCardAudio();
       if (createdBlobUrl) {
         try {
           URL.revokeObjectURL(createdBlobUrl);
@@ -1414,9 +1445,12 @@ export function WebArCardView({
     await switchCamera(nextMode, videoEl, mindarRef.current);
   }, [isCameraSwitching, switchCamera, wakeUi, showToast]);
 
-  // Xử lý phát âm đa ngữ
+  // Xử lý phát âm đa ngữ (EN / VI / ZH)
   const handleSpeak = (lang: "en" | "vi" | "zh") => {
     wakeUi();
+    // Tắt tiếng kêu nếu đang phát để âm thanh không bị đè lên nhau
+    stopAllCardAudio();
+    setIsPlayingSound(false);
     setActiveLang(lang);
     if (reactionSystemRef.current) {
       reactionSystemRef.current.triggerAudioRipple();
@@ -1426,10 +1460,25 @@ export function WebArCardView({
     });
   };
 
-  // Xử lý phát tiếng kêu con vật
-  const handleAnimalSound = () => {
+  // Xử lý Bật / Tắt (Toggle Play / Stop) tiếng kêu con vật
+  const handleAnimalSound = useCallback(() => {
     wakeUi();
+
+    // 1. NẾU ĐANG PHÁT -> BẤM VÀO ĐỂ TẮT NGAY LẬP TỨC (Dừng âm thanh 100%)
+    if (isPlayingSound) {
+      stopAllCardAudio();
+      setIsPlayingSound(false);
+      isSoundMutedByUserRef.current = true;
+      showToast("Đã tắt âm thanh tiếng kêu", "info");
+      return;
+    }
+
+    // 2. NẾU ĐANG TẮT -> BẬT PHÁT ÂM THANH
+    isSoundMutedByUserRef.current = false;
+    stopAllCardAudio();
     setIsPlayingSound(true);
+    showToast(`Đang phát tiếng kêu ${animal.nameVi}`, "success");
+
     if (reactionSystemRef.current) {
       reactionSystemRef.current.triggerAudioRipple();
     }
@@ -1443,7 +1492,7 @@ export function WebArCardView({
       () => setIsPlayingSound(false),
       effectiveSoundUrl
     );
-  };
+  }, [isPlayingSound, wakeUi, languageTrack, animal.audioUrlZh, animal.audioUrlEn, animal.audioUrl, animal.slug, animal.nameVi, showToast]);
 
   // Chuyển đổi clip animation (Hỗ trợ phát riêng lẻ hoặc "Play All" tất cả animations đồng thời)
   const handleSwitchClip = (clipName: string) => {
@@ -1936,18 +1985,22 @@ export function WebArCardView({
               <span className="text-[9px] font-black">VI</span>
             </button>
 
-            {/* Nút phát tiếng kêu */}
+            {/* Nút bật/tắt tiếng kêu */}
             <button
               type="button"
               onClick={handleAnimalSound}
               className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-all active:scale-95 cursor-pointer ${
                 isPlayingSound
-                  ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-md"
+                  ? "bg-gradient-to-r from-amber-400 to-orange-400 text-stone-950 border-amber-300 font-black shadow-lg shadow-amber-400/40 animate-pulse"
                   : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20"
               }`}
-              title={`Phát tiếng kêu ${animal.nameVi}`}
+              title={isPlayingSound ? "Chạm để dừng âm thanh" : `Phát tiếng kêu ${animal.nameVi}`}
             >
-              <Volume2 className="h-5 w-5" />
+              {isPlayingSound ? (
+                <VolumeX className="h-5 w-5 animate-bounce" />
+              ) : (
+                <Volume2 className="h-5 w-5" />
+              )}
             </button>
 
             {/* Nút mở chọn động tác */}
@@ -2115,18 +2168,29 @@ export function WebArCardView({
 
             {/* 3. HÀNG ĐIỀU KHIỂN DƯỚI CÙNG: Phát Tiếng Kêu + Mở Lại Động Tác + Lật Camera */}
             <div className="flex items-center gap-2 pt-0.5">
-              {/* Nút phát tiếng kêu */}
+              {/* Nút bật/tắt tiếng kêu */}
               <button
                 type="button"
                 onClick={handleAnimalSound}
-                className={`flex-1 flex min-h-[42px] items-center justify-center gap-2 rounded-2xl border transition-all active:scale-98 cursor-pointer ${
+                className={`flex-1 flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border transition-all active:scale-95 cursor-pointer select-none ${
                   isPlayingSound
-                    ? "bg-amber-400 text-stone-950 border-amber-300 font-black shadow-lg shadow-amber-400/30"
+                    ? "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 text-stone-950 border-amber-300 font-black shadow-lg shadow-amber-400/40 animate-pulse"
                     : "bg-white/10 text-amber-300 border-white/15 hover:bg-white/20 font-bold"
                 }`}
+                title={isPlayingSound ? "Chạm để dừng âm thanh ngay" : `Phát tiếng kêu ${animal.nameVi}`}
               >
-                <Volume2 className="h-4 w-4" />
-                <span className="text-xs">Phát Tiếng Kêu {animal.nameVi}</span>
+                {isPlayingSound ? (
+                  <>
+                    <VolumeX className="h-4 w-4 shrink-0 text-stone-950 animate-bounce" />
+                    <span className="text-xs font-black">Dừng Tiếng Kêu</span>
+                    <span className="h-2 w-2 rounded-full bg-stone-950 animate-ping shrink-0" />
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="h-4 w-4 shrink-0" />
+                    <span className="text-xs">Phát Tiếng Kêu {animal.nameVi}</span>
+                  </>
+                )}
               </button>
 
               {/* Nút Mic Voice Quiz (nếu có hỗ trợ) */}
