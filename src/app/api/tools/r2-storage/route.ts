@@ -181,22 +181,31 @@ export async function GET() {
     const totalSizeMB = Number((totalSizeBytes / 1024 / 1024).toFixed(2));
     const usedPercent = Number(((totalSizeBytes / QUOTA_LIMIT_BYTES) * 100).toFixed(2));
 
-    return NextResponse.json({
-      success: true,
-      stats: {
-        totalObjects: r2Items.length,
-        totalSizeBytes,
-        totalSizeMB,
-        quotaLimitMB: 10240, // 10 GB
-        usedPercent,
-        categoryStats,
-        orphanCount: orphanItems.length,
-        orphanSizeBytes,
-        orphanSizeMB: Number((orphanSizeBytes / 1024 / 1024).toFixed(2)),
+    return NextResponse.json(
+      {
+        success: true,
+        stats: {
+          totalObjects: r2Items.length,
+          totalSizeBytes,
+          totalSizeMB,
+          quotaLimitMB: 10240, // 10 GB
+          usedPercent,
+          categoryStats,
+          orphanCount: orphanItems.length,
+          orphanSizeBytes,
+          orphanSizeMB: Number((orphanSizeBytes / 1024 / 1024).toFixed(2)),
+        },
+        items: classifiedItems,
+        orphans: orphanItems,
       },
-      items: classifiedItems,
-      orphans: orphanItems,
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (err: unknown) {
     console.error("Lỗi khi kiểm tra dung lượng R2:", err);
     const msg = err instanceof Error ? err.message : "Lỗi đọc dung lượng Cloudflare R2";

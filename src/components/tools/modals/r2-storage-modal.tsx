@@ -104,7 +104,10 @@ export function R2StorageModal({ isOpen, onClose, onRefreshProducts }: R2Storage
     try {
       setIsLoading(true);
       setErrorMessage(null);
-      const res = await fetch("/api/tools/r2-storage");
+      const res = await fetch(`/api/tools/r2-storage?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Không thể tải dữ liệu Cloudflare R2.");
