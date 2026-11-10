@@ -110,6 +110,8 @@ export async function GET() {
       registerKeyUsage(p.iosModelUrl, p, "Mô hình iOS (.usdz)");
       registerKeyUsage(p.targetUrl, p, "Target AR (.mind)");
       registerKeyUsage(p.audioUrl, p, "Âm thanh");
+      registerKeyUsage(p.audioUrlEn, p, "Tiếng kêu (EN)");
+      registerKeyUsage(p.audioUrlZh, p, "Tiếng kêu (ZH)");
       registerKeyUsage(p.audios?.en, p, "Âm thanh (EN)");
       registerKeyUsage(p.audios?.vi, p, "Âm thanh (VI)");
       registerKeyUsage(p.audios?.zh, p, "Âm thanh (ZH)");
@@ -236,6 +238,8 @@ export async function POST(req: NextRequest) {
             ...(p.images || []),
             p.rawImageUrl,
             p.audioUrl,
+            p.audioUrlEn,
+            p.audioUrlZh,
             p.audios?.en,
             p.audios?.vi,
             p.audios?.zh,
