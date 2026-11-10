@@ -83,12 +83,12 @@ export function OrderPackSheet({
       <div className="absolute inset-0" onClick={onClose} />
 
       {/* Main Bottom Sheet Container (Slide up on mobile, Modal on desktop) */}
-      <div className="relative w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[85vh] rounded-t-[2rem] sm:rounded-3xl bg-white shadow-2xl border-t-2 sm:border-2 border-amber-300 flex flex-col z-10 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-200">
+      <div className="relative w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[85vh] rounded-t-[2rem] sm:rounded-3xl overflow-hidden bg-white shadow-2xl border-t-2 sm:border-2 border-amber-300 flex flex-col z-10 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-200">
         {/* Handle bar on mobile */}
         <div className="sm:hidden mx-auto my-2.5 h-1.5 w-12 rounded-full bg-stone-300" />
 
         {/* Header Sheet */}
-        <div className="flex items-center justify-between border-b border-stone-100 px-4 sm:px-6 py-3 bg-gradient-to-r from-amber-50/80 via-white to-orange-50/50">
+        <div className="flex items-center justify-between border-b border-stone-100 px-4 sm:px-6 py-3 bg-gradient-to-r from-amber-50/80 via-white to-orange-50/50 rounded-t-[2rem] sm:rounded-t-3xl">
           <div>
             <h2 className="text-base sm:text-lg font-black text-stone-950 flex items-center gap-2">
               <Layers className="h-5 w-5 text-amber-600" />
@@ -295,7 +295,7 @@ export function OrderPackSheet({
         </div>
 
         {/* Footer Sheet: Đóng và Hoàn tất */}
-        <div className="border-t border-stone-200/80 p-3 sm:p-4 bg-white flex items-center justify-between gap-3">
+        <div className="border-t border-stone-200/80 p-3 sm:p-4 bg-white flex items-center justify-between gap-3 rounded-b-none sm:rounded-b-3xl">
           <div className="text-xs text-stone-600">
             Đã xếp <strong>{selectedPackIds.length}</strong> bộ vào thùng hàng
           </div>
