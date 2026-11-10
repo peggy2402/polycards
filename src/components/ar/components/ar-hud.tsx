@@ -25,6 +25,12 @@ interface ArHudProps {
   distanceR?: number;
   motionMode?: string;
   gestureState?: string;
+  magnetTelemetry?: {
+    polarity: string;
+    pMag: number;
+    dist: number;
+    contact: number;
+  };
   onClose: () => void;
   onForceShow: () => void;
   onResetTransform: () => void;
@@ -50,6 +56,7 @@ export function ArHud({
   distanceR = 1.9,
   motionMode = "orbit-sphere",
   gestureState = "IDLE",
+  magnetTelemetry,
   onClose,
   onForceShow,
   onResetTransform,
@@ -141,6 +148,14 @@ export function ArHud({
           <span>Tỉ lệ (Scale):</span>
           <span className="text-amber-300">{zoomPercent}%</span>
         </div>
+        {magnetTelemetry && magnetTelemetry.polarity !== "off" && (
+          <div className="flex justify-between items-center text-amber-300 pt-0.5 border-t border-white/5">
+            <span>Từ tính ({magnetTelemetry.polarity.toUpperCase()}):</span>
+            <span className="font-mono text-[9px]">
+              |p|={magnetTelemetry.pMag.toFixed(2)} d={magnetTelemetry.dist.toFixed(2)} c={Math.round(magnetTelemetry.contact * 100)}%
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="pt-1 flex gap-1.5 border-t border-white/10 font-sans">

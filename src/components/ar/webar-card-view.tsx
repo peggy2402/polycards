@@ -33,11 +33,13 @@ import {
   Check,
   ChevronUp,
   ChevronDown,
+  Magnet,
 } from "lucide-react";
 import { ArReactionSystem } from "./effects/ar-reaction-system";
 import { useArGestures } from "./hooks/use-ar-gestures";
 import { useArCamera } from "./hooks/use-ar-camera";
 import { useArMotion } from "./hooks/use-ar-motion";
+import { useArMagnet, MagnetPolarity } from "./hooks/use-ar-magnet";
 import { useVoiceQuiz } from "./hooks/use-voice-quiz";
 import { ArHud } from "./components/ar-hud";
 import { ArGestureHint } from "./components/ar-gesture-hint";
@@ -284,6 +286,22 @@ export function WebArCardView({
 
   const lockRollRef = useRef(lockRoll);
   lockRollRef.current = lockRoll;
+
+  // Tương tác Nam châm (Magnet Interaction)
+  const {
+    polarity: magnetPolarity,
+    setPolarity: setMagnetPolarity,
+    polarityRef: magnetPolarityRef,
+    offsetRef: magnetOffsetRef,
+    tiltRef: magnetTiltRef,
+    contactRef: magnetContactRef,
+    accelEstDispRef: magnetAccelEstDispRef,
+    telemetryRef: magnetTelemetryRef,
+    updateMagnet,
+  } = useArMagnet();
+
+  const updateMagnetRef = useRef(updateMagnet);
+  updateMagnetRef.current = updateMagnet;
 
   // Giám sát DOM và triệt tiêu ngay lập tức Controls / Pause Overlay của iOS Safari WebKit trên camera video
   useEffect(() => {
@@ -1245,7 +1263,13 @@ export function WebArCardView({
               const displayRoot = new THREE.Group();
               displayRoot.name = "ArDisplayRoot";
               displayRoot.matrixAutoUpdate = false;
-              displayRoot.add(pivot);
+
+              // Nút trung gian Magnet Group: điều phối dịch chuyển & góc nghiêng từ trường (displayRoot -> magnetGroup -> pivot)
+              const magnetGroup = new THREE.Group();
+              magnetGroup.name = "ArMagnetGroup";
+              displayRoot.add(magnetGroup);
+              magnetGroup.add(pivot);
+
               scene.add(displayRoot);
 
               // Kích thước chuẩn hiển thị vừa vặn, thanh thoát giữa khung nhìn camera
@@ -1300,6 +1324,60 @@ export function WebArCardView({
               let hasSavedWorldPose = false;
               let trackingEaseTime = 1.0;
               let wasTargetFoundLastFrame = false;
+
+              // Đối tượng tái sử dụng cho Tương tác Nam châm
+              const invDisplayRootMatrix = new THREE.Matrix4();
+              const poleQTarget = new THREE.Vector3();
+              const magnetTiltEuler = new THREE.Euler(0, 0, 0, "YXZ");
+
+              const applyMagnetTransforms = (dtStep: number) => {
+                displayRoot.updateMatrixWorld(true);
+                const isFacingFront = facingModeRef.current === "user";
+                const isGestureActive = gestureStateRefLatest.current?.current !== "IDLE";
+
+                if (magnetPolarityRef.current !== "off" && !isFacingFront) {
+                  invDisplayRootMatrix.copy(displayRoot.matrixWorld).invert();
+
+                  // Cực nam châm Q trong tọa độ thế giới (world space):
+                  // Camera ở (0, 0, 0) cộng thêm dịch chuyển vi sai devicemotion C(x, y, z),
+                  // cực nam châm nằm cách camera dPole=0.15m về phía trước (-Z)
+                  const disp = magnetAccelEstDispRef.current;
+                  poleQTarget.set(disp.x, disp.y, disp.z - 0.15).applyMatrix4(invDisplayRootMatrix);
+
+                  const hH = halfHRef.current || 0.36;
+                  const qNormX = poleQTarget.x / baseDim;
+                  const qNormY = (poleQTarget.y - hH) / baseDim;
+                  const qNormZ = poleQTarget.z / baseDim;
+
+                  const mResult = updateMagnetRef.current(
+                    dtStep,
+                    { x: qNormX, y: qNormY, z: qNormZ },
+                    isGestureActive
+                  );
+
+                  magnetGroup.position.set(
+                    mResult.p.x * baseDim,
+                    mResult.p.y * baseDim,
+                    mResult.p.z * baseDim
+                  );
+
+                  magnetTiltEuler.set(mResult.tilt.x, mResult.tilt.y, mResult.tilt.z, "YXZ");
+                  magnetGroup.rotation.copy(magnetTiltEuler);
+
+                  if (mResult.isContacting && reactionSystemRef.current) {
+                    reactionSystemRef.current.triggerAudioRipple();
+                  }
+                } else {
+                  // Khi tắt hoặc quay camera trước: đưa mượt về gốc
+                  const mResult = updateMagnetRef.current(dtStep, { x: 0, y: 0, z: 0 }, false);
+                  magnetGroup.position.set(
+                    mResult.p.x * baseDim,
+                    mResult.p.y * baseDim,
+                    mResult.p.z * baseDim
+                  );
+                  magnetGroup.rotation.set(0, 0, 0);
+                }
+              };
 
               // RENDER LOOP CHUẨN HIỆU NĂNG CAO (Chạy ngay không đợi Camera)
               renderer.setAnimationLoop(() => {
@@ -1432,6 +1510,7 @@ export function WebArCardView({
                         displayRoot.matrix.elements[13] += panCam.y;
                         smoothedMatrix.copy(displayRoot.matrix);
                         displayRoot.matrixWorldNeedsUpdate = true;
+                        applyMagnetTransforms(dt);
                         wasTargetFoundLastFrame = isTrackingCard;
                         renderer.render(scene, camera);
                         return;
@@ -1457,6 +1536,7 @@ export function WebArCardView({
                   displayRoot.matrixWorldNeedsUpdate = true;
                 }
 
+                applyMagnetTransforms(dt);
                 wasTargetFoundLastFrame = isTrackingCard;
                 renderer.render(scene, camera);
               });
@@ -1986,6 +2066,75 @@ export function WebArCardView({
                         </button>
                       </div>
                     )}
+                    {/* TƯƠNG TÁC NAM CHÂM (MAGNET INTERACTION: TẮT / ĐẨY / HÚT) */}
+                    <div className="w-full px-3 py-2 rounded-xl bg-white/5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Magnet className={`h-4 w-4 ${magnetPolarity !== "off" ? "text-amber-400" : "text-stone-400"}`} />
+                          <span className="text-xs font-bold text-stone-200">Tương tác Nam châm</span>
+                        </div>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                          magnetPolarity === "repel"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-400/30"
+                            : magnetPolarity === "attract"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-400/30"
+                            : "bg-white/10 text-stone-400"
+                        }`}>
+                          {magnetPolarity === "repel" ? "ĐẨY (+)" : magnetPolarity === "attract" ? "HÚT (-)" : "TẮT"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMagnetPolarity("off");
+                            showToast("Đã tắt tương tác nam châm", "info");
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            magnetPolarity === "off"
+                              ? "bg-stone-700 text-white shadow-sm"
+                              : "bg-white/5 text-stone-400 hover:bg-white/10"
+                          }`}
+                        >
+                          Tắt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (needsMotionPrompt) {
+                              await requestMotionPermission();
+                            }
+                            setMagnetPolarity("repel");
+                            showToast("Chế độ ĐẨY: Điện thoại lại gần mô hình sẽ lùi ra", "success");
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            magnetPolarity === "repel"
+                              ? "bg-amber-400 text-stone-950 shadow-sm"
+                              : "bg-white/5 text-stone-300 hover:bg-white/10"
+                          }`}
+                        >
+                          Đẩy (+)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (needsMotionPrompt) {
+                              await requestMotionPermission();
+                            }
+                            setMagnetPolarity("attract");
+                            showToast("Chế độ HÚT: Điện thoại lại gần mô hình sẽ hút theo", "success");
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            magnetPolarity === "attract"
+                              ? "bg-rose-500 text-white shadow-sm"
+                              : "bg-white/5 text-stone-300 hover:bg-white/10"
+                          }`}
+                        >
+                          Hút (-)
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -2059,6 +2208,7 @@ export function WebArCardView({
         distanceR={isLandscape ? 2.4 : 1.9}
         motionMode={motionMode}
         gestureState={gestureStateRefLatest.current?.current || "IDLE"}
+        magnetTelemetry={magnetTelemetryRef.current}
         onClose={() => setIsDebugOpen(false)}
         onForceShow={() => {
           hasScannedOnceRef.current = true;
@@ -2242,6 +2392,75 @@ export function WebArCardView({
                     >
                       ZH-VI
                     </button>
+                    {/* TƯƠNG TÁC NAM CHÂM (MAGNET INTERACTION: TẮT / ĐẨY / HÚT) */}
+                    <div className="w-full px-3 py-2 rounded-xl bg-white/5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Magnet className={`h-4 w-4 ${magnetPolarity !== "off" ? "text-amber-400" : "text-stone-400"}`} />
+                          <span className="text-xs font-bold text-stone-200">Tương tác Nam châm</span>
+                        </div>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                          magnetPolarity === "repel"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-400/30"
+                            : magnetPolarity === "attract"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-400/30"
+                            : "bg-white/10 text-stone-400"
+                        }`}>
+                          {magnetPolarity === "repel" ? "ĐẨY (+)" : magnetPolarity === "attract" ? "HÚT (-)" : "TẮT"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMagnetPolarity("off");
+                            showToast("Đã tắt tương tác nam châm", "info");
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            magnetPolarity === "off"
+                              ? "bg-stone-700 text-white shadow-sm"
+                              : "bg-white/5 text-stone-400 hover:bg-white/10"
+                          }`}
+                        >
+                          Tắt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (needsMotionPrompt) {
+                              await requestMotionPermission();
+                            }
+                            setMagnetPolarity("repel");
+                            showToast("Chế độ ĐẨY: Điện thoại lại gần mô hình sẽ lùi ra", "success");
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            magnetPolarity === "repel"
+                              ? "bg-amber-400 text-stone-950 shadow-sm"
+                              : "bg-white/5 text-stone-300 hover:bg-white/10"
+                          }`}
+                        >
+                          Đẩy (+)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (needsMotionPrompt) {
+                              await requestMotionPermission();
+                            }
+                            setMagnetPolarity("attract");
+                            showToast("Chế độ HÚT: Điện thoại lại gần mô hình sẽ hút theo", "success");
+                          }}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            magnetPolarity === "attract"
+                              ? "bg-rose-500 text-white shadow-sm"
+                              : "bg-white/5 text-stone-300 hover:bg-white/10"
+                          }`}
+                        >
+                          Hút (-)
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
