@@ -2396,8 +2396,11 @@ export function WebArCardView({
                 ) : (
                   <>
                     <Volume2 className="h-4 w-4 shrink-0" />
-                    <span className="text-xs">
+                    {/* <span className="text-xs">
                       Phát Tiếng Kêu {animal.nameVi} ({languageTrack === "zh-vi" ? "Trung - Việt" : "Anh - Việt"})
+                    </span> */}
+                    <span className="text-xs">
+                      Phát âm thanh
                     </span>
                   </>
                 )}
