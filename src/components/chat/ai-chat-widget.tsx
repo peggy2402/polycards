@@ -120,15 +120,16 @@ export function AiChatWidget() {
     }
   }, [messages, isLoading, isOpen, scrollToBottom]);
 
-  // Hiển thị lời mời trò chuyện sau 4 giây truy cập
+  // Hiển thị lời mời trò chuyện sau 4 giây truy cập (trừ trang /order để không che khuất thao tác đặt hàng)
   useEffect(() => {
+    if (pathname === "/order") return;
     const timer = setTimeout(() => {
       if (!isOpen) {
         setHasNewMessagePrompt(true);
       }
     }, 4000);
     return () => clearTimeout(timer);
-  }, [isOpen]);
+  }, [isOpen, pathname]);
 
   // Gửi tin nhắn
   const handleSendMessage = async (textToSend?: string) => {
@@ -205,11 +206,19 @@ export function AiChatWidget() {
     return null;
   }
 
+  const isOrderPage = pathname === "/order";
+
   return (
     <>
       {/* 1. KHUNG HỘI THOẠI AI CHATBOT NỔI */}
       {isOpen && (
-        <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[400px] h-[540px] max-h-[82vh] rounded-3xl bg-white/95 backdrop-blur-xl border-2 border-amber-300 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+        <div
+          className={`fixed right-3 sm:right-6 z-50 w-[calc(100vw-24px)] sm:w-[400px] h-[540px] max-h-[82vh] rounded-3xl bg-white/95 backdrop-blur-xl border-2 border-amber-300 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200 ${
+            isOrderPage
+              ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-24"
+              : "bottom-20 sm:bottom-24"
+          }`}
+        >
           {/* Header Chat */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-orange-400 text-stone-950 shadow-sm shrink-0">
             <div className="flex items-center gap-2.5">
@@ -354,7 +363,13 @@ export function AiChatWidget() {
 
       {/* 2. BONG BÓNG LỜI MỜI NHỎ (HIỂN THỊ KHI CHƯA MỞ CHAT) */}
       {!isOpen && hasNewMessagePrompt && (
-        <div className="fixed bottom-20 right-5 sm:bottom-24 sm:right-7 z-40 max-w-[260px] rounded-2xl bg-white border border-amber-300 p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div
+          className={`fixed right-4 sm:right-7 z-40 max-w-[260px] rounded-2xl bg-white border border-amber-300 p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 transition-all ${
+            isOrderPage
+              ? "bottom-[calc(9.25rem+env(safe-area-inset-bottom))] lg:bottom-24"
+              : "bottom-20 sm:bottom-24"
+          }`}
+        >
           <button
             type="button"
             onClick={() => setHasNewMessagePrompt(false)}
@@ -387,7 +402,11 @@ export function AiChatWidget() {
           setIsOpen((prev) => !prev);
           setHasNewMessagePrompt(false);
         }}
-        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-amber-300/40 group"
+        className={`fixed right-4 sm:right-6 z-40 flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer ring-4 ring-amber-300/40 group ${
+          isOrderPage
+            ? "bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-6"
+            : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:bottom-6"
+        }`}
         aria-label="Mở Trợ lý AI PolyCards"
       >
         <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
@@ -395,9 +414,9 @@ export function AiChatWidget() {
           <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
         </span>
         {isOpen ? (
-          <X className="h-6 w-6 transition-transform group-hover:rotate-90 duration-200" />
+          <X className="h-5 w-5 sm:h-6 sm:w-6 transition-transform group-hover:rotate-90 duration-200" />
         ) : (
-          <Bot className="h-7 w-7 transition-transform group-hover:scale-110 duration-200" />
+          <Bot className="h-6 w-6 sm:h-7 sm:w-7 transition-transform group-hover:scale-110 duration-200" />
         )}
       </button>
     </>
