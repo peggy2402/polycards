@@ -17,6 +17,7 @@ import {
   KeyRound,
   Users,
   ExternalLink,
+  Bot,
 } from "lucide-react";
 import {
   getProductCategories,
@@ -70,6 +71,7 @@ import { CategoriesTab } from "@/components/tools/tabs/categories-tab";
 import { LicensesTab } from "@/components/tools/tabs/licenses-tab";
 import { InvoicesTab } from "@/components/tools/tabs/invoices-tab";
 import { CustomersTab } from "@/components/tools/tabs/customers-tab";
+import { AiTab } from "@/components/tools/tabs/ai-tab";
 
 export default function ToolsPage() {
   // 1. Quản lý xác thực bảo mật tác giả Poly Cards
@@ -394,7 +396,7 @@ export default function ToolsPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab") as StudioTab;
-        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers"];
+        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers", "ai-chat"];
         let targetTab: StudioTab | null = null;
 
         if (urlTab && validTabs.includes(urlTab)) {
@@ -439,7 +441,7 @@ export default function ToolsPage() {
       try {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab") as StudioTab;
-        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers"];
+        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers", "ai-chat"];
         if (urlTab && validTabs.includes(urlTab)) {
           setActiveStudioTab(urlTab);
         }
@@ -2892,6 +2894,24 @@ export default function ToolsPage() {
               <span>Khách Hàng</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setActiveStudioTab("ai-chat")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "ai-chat"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Bot className="h-4 w-4 shrink-0" />
+              <span>Trợ Lý AI</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase ${
+                activeStudioTab === "ai-chat" ? "bg-stone-950 text-emerald-400" : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+              }`}>
+                New
+              </span>
+            </button>
+
             <Link
               href="/invoices"
               className="py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 text-stone-300 hover:text-amber-400 hover:bg-white/5 border border-dashed border-white/15 transition-all whitespace-nowrap shrink-0"
@@ -3082,6 +3102,11 @@ export default function ToolsPage() {
             window.location.href = "/invoices";
           }}
         />
+      )}
+
+      {/* 8. TAB 7: CẤU HÌNH TRỢ LÝ AI CHATBOT & SYSTEM PROMPT */}
+      {activeStudioTab === "ai-chat" && (
+        <AiTab onShowToast={showToast} />
       )}
 
       {/* 8. CÁC MODAL HỆ THỐNG */}

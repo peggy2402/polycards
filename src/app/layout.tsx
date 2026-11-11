@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { siteConfig } from "@/config/site";
+import { AiChatWidget } from "@/components/chat/ai-chat-widget";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -284,6 +285,7 @@ export default function RootLayout({
         className="min-h-full flex flex-col bg-[#FCFBF7] font-sans text-slate-800 selection:bg-amber-200 selection:text-amber-900"
       >
         {children}
+        <AiChatWidget />
       </body>
     </html>
   );

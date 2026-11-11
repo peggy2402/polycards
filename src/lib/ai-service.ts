@@ -1,0 +1,355 @@
+/**
+ * Poly Cards - AI Assistant Service
+ * Quản lý hội thoại thông minh, tích hợp Model AI miễn phí (Google Gemini, Groq, OpenAI),
+ * tự động nhúng ngữ cảnh dữ liệu sản phẩm thời gian thực và fallback thông minh khi có sự cố.
+ */
+
+import { AiChatConfig, AiChatMessage, AiChatResponse } from "@/types/ai";
+import { COMBO_PACKS } from "@/data/combos";
+import { formatVndCurrency } from "./formatters";
+import { dbGetProducts, getMongoDb } from "./mongodb";
+
+export const DEFAULT_AI_CONFIG: AiChatConfig = {
+  enabled: true,
+  provider: "gemini",
+  apiKey: process.env.GEMINI_API_KEY || "",
+  model: "gemini-2.0-flash",
+  botName: "PolyCards AI",
+  welcomeMessage:
+    "Xin chào Ba Mẹ! Em là Trợ lý AI PolyCards. Em có thể tư vấn chọn bộ thẻ học AR phù hợp theo độ tuổi của bé, báo giá ưu đãi các combo hoặc hướng dẫn cách quét 3D nhé!",
+  systemPrompt: `Bạn là PolyBot - Trợ lý AI độc quyền của thương hiệu PolyCards (polycards.vn).
+PolyCards là bộ thẻ học thực tế ảo WebAR 3D thông minh hàng đầu cho trẻ từ 3 đến 8 tuổi, kết hợp phát âm chuẩn song ngữ bản xứ (Anh - Việt - Trung) và không cần cài đặt ứng dụng.
+
+NGUYÊN TẮC PHỤC VỤ:
+1. Xưng hô: Xưng "Em" hoặc "PolyCards AI", gọi khách hàng là "Ba/Mẹ", "Anh/Chị" hoặc "Bạn" một cách lễ phép, ấm áp, tận tâm.
+2. Thông tin giá & sản phẩm: Luôn báo giá chính xác dựa trên danh mục sản phẩm thời gian thực được cung cấp bên dưới.
+3. Hướng dẫn WebAR: Hướng dẫn khách chỉ cần mở Camera điện thoại (iOS / Android) quét mã QR trên thẻ để mô hình 3D xuất hiện ngay, chạm vào để nghe tiếng kêu sống động.
+4. Chính sách ưu đãi: Miễn phí giao hàng toàn quốc khi mua Combo, bảo hành bản quyền WebAR trọn đời, đổi mới 1-1 trong 7 ngày nếu thẻ bị lỗi in ấn.
+5. Tuyệt đối không dùng ký tự emoji trong câu trả lời. Giữ câu trả lời súc tích, mạch lạc, dễ đọc trên màn hình điện thoại.`,
+  fallbackMessage:
+    "Dạ hiện tại máy chủ AI đang nhận lượng truy cập cao. Ba Mẹ có thể tham khảo trực tiếp bảng giá các Bộ Thẻ AR bên dưới hoặc bấm nút Đặt Hàng Ngay trên trang nhé! Em luôn sẵn sàng hỗ trợ giải đáp thêm các câu hỏi khác ạ.",
+  quickQuestions: [
+    "Giá các combo thẻ AR bao nhiêu?",
+    "Siêu Combo 9-in-1 có những gì?",
+    "Cách quét thẻ AR trên điện thoại?",
+    "Bé 3 - 5 tuổi học bộ nào phù hợp?",
+  ],
+  historyTtlHours: 24,
+  temperature: 0.7,
+};
+
+const MEMORY_AI_CONFIG_KEY = "polycards_ai_config_cached";
+let memoryAiConfig: AiChatConfig | null = null;
+
+/**
+ * Lấy cấu hình AI hiện tại từ MongoDB hoặc giá trị mặc định
+ */
+export async function getAiConfig(): Promise<AiChatConfig> {
+  if (memoryAiConfig) return memoryAiConfig;
+
+  try {
+    const db = await getMongoDb();
+    if (db) {
+      const col = db.collection<AiChatConfig>("ai_settings");
+      const saved = await col.findOne({ id: "default_ai_config" });
+      if (saved) {
+        const { _id, ...rest } = saved as any;
+        const loaded: AiChatConfig = { ...DEFAULT_AI_CONFIG, ...rest };
+        memoryAiConfig = loaded;
+        return loaded;
+      }
+    }
+  } catch (err) {
+    console.warn("[AI Service] Chưa thể đọc ai_settings từ MongoDB, dùng cấu hình mặc định:", err);
+  }
+
+  return DEFAULT_AI_CONFIG;
+}
+
+/**
+ * Lưu cấu hình AI vào MongoDB
+ */
+export async function saveAiConfig(newConfig: Partial<AiChatConfig>): Promise<AiChatConfig> {
+  const current = await getAiConfig();
+  const merged: AiChatConfig = {
+    ...current,
+    ...newConfig,
+    id: "default_ai_config",
+    updatedAt: new Date().toISOString(),
+  };
+
+  memoryAiConfig = merged;
+
+  try {
+    const db = await getMongoDb();
+    if (db) {
+      const col = db.collection<AiChatConfig>("ai_settings");
+      await col.updateOne(
+        { id: "default_ai_config" },
+        { $set: merged },
+        { upsert: true }
+      );
+    }
+  } catch (err) {
+    console.error("[AI Service] Lỗi lưu cấu hình AI vào MongoDB:", err);
+  }
+
+  return merged;
+}
+
+/**
+ * Tạo dữ liệu ngữ cảnh thời gian thực về sản phẩm và giá bán PolyCards
+ */
+export async function buildKnowledgeBaseContext(): Promise<string> {
+  const comboSummary = COMBO_PACKS.map(
+    (c) => `- ${c.name} (${c.cardsCount} thẻ): Giá ưu đãi ${formatVndCurrency(c.price)} (Giá gốc: ${formatVndCurrency(c.originalPrice)}) - Tiết kiệm: ${c.badge}`
+  ).join("\n");
+
+  let cardCount = 270;
+  try {
+    const products = await dbGetProducts();
+    if (products && products.length > 0) {
+      cardCount = products.length;
+    }
+  } catch {}
+
+  return `
+--- DỮ LIỆU SẢN PHẨM & BẢNG GIÁ THỜI GIAN THỰC POLYCARDS ---
+Tổng số thẻ AR trong hệ thống: ${cardCount} thẻ.
+Các gói Combo nổi bật:
+${comboSummary}
+
+Các chủ đề thẻ:
+1. Động Vật Hoang Dã (Sư tử, voi, hổ, khỉ, gấu trúc...)
+2. Phương Tiện Giao Thông (Máy bay, tàu hỏa, ô tô, trực thăng...)
+3. Hoa Quả & Trái Cây (Táo, chuối, dưa hấu, dâu tây...)
+4. Nghề Nghiệp (Bác sĩ, kỹ sư, ca sĩ, giáo viên, cứu hỏa...)
+5. Hành Động & Động Từ (Chạy, nhảy, bơi, đọc sách...)
+
+Ưu điểm công nghệ WebAR:
+- Không cần tải App từ App Store hay Google Play.
+- Quét mã QR bằng Camera điện thoại, vào link polycards.vn/ar/[tên-thẻ] là xem 3D ngay tức thì.
+- Chạm vào con vật: Mô hình nhún nhảy, phát âm thanh kêu thật, đọc từ vựng chuẩn bản xứ Anh - Việt - Trung.
+- Có tính năng Quiz đố vui nhận diện và tương tác Nam châm AR (Điện thoại đẩy/hút con vật).
+`;
+}
+
+/**
+ * Phản hồi Fallback thông minh theo từ khóa khi API của Provider bị lỗi hoặc chưa có API Key
+ */
+export function generateSmartFallbackReply(userMessage: string, contextSummary: string): string {
+  const q = userMessage.toLowerCase();
+
+  // 1. Hỏi về giá, mua hàng, combo
+  if (q.includes("giá") || q.includes("bao nhiêu") || q.includes("mua") || q.includes("combo") || q.includes("tiền") || q.includes("đặt hàng")) {
+    return (
+      "Dạ PolyCards hiện đang có các gói ưu đãi hấp dẫn dành cho Ba Mẹ:\n\n" +
+      "1. Siêu Combo Trọn Bộ 9-in-1 (270 Thẻ AR): 1.490.000đ (Tiết kiệm 751K, trọn bộ đầy đủ nhất).\n" +
+      "2. Combo VIP 4-in-1 (120 Thẻ AR): 799.000đ (Tiết kiệm 397K, tặng hộp quà cao cấp).\n" +
+      "3. Bộ Lẻ Theo Chủ Đề (30 Thẻ AR): 249.000đ / bộ (Động vật, Xe cộ, Hoa quả, Nghề nghiệp...).\n\n" +
+      "Tất cả các gói Combo đều được Miễn phí giao hàng toàn quốc và bảo hành bản quyền WebAR trọn đời. Ba Mẹ có thể bấm vào nút 'Đặt Hàng Ngay' trên website để nhận quà tặng kèm nhé!"
+    );
+  }
+
+  // 2. Hỏi về cách quét thẻ, cách sử dụng WebAR
+  if (q.includes("quét") || q.includes("dùng") || q.includes("sử dụng") || q.includes("cài app") || q.includes("tải app") || q.includes("camera") || q.includes("3d")) {
+    return (
+      "Dạ điểm đặc biệt nhất của PolyCards là KHÔNG CẦN CÀI APP Ba Mẹ nhé!\n\n" +
+      "Cách sử dụng cực kỳ đơn giản cho bé:\n" +
+      "Bước 1: Mở ứng dụng Camera trên iPhone hoặc điện thoại Android.\n" +
+      "Bước 2: Hướng camera vào mã QR in trên mặt thẻ bài PolyCards.\n" +
+      "Bước 3: Bấm vào đường link hiện lên, mô hình 3D sống động sẽ hiện ngay tức thì giữa không gian thực!\n\n" +
+      "Bé có thể dùng tay chạm vào mô hình để nghe tiếng kêu, đổi động tác và nghe giọng phát âm song ngữ Anh - Việt - Trung chuẩn bản xứ ạ."
+    );
+  }
+
+  // 3. Hỏi về độ tuổi phù hợp
+  if (q.includes("tuổi") || q.includes("mấy tuổi") || q.includes("bé") || q.includes("trẻ em") || q.includes("phù hợp")) {
+    return (
+      "Dạ bộ thẻ PolyCards được thiết kế tối ưu nhất cho các bé từ 3 đến 8 tuổi - giai đoạn vàng phát triển tư duy thị giác, tò mò về thế giới và làm quen ngôn ngữ tự nhiên.\n\n" +
+      "- Với bé 3 - 5 tuổi: Bé rất thích thú khi nhìn con vật 3D cử động, phát tiếng kêu thật, giúp kích thích trí não và giảm phụ thuộc vào màn hình tivi/điện thoại thụ động.\n" +
+      "- Với bé 5 - 8 tuổi: Thẻ hỗ trợ phiên âm quốc tế IPA (tiếng Anh) và Pinyin (tiếng Trung) cùng các minigame đố vui nhận diện để bé học từ vựng vững vàng."
+    );
+  }
+
+  // 4. Hỏi về bảo hành, đổi trả, ship
+  if (q.includes("bảo hành") || q.includes("đổi trả") || q.includes("ship") || q.includes("vận chuyển") || q.includes("giao hàng")) {
+    return (
+      "Dạ chính sách bán hàng tại PolyCards cực kỳ an tâm cho Ba Mẹ:\n\n" +
+      "- Vận chuyển: Miễn phí giao hàng toàn quốc cho các gói Combo. Giao nhanh 1 - 2 ngày tại Hà Nội, TP.HCM và 2 - 3 ngày tại các tỉnh thành khác.\n" +
+      "- Đổi trả: Hỗ trợ 1 đổi 1 trong vòng 7 ngày nếu sản phẩm có bất kỳ lỗi in ấn hay va đập khi vận chuyển.\n" +
+      "- Bản quyền: Mã QR kích hoạt WebAR có giá trị sử dụng vĩnh viễn trọn đời, không giới hạn số lần quét."
+    );
+  }
+
+  // Phản hồi tổng quát
+  return (
+    "Dạ em là PolyCards AI luôn sẵn sàng hỗ trợ Ba Mẹ! Ba Mẹ có thể hỏi em về:\n" +
+    "- Bảng giá và các gói Combo thẻ AR ưu đãi nhất.\n" +
+    "- Cách quét thẻ AR 3D bằng điện thoại không cần cài app.\n" +
+    "- Chọn chủ đề thẻ phù hợp theo lứa tuổi của bé.\n\n" +
+    "Ba Mẹ cần em tư vấn chi tiết về chủ đề nào ạ?"
+  );
+}
+
+/**
+ * Xử lý gửi tin nhắn tới AI Provider (Gemini / Groq / OpenAI) kèm Fallback tự động
+ */
+export async function callAiModel(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  config?: AiChatConfig
+): Promise<AiChatResponse> {
+  const activeConfig = config || (await getAiConfig());
+  const knowledgeContext = await buildKnowledgeBaseContext();
+
+  const userLastMessage = messages[messages.length - 1]?.content || "";
+
+  // Nếu tắt tính năng bot hoặc chọn provider fallback
+  if (!activeConfig.enabled || activeConfig.provider === "fallback") {
+    return {
+      success: true,
+      message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+      providerUsed: "fallback-smart-engine",
+      isFallback: true,
+    };
+  }
+
+  // Chuẩn bị system instructions
+  const fullSystemInstruction = `${activeConfig.systemPrompt}\n\n${knowledgeContext}`;
+
+  // 1. Google Gemini API (Free tier: Gemini 2.0 Flash / 1.5 Flash)
+  if (activeConfig.provider === "gemini") {
+    const apiKey = activeConfig.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+      console.warn("[AI Service] Chưa có GEMINI_API_KEY, chuyển sang fallback phản hồi thông minh.");
+      return {
+        success: true,
+        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+        providerUsed: "fallback-smart-engine",
+        isFallback: true,
+      };
+    }
+
+    try {
+      const modelName = activeConfig.model || "gemini-2.0-flash";
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const contents = [
+        {
+          role: "user",
+          parts: [{ text: `[SYSTEM INSTRUCTION & KNOWLEDGE BASE]\n${fullSystemInstruction}` }],
+        },
+        {
+          role: "model",
+          parts: [{ text: "Dạ em đã hiểu rõ toàn bộ thông tin sản phẩm và quy tắc tư vấn của PolyCards. Em sẵn sàng hỗ trợ khách hàng chu đáo ạ." }],
+        },
+        ...messages.map((m) => ({
+          role: m.role === "user" ? "user" : "model",
+          parts: [{ text: m.content }],
+        })),
+      ];
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            temperature: activeConfig.temperature || 0.7,
+            maxOutputTokens: 800,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.warn(`[AI Service] Gemini API returned HTTP ${res.status}:`, errText);
+        throw new Error(`Gemini HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const aiReply =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+        generateSmartFallbackReply(userLastMessage, knowledgeContext);
+
+      return {
+        success: true,
+        message: aiReply,
+        providerUsed: `gemini (${modelName})`,
+        isFallback: false,
+      };
+    } catch (err) {
+      console.warn("[AI Service] Gemini API gặp lỗi, sử dụng fallback thông minh khéo léo:", err);
+      return {
+        success: true,
+        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+        providerUsed: "fallback-smart-engine",
+        isFallback: true,
+      };
+    }
+  }
+
+  // 2. Groq Cloud API (Free tier: Llama 3.3 70B / Llama 3.1 8B)
+  if (activeConfig.provider === "groq") {
+    const apiKey = activeConfig.apiKey?.trim() || process.env.GROQ_API_KEY?.trim();
+    if (!apiKey) {
+      return {
+        success: true,
+        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+        providerUsed: "fallback-smart-engine",
+        isFallback: true,
+      };
+    }
+
+    try {
+      const modelName = activeConfig.model || "llama-3.3-70b-versatile";
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: "system", content: fullSystemInstruction },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+          temperature: activeConfig.temperature || 0.7,
+          max_tokens: 800,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Groq HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const aiReply = data?.choices?.[0]?.message?.content?.trim();
+      if (!aiReply) throw new Error("Empty response from Groq");
+
+      return {
+        success: true,
+        message: aiReply,
+        providerUsed: `groq (${modelName})`,
+        isFallback: false,
+      };
+    } catch (err) {
+      console.warn("[AI Service] Groq API gặp lỗi, chuyển sang fallback thông minh:", err);
+      return {
+        success: true,
+        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+        providerUsed: "fallback-smart-engine",
+        isFallback: true,
+      };
+    }
+  }
+
+  // 3. Fallback mặc định
+  return {
+    success: true,
+    message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+    providerUsed: "fallback-smart-engine",
+    isFallback: true,
+  };
+}
