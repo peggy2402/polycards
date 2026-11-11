@@ -38,3 +38,4 @@ export interface AiChatResponse {
   providerUsed: string;
   isFallback: boolean;
 }
+

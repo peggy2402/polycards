@@ -22,7 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AiChatConfig, AiProvider } from "@/types/ai";
-import { DEFAULT_AI_CONFIG } from "@/lib/ai-service";
+import { DEFAULT_AI_CONFIG } from "@/lib/ai-defaults";
 
 interface AiTabProps {
   onShowToast: (message: string, type: "success" | "error" | "info" | "warning") => void;
@@ -541,3 +541,4 @@ export function AiTab({ onShowToast }: AiTabProps) {
     </div>
   );
 }
+
