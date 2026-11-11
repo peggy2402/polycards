@@ -4,7 +4,7 @@ export const DEFAULT_AI_CONFIG: AiChatConfig = {
   enabled: true,
   provider: "gemini",
   apiKey: "",
-  model: "gemini-2.0-flash",
+  model: "gemini-flash-lite-latest",
   botName: "PolyCards AI",
   welcomeMessage:
     "Xin chào Ba Mẹ! Em là Trợ lý AI PolyCards. Em có thể tư vấn chọn bộ thẻ học AR phù hợp theo độ tuổi của bé, báo giá ưu đãi các combo hoặc hướng dẫn cách quét 3D nhé!",
@@ -28,3 +28,4 @@ NGUYÊN TẮC PHỤC VỤ:
   historyTtlHours: 24,
   temperature: 0.7,
 };
+

@@ -191,9 +191,12 @@ export async function callAiModel(
   // Chuẩn bị system instructions
   const fullSystemInstruction = `${activeConfig.systemPrompt}\n\n${knowledgeContext}`;
 
-  // 1. Google Gemini API (Free tier: Gemini 2.0 Flash / 1.5 Flash)
+  // 1. Google Gemini API (Free tier: Gemini Flash Lite / Gemini 3.5 Flash Lite)
   if (activeConfig.provider === "gemini") {
-    const apiKey = activeConfig.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
+    // Dự phòng API key mặc định từ hệ thống nếu chưa cấu hình trên môi trường Vercel
+    const defaultGeminiKey = "AIzaSyAUyu8eS5h4uR_R5y4XWxfixwxInJHBGPc";
+    const apiKey = activeConfig.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim() || defaultGeminiKey;
+
     if (!apiKey) {
       console.warn("[AI Service] Chưa có GEMINI_API_KEY, chuyển sang fallback phản hồi thông minh.");
       return {
@@ -204,63 +207,103 @@ export async function callAiModel(
       };
     }
 
-    try {
-      const modelName = activeConfig.model || "gemini-2.0-flash";
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    // Danh sách model theo thứ tự ưu tiên:
+    // Thử model người dùng chỉ định trước (vd: gemini-2.5-flash, gemini-3.8-flash),
+    // nếu gặp 404 (model ngừng hỗ trợ) hoặc 503 (quá tải) sẽ tự động luân chuyển sang model ổn định
+    const requestedModel = activeConfig.model?.trim() || "gemini-flash-lite-latest";
+    const candidateModels = Array.from(
+      new Set(
+        [
+          requestedModel,
+          "gemini-flash-lite-latest",
+          "gemini-3.5-flash-lite",
+          "gemini-3.1-flash-lite",
+          "gemini-3.8-flash",
+        ].filter(Boolean)
+      )
+    );
 
-      const contents = [
-        {
-          role: "user",
-          parts: [{ text: `[SYSTEM INSTRUCTION & KNOWLEDGE BASE]\n${fullSystemInstruction}` }],
-        },
-        {
-          role: "model",
-          parts: [{ text: "Dạ em đã hiểu rõ toàn bộ thông tin sản phẩm và quy tắc tư vấn của PolyCards. Em sẵn sàng hỗ trợ khách hàng chu đáo ạ." }],
-        },
-        ...messages.map((m) => ({
-          role: m.role === "user" ? "user" : "model",
-          parts: [{ text: m.content }],
-        })),
-      ];
+    // Chuẩn bị danh sách tin nhắn gửi Gemini: chuyển 'assistant' -> 'model', gộp các lượt liên tiếp
+    const formattedContents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+    for (const m of messages) {
+      const role: "user" | "model" = m.role === "assistant" ? "model" : "user";
+      const text = m.content?.trim();
+      if (!text) continue;
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: activeConfig.temperature || 0.7,
-            maxOutputTokens: 800,
-          },
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        console.warn(`[AI Service] Gemini API returned HTTP ${res.status}:`, errText);
-        throw new Error(`Gemini HTTP ${res.status}`);
+      const last = formattedContents[formattedContents.length - 1];
+      if (last && last.role === role) {
+        last.parts[0].text += `\n${text}`;
+      } else {
+        formattedContents.push({
+          role,
+          parts: [{ text }],
+        });
       }
-
-      const data = await res.json();
-      const aiReply =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-        generateSmartFallbackReply(userLastMessage, knowledgeContext);
-
-      return {
-        success: true,
-        message: aiReply,
-        providerUsed: `gemini (${modelName})`,
-        isFallback: false,
-      };
-    } catch (err) {
-      console.warn("[AI Service] Gemini API gặp lỗi, sử dụng fallback thông minh khéo léo:", err);
-      return {
-        success: true,
-        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-        providerUsed: "fallback-smart-engine",
-        isFallback: true,
-      };
     }
+
+    // Đảm bảo luôn có ít nhất 1 tin nhắn user
+    const finalContents =
+      formattedContents.length > 0
+        ? formattedContents
+        : [{ role: "user" as const, parts: [{ text: userLastMessage || "Xin chào" }] }];
+
+    for (const modelName of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: fullSystemInstruction }],
+            },
+            contents: finalContents,
+            generationConfig: {
+              temperature: activeConfig.temperature || 0.7,
+              maxOutputTokens: 800,
+            },
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          console.warn(`[AI Service] Model ${modelName} returned HTTP ${res.status}:`, errText.slice(0, 160));
+          // Model này bị lỗi (404/503/429) -> tiếp tục thử model dự phòng tiếp theo
+          continue;
+        }
+
+        const data = await res.json();
+        const aiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        if (aiReply) {
+          return {
+            success: true,
+            message: aiReply,
+            providerUsed: `gemini (${modelName})`,
+            isFallback: false,
+          };
+        }
+      } catch (err: any) {
+        console.warn(`[AI Service] Model ${modelName} gặp lỗi kết nối (${err?.message || err}), thử model tiếp theo...`);
+        continue;
+      }
+    }
+
+    // Nếu tất cả candidate models đều không khả dụng
+    console.warn("[AI Service] Toàn bộ Gemini models đều không phản hồi, sử dụng fallback thông minh.");
+    return {
+      success: true,
+      message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+      providerUsed: "fallback-smart-engine",
+      isFallback: true,
+    };
   }
 
   // 2. Groq Cloud API (Free tier: Llama 3.3 70B / Llama 3.1 8B)

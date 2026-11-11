@@ -255,7 +255,7 @@ export function AiTab({ onShowToast }: AiTabProps) {
                   value={config.provider}
                   onChange={(e) => {
                     const prov = e.target.value as AiProvider;
-                    let defaultModel = "gemini-2.0-flash";
+                    let defaultModel = "gemini-flash-lite-latest";
                     if (prov === "groq") defaultModel = "llama-3.3-70b-versatile";
                     setConfig((prev) => ({ ...prev, provider: prov, model: defaultModel }));
                   }}
@@ -274,11 +274,19 @@ export function AiTab({ onShowToast }: AiTabProps) {
                 </label>
                 <input
                   type="text"
+                  list="gemini-models"
                   value={config.model}
                   onChange={(e) => setConfig((prev) => ({ ...prev, model: e.target.value }))}
-                  placeholder="gemini-2.0-flash, gemini-1.5-flash..."
+                  placeholder="gemini-flash-lite-latest..."
                   className="w-full bg-stone-950 border border-white/15 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-hidden focus:border-amber-400"
                 />
+                <datalist id="gemini-models">
+                  <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Khuyên dùng - Nhanh & Ổn định nhất)</option>
+                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Thế hệ mới - Phản hồi tốt)</option>
+                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash (Có cơ chế tự động chuyển model nếu 404)</option>
+                  <option value="gemini-3.8-flash">gemini-3.8-flash (Model mới nhất)</option>
+                </datalist>
               </div>
 
               {/* Nhiệt độ Temperature */}
