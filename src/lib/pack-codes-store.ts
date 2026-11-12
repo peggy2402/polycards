@@ -12,6 +12,7 @@ export interface PackCodeItem {
   discountPercent?: number;
   salePrice?: number;
   isManualPrice?: boolean;
+  imageSrc?: string;
   createdAt: string;
   updatedAt?: string;
 }
