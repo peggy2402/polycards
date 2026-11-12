@@ -359,9 +359,11 @@ export function EditPackCodeModal({
                     type="number"
                     min="0"
                     max="99"
-                    value={discountPercent}
+                    value={discountPercent === 0 ? "" : discountPercent}
+                    placeholder="0"
                     onChange={(e) => {
-                      const newPct = sanitizeDiscountPercent(e.target.value);
+                      const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                      const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
                       setDiscountPercent(newPct);
                       const calculated = calculatePricing({
                         originalPrice,

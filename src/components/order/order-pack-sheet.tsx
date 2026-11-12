@@ -248,7 +248,7 @@ export function OrderPackSheet({
                         </span>
                         {pack.originalPrice && (
                           <span className="text-[10px] text-stone-400 line-through">
-                            {formatVndCurrency(pack.originalPrice)}
+                            {formatVndCurrency(pack.originalPrice === 299000 ? 300000 : pack.originalPrice)}
                           </span>
                         )}
                       </div>

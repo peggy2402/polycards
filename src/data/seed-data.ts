@@ -127,7 +127,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     description:
       "Chú hươu sao hiền lành với bộ lông đốm trắng tuyệt đẹp và đôi sừng nhánh cây sống giữa khu rừng cổ tích xanh mát.",
     price: 239000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     images: ["/images/cards/butterfly-card.png"],
     audioUrl: "/audio/deer.mp3",
     audios: {
@@ -159,7 +159,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     description:
       "Mèo con bốn chân tinh nghịch, thích cuộn tròn sưởi nắng và có đôi tai vô cùng nhạy bén với âm thanh xung quanh.",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     images: ["/images/cards/butterfly-card.png"],
     audioUrl: "/audio/cat.mp3",
     audios: {
@@ -191,7 +191,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     description:
       "Chú chó trung thành và tinh khôn, luôn sẵn sàng vẫy đuôi chào đón bé và tham gia vào những trò chơi vui nhộn.",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     images: ["/images/cards/butterfly-card.png"],
     audioUrl: "/audio/dog.mp3",
     audios: {
@@ -287,7 +287,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     description:
       "Gấu trúc con tròn xoe cực kỳ dễ thương với đôi mắt đen láy, thích ngồi nhai cành trúc non giữa rừng tre xanh biếc.",
     price: 259000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     images: ["/images/cards/butterfly-card.png"],
     audioUrl: "/audio/panda.mp3",
     audios: {
@@ -319,7 +319,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     description:
       "Thẻ học thông minh AR Poly Cards: Bé tập nhảy và vận động vui tươi phát triển thể chất.",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     images: ["/images/cards/butterfly-card.png"],
     audioUrl: "/audio/en/jump.mp3",
     audios: {
@@ -350,7 +350,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     packCode: "POLY30-HANHDONG",
     badge: "Mới ra mắt",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     description:
       "Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: Đi bộ (Walk).",
     images: ["/images/cards/butterfly-card.png"],
@@ -385,7 +385,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     allowedPackCodes: ["POLY30-HANHDONG", "POLY30-HANHDONG-ENVI"],
     badge: "Mới ra mắt",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     description:
       "Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: Bé tập chạy bộ thể dục nâng cao sức khỏe.",
     images: ["/images/cards/butterfly-card.png"],
@@ -420,7 +420,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     allowedPackCodes: ["POLY30-HANHDONG", "POLY30-HANHDONG-ENVI"],
     badge: "Mới ra mắt",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     description:
       "Thẻ học thông minh tương tác thực tế ảo AR Poly Cards: Bé đọc sách chăm ngoan rèn luyện tri thức.",
     images: ["/images/cards/butterfly-card.png"],
@@ -455,7 +455,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     allowedPackCodes: ["POLY30-XECO", "POLY30-XECO-ENVI"],
     badge: "Mới ra mắt",
     price: 239000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     description:
       "Chiếc xe ô tô hiện đại bốn bánh chuyển động linh hoạt, còi kêu bíp bíp và đèn pha chiếu sáng an toàn trên đường phố.",
     images: ["/images/cards/car.png", "/images/cards/butterfly-card.png"],
@@ -493,7 +493,7 @@ export const INITIAL_PRODUCTS: Animal[] = [
     allowedPackCodes: ["POLY30-HOAQUA", "POLY30-HOAQUA-ENVI"],
     badge: "Mới ra mắt",
     price: 219000,
-    originalPrice: 299000,
+    originalPrice: 300000,
     description:
       "Dâu tây là loại trái cây mọng nước, thơm ngọt giàu vitamin C giúp tăng cường đề kháng cho bé.",
     images: ["/images/cards/butterfly-card.png"],

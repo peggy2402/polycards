@@ -88,11 +88,15 @@ export async function saveAiConfig(newConfig: Partial<AiChatConfig>): Promise<Ai
  * Tạo dữ liệu ngữ cảnh thời gian thực về sản phẩm và giá bán PolyCards
  */
 export async function buildKnowledgeBaseContext(): Promise<string> {
-  const comboSummary = COMBO_PACKS.map(
-    (c) => `- ${c.name} (${c.cardsCount} thẻ): Giá ưu đãi ${formatVndCurrency(c.price)} (Giá gốc: ${formatVndCurrency(c.originalPrice)}) - Tiết kiệm: ${c.badge}`
+  const packsDetail = COMBO_PACKS.filter((p) => p.cardsCount === 30).map(
+    (p) => `- ${p.name}: Giá ưu đãi ${formatVndCurrency(p.price)} (Giá gốc: ${formatVndCurrency(p.originalPrice)})`
   ).join("\n");
 
-  let cardCount = 270;
+  const combosDetail = COMBO_PACKS.filter((p) => p.cardsCount > 30).map(
+    (c) => `- ${c.name} (${c.cardsCount} Thẻ AR): Giá ưu đãi ${formatVndCurrency(c.price)} (Giá gốc: ${formatVndCurrency(c.originalPrice)}) | Ưu đãi: ${c.badge}`
+  ).join("\n");
+
+  let cardCount = 300;
   try {
     const products = await dbGetProducts();
     if (products && products.length > 0) {
@@ -102,22 +106,24 @@ export async function buildKnowledgeBaseContext(): Promise<string> {
 
   return `
 --- DỮ LIỆU SẢN PHẨM & BẢNG GIÁ THỜI GIAN THỰC POLYCARDS ---
-Tổng số thẻ AR trong hệ thống: ${cardCount} thẻ.
-Các gói Combo nổi bật:
-${comboSummary}
+Tổng số thẻ trong kho: ${cardCount} thẻ (Định giá thẻ lẻ tham chiếu: 10.000 đ/thẻ).
 
-Các chủ đề thẻ:
-1. Động Vật Hoang Dã (Sư tử, voi, hổ, khỉ, gấu trúc...)
-2. Phương Tiện Giao Thông (Máy bay, tàu hỏa, ô tô, trực thăng...)
-3. Hoa Quả & Trái Cây (Táo, chuối, dưa hấu, dâu tây...)
-4. Nghề Nghiệp (Bác sĩ, kỹ sư, ca sĩ, giáo viên, cứu hỏa...)
-5. Hành Động & Động Từ (Chạy, nhảy, bơi, đọc sách...)
+1. BẢNG GIÁ CÁC BỘ THẺ LẺ 30 THẺ (Đồng giá ưu đãi: 249.000 đ/bộ, Giá gốc: 300.000 đ/bộ):
+${packsDetail}
 
-Ưu điểm công nghệ WebAR:
-- Không cần tải App từ App Store hay Google Play.
-- Quét mã QR bằng Camera điện thoại, vào link polycards.vn/ar/[tên-thẻ] là xem 3D ngay tức thì.
-- Chạm vào con vật: Mô hình nhún nhảy, phát âm thanh kêu thật, đọc từ vựng chuẩn bản xứ Anh - Việt - Trung.
-- Có tính năng Quiz đố vui nhận diện và tương tác Nam châm AR (Điện thoại đẩy/hút con vật).
+2. BẢNG GIÁ CÁC GÓI COMBO TIẾT KIỆM (TẶNG HỘP QUÀ CAO CẤP & FREESHIP TOÀN QUỐC):
+${combosDetail}
+
+3. CHÍNH SÁCH BÁN HÀNG & GIAO NHẬN:
+- Đơn vị tính: VNĐ.
+- Miễn phí giao hàng toàn quốc (Freeship) khi mua bất kỳ gói Combo hoặc mua từ 2 bộ trở lên.
+- Giao hàng tận tay qua bưu điện/chuyển phát nhanh COD, cho phép mở hộp kiểm tra thẻ trước khi thanh toán.
+- Bảo hành bản quyền WebAR trọn đời, đổi mới 1-1 trong 7 ngày nếu lỗi in ấn.
+
+4. CÔNG NGHỆ WEBAR 3D ĐỘC QUYỀN:
+- Hoàn toàn KHÔNG CẦN CÀI APP từ App Store hay Google Play.
+- Mở Camera điện thoại quét mã QR là xem được 3D ngay lập tức.
+- Chạm tương tác: Con vật cử động, gầm rú, có phát âm song ngữ Anh - Việt và Trung - Việt chuẩn bản xứ.
 `;
 }
 
@@ -235,7 +241,7 @@ async function callGeminiTier(
           contents: formattedContents,
           generationConfig: {
             temperature: temperature || 0.7,
-            maxOutputTokens: 800,
+            maxOutputTokens: 2048,
           },
         }),
         signal: controller.signal,
@@ -302,7 +308,7 @@ async function callOpenRouterTier(
             ...messages.map((m) => ({ role: m.role, content: m.content })),
           ],
           temperature: temperature || 0.7,
-          max_tokens: 800,
+          max_tokens: 2048,
         }),
         signal: controller.signal,
       });
@@ -363,7 +369,7 @@ async function callGroqTier(
             ...messages.map((m) => ({ role: m.role, content: m.content })),
           ],
           temperature: temperature || 0.7,
-          max_tokens: 800,
+          max_tokens: 2048,
         }),
         signal: controller.signal,
       });

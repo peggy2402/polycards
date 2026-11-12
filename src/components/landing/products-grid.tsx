@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Animal } from "@/types/animal";
 import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
+import { INITIAL_PRODUCTS } from "@/data/seed-data";
 import { ComboPackCard } from "./combo-pack-card";
 import { SubjectFocusImage } from "@/components/common/subject-focus-image";
 import {
@@ -133,29 +134,9 @@ function HomeMiniProductCard({ card }: { card: Animal }) {
 }
 
 export function ProductsGrid() {
-  const [products, setProducts] = useState<Animal[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("poly_cached_products_catalog");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch {}
-    }
-    return [];
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("poly_cached_products_catalog");
-        if (cached) return false;
-      } catch {}
-    }
-    return true;
-  });
+  // Khởi tạo ban đầu với INITIAL_PRODUCTS đồng nhất 100% giữa Server SSR và Client Hydration (chống Hydration Mismatch)
+  const [products, setProducts] = useState<Animal[]>(INITIAL_PRODUCTS);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [featuredCombo, setFeaturedCombo] = useState<CardComboPack>(
     DEFAULT_FEATURED_COMBO
   );
@@ -194,6 +175,17 @@ export function ProductsGrid() {
   }, []);
 
   useEffect(() => {
+    // Đọc cache offline an toàn sau khi Client đã Hydrate xong 100%
+    try {
+      const cached = localStorage.getItem("poly_cached_products_catalog");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProducts(parsed);
+        }
+      }
+    } catch {}
+
     loadHomeData();
     const handleRefresh = () => loadHomeData();
     window.addEventListener(PRODUCTS_UPDATED_EVENT, handleRefresh);
@@ -269,7 +261,7 @@ export function ProductsGrid() {
             className="btn-toy-3d inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-white hover:bg-amber-50 border-2 border-amber-400 px-6 py-3 text-xs sm:text-sm font-black text-stone-900 shadow-md transition-all hover:scale-102 active:scale-95"
           >
             <Layers className="h-4 w-4 text-amber-600" />
-            <span>Xem Toàn Bộ Kho Thẻ Bài Tất Cả Chủ Đề (/products)</span>
+            <span>Xem Toàn Bộ Kho Thẻ Bài Tất Cả Chủ Đề</span>
             <ArrowRight className="h-4 w-4 text-amber-600" />
           </Link>
 

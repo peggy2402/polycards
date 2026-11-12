@@ -98,7 +98,7 @@ export function CatalogPickerModal({
         categoryName: cat?.name || "Chủ đề",
         cardsCount: 30,
         salePrice: 249000,
-        originalPrice: 299000,
+        originalPrice: 300000,
         createdAt: "2026-10-25",
       },
       {
@@ -108,7 +108,7 @@ export function CatalogPickerModal({
         categoryName: cat?.name || "Chủ đề",
         cardsCount: 30,
         salePrice: 249000,
-        originalPrice: 299000,
+        originalPrice: 300000,
         createdAt: "2026-10-25",
       },
     ];
@@ -250,8 +250,27 @@ export function CatalogPickerModal({
                           {packsForCat.map((pack) => {
                             const itemId = `pack-${pack.code.toLowerCase()}`;
                             const inCartQty = getItemQtyInCart(itemId);
-                            const unitPrice = pack.salePrice || 249000;
                             const isZh = pack.code.includes("ZHVI");
+
+                            // Đếm số lượng thẻ thực tế trong kho productsCatalog gắn với mã bộ này
+                            const actualCardsInPack = productsCatalog.filter(
+                              (p) =>
+                                p.packCode &&
+                                p.packCode.trim().toUpperCase() === pack.code.trim().toUpperCase()
+                            ).length;
+
+                            // Số thẻ hiển thị chính xác theo kho thực tế
+                            const displayCardCount = actualCardsInPack;
+
+                            // Giá gốc: Mỗi thẻ 10.000 VNĐ -> 30 thẻ là 300.000 VNĐ
+                            const singlePrice = pack.singleCardPrice || 10000;
+                            const computedOriginal =
+                              pack.originalPrice && pack.originalPrice !== 299000
+                                ? pack.originalPrice
+                                : displayCardCount > 0
+                                ? displayCardCount * singlePrice
+                                : 300000;
+                            const unitPrice = pack.salePrice || 249000;
 
                             return (
                               <div
@@ -274,21 +293,30 @@ export function CatalogPickerModal({
                                       {isZh ? "Trung - Việt" : "Anh - Việt"}
                                     </span>
                                     <h5 className="text-xs font-black text-white truncate">
-                                      {pack.name}
+                                      {displayCardCount === 0 && pack.name.includes("30")
+                                        ? pack.name.replace(/Bộ 30 Thẻ( AR)?/i, "Bộ Thẻ AR")
+                                        : pack.name}
                                     </h5>
                                   </div>
 
                                   <div className="text-[11px] text-stone-400 font-mono">
-                                    Mã: <strong className="text-amber-300">{pack.code}</strong> • {pack.cardsCount || 30} Thẻ AR
+                                    Mã: <strong className="text-amber-300">{pack.code}</strong> •{" "}
+                                    {displayCardCount > 0 ? (
+                                      <span>{displayCardCount} Thẻ AR</span>
+                                    ) : (
+                                      <span className="text-amber-400 font-bold bg-amber-500/15 px-1.5 py-0.2 rounded border border-amber-500/30">
+                                        0 Thẻ Đang Gắn
+                                      </span>
+                                    )}
                                   </div>
 
                                   <div className="flex items-baseline gap-2 pt-0.5">
                                     <span className="font-mono text-xs font-black text-emerald-400">
                                       {formatVndCurrency(unitPrice)}
                                     </span>
-                                    {pack.originalPrice && pack.originalPrice > unitPrice && (
+                                    {computedOriginal > unitPrice && (
                                       <span className="font-mono text-[10px] text-stone-500 line-through">
-                                        {formatVndCurrency(pack.originalPrice)}
+                                        {formatVndCurrency(computedOriginal)}
                                       </span>
                                     )}
                                   </div>
@@ -311,7 +339,7 @@ export function CatalogPickerModal({
                                         categoryName: cat.name,
                                         packCode: pack.code,
                                         unitPrice,
-                                        originalPrice: pack.originalPrice || 299000,
+                                        originalPrice: computedOriginal,
                                         image: thumb,
                                       })
                                     }

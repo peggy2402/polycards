@@ -27,6 +27,47 @@ const DEFAULT_QUICK_QUESTIONS = [
   "Bé 3 - 5 tuổi học bộ nào phù hợp?",
 ];
 
+interface OrderPackSheetProps {
+  isOpen: boolean;
+}
+
+function formatInlineMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-black text-stone-950">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+function RenderChatMessageContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  return (
+    <div className="space-y-1 text-xs sm:text-[13px] leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1.5" />;
+        }
+        if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          return (
+            <div key={idx} className="flex items-start gap-1.5 pl-0.5">
+              <span className="text-amber-600 font-bold mt-0.5 shrink-0">•</span>
+              <span className="flex-1">{formatInlineMarkdown(trimmed.replace(/^[-•]\s*/, ""))}</span>
+            </div>
+          );
+        }
+        return <div key={idx}>{formatInlineMarkdown(line)}</div>;
+      })}
+    </div>
+  );
+}
+
 export function AiChatWidget() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -274,13 +315,13 @@ export function AiChatWidget() {
                 )}
 
                 <div
-                  className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 leading-relaxed shadow-xs ${
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-xs ${
                     m.role === "user"
                       ? "bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-semibold rounded-tr-xs"
                       : "bg-stone-100/90 text-stone-800 rounded-tl-xs border border-stone-200/50"
                   }`}
                 >
-                  <div className="whitespace-pre-line text-xs sm:text-[13px]">{m.content}</div>
+                  <RenderChatMessageContent content={m.content} />
                 </div>
               </div>
             ))}

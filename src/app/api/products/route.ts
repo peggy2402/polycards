@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
           ? body.showOnHome
           : existingItem?.showOnHome ?? false,
       price: Number(body.price) || existingItem?.price || 219000,
-      originalPrice: Number(body.originalPrice) || existingItem?.originalPrice || 299000,
+      originalPrice: Number(body.originalPrice) || existingItem?.originalPrice || 300000,
       description:
         body.description ||
         existingItem?.description ||

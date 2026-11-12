@@ -19,7 +19,7 @@ export const SYSTEM_POLYCARDS_ANIMAL: Animal = {
   categorySlug: "dong-vat",
   qrCode: "AR-POLYCARDS-001",
   price: 219000,
-  originalPrice: 299000,
+  originalPrice: 300000,
   images: ["/images/cards/butterfly-card.png"],
   posterUrl: "/images/cards/butterfly-card.png",
   modelUrl: "/models/polycards.glb",

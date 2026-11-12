@@ -102,7 +102,19 @@ function OrderContent() {
 
             for (const item of res.data) {
               if (!existingCodes.has(item.code) && item.code.startsWith("POLY")) {
-                const isZh = item.code.includes("ZHVI");
+                const codeUpper = item.code.toUpperCase();
+                const nameUpper = (item.name || "").toUpperCase();
+                const isZh = codeUpper.includes("ZHVI") || nameUpper.includes("TRUNG");
+                const isEn = codeUpper.includes("ENVI") || nameUpper.includes("ANH");
+
+                const badge = isZh
+                  ? "Song Ngữ Trung - Việt"
+                  : isEn
+                  ? "Song Ngữ Anh - Việt"
+                  : item.code.includes("120") || item.code.includes("270")
+                  ? "Trọn Bộ VIP"
+                  : "Bộ Thẻ AR 3D";
+
                 newPacks.push({
                   id: `pack-${item.code.toLowerCase()}`,
                   name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
@@ -110,11 +122,11 @@ function OrderContent() {
                   categoryName: item.categoryName || "Chủ đề Poly Cards",
                   categorySlug: item.categorySlug || "khac",
                   languageType: isZh ? "zh-vi" : "en-vi",
-                  cardsCount: 30,
-                  price: 249000,
-                  originalPrice: 299000,
-                  discountPercent: 17,
-                  badge: isZh ? "Song Ngữ Trung - Việt" : "Song Ngữ Anh - Việt",
+                  cardsCount: item.cardsCount || 30,
+                  price: item.salePrice || 249000,
+                  originalPrice: item.originalPrice && item.originalPrice !== 299000 ? item.originalPrice : 300000,
+                  discountPercent: item.discountPercent || 17,
+                  badge,
                   imageSrc: "/images/cards/butterfly-card.png",
                   sampleSlug: "polycards",
                   description: item.description || `Bộ 30 thẻ AR tương tác 3D đa góc nhìn sống động.`,
@@ -438,7 +450,7 @@ function OrderContent() {
                 <div className="border-b border-stone-100 pb-2.5">
                   <h2 className="text-sm sm:text-base font-black text-stone-900 flex items-center gap-2">
                     <User className="h-4 w-4 text-amber-600" />
-                    <span>Địa Chỉ Nhận Hàng Của Bé</span>
+                    <span>Thông Tin Khách Hàng</span>
                   </h2>
                   <p className="text-xs text-stone-500 font-medium">
                     Nhân viên bưu điện sẽ giao tận tay và cho phép kiểm tra thẻ trước khi nhận.
@@ -525,109 +537,7 @@ function OrderContent() {
                 </div>
               </div>
 
-              {/* 3. KHỐI HÌNH THỨC GIAO NHẬN (4 LỰA CHỌN) */}
-              <div className="rounded-3xl border-2 border-stone-200 bg-white p-4 sm:p-6 shadow-sm space-y-3">
-                <div className="border-b border-stone-100 pb-2">
-                  <h2 className="text-sm sm:text-base font-black text-stone-900 flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-amber-600" />
-                    <span>Hình Thức Giao Nhận Hàng</span>
-                  </h2>
-                  <p className="text-xs text-stone-500 font-medium">
-                    Chọn hình thức nhận hàng phù hợp và thuận tiện nhất cho Ba Mẹ.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {/* CPN COD */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeliveryMethod("CPN_COD");
-                      setPaymentMethod("cod");
-                    }}
-                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
-                      deliveryMethod === "CPN_COD"
-                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
-                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
-                    }`}
-                  >
-                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
-                      {deliveryMethod === "CPN_COD" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
-                    </div>
-                    <div>
-                      <span className="block text-xs font-black">Gửi CPN COD (Thu Tiền Tận Nơi)</span>
-                      <span className="text-[11px] text-stone-500">
-                        Bưu tá giao tận tay, kiểm tra thẻ trước khi thanh toán
-                      </span>
-                    </div>
-                  </button>
-
-                  {/* CPN NHTT */}
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryMethod("CPN_NHTT")}
-                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
-                      deliveryMethod === "CPN_NHTT"
-                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
-                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
-                    }`}
-                  >
-                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
-                      {deliveryMethod === "CPN_NHTT" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
-                    </div>
-                    <div>
-                      <span className="block text-xs font-black">Gửi CPN NHTT</span>
-                      <span className="text-[11px] text-stone-500">
-                        Chuyển phát nhanh (Người nhận thanh toán cước)
-                      </span>
-                    </div>
-                  </button>
-
-                  {/* Vận chuyển Ô tô */}
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryMethod("VAN_CHUYEN_OTO")}
-                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
-                      deliveryMethod === "VAN_CHUYEN_OTO"
-                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
-                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
-                    }`}
-                  >
-                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
-                      {deliveryMethod === "VAN_CHUYEN_OTO" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
-                    </div>
-                    <div>
-                      <span className="block text-xs font-black">Gửi Vận Chuyển (Ô Tô)</span>
-                      <span className="text-[11px] text-stone-500">
-                        Gửi xe khách / chành xe liên tỉnh nhận trong ngày
-                      </span>
-                    </div>
-                  </button>
-
-                  {/* Trực tiếp */}
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryMethod("TRUC_TIEP")}
-                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
-                      deliveryMethod === "TRUC_TIEP"
-                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
-                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
-                    }`}
-                  >
-                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
-                      {deliveryMethod === "TRUC_TIEP" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
-                    </div>
-                    <div>
-                      <span className="block text-xs font-black">Nhận Hàng Trực Tiếp</span>
-                      <span className="text-[11px] text-stone-500">
-                        Đến nhận trực tiếp tại văn phòng / điểm phát Poly Cards
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* 4. KHỐI PHƯƠNG THỨC THANH TOÁN (COD & BANKING) */}
+              {/* 3. KHỐI PHƯƠNG THỨC THANH TOÁN (COD & BANKING) */}
               <div className="rounded-3xl border-2 border-stone-200 bg-white p-4 sm:p-6 shadow-sm space-y-3">
                 <div className="border-b border-stone-100 pb-2">
                   <h2 className="text-sm sm:text-base font-black text-stone-900 flex items-center gap-2">

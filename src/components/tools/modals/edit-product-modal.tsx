@@ -305,12 +305,17 @@ export function EditProductModal({
                     min="0"
                     max="99"
                     value={
-                      editProductForm.originalPrice > 0
-                        ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
-                        : 0
+                      (() => {
+                        const pct = editProductForm.originalPrice > 0
+                          ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
+                          : 0;
+                        return pct === 0 ? "" : pct;
+                      })()
                     }
+                    placeholder="0"
                     onChange={(e) => {
-                      const newPct = sanitizeDiscountPercent(e.target.value);
+                      const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                      const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
                       const calculated = calculatePricing({
                         originalPrice: editProductForm.originalPrice || editProductForm.price,
                         discountPercent: newPct,
@@ -321,7 +326,6 @@ export function EditProductModal({
                         price: calculated.salePrice,
                       });
                     }}
-                    placeholder="VD: 17"
                     className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
                   />
                 </div>

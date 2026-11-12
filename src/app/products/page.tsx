@@ -95,7 +95,7 @@ export default function ProductsPage() {
                   languageType: isZh ? "zh-vi" : "en-vi",
                   cardsCount: item.cardsCount || 30,
                   price: item.salePrice || 249000,
-                  originalPrice: item.originalPrice || 299000,
+                  originalPrice: item.originalPrice || 300000,
                   discountPercent: item.discountPercent || 17,
                   badge: isZh ? "Song Ngữ Trung - Việt" : "Song Ngữ Anh - Việt",
                   imageSrc: "/images/cards/butterfly-card.png",

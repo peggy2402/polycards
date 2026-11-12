@@ -201,7 +201,8 @@ export function HeroButterflyArCard({
     canvasContainer.addEventListener("mouseleave", handleMouseLeave);
 
     // 6. Vòng lặp Render: Chạy animation "Flutter" + Quỹ đạo bay (Trái -> Phải -> Về hoa)
-    const clock = new THREE.Clock();
+    let lastTime = performance.now();
+    const startTime = lastTime;
     const flightCycle = 13.0; // Chu kỳ bay trọn vẹn 13 giây
     const yAxis = new THREE.Vector3(0, 1, 0);
 
@@ -214,8 +215,10 @@ export function HeroButterflyArCard({
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
 
-      const delta = clock.getDelta();
-      const elapsed = clock.getElapsedTime();
+      const now = performance.now();
+      const delta = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      const elapsed = (now - startTime) / 1000;
 
       // CẬP NHẬT ANIMATION "Flutter" TỪ TỆP GLB
       if (mixerRef.current) {
