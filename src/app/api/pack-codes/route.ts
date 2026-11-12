@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       discountPercent: body.discountPercent !== undefined ? Number(body.discountPercent) : undefined,
       salePrice: body.salePrice !== undefined ? Number(body.salePrice) : undefined,
       isManualPrice: body.isManualPrice !== undefined ? Boolean(body.isManualPrice) : undefined,
+      imageSrc: body.imageSrc ? String(body.imageSrc).trim() : undefined,
     };
 
     const saved = await dbUpsertPackCode(itemData);

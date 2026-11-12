@@ -38,8 +38,10 @@ function OrderContent() {
   const animalParam = searchParams.get("animal");
   const comboParam = searchParams.get("combo");
 
-  // Danh sách các bộ thẻ có sẵn (kết hợp tĩnh + nạp từ MongoDB)
-  const [availablePacks, setAvailablePacks] = useState<CardComboPack[]>(COMBO_PACKS);
+  // Danh sách các bộ thẻ có sẵn (chỉ giữ các bộ có thẻ thực tế, loại trừ các mã rỗng)
+  const [availablePacks, setAvailablePacks] = useState<CardComboPack[]>(() =>
+    COMBO_PACKS.filter((p) => !["POLY30-NGHENGHIEP", "POLY30-HANHDONG"].includes(p.packCode))
+  );
 
   // Sheet & Modal States
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
@@ -111,6 +113,7 @@ function OrderContent() {
 
           return {
             ...pack,
+            imageSrc: cfg?.imageSrc || pack.imageSrc,
             cardsCount: dynamicPricing.cardsCount,
             price: dynamicPricing.price,
             originalPrice: dynamicPricing.originalPrice,
@@ -151,7 +154,7 @@ function OrderContent() {
                 originalPrice: dynamicPricing.originalPrice,
                 discountPercent: dynamicPricing.discountPercent,
                 badge,
-                imageSrc: "/images/cards/butterfly-card.png",
+                imageSrc: item.imageSrc || "/images/cards/butterfly-card.png",
                 sampleSlug: "polycards",
                 description: item.description || `Bộ 30 thẻ AR tương tác 3D đa góc nhìn sống động.`,
                 highlights: ["30 Thẻ AR 3D", "Phát âm chuẩn", "Chống nước 100%"],

@@ -53,10 +53,14 @@ export function OrderPackSheet({
   const [activeCategory, setActiveCategory] = useState("all");
   const [activeLanguage, setActiveLanguage] = useState("all");
 
-  // Tính tổng số lượng thẻ thực tế từ danh sách bộ có sẵn
-  const totalCardsInPacks = useMemo(() => {
-    return availablePacks.reduce((sum, p) => sum + (p.cardsCount || 0), 0);
+  // Tính tổng số lượng thẻ thực tế từ danh sách bộ có sẵn (chỉ tính các bộ thẻ đơn để không bị trùng số thẻ)
+  const activeSinglePacks = useMemo(() => {
+    return availablePacks.filter((p) => (p.cardsCount || 0) > 0 && (p.cardsCount || 0) <= 30);
   }, [availablePacks]);
+
+  const totalCardsInPacks = useMemo(() => {
+    return activeSinglePacks.reduce((sum, p) => sum + (p.cardsCount || 0), 0);
+  }, [activeSinglePacks]);
 
   // Chỉ hiển thị các tab danh mục có bộ thẻ thực tế
   const categoryTabs = useMemo(() => {
@@ -124,7 +128,7 @@ export function OrderPackSheet({
               <span>Chọn Thêm Bộ Thẻ AR Vào Giỏ</span>
             </h2>
             <p className="text-[11px] sm:text-xs text-stone-500 font-medium">
-              Đang có {availablePacks.length} bộ thẻ AR ({totalCardsInPacks} thẻ) sẵn sàng xếp vào thùng hàng
+              Đang có {availablePacks.filter((p) => (p.cardsCount || 0) > 0).length} bộ thẻ AR ({totalCardsInPacks} thẻ) sẵn sàng xếp vào thùng hàng
             </p>
           </div>
 

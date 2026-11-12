@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import QRCode from "qrcode";
 import {
   Receipt,
   Printer,
@@ -40,6 +39,9 @@ import {
   ChevronRight,
   DollarSign,
   TrendingUp,
+  Edit,
+  Clock,
+  Filter,
 } from "lucide-react";
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
@@ -70,8 +72,8 @@ export interface InvoiceLineItem {
 export interface SaleInvoice {
   id: string;
   code: string;
-  codeParent?: string; // Mã Cha (Master code cho combo nhiều bộ / thẻ)
-  childCodes?: string[]; // Danh sách các Mã Con thuộc Mã Cha này
+  codeParent?: string;
+  childCodes?: string[];
   customerType: "TRUCTIEP" | "ONLINE";
   customerId?: string;
   customerName: string;
@@ -84,9 +86,9 @@ export interface SaleInvoice {
   subtotal?: number;
   vatRate?: number;
   vatAmount?: number;
-  creditAmount: number; // Phát sinh Có: Số tiền khách cần phải trả
-  debitAmount: number; // Phát sinh Nợ: Số tiền khách đã thanh toán
-  balanceAmount?: number; // Còn lại: debitAmount - creditAmount
+  creditAmount: number;
+  debitAmount: number;
+  balanceAmount?: number;
   remainingAmount: number;
   paymentMethod: "TIEN_MAT" | "CHUYEN_KHOAN";
   packTitle: string;
@@ -105,29 +107,84 @@ export interface SaleInvoice {
   status: "PAID" | "PARTIAL";
 }
 
+// Hàm chuẩn hóa chuỗi tiếng Việt phục vụ tìm kiếm mờ (Elastic-like fuzzy match)
+function normalizeVi(str: string): string {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .trim();
+}
+
+// Bôi sáng từ khóa khớp trong văn bản
+function highlightMatch(text: string, query: string): React.ReactNode {
+  if (!query || !query.trim() || !text) return text;
+  const qClean = query.trim();
+  const escaped = qClean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "gi");
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-amber-400 text-stone-950 font-black px-0.5 rounded">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
+// Phân tích ngày tháng của hóa đơn
+function parseInvoiceDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const dmyMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmyMatch) {
+    return new Date(Number(dmyMatch[3]), Number(dmyMatch[2]) - 1, Number(dmyMatch[1]));
+  }
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export default function InvoicesPage() {
-  // ========================================================
-  // 1. NAVIGATION & VIEW MODES: "LIST" | "CREATE" | "PREVIEW"
-  // ========================================================
+  // Navigation: LIST | CREATE | PREVIEW
   const [activeView, setActiveView] = useState<"LIST" | "CREATE" | "PREVIEW">("LIST");
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
 
-  // Invoices Data & Filters
+  // Invoices Data
   const [invoices, setInvoices] = useState<SaleInvoice[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Hóa đơn vừa tạo để highlight sáng
+  const [newlyCreatedInvoiceId, setNewlyCreatedInvoiceId] = useState<string | null>(null);
+
+  // Trạng thái Chỉnh Sửa Hóa Đơn (Edit mode)
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+
+  // Tìm kiếm Elastic-like & Gợi ý (Dropdown Autocomplete)
   const [searchInvoiceQuery, setSearchInvoiceQuery] = useState<string>("");
+  const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Bộ lọc trạng thái & Bộ lọc thời gian nâng cao
   const [filterStatus, setFilterStatus] = useState<"ALL" | "PAID" | "PARTIAL" | "TRUCTIEP" | "ONLINE">("ALL");
+  const [timeFilter, setTimeFilter] = useState<
+    "ALL" | "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "LAST_QUARTER" | "THIS_YEAR" | "LAST_YEAR" | "CUSTOM"
+  >("ALL");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
   // Hóa đơn đang chọn để xem / in
   const [selectedInvoice, setSelectedInvoice] = useState<SaleInvoice | null>(null);
-  const [selectedInvoiceQrUrl, setSelectedInvoiceQrUrl] = useState<string>("");
-  const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [copiedZalo, setCopiedZalo] = useState<boolean>(false);
 
   // ========================================================
-  // 2. FORM STATE CHO BƯỚC LẬP PHIẾU (CREATE WIZARD)
+  // FORM STATE: WIZARD LẬP / SỬA PHIẾU
   // ========================================================
-  // Bước 1: Khách hàng
   const [customerType, setCustomerType] = useState<"TRUCTIEP" | "ONLINE">("TRUCTIEP");
   const [customerName, setCustomerName] = useState<string>("Khách Mua Trực Tiếp Tại Quầy");
   const [customerPhone, setCustomerPhone] = useState<string>("");
@@ -138,11 +195,11 @@ export default function InvoicesPage() {
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TRUC_TIEP");
   const [codAmount, setCodAmount] = useState<number>(0);
 
-  // Bước 2: Giỏ hàng hóa (Khởi tạo rỗng, người dùng chọn chuẩn từ kho)
+  // Giỏ hàng hóa
   const [cartItems, setCartItems] = useState<InvoiceCartItem[]>([]);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState<boolean>(false);
 
-  // Dữ liệu kho hàng
+  // Kho hàng & Cấu hình mã bộ
   const [productsCatalog, setProductsCatalog] = useState<Animal[]>([]);
   const [categoriesList, setCategoriesList] = useState<ProductCategory[]>([]);
   const [storedPackCodes, setStoredPackCodes] = useState<PackCodeItem[]>([]);
@@ -150,7 +207,7 @@ export default function InvoicesPage() {
   const [packCodeMode, setPackCodeMode] = useState<"AUTO" | "EXISTING">("EXISTING");
   const [comboRules, setComboRules] = useState<DbComboRule[]>(DEFAULT_COMBO_RULES);
 
-  // Bước 3: Hạch toán & Thanh toán
+  // Hạch toán & Thanh toán
   const [vatRate, setVatRate] = useState<number>(0);
   const [debitAmount, setDebitAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<"TIEN_MAT" | "CHUYEN_KHOAN">("TIEN_MAT");
@@ -167,14 +224,12 @@ export default function InvoicesPage() {
     }, 3500);
   }, []);
 
-  // Tải danh mục sản phẩm & mã bộ trong kho
+  // Tải danh mục sản phẩm & mã bộ
   useEffect(() => {
     const loadCatalog = async () => {
       try {
         const local = getMergedProducts();
-        if (local && local.length > 0) {
-          setProductsCatalog(local);
-        }
+        if (local && local.length > 0) setProductsCatalog(local);
         const res = await fetch("/api/products");
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -186,9 +241,7 @@ export default function InvoicesPage() {
     const loadCategories = async () => {
       try {
         const local = getProductCategories();
-        if (local && local.length > 0) {
-          setCategoriesList(local);
-        }
+        if (local && local.length > 0) setCategoriesList(local);
         const res = await fetch("/api/categories");
         if (res.ok) {
           const json = await res.json();
@@ -203,13 +256,11 @@ export default function InvoicesPage() {
     loadCategories();
     setStoredPackCodes(getStoredPackCodes());
     fetchPackCodesFromApi().then((data) => {
-      if (data && data.length > 0) {
-        setStoredPackCodes(data);
-      }
+      if (data && data.length > 0) setStoredPackCodes(data);
     });
   }, []);
 
-  // Tải danh sách quy tắc combo
+  // Tải combo rules
   useEffect(() => {
     fetch("/api/combos")
       .then((res) => res.json())
@@ -221,48 +272,22 @@ export default function InvoicesPage() {
       .catch(() => {});
   }, []);
 
-  // Tự động nhận diện khách hàng cũ khi nhập SĐT
-  useEffect(() => {
-    const cleanPhone = normalizePhoneNumber(customerPhone);
-    if (!cleanPhone || cleanPhone.length < 9) {
-      setIsExistingCustomer(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/customers/search?phone=${encodeURIComponent(cleanPhone)}`);
-        const data = await res.json();
-        if (data.success && data.customer) {
-          const c = data.customer;
-          setIsExistingCustomer(true);
-          setCustomerId(c.id || c.code || `KH-${cleanPhone.slice(-4)}`);
-          if (c.name && (!customerName || customerName.includes("Khách Mua Trực Tiếp"))) {
-            setCustomerName(c.name);
-          }
-          if (c.address && !customerAddress) {
-            setCustomerAddress(c.address);
-          }
-          showToast(`Nhận diện khách quen: ${c.name} (${c.id})`, "info");
-        } else {
-          setIsExistingCustomer(false);
-        }
-      } catch {}
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [customerPhone, customerName, customerAddress, showToast]);
-
-  // Tải danh sách hóa đơn từ API
+  // Tải danh sách hóa đơn từ API (sắp xếp hóa đơn mới nhất lên đầu)
   const loadInvoices = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch("/api/orders");
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        setInvoices(json.data);
-        if (json.data.length > 0 && !selectedInvoice) {
-          setSelectedInvoice(json.data[0]);
+        // Sắp xếp phiếu mới nhất lên đầu danh sách
+        const sorted = [...json.data].sort((a, b) => {
+          const tA = parseInvoiceDate(a.createdAt)?.getTime() || 0;
+          const tB = parseInvoiceDate(b.createdAt)?.getTime() || 0;
+          return tB - tA;
+        });
+        setInvoices(sorted);
+        if (sorted.length > 0 && !selectedInvoice) {
+          setSelectedInvoice(sorted[0]);
         }
       }
     } catch (err) {
@@ -276,21 +301,19 @@ export default function InvoicesPage() {
     loadInvoices();
   }, [loadInvoices]);
 
-  // Sinh QR Code cho hóa đơn đang được chọn xem
+  // Click outside to close search suggestions
   useEffect(() => {
-    if (selectedInvoice && selectedInvoice.directUrl) {
-      QRCode.toDataURL(selectedInvoice.directUrl, {
-        width: 240,
-        margin: 1,
-        color: { dark: "#0f172a", light: "#ffffff" },
-      })
-        .then((url) => setSelectedInvoiceQrUrl(url))
-        .catch(() => {});
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchFocused(false);
+      }
     }
-  }, [selectedInvoice]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // ========================================================
-  // 3. TÍNH TOÁN GIỎ HÀNG & HẠCH TOÁN POS
+  // TÍNH TOÁN GIỎ HÀNG & HẠCH TOÁN POS
   // ========================================================
   const handleAddToCart = (item: Omit<InvoiceCartItem, "quantity">) => {
     setCartItems((prev) => {
@@ -323,7 +346,6 @@ export default function InvoicesPage() {
     setCartItems((prev) => prev.filter((it) => it.id !== id));
   };
 
-  // Tính số lượng
   const totalItemsCount = useMemo(() => {
     return cartItems.reduce((acc, it) => acc + it.quantity, 0);
   }, [cartItems]);
@@ -340,7 +362,6 @@ export default function InvoicesPage() {
       .reduce((acc, it) => acc + it.quantity, 0);
   }, [cartItems]);
 
-  // Đánh giá khuyến mãi Combo thông minh
   const bestComboResult = useMemo(() => {
     const evalItems = cartItems.map((it) => ({
       id: it.id,
@@ -353,41 +374,35 @@ export default function InvoicesPage() {
     return evaluateBestCombo(evalItems, comboRules);
   }, [cartItems, comboRules]);
 
-  // Tổng tiền trước thuế (Subtotal)
   const subtotal = useMemo(() => {
     return cartItems.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
   }, [cartItems]);
 
-  // Số tiền giảm giá theo Combo
   const comboDiscount = useMemo(() => {
     return bestComboResult.discountAmount || 0;
   }, [bestComboResult]);
 
-  // Tổng tiền sau giảm giá combo
   const amountAfterCombo = useMemo(() => {
     return Math.max(0, subtotal - comboDiscount);
   }, [subtotal, comboDiscount]);
 
-  // Tiền thuế VAT
   const vatAmount = useMemo(() => {
     if (!vatRate || vatRate <= 0) return 0;
     return Math.round((amountAfterCombo * vatRate) / 100);
   }, [amountAfterCombo, vatRate]);
 
-  // Phát sinh CÓ (Credit Amount): Số tiền khách cần phải trả
   const creditAmount = useMemo(() => {
     return amountAfterCombo + vatAmount;
   }, [amountAfterCombo, vatAmount]);
 
-  // Tự động gán debitAmount theo creditAmount khi đổi sản phẩm
   useEffect(() => {
-    setDebitAmount(creditAmount);
-  }, [creditAmount]);
+    if (!editingInvoiceId) {
+      setDebitAmount(creditAmount);
+    }
+  }, [creditAmount, editingInvoiceId]);
 
-  // Còn lại: Nợ - Có
   const balance = debitAmount - creditAmount;
 
-  // Toggle đối tượng khách hàng
   const handleToggleCustomerType = (type: "TRUCTIEP" | "ONLINE") => {
     setCustomerType(type);
     if (type === "TRUCTIEP" && customerName.includes("Khách Đặt Hàng")) {
@@ -398,9 +413,10 @@ export default function InvoicesPage() {
   };
 
   // ========================================================
-  // 4. BẮT ĐẦU TẠO PHIẾU & CHUYỂN BƯỚC WIZARD
+  // BẮT ĐẦU TẠO PHIẾU / SỬA PHIẾU
   // ========================================================
   const handleStartCreate = () => {
+    setEditingInvoiceId(null);
     setCartItems([]);
     setCustomerName("Khách Mua Trực Tiếp Tại Quầy");
     setCustomerType("TRUCTIEP");
@@ -408,6 +424,44 @@ export default function InvoicesPage() {
     setCustomerPhone("");
     setCustomerAddress("");
     setNote("");
+    setDebitAmount(0);
+    setVatRate(0);
+    setCreateStep(1);
+    setActiveView("CREATE");
+  };
+
+  const handleEditInvoice = (inv: SaleInvoice) => {
+    setEditingInvoiceId(inv.id || inv.code);
+    setCustomerType(inv.customerType || "TRUCTIEP");
+    setCustomerName(inv.customerName || "Khách Hàng");
+    setCustomerId(inv.customerId || `KH-${Math.floor(1000 + Math.random() * 9000)}`);
+    setCustomerPhone(inv.customerPhone || "");
+    setCustomerAddress(inv.customerAddress || "");
+    setOrderStatus(inv.orderStatus || "DA_NHAN");
+    setDeliveryMethod(inv.deliveryMethod || "TRUC_TIEP");
+    setCodAmount(inv.codAmount || 0);
+    setVatRate(inv.vatRate || 0);
+    setDebitAmount(inv.debitAmount || 0);
+    setPaymentMethod(inv.paymentMethod || "TIEN_MAT");
+    setNote(inv.note || "");
+
+    if (Array.isArray(inv.items) && inv.items.length > 0) {
+      setCartItems(
+        inv.items.map((it) => ({
+          id: it.id,
+          name: it.name,
+          type: it.packCode?.startsWith("SINGLE-") ? "SINGLE" : "PACK",
+          categorySlug: it.categorySlug,
+          categoryName: it.categorySlug,
+          packCode: it.packCode,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+        }))
+      );
+    } else {
+      setCartItems([]);
+    }
+
     setCreateStep(1);
     setActiveView("CREATE");
   };
@@ -428,38 +482,33 @@ export default function InvoicesPage() {
     setCreateStep(3);
   };
 
-  // Xem chi tiết hóa đơn
   const handleViewInvoice = (inv: SaleInvoice) => {
     setSelectedInvoice(inv);
     setActiveView("PREVIEW");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // In hóa đơn trực tiếp
   const handlePrintInvoice = () => {
     window.print();
   };
 
-  // Sao chép tin nhắn Zalo gửi khách
   const handleCopyZaloMessage = (inv: SaleInvoice) => {
     const childCodesText =
       inv.childCodes && inv.childCodes.length > 0
-        ? `- Danh Sách Mã Con (in trên từng bộ/thẻ): ${inv.childCodes.join(", ")}\n`
+        ? `- Mã Thẻ/Bộ Đi Kèm: ${inv.childCodes.join(", ")}\n`
         : "";
 
     const msg = `Kính chào quý khách ${inv.customerName},
-Poly Cards trân trọng gửi quý khách Hóa Đơn Bán Hàng & Mã Kích Hoạt WebAR:
+Poly Cards trân trọng gửi quý khách Hóa Đơn Bán Hàng:
 - Số Hóa Đơn: ${inv.code}
 - Khách hàng: ${inv.customerName} (${inv.customerId || "KH"})
 - Sản phẩm: ${inv.packTitle}
-- Tạm tính: ${formatVndCurrency(inv.subtotal || inv.creditAmount)}
-${inv.vatRate ? `- Thuế VAT (${inv.vatRate}%): ${formatVndCurrency(inv.vatAmount || 0)}\n` : ""}- Tổng thanh toán (Phát sinh Có): ${formatVndCurrency(inv.creditAmount)}
-- Đã thanh toán (Phát sinh Nợ): ${formatVndCurrency(inv.debitAmount)}
+- Tiền hàng tạm tính: ${formatVndCurrency(inv.subtotal || inv.creditAmount)}
+${inv.vatRate ? `- Thuế VAT (${inv.vatRate}%): ${formatVndCurrency(inv.vatAmount || 0)}\n` : ""}- Tổng Tiền: ${formatVndCurrency(inv.creditAmount)}
+- Đã Thanh Toán: ${formatVndCurrency(inv.debitAmount)}
 ${inv.remainingAmount > 0 ? `- Còn thiếu: ${formatVndCurrency(inv.remainingAmount)}\n` : ""}
-- Mã Bản Quyền Kích Hoạt WebAR: ${inv.packCode}
 ${childCodesText}
-- Đường link mở quét 3D ngay không cần cài App:
-${inv.directUrl}
+Mỗi thẻ bài AR đều đã được tích hợp sẵn mã quét 3D WebAR. Quý khách chỉ cần mở camera điện thoại quét trực tiếp trên mặt thẻ là có thể tương tác 3D ngay lập tức!
 
 Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!`;
 
@@ -469,7 +518,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
     setTimeout(() => setCopiedZalo(false), 2000);
   };
 
-  // Tạo phiếu hóa đơn & sinh mã bản quyền chuẩn hóa
+  // Submit Lập hoặc Cập nhật Hóa Đơn
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim()) {
@@ -484,7 +533,9 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const invoicePrefix = customerType === "TRUCTIEP" ? "HD-DIR" : "HD-ONL";
-    const invoiceCode = `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`;
+    const invoiceCode = editingInvoiceId
+      ? (invoices.find((i) => i.id === editingInvoiceId)?.code || `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`)
+      : `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`;
     const cleanCustCode = customerId.trim() || `KH${randomNum}`;
 
     const purchasedPacks = cartItems.filter((i) => i.type === "PACK");
@@ -502,19 +553,12 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       if (purchasedPacks.length === 1 && purchasedPacks[0].quantity === 1) {
         const singlePack = purchasedPacks[0];
         const catUpper = (singlePack.categorySlug || "THE").toUpperCase().replace(/[^A-Z0-9]/g, "");
-        if (packCodeMode === "AUTO") {
-          licenseCode = `PACK-${catUpper}-${cleanCustCode}-${invoiceCode}`;
-        } else {
-          licenseCode = selectedExistingPackCode.trim() || singlePack.packCode || `POLY30-${catUpper}`;
-        }
+        licenseCode = selectedExistingPackCode.trim() || singlePack.packCode || `POLY30-${catUpper}`;
         packTitle = singlePack.name;
         allowedCategorySlug = singlePack.categorySlug;
       } else {
         const sumPacks = purchasedPacks.reduce((a, b) => a + b.quantity, 0);
-        const catCodes = Array.from(
-          new Set(purchasedPacks.map((p) => (p.categorySlug || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4)))
-        ).join("-");
-        licenseCode = `PACK-COMBO-${sumPacks}BO-${catCodes || "ALL"}-${cleanCustCode}-${invoiceCode}`;
+        licenseCode = `PACK-COMBO-${sumPacks}BO-${cleanCustCode}-${invoiceCode}`;
         packTitle = `Combo ${sumPacks} Bộ Thẻ (${purchasedPacks.map((p) => `${p.quantity} ${p.categoryName || p.name}`).join(", ")})`;
         allowedCategorySlug = purchasedPacks[0]?.categorySlug || "dong-vat";
       }
@@ -543,16 +587,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       allowedCategorySlug = purchasedPacks[0]?.categorySlug || purchasedSingles[0]?.categorySlug || "dong-vat";
     }
 
-    // Chọn thẻ mẫu để mở WebAR
-    const sampleCard = productsCatalog.find(
-      (p) => allowedCategorySlugs.includes(p.categorySlug || "") || (unlockedSlugs.length > 0 && unlockedSlugs.includes(p.slug))
-    ) || productsCatalog[0];
-    const sampleSlug = sampleCard?.slug || "jump";
-
-    // 1. Mã Cha (Master Code / Parent Code)
     const codeParent = licenseCode;
-
-    // 2. Sinh Mã Con (Child Code) cho từng món hàng trong hóa đơn
     const childCodes: string[] = [];
     const lineItems: InvoiceLineItem[] = cartItems.map((item, idx) => {
       let childCode = "";
@@ -577,13 +612,8 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       };
     });
 
-    const firstChildCode = childCodes[0] || licenseCode;
-    const directUrl = `https://polycards.vn/ar/${sampleSlug}?ar=1&code=${encodeURIComponent(
-      firstChildCode
-    )}&codeParent=${encodeURIComponent(codeParent)}`;
-
     const newInvoice: SaleInvoice = {
-      id: `INV-${Date.now()}`,
+      id: editingInvoiceId || `INV-${Date.now()}`,
       code: invoiceCode,
       codeParent,
       childCodes,
@@ -614,9 +644,11 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       packCode: licenseCode,
       allowedCategorySlug: allowedCategorySlug || "dong-vat",
       allowedCategorySlugs: allowedCategorySlugs.length > 0 ? allowedCategorySlugs : [allowedCategorySlug || "dong-vat"],
-      directUrl,
+      directUrl: `https://polycards.vn/products`,
       note: note.trim() || (customerType === "TRUCTIEP" ? "Khách mua trực tiếp tại quầy" : "Đơn hàng online"),
-      createdAt: new Date().toLocaleString("vi-VN"),
+      createdAt: editingInvoiceId
+        ? (invoices.find((i) => i.id === editingInvoiceId)?.createdAt || new Date().toLocaleString("vi-VN"))
+        : new Date().toLocaleString("vi-VN"),
       status: debitAmount >= creditAmount ? "PAID" : "PARTIAL",
     };
 
@@ -628,11 +660,21 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Đã lập hóa đơn ${invoiceCode} và cấp mã ${licenseCode} thành công!`, "success");
-        setInvoices((prev) => [newInvoice, ...prev]);
+        showToast(
+          editingInvoiceId
+            ? `Đã cập nhật hóa đơn ${invoiceCode} thành công!`
+            : `Đã lập hóa đơn ${invoiceCode} thành công!`,
+          "success"
+        );
+        // Đưa hóa đơn mới lên đầu danh sách
+        setInvoices((prev) => {
+          const filtered = prev.filter((i) => i.id !== newInvoice.id && i.code !== newInvoice.code);
+          return [newInvoice, ...filtered];
+        });
+        setNewlyCreatedInvoiceId(newInvoice.id);
         setSelectedInvoice(newInvoice);
+        setEditingInvoiceId(null);
         setNote("");
-        // Tự động chuyển qua màn hình xem mẫu in hóa đơn riêng biệt
         setActiveView("PREVIEW");
       } else {
         showToast(data.message || "Không thể lưu hóa đơn.", "error");
@@ -644,36 +686,102 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
   };
 
   // ========================================================
-  // 5. DANH SÁCH HÓA ĐƠN ĐƯỢC LỌC & THỐNG KÊ KPI
+  // BỘ LỌC THỜI GIAN & TÌM KIẾM MỜ (ELASTIC-LIKE)
   // ========================================================
   const filteredInvoices = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0 - 11
+    const currentQuarter = Math.floor(currentMonth / 3);
+
     return invoices.filter((inv) => {
-      // Lọc trạng thái
+      // 1. Lọc theo trạng thái thanh toán & kênh bán
       if (filterStatus === "PAID" && inv.status !== "PAID") return false;
       if (filterStatus === "PARTIAL" && inv.status !== "PARTIAL") return false;
       if (filterStatus === "TRUCTIEP" && inv.customerType !== "TRUCTIEP") return false;
       if (filterStatus === "ONLINE" && inv.customerType !== "ONLINE") return false;
 
-      // Lọc từ khóa tìm kiếm
-      if (searchInvoiceQuery.trim()) {
-        const q = searchInvoiceQuery.toLowerCase().trim();
-        const matchCode = (inv.code || "").toLowerCase().includes(q);
-        const matchName = (inv.customerName || "").toLowerCase().includes(q);
-        const matchPhone = (inv.customerPhone || "").toLowerCase().includes(q);
-        const matchPack = (inv.packTitle || "").toLowerCase().includes(q);
-        if (!matchCode && !matchName && !matchPhone && !matchPack) return false;
+      // 2. Lọc theo thời gian
+      const invDate = parseInvoiceDate(inv.createdAt);
+      if (invDate && timeFilter !== "ALL") {
+        const y = invDate.getFullYear();
+        const m = invDate.getMonth();
+        const q = Math.floor(m / 3);
+
+        if (timeFilter === "THIS_MONTH" && (y !== currentYear || m !== currentMonth)) return false;
+        if (timeFilter === "LAST_MONTH") {
+          const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          if (y !== prevYear || m !== prevMonth) return false;
+        }
+        if (timeFilter === "THIS_QUARTER" && (y !== currentYear || q !== currentQuarter)) return false;
+        if (timeFilter === "LAST_QUARTER") {
+          const prevQ = currentQuarter === 0 ? 3 : currentQuarter - 1;
+          const prevQYear = currentQuarter === 0 ? currentYear - 1 : currentYear;
+          if (y !== prevQYear || q !== prevQ) return false;
+        }
+        if (timeFilter === "THIS_YEAR" && y !== currentYear) return false;
+        if (timeFilter === "LAST_YEAR" && y !== currentYear - 1) return false;
+
+        if (timeFilter === "CUSTOM") {
+          if (customStartDate) {
+            const start = new Date(customStartDate);
+            start.setHours(0, 0, 0, 0);
+            if (invDate < start) return false;
+          }
+          if (customEndDate) {
+            const end = new Date(customEndDate);
+            end.setHours(23, 59, 59, 999);
+            if (invDate > end) return false;
+          }
+        }
       }
+
+      // 3. Tìm kiếm Elastic-like (Fuzzy Token Search)
+      if (searchInvoiceQuery.trim()) {
+        const qNorm = normalizeVi(searchInvoiceQuery);
+        const codeNorm = normalizeVi(inv.code);
+        const nameNorm = normalizeVi(inv.customerName);
+        const phoneNorm = normalizeVi(inv.customerPhone || "");
+        const packNorm = normalizeVi(inv.packTitle || "");
+        const custIdNorm = normalizeVi(inv.customerId || "");
+
+        const isMatch =
+          codeNorm.includes(qNorm) ||
+          nameNorm.includes(qNorm) ||
+          phoneNorm.includes(qNorm) ||
+          packNorm.includes(qNorm) ||
+          custIdNorm.includes(qNorm);
+
+        if (!isMatch) return false;
+      }
+
       return true;
     });
-  }, [invoices, filterStatus, searchInvoiceQuery]);
+  }, [invoices, filterStatus, timeFilter, customStartDate, customEndDate, searchInvoiceQuery]);
+
+  // Danh sách gợi ý tìm kiếm (Dropdown suggestions)
+  const searchSuggestions = useMemo(() => {
+    if (!searchInvoiceQuery.trim()) return [];
+    const qNorm = normalizeVi(searchInvoiceQuery);
+    return invoices
+      .filter((inv) => {
+        return (
+          normalizeVi(inv.code).includes(qNorm) ||
+          normalizeVi(inv.customerName).includes(qNorm) ||
+          normalizeVi(inv.customerPhone || "").includes(qNorm)
+        );
+      })
+      .slice(0, 5);
+  }, [invoices, searchInvoiceQuery]);
 
   const stats = useMemo(() => {
-    const totalCount = invoices.length;
-    const totalCredit = invoices.reduce((s, i) => s + (i.creditAmount || 0), 0);
-    const totalDebit = invoices.reduce((s, i) => s + (i.debitAmount || 0), 0);
-    const totalRemain = invoices.reduce((s, i) => s + Math.max(0, (i.creditAmount || 0) - (i.debitAmount || 0)), 0);
+    const totalCount = filteredInvoices.length;
+    const totalCredit = filteredInvoices.reduce((s, i) => s + (i.creditAmount || 0), 0);
+    const totalDebit = filteredInvoices.reduce((s, i) => s + (i.debitAmount || 0), 0);
+    const totalRemain = filteredInvoices.reduce((s, i) => s + Math.max(0, (i.creditAmount || 0) - (i.debitAmount || 0)), 0);
     return { totalCount, totalCredit, totalDebit, totalRemain };
-  }, [invoices]);
+  }, [filteredInvoices]);
 
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans pb-12 sm:pb-8">
@@ -682,15 +790,14 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
          ======================================================== */}
       <header className="border-b border-amber-500/20 bg-stone-900/80 backdrop-blur-md sticky top-0 z-40 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          {/* Logo & Tiêu đề */}
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2 group transition-transform active:scale-95"
-            >
-              <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-stone-950 shadow-md shadow-amber-500/20">
-                PC
-              </div>
+            <Link href="/" className="flex items-center gap-2 group transition-transform active:scale-95">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/icons/logo.png"
+                alt="Logo"
+                className="h-9 w-9 object-contain rounded-xl"
+              />
               <div>
                 <span className="text-sm font-black tracking-wider uppercase text-white block leading-none">
                   Poly Cards
@@ -703,17 +810,15 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
             <span className="h-5 w-px bg-white/10 hidden sm:block" />
 
-            {/* Breadcrumb / Screen Title */}
             <div className="hidden sm:block">
               <h1 className="text-xs font-black uppercase text-amber-300">
                 {activeView === "LIST" && "Phân Hệ Hóa Đơn Bán Hàng (POS)"}
-                {activeView === "CREATE" && "Lập Phiếu Hóa Đơn Bán Hàng"}
+                {activeView === "CREATE" && (editingInvoiceId ? "Chỉnh Sửa Hóa Đơn Bán Hàng" : "Lập Phiếu Hóa Đơn Bán Hàng")}
                 {activeView === "PREVIEW" && "Form Mẫu In Hóa Đơn"}
               </h1>
             </div>
           </div>
 
-          {/* Quick Actions & Navigation */}
           <div className="flex items-center gap-2">
             {activeView === "LIST" && (
               <button
@@ -762,7 +867,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
          ======================================================== */}
       {activeView === "LIST" && (
         <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-5 animate-in fade-in duration-200">
-          {/* Header & Thống Kê Nhanh */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div>
               <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
@@ -770,7 +874,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                 <span>Phân Hệ Hóa Đơn Bán Hàng (POS)</span>
               </h2>
               <p className="text-xs text-stone-400 mt-1">
-                Theo dõi toàn bộ đơn hàng bán trực tiếp tại quầy &amp; giao online, in hóa đơn chuẩn bán lẻ
+                Quản lý toàn bộ hóa đơn bán hàng trực tiếp tại quầy &amp; online, in phiếu xuất kho chuẩn bán lẻ
               </p>
             </div>
 
@@ -784,22 +888,22 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             </button>
           </div>
 
-          {/* 4 Thẻ Thống Kê Nhanh (KPI Cards) */}
+          {/* 4 Thẻ Thống Kê KPI */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-stone-900/80 border border-white/10 space-y-1">
-              <span className="text-[11px] font-bold text-stone-400 block">Tổng Hóa Đơn</span>
+              <span className="text-[11px] font-bold text-stone-400 block">Tổng Hóa Đơn Lọc</span>
               <span className="text-xl sm:text-2xl font-black text-white font-mono">{stats.totalCount}</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-stone-900/80 border border-amber-400/30 space-y-1">
-              <span className="text-[11px] font-bold text-amber-300 block">Tổng Phát Sinh Có</span>
+              <span className="text-[11px] font-bold text-amber-300 block">Tổng Tiền Đơn Hàng</span>
               <span className="text-base sm:text-lg font-black text-amber-400 font-mono">
                 {formatVndCurrency(stats.totalCredit)}
               </span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-stone-900/80 border border-emerald-400/30 space-y-1">
-              <span className="text-[11px] font-bold text-emerald-300 block">Thực Thu (Đã Trả)</span>
+              <span className="text-[11px] font-bold text-emerald-300 block">Đã Thanh Toán</span>
               <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">
                 {formatVndCurrency(stats.totalDebit)}
               </span>
@@ -813,51 +917,152 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             </div>
           </div>
 
-          {/* Thanh Tìm Kiếm & Bộ Lọc Nhanh */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-            {/* Ô Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
-              <input
-                type="text"
-                value={searchInvoiceQuery}
-                onChange={(e) => setSearchInvoiceQuery(e.target.value)}
-                placeholder="Tìm mã hóa đơn, tên khách, số điện thoại..."
-                className="w-full bg-stone-900/90 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-              />
-              {searchInvoiceQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchInvoiceQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 text-xs font-bold"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+          {/* THANH TÌM KIẾM ELASTIC-LIKE & GỢI Ý AUTOCOMPLETE */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              {/* Ô Search với Dropdown Gợi Ý */}
+              <div ref={searchContainerRef} className="relative flex-1 max-w-md">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                <input
+                  type="text"
+                  value={searchInvoiceQuery}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onChange={(e) => {
+                    setSearchInvoiceQuery(e.target.value);
+                    setIsSearchFocused(true);
+                  }}
+                  placeholder="Tìm kiếm Elastic: Mã HĐ, tên khách, SĐT (gõ không dấu)..."
+                  className="w-full bg-stone-900/90 border border-white/15 rounded-xl pl-10 pr-8 py-2.5 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400 shadow-sm"
+                />
+                {searchInvoiceQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInvoiceQuery("");
+                      setIsSearchFocused(false);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 text-xs font-bold"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
+                {/* Dropdown Gợi Ý Tức Thì (Autocomplete Suggestions) */}
+                {isSearchFocused && searchSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-stone-900 border border-amber-400/40 rounded-2xl shadow-2xl p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-2 py-1 text-[10px] font-bold uppercase text-amber-400/80 flex items-center justify-between">
+                      <span>Gợi ý kết quả tìm kiếm ({searchSuggestions.length})</span>
+                      <span className="text-stone-500">Chạm để xem</span>
+                    </div>
+                    {searchSuggestions.map((inv) => (
+                      <div
+                        key={inv.id || inv.code}
+                        onClick={() => {
+                          setIsSearchFocused(false);
+                          handleViewInvoice(inv);
+                        }}
+                        className="p-2.5 rounded-xl hover:bg-stone-800 cursor-pointer transition-colors flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono text-xs font-black text-amber-300 block truncate">
+                            {highlightMatch(inv.code, searchInvoiceQuery)}
+                          </span>
+                          <span className="text-xs text-white font-bold block truncate">
+                            {highlightMatch(inv.customerName, searchInvoiceQuery)}
+                            {inv.customerPhone ? ` • ${inv.customerPhone}` : ""}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs font-bold text-emerald-400 shrink-0">
+                          {formatVndCurrency(inv.creditAmount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Lọc Trạng Thái */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                {[
+                  { id: "ALL", label: `Tất cả (${invoices.length})` },
+                  { id: "PAID", label: "Đã TT" },
+                  { id: "PARTIAL", label: "Còn thiếu" },
+                  { id: "TRUCTIEP", label: "Tại quầy" },
+                  { id: "ONLINE", label: "Online" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFilterStatus(tab.id as typeof filterStatus)}
+                    className={`py-1.5 px-3 rounded-xl font-bold shrink-0 transition-all ${
+                      filterStatus === tab.id
+                        ? "bg-amber-400 text-stone-950 font-black shadow-sm"
+                        : "bg-stone-900 text-stone-300 border border-white/10 hover:bg-stone-800"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
-              {[
-                { id: "ALL", label: `Tất cả (${invoices.length})` },
-                { id: "PAID", label: "Đã TT" },
-                { id: "PARTIAL", label: "Còn thiếu" },
-                { id: "TRUCTIEP", label: "Tại quầy" },
-                { id: "ONLINE", label: "Online" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setFilterStatus(tab.id as typeof filterStatus)}
-                  className={`py-1.5 px-3 rounded-xl font-bold shrink-0 transition-all ${
-                    filterStatus === tab.id
-                      ? "bg-amber-400 text-stone-950 font-black shadow-sm"
-                      : "bg-stone-900 text-stone-300 border border-white/10 hover:bg-stone-800"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* BỘ LỌC THỜI GIAN THEO YÊU CẦU */}
+            <div className="p-3 rounded-2xl bg-stone-900/60 border border-white/10 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-stone-300">
+                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <span>Bộ Lọc Thời Gian:</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                {[
+                  { id: "ALL", label: "Tất cả" },
+                  { id: "THIS_MONTH", label: "Tháng này" },
+                  { id: "LAST_MONTH", label: "Tháng trước" },
+                  { id: "THIS_QUARTER", label: "Quý này" },
+                  { id: "LAST_QUARTER", label: "Quý trước" },
+                  { id: "THIS_YEAR", label: "Năm này" },
+                  { id: "LAST_YEAR", label: "Năm trước" },
+                  { id: "CUSTOM", label: "Khoảng thời gian" },
+                ].map((tf) => (
+                  <button
+                    key={tf.id}
+                    type="button"
+                    onClick={() => setTimeFilter(tf.id as typeof timeFilter)}
+                    className={`py-1 px-2.5 rounded-lg font-bold transition-all ${
+                      timeFilter === tf.id
+                        ? "bg-amber-500 text-stone-950 font-black shadow-xs"
+                        : "bg-stone-900/90 text-stone-400 border border-white/10 hover:text-white"
+                    }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tùy chọn Khoảng thời gian (Từ ngày -> Đến ngày) */}
+              {timeFilter === "CUSTOM" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2 bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-xs">
+                    <span className="text-stone-400 shrink-0 font-bold">Từ ngày:</span>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="bg-transparent text-white font-mono focus:outline-hidden w-full"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-xs">
+                    <span className="text-stone-400 shrink-0 font-bold">Đến ngày:</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="bg-transparent text-white font-mono focus:outline-hidden w-full"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -880,17 +1085,29 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               {filteredInvoices.map((inv) => {
                 const isPaid = inv.status === "PAID" || (inv.debitAmount >= inv.creditAmount);
                 const remain = Math.max(0, (inv.creditAmount || 0) - (inv.debitAmount || 0));
+                const isNewlyCreated = inv.id === newlyCreatedInvoiceId;
 
                 return (
                   <div
                     key={inv.id || inv.code}
-                    className="p-4 rounded-2xl bg-stone-900/90 border border-white/10 hover:border-amber-400/50 transition-all space-y-3 shadow-lg flex flex-col justify-between group"
+                    onClick={() => handleViewInvoice(inv)}
+                    className={`cursor-pointer p-4 rounded-2xl transition-all space-y-3 shadow-lg flex flex-col justify-between group relative overflow-hidden ${
+                      isNewlyCreated
+                        ? "bg-amber-500/15 border-2 border-amber-400 shadow-xl shadow-amber-500/25 ring-2 ring-amber-400/50"
+                        : "bg-stone-900/90 border border-white/10 hover:border-amber-400/50"
+                    }`}
                   >
-                    {/* Top Row: Code + Date + Status */}
+                    {/* Badge Mới Tạo */}
+                    {isNewlyCreated && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black text-[9px] uppercase tracking-wider animate-pulse">
+                        MỚI TẠO
+                      </span>
+                    )}
+
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 pr-16">
                         <span className="font-mono text-xs font-black text-amber-400">
-                          {inv.code}
+                          {highlightMatch(inv.code, searchInvoiceQuery)}
                         </span>
                         <span
                           className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
@@ -907,11 +1124,11 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <h4 className="text-sm font-black text-white truncate">
-                            {inv.customerName}
+                            {highlightMatch(inv.customerName, searchInvoiceQuery)}
                           </h4>
                           {inv.customerPhone && (
                             <span className="text-[11px] text-stone-400 font-mono block">
-                              {inv.customerPhone}
+                              {highlightMatch(inv.customerPhone, searchInvoiceQuery)}
                             </span>
                           )}
                         </div>
@@ -927,7 +1144,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                         </span>
                       </div>
 
-                      {/* Tên sản phẩm */}
                       <p className="text-xs text-stone-300 line-clamp-2 leading-relaxed pt-1">
                         {inv.packTitle}
                       </p>
@@ -937,7 +1153,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     <div className="space-y-3 pt-2 border-t border-white/10">
                       <div className="flex items-center justify-between text-xs">
                         <div>
-                          <span className="text-[10px] text-stone-400 block">Tổng tiền</span>
+                          <span className="text-[10px] text-stone-400 block">Tổng Tiền</span>
                           <span className="font-mono font-black text-amber-300">
                             {formatVndCurrency(inv.creditAmount)}
                           </span>
@@ -961,23 +1177,32 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       </div>
 
                       {/* Action buttons */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => handleViewInvoice(inv)}
-                          className="py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                          className="py-2 px-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all"
                         >
                           <Eye className="h-3.5 w-3.5" />
-                          <span>Xem Phiếu In</span>
+                          <span>Xem In</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEditInvoice(inv)}
+                          className="py-2 px-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                          <span>Sửa</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleCopyZaloMessage(inv)}
-                          className="py-2 px-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 active:scale-95 transition-all"
+                          className="py-2 px-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
                         >
                           <Copy className="h-3.5 w-3.5 text-emerald-400" />
-                          <span>Chép Zalo</span>
+                          <span>Zalo</span>
                         </button>
                       </div>
                     </div>
@@ -990,11 +1215,10 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       )}
 
       {/* ========================================================
-          VIEW 2: LẬP PHIẾU HÓA ĐƠN BÁN HÀNG (STEPPER WIZARD)
+          VIEW 2: LẬP / SỬA PHIẾU HÓA ĐƠN BÁN HÀNG (STEPPER WIZARD)
          ======================================================== */}
       {activeView === "CREATE" && (
         <main className="max-w-3xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-5 animate-in slide-in-from-right-4 duration-200">
-          {/* Header & Back Button */}
           <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
             <button
               type="button"
@@ -1006,7 +1230,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             </button>
 
             <span className="text-xs font-mono font-bold text-amber-400">
-              Bước {createStep} / 3
+              {editingInvoiceId ? "Đang Sửa Phiếu" : "Lập Phiếu Mới"} &bull; Bước {createStep} / 3
             </span>
           </div>
 
@@ -1035,12 +1259,9 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             ))}
           </div>
 
-          {/* Form Container */}
           <div className="rounded-3xl bg-stone-900/90 border border-amber-400/40 p-5 sm:p-6 shadow-2xl space-y-5">
             <form onSubmit={handleCreateInvoice} className="space-y-5">
-              {/* ==============================================
-                  BƯỚC 1: KHÁCH HÀNG & GIAO NHẬN
-                 ============================================== */}
+              {/* BƯỚC 1: KHÁCH HÀNG */}
               {createStep === 1 && (
                 <div className="space-y-4 animate-in fade-in duration-150">
                   <div className="border-b border-white/10 pb-3">
@@ -1053,7 +1274,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </p>
                   </div>
 
-                  {/* Kênh bán: Tại quầy vs Online */}
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -1082,7 +1302,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </button>
                   </div>
 
-                  {/* Tên & Mã KH */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-bold text-stone-300 mb-1">
@@ -1111,7 +1330,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </div>
                   </div>
 
-                  {/* SĐT & Địa chỉ */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-stone-300 mb-1">
@@ -1145,7 +1363,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </div>
                   </div>
 
-                  {/* Nút Điều Hướng Bước 1 -> 2 */}
                   <div className="pt-3 flex justify-end">
                     <button
                       type="button"
@@ -1159,9 +1376,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                 </div>
               )}
 
-              {/* ==============================================
-                  BƯỚC 2: CHỌN HÀNG HÓA TỪ KHO
-                 ============================================== */}
+              {/* BƯỚC 2: CHỌN HÀNG HÓA */}
               {createStep === 2 && (
                 <div className="space-y-4 animate-in fade-in duration-150">
                   <div className="border-b border-white/10 pb-3 flex items-center justify-between">
@@ -1180,7 +1395,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </span>
                   </div>
 
-                  {/* NÚT MỞ KHO HÀNG HÓA DUY NHẤT (ĐÃ LOẠI BỎ CÁC BUTTON RÁC) */}
+                  {/* NÚT MỞ KHO HÀNG HÓA */}
                   <button
                     type="button"
                     onClick={() => setIsCatalogModalOpen(true)}
@@ -1280,11 +1495,10 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     )}
                   </div>
 
-                  {/* Tạm tính & Khuyến mãi nếu có */}
                   {cartItems.length > 0 && (
                     <div className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-1 text-xs">
                       <div className="flex justify-between text-stone-400">
-                        <span>Tạm tính hàng hóa:</span>
+                        <span>Tiền hàng tạm tính:</span>
                         <span className="font-mono font-bold text-white">
                           {formatVndCurrency(subtotal)}
                         </span>
@@ -1298,7 +1512,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </div>
                   )}
 
-                  {/* Nút Điều Hướng Bước 2: Quay lại hoặc Sang Bước 3 */}
                   <div className="pt-3 flex items-center justify-between gap-2">
                     <button
                       type="button"
@@ -1321,9 +1534,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                 </div>
               )}
 
-              {/* ==============================================
-                  BƯỚC 3: HẠCH TOÁN & XUẤT HÓA ĐƠN
-                 ============================================== */}
+              {/* BƯỚC 3: HẠCH TOÁN */}
               {createStep === 3 && (
                 <div className="space-y-4 animate-in fade-in duration-150">
                   <div className="border-b border-white/10 pb-3">
@@ -1332,11 +1543,10 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       <span>Bước 3: Hạch Toán &amp; Thanh Toán POS</span>
                     </h3>
                     <p className="text-xs text-stone-400 mt-0.5">
-                      Xác nhận số tiền thu, thuế VAT và phương thức thanh toán
+                      Xác nhận tổng tiền, thuế VAT và phương thức thanh toán
                     </p>
                   </div>
 
-                  {/* Thuế VAT */}
                   <div>
                     <label className="block text-xs font-bold text-stone-300 mb-1">
                       Thuế Giá Trị Gia Tăng (VAT):
@@ -1359,13 +1569,11 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </div>
                   </div>
 
-                  {/* Khung Hạch Toán Có - Nợ - Còn Lại */}
                   <div className="p-3.5 rounded-2xl bg-black/80 border-2 border-amber-400/50 space-y-3">
-                    {/* Phát Sinh Có (Cần Phải Trả) */}
                     <div className="p-3 rounded-xl bg-stone-900 border border-amber-400/30 flex items-center justify-between">
                       <div>
                         <span className="block text-xs font-black text-amber-300">
-                          Phát Sinh Có (Cần Phải Trả):
+                          Tổng Tiền:
                         </span>
                         <span className="text-[10px] text-stone-400">
                           Tổng tiền đơn hàng sau thuế VAT
@@ -1376,12 +1584,11 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       </span>
                     </div>
 
-                    {/* Phát Sinh Nợ (Đã Trả Ngay) */}
                     <div className="p-3 rounded-xl bg-stone-900 border border-white/20 space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="block text-xs font-black text-emerald-400">
-                            Phát Sinh Nợ (Đã Trả Ngay):
+                            Đã Thanh Toán:
                           </span>
                           <span className="text-[10px] text-stone-400">
                             Khách thanh toán tiền mặt / CK
@@ -1404,7 +1611,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       />
                     </div>
 
-                    {/* Còn lại */}
                     <div className="p-2.5 rounded-xl bg-black/90 border border-white/10 flex items-center justify-between text-xs">
                       <div>
                         <span className="font-bold text-stone-300 block">Còn Lại:</span>
@@ -1427,7 +1633,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </div>
                   </div>
 
-                  {/* Phương thức thanh toán */}
                   <div>
                     <label className="block text-xs font-bold text-stone-300 mb-1">
                       Hình thức thanh toán:
@@ -1461,7 +1666,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     </div>
                   </div>
 
-                  {/* Ghi chú */}
                   <div>
                     <label className="block text-xs font-bold text-stone-300 mb-1">
                       Ghi chú hóa đơn:
@@ -1475,7 +1679,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     />
                   </div>
 
-                  {/* Nút Điều Hướng & Xuất Hóa Đơn */}
                   <div className="pt-3 flex items-center justify-between gap-2">
                     <button
                       type="button"
@@ -1491,7 +1694,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       className="py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/25 active:scale-98 transition-all flex items-center justify-center gap-2 min-h-[44px]"
                     >
                       <Receipt className="h-4 w-4" />
-                      <span>Lập Phiếu &amp; Xuất Hóa Đơn</span>
+                      <span>{editingInvoiceId ? "Lưu Thay Đổi Hóa Đơn" : "Lập Phiếu & Xuất Hóa Đơn"}</span>
                     </button>
                   </div>
                 </div>
@@ -1506,7 +1709,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
          ======================================================== */}
       {activeView === "PREVIEW" && selectedInvoice && (
         <main className="max-w-4xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-4 animate-in zoom-in-95 duration-200">
-          {/* Action Toolbar Phía Trên Tờ In */}
+          {/* Action Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4 rounded-2xl bg-stone-900 border border-white/10 print:hidden shadow-lg">
             <div className="flex items-center gap-2">
               <button
@@ -1524,6 +1727,15 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleEditInvoice(selectedInvoice)}
+                className="py-2 px-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs flex items-center gap-1.5 border border-white/10 transition-colors"
+              >
+                <Edit className="h-3.5 w-3.5" />
+                <span>Sửa Phiếu</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleStartCreate}
@@ -1556,25 +1768,31 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
           {/* TỜ PHIẾU HÓA ĐƠN BÁN HÀNG CHUẨN IN ẤN (WHITE THEME PRINTABLE) */}
           <div
             id="printable-invoice"
-            className="bg-white text-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-stone-200 space-y-6 print:m-0 print:p-6 print:border-none print:shadow-none print:rounded-none"
+            className="bg-white text-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-stone-200 space-y-6 print:m-0 print:p-0 print:border-none print:shadow-none print:rounded-none"
           >
-            {/* Header Phiếu Thu */}
+            {/* Header Phiếu Thu: LOGO + POLY CARDS VIỆT NAM */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b-2 border-slate-900 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-amber-500 flex items-center justify-center font-black text-stone-950 text-sm">
-                    PC
-                  </div>
-                  <span className="text-lg font-black tracking-wider uppercase text-slate-900">
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/icons/logo.png"
+                  alt="Poly Cards Logo"
+                  className="h-12 w-12 object-contain rounded-xl shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = "none";
+                  }}
+                />
+                <div>
+                  <span className="text-lg font-black tracking-wider uppercase text-slate-900 block leading-tight">
                     POLY CARDS VIỆT NAM
                   </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Hệ sinh thái Thẻ bài Học tập Thực tế ảo WebAR tương tác 3D
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Website: polycards.vn &bull; Hotline: 0988.xxx.xxx
+                  </p>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Hệ sinh thái Thẻ bài Học tập Thực tế ảo WebAR tương tác 3D
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Website: polycards.vn &bull; Hotline: 0988.xxx.xxx
-                </p>
               </div>
 
               <div className="text-left sm:text-right">
@@ -1591,7 +1809,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             </div>
 
             {/* Thông Tin Khách Hàng */}
-            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <div>
                 <span className="text-slate-400 font-bold block text-[10px] uppercase">
                   Thông Tin Người Mua
@@ -1616,7 +1834,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                 )}
               </div>
 
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <span className="text-slate-400 font-bold block text-[10px] uppercase">
                   Phương Thức &amp; Kênh
                 </span>
@@ -1629,8 +1847,46 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               </div>
             </div>
 
-            {/* Bảng Chi Tiết Sản Phẩm */}
-            <div className="overflow-x-auto">
+            {/* BẢNG CHI TIẾT SẢN PHẨM: RESPONSIVE CHO MOBILE & DESKTOP */}
+            {/* 1. Mobile Layout (sm:hidden): Dạng Card thông thoáng, không bị bó cột */}
+            <div className="sm:hidden space-y-2.5">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                Danh Sách Sản Phẩm ({selectedInvoice.items?.length || 1}):
+              </span>
+              {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                selectedInvoice.items.map((it, idx) => (
+                  <div key={it.id || idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 text-xs block leading-snug">
+                          {idx + 1}. {it.name}
+                        </span>
+                        {it.packCode && (
+                          <span className="font-mono text-[10px] text-slate-500 block">
+                            Mã: {it.packCode}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-slate-900 text-xs shrink-0">
+                        {formatVndCurrency(it.totalPrice || it.quantity * it.unitPrice)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                      <span>SL: <strong className="text-slate-700 font-mono font-bold">{it.quantity}</strong></span>
+                      <span>Đơn giá: <strong className="font-mono text-slate-700">{formatVndCurrency(it.unitPrice)}</strong></span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-900">{selectedInvoice.packTitle}</span>
+                  <span className="font-mono font-bold text-slate-900">{formatVndCurrency(selectedInvoice.creditAmount)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Desktop & Print Layout (hidden sm:block print:block): Table chuẩn mực */}
+            <div className="hidden sm:block print:block overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b-2 border-slate-200 text-slate-600 uppercase text-[10px]">
@@ -1680,10 +1936,10 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               </table>
             </div>
 
-            {/* Bảng Hạch Toán Tổng Tiền & VAT */}
+            {/* Bảng Hạch Toán Đã Đổi Nhãn Theo Yêu Cầu */}
             <div className="border-t-2 border-slate-900 pt-4 space-y-1.5 text-xs">
               <div className="flex justify-between text-slate-600">
-                <span>Tạm tính tiền hàng:</span>
+                <span>Tiền hàng tạm tính:</span>
                 <span className="font-mono font-bold text-slate-900">
                   {formatVndCurrency(selectedInvoice.subtotal || selectedInvoice.creditAmount)}
                 </span>
@@ -1706,14 +1962,14 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               )}
 
               <div className="flex justify-between text-sm sm:text-base font-black text-slate-900 pt-2 border-t border-slate-200">
-                <span>Tổng Phát Sinh Có (Cần Phải Trả):</span>
+                <span>Tổng Tiền:</span>
                 <span className="font-mono text-amber-600">
                   {formatVndCurrency(selectedInvoice.creditAmount)}
                 </span>
               </div>
 
               <div className="flex justify-between text-xs text-slate-600 pt-1">
-                <span>Phát Sinh Nợ (Đã thanh toán):</span>
+                <span>Đã Thanh Toán:</span>
                 <span className="font-mono font-bold text-emerald-700">
                   {formatVndCurrency(selectedInvoice.debitAmount)}
                 </span>
@@ -1721,60 +1977,20 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
               {selectedInvoice.remainingAmount > 0 && (
                 <div className="flex justify-between text-xs text-rose-600 font-bold pt-1">
-                  <span>Còn lại chưa thanh toán:</span>
+                  <span>Còn thiếu:</span>
                   <span className="font-mono">{formatVndCurrency(selectedInvoice.remainingAmount)}</span>
                 </div>
               )}
             </div>
 
-            {/* Khối Mã Bản Quyền & QR Code Quét 3D WebAR */}
-            <div className="p-4 rounded-2xl bg-amber-50/80 border-2 border-dashed border-amber-300 space-y-3">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="space-y-1 text-center sm:text-left">
-                  <span className="text-[10px] uppercase font-black tracking-wider text-amber-900 block">
-                    Mã Cha Kích Hoạt Bản Quyền (License Master Code)
-                  </span>
-                  <div className="font-mono text-sm sm:text-base font-black text-amber-950 bg-white px-3 py-1.5 rounded-xl border border-amber-300 inline-block shadow-xs">
-                    {selectedInvoice.packCode}
-                  </div>
-                  <p className="text-[11px] text-amber-900/80">
-                    Dùng mã này để quét trực tiếp hoặc mở khóa toàn bộ danh mục thẻ đi kèm
-                  </p>
-                </div>
-
-                {selectedInvoiceQrUrl && (
-                  <div className="flex flex-col items-center shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selectedInvoiceQrUrl}
-                      alt="QR Code"
-                      className="h-24 w-24 rounded-xl border-2 border-slate-900 p-1 bg-white shadow-md"
-                    />
-                    <span className="text-[9px] font-bold text-slate-700 mt-1 uppercase">
-                      Quét mở WebAR 3D
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Danh sách các mã con nếu có nhiều bộ */}
-              {selectedInvoice.childCodes && selectedInvoice.childCodes.length > 0 && (
-                <div className="pt-2 border-t border-amber-200/80 space-y-1">
-                  <span className="text-[10px] font-bold text-amber-950 block">
-                    Các Mã Con Từng Bộ / Thẻ Lẻ (In trên thẻ bài &amp; vỏ hộp):
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedInvoice.childCodes.map((cc, i) => (
-                      <span
-                        key={i}
-                        className="font-mono text-[10px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded-md font-bold"
-                      >
-                        {cc}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+            {/* GHI CHÚ BẢO HÀNH & KÍCH HOẠT (ĐÃ XÓA KHỐI QR CON SƯ TỬ VÀ MÃ CHA) */}
+            <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200 text-xs text-amber-950 space-y-1">
+              <span className="font-black text-amber-900 block uppercase text-[10px]">
+                Lưu Ý Bản Quyền &amp; Hướng Dẫn Kích Hoạt WebAR 3D:
+              </span>
+              <p className="text-[11px] leading-relaxed text-amber-900/90">
+                Sản phẩm Thẻ Học AR Poly Cards chính hãng đã được gắn sẵn mã kích hoạt và mã QR trực tiếp trên từng mặt thẻ bài khi xuất xưởng. Ba Mẹ và các bé chỉ cần mở camera điện thoại quét trực tiếp trên mặt thẻ là có thể tương tác 3D WebAR không cần cài đặt ứng dụng.
+              </p>
             </div>
 
             {/* Chữ Ký Người Bán & Người Mua */}

@@ -216,3 +216,34 @@ video {
   -webkit-touch-callout: none !important;
 }
 
+/* ========================================================
+   PRINT STYLES: Tối ưu bản in hóa đơn, ẩn URL header/footer & widget
+   ======================================================== */
+@media print {
+  @page {
+    size: auto;
+    margin: 8mm 12mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .print\:hidden,
+  header,
+  footer,
+  [aria-label*="Trợ lý AI"] {
+    display: none !important;
+  }
+  #printable-invoice {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+

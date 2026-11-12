@@ -162,11 +162,12 @@ export function PackDetailModal({
                       className="p-2.5 rounded-2xl bg-stone-50 hover:bg-amber-50/60 border border-stone-200/80 transition-all flex flex-col justify-between space-y-2 group"
                     >
                       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-white border border-stone-200/60 flex items-center justify-center">
-                        <Image
-                          src={card.images?.[0] || card.posterUrl || "/images/cards/butterfly-card.png"}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={card.rawImageUrl || card.posterUrl || card.targetUrl || "/images/cards/butterfly-card.png"}
                           alt={card.nameVi}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          loading="lazy"
                         />
                         <span className="absolute bottom-1 right-1 bg-stone-900/80 text-white text-[9px] font-mono px-1.5 py-0.2 rounded font-bold">
                           #{idx + 1}

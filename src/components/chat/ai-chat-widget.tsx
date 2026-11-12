@@ -254,7 +254,7 @@ export function AiChatWidget() {
       {/* 1. KHUNG HỘI THOẠI AI CHATBOT NỔI */}
       {isOpen && (
         <div
-          className={`fixed right-3 sm:right-6 z-50 w-[calc(100vw-24px)] sm:w-[400px] h-[540px] max-h-[82vh] rounded-3xl bg-white/95 backdrop-blur-xl border-2 border-amber-300 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200 ${
+          className={`print:hidden fixed right-3 sm:right-6 z-50 w-[calc(100vw-24px)] sm:w-[400px] h-[540px] max-h-[82vh] rounded-3xl bg-white/95 backdrop-blur-xl border-2 border-amber-300 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200 ${
             isOrderPage
               ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-24"
               : "bottom-20 sm:bottom-24"
@@ -405,7 +405,7 @@ export function AiChatWidget() {
       {/* 2. BONG BÓNG LỜI MỜI NHỎ (HIỂN THỊ KHI CHƯA MỞ CHAT) */}
       {!isOpen && hasNewMessagePrompt && (
         <div
-          className={`fixed right-4 sm:right-7 z-40 max-w-[260px] rounded-2xl bg-white border border-amber-300 p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 transition-all ${
+          className={`print:hidden fixed right-4 sm:right-7 z-40 max-w-[260px] rounded-2xl bg-white border border-amber-300 p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 transition-all ${
             isOrderPage
               ? "bottom-[calc(9.25rem+env(safe-area-inset-bottom))] lg:bottom-24"
               : "bottom-20 sm:bottom-24"
@@ -443,7 +443,7 @@ export function AiChatWidget() {
           setIsOpen((prev) => !prev);
           setHasNewMessagePrompt(false);
         }}
-        className={`fixed right-4 sm:right-6 z-40 flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer ring-4 ring-amber-300/40 group ${
+        className={`print:hidden fixed right-4 sm:right-6 z-40 flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer ring-4 ring-amber-300/40 group ${
           isOrderPage
             ? "bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-6"
             : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:bottom-6"

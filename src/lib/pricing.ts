@@ -241,15 +241,17 @@ export function computePackDynamicPricing(
     );
 
     // Xác định originalPrice của bộ
-    let originalPrice = packConfig?.isManualPrice && packConfig?.originalPrice
+    let originalPrice = packConfig?.originalPrice && packConfig.originalPrice > 0
       ? packConfig.originalPrice
-      : sumOriginal;
+      : (packConfig?.isManualPrice && packConfig?.originalPrice
+        ? packConfig.originalPrice
+        : (sumOriginal > 0 && sumOriginal <= cardsCount * 25000 ? sumOriginal : cardsCount * 10000));
 
     // Xác định price (salePrice) của bộ
-    let price = sumSale;
+    let price = 0;
     let discountPercent = 0;
 
-    if (packConfig?.isManualPrice && packConfig?.salePrice) {
+    if (packConfig?.salePrice && packConfig.salePrice > 0) {
       price = packConfig.salePrice;
       discountPercent = originalPrice > price
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
@@ -257,8 +259,15 @@ export function computePackDynamicPricing(
     } else if (packConfig?.discountPercent !== undefined && packConfig.discountPercent > 0) {
       discountPercent = packConfig.discountPercent;
       price = roundPrice(originalPrice * (1 - discountPercent / 100));
-    } else {
+    } else if (sumSale > 0 && sumSale <= cardsCount * 25000) {
+      // Chỉ dùng tổng giá thẻ con nếu giá thẻ con là giá thông thường (<= 25.000đ/thẻ)
       price = sumSale;
+      discountPercent = originalPrice > price
+        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+        : 0;
+    } else {
+      // Giá chuẩn mặc định cho bộ 30 thẻ là 249.000đ (hoặc tỉ lệ tương ứng theo số thẻ)
+      price = cardsCount === 30 ? 249000 : roundPrice(cardsCount * 8300);
       discountPercent = originalPrice > price
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
         : 0;
