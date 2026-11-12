@@ -192,6 +192,8 @@ export default function InvoicesPage() {
   const [customerAddress, setCustomerAddress] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>(() => `KH-${Math.floor(1000 + Math.random() * 9000)}`);
   const [isExistingCustomer, setIsExistingCustomer] = useState<boolean>(false);
+  const [isSearchingPhone, setIsSearchingPhone] = useState<boolean>(false);
+  const phoneLookupTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [orderStatus, setOrderStatus] = useState<OrderStatus>("DA_NHAN");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TRUC_TIEP");
   const [codAmount, setCodAmount] = useState<number>(0);
@@ -406,11 +408,98 @@ export default function InvoicesPage() {
 
   const handleToggleCustomerType = (type: "TRUCTIEP" | "ONLINE") => {
     setCustomerType(type);
-    if (type === "TRUCTIEP" && customerName.includes("Khách Đặt Hàng")) {
-      setCustomerName("Khách Mua Trực Tiếp Tại Quầy");
-    } else if (type === "ONLINE" && customerName.includes("Khách Mua Trực Tiếp")) {
-      setCustomerName("Khách Đặt Hàng Online");
+    if (!isExistingCustomer) {
+      if (type === "TRUCTIEP" && customerName.includes("Khách Đặt Hàng")) {
+        setCustomerName("Khách Mua Trực Tiếp Tại Quầy");
+      } else if (type === "ONLINE" && customerName.includes("Khách Mua Trực Tiếp")) {
+        setCustomerName("Khách Đặt Hàng Online");
+      }
     }
+  };
+
+  // Tra cứu tự động khách hàng theo số điện thoại (từ hóa đơn cũ & Database)
+  const handlePhoneLookup = useCallback(async (phoneVal: string) => {
+    const cleanPhone = phoneVal.replace(/\D/g, "");
+    if (cleanPhone.length < 9) {
+      setIsExistingCustomer(false);
+      return;
+    }
+
+    setIsSearchingPhone(true);
+
+    // 1. Tra cứu nhanh trong lịch sử các hóa đơn đã có trên hệ thống
+    const matchedInv = invoices.find((inv) => {
+      const invPhone = (inv.customerPhone || "").replace(/\D/g, "");
+      return (
+        invPhone &&
+        (invPhone === cleanPhone ||
+          (cleanPhone.length >= 9 && invPhone.endsWith(cleanPhone.slice(-9))) ||
+          (invPhone.length >= 9 && cleanPhone.endsWith(invPhone.slice(-9))))
+      );
+    });
+
+    if (matchedInv) {
+      if (matchedInv.customerId) setCustomerId(matchedInv.customerId);
+      if (
+        matchedInv.customerName &&
+        !matchedInv.customerName.includes("Khách Mua Trực Tiếp") &&
+        !matchedInv.customerName.includes("Khách Đặt Hàng")
+      ) {
+        setCustomerName(matchedInv.customerName);
+      }
+      if (matchedInv.customerAddress) {
+        setCustomerAddress(matchedInv.customerAddress);
+      }
+      setIsExistingCustomer(true);
+      setIsSearchingPhone(false);
+      showToast(
+        `Đã nhận diện khách quen: ${matchedInv.customerName} (${matchedInv.customerId || ""})`,
+        "success"
+      );
+      return;
+    }
+
+    // 2. Tra cứu trong Database qua API /api/customers/search
+    try {
+      const res = await fetch(`/api/customers/search?phone=${encodeURIComponent(cleanPhone)}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        const cust = json.data;
+        if (cust.id) setCustomerId(cust.id);
+        if (cust.name) setCustomerName(cust.name);
+        if (cust.address) setCustomerAddress(cust.address);
+        setIsExistingCustomer(true);
+        setIsSearchingPhone(false);
+        showToast(`Đã nhận diện khách quen: ${cust.name} (${cust.id})`, "success");
+        return;
+      }
+    } catch {
+      // bỏ qua lỗi mạng
+    }
+
+    setIsExistingCustomer(false);
+    setIsSearchingPhone(false);
+  }, [invoices, showToast]);
+
+  const handlePhoneChange = (val: string) => {
+    setCustomerPhone(val);
+    const clean = val.replace(/\D/g, "");
+    if (clean.length >= 9) {
+      if (phoneLookupTimerRef.current) clearTimeout(phoneLookupTimerRef.current);
+      phoneLookupTimerRef.current = setTimeout(() => {
+        handlePhoneLookup(val);
+      }, 350);
+    } else {
+      setIsExistingCustomer(false);
+    }
+  };
+
+  const handleResetToNewCustomer = () => {
+    setCustomerId(`KH-${Math.floor(1000 + Math.random() * 9000)}`);
+    setCustomerName(customerType === "ONLINE" ? "Khách Đặt Hàng Online" : "Khách Mua Trực Tiếp Tại Quầy");
+    setCustomerPhone("");
+    setCustomerAddress("");
+    setIsExistingCustomer(false);
   };
 
   // ========================================================
@@ -1445,32 +1534,84 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-stone-300 mb-1">
-                        Số điện thoại / Zalo:
-                      </label>
-                      <input
-                        type="tel"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="0912..."
-                        className="w-full bg-black/70 border border-white/20 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-mono placeholder-stone-600 focus:outline-hidden focus:border-amber-400 min-h-[44px]"
-                      />
-                      {isExistingCustomer && (
-                        <span className="text-[10px] text-emerald-400 font-bold mt-1 inline-flex items-center gap-1">
-                          <Check className="h-3 w-3" /> Khách hàng đã lưu trong hệ thống
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-stone-300">
+                          Số điện thoại / Zalo:
+                        </label>
+                        {isExistingCustomer && (
+                          <button
+                            type="button"
+                            onClick={handleResetToNewCustomer}
+                            className="text-[10px] text-amber-400 hover:underline font-bold cursor-pointer"
+                          >
+                            Tạo khách mới
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          value={customerPhone}
+                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          onBlur={() => {
+                            if (customerPhone.replace(/\D/g, "").length >= 9) {
+                              handlePhoneLookup(customerPhone);
+                            }
+                          }}
+                          placeholder="Nhập SĐT khách hàng (VD: 0862587229)..."
+                          className={`w-full bg-black/70 border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-mono placeholder-stone-600 focus:outline-hidden min-h-[44px] transition-all ${
+                            isExistingCustomer
+                              ? "border-emerald-400/80 bg-emerald-950/20 text-emerald-300 shadow-sm shadow-emerald-500/10"
+                              : "border-white/20 focus:border-amber-400"
+                          }`}
+                        />
+                        {isSearchingPhone && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          </div>
+                        )}
+                        {!isSearchingPhone && isExistingCustomer && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400">
+                            <CheckCircle2 className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+
+                      {isExistingCustomer ? (
+                        <div className="mt-1.5 p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-between text-[11px] text-emerald-300 animate-in fade-in">
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            <span>Khách quen: <strong>{customerName}</strong> ({customerId})</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-stone-500 mt-1 block">
+                          Tự động nhận diện &amp; điền tên, mã KH, địa chỉ nếu SĐT đã có trong hệ thống
                         </span>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-stone-300 mb-1">
-                        Địa chỉ giao hàng:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-stone-300">
+                          Địa chỉ giao hàng:
+                        </label>
+                        <span className="text-[10px] text-stone-500">
+                          {customerType === "TRUCTIEP" ? "Tại quầy (tùy chọn)" : "Cần thiết cho giao Online"}
+                        </span>
+                      </div>
                       <input
                         type="text"
                         value={customerAddress}
                         onChange={(e) => setCustomerAddress(e.target.value)}
-                        placeholder="Số nhà, đường, quận/huyện..."
+                        placeholder={
+                          customerType === "TRUCTIEP"
+                            ? "Khách mua tại quầy không cần nhập (tùy chọn)..."
+                            : "Số nhà, tên đường, phường/xã, quận/huyện..."
+                        }
                         className="w-full bg-black/70 border border-white/20 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-stone-600 focus:outline-hidden focus:border-amber-400 min-h-[44px]"
                       />
                     </div>
