@@ -241,7 +241,7 @@ async function callGeminiTier(
           contents: formattedContents,
           generationConfig: {
             temperature: temperature || 0.7,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 4096,
           },
         }),
         signal: controller.signal,
@@ -308,7 +308,7 @@ async function callOpenRouterTier(
             ...messages.map((m) => ({ role: m.role, content: m.content })),
           ],
           temperature: temperature || 0.7,
-          max_tokens: 2048,
+          max_tokens: 4096,
         }),
         signal: controller.signal,
       });
@@ -369,7 +369,7 @@ async function callGroqTier(
             ...messages.map((m) => ({ role: m.role, content: m.content })),
           ],
           temperature: temperature || 0.7,
-          max_tokens: 2048,
+          max_tokens: 4096,
         }),
         signal: controller.signal,
       });
