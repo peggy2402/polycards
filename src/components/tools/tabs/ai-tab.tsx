@@ -6,10 +6,7 @@ import {
   Sparkles,
   Save,
   RotateCcw,
-  Key,
   Cpu,
-  Eye,
-  EyeOff,
   Send,
   HelpCircle,
   Check,
@@ -32,7 +29,11 @@ export function AiTab({ onShowToast }: AiTabProps) {
   const [config, setConfig] = useState<AiChatConfig>(DEFAULT_AI_CONFIG);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [envStatus, setEnvStatus] = useState<{ hasGemini: boolean; hasOpenRouter: boolean; hasGroq: boolean }>({
+    hasGemini: false,
+    hasOpenRouter: false,
+    hasGroq: false,
+  });
   const [newQuestionInput, setNewQuestionInput] = useState<string>("");
 
   // Live Test Chat State
@@ -54,8 +55,9 @@ export function AiTab({ onShowToast }: AiTabProps) {
     fetch("/api/ai/config")
       .then((res) => res.json())
       .then((data) => {
-        if (isMounted && data.success && data.config) {
-          setConfig(data.config);
+        if (isMounted && data.success) {
+          if (data.config) setConfig(data.config);
+          if (data.envStatus) setEnvStatus(data.envStatus);
         }
       })
       .catch((err) => {
@@ -230,7 +232,7 @@ export function AiTab({ onShowToast }: AiTabProps) {
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <span className="text-xs font-black text-amber-300 flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-amber-400" />
-                <span>1. Nhà Cung Cấp Model AI (Provider & API Key)</span>
+                <span>1. Nhà Cung Cấp Model AI (Provider & Model)</span>
               </span>
 
               {/* Toggle Kích Hoạt */}
@@ -308,36 +310,71 @@ export function AiTab({ onShowToast }: AiTabProps) {
               </div>
             </div>
 
-            {/* Ô Nhập API Key (Nếu chọn Gemini hoặc Groq) */}
-            {config.provider !== "fallback" && (
-              <div className="space-y-1.5 pt-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-stone-300 flex items-center gap-1.5">
-                    <Key className="h-3.5 w-3.5 text-amber-400" />
-                    <span>API Key {config.provider === "gemini" ? "Google AI Studio" : "Groq Cloud"}:</span>
-                  </label>
-                  <span className="text-[10px] text-stone-400">
-                    {config.provider === "gemini" ? "Nhận Key miễn phí tại aistudio.google.com" : "Nhận Key miễn phí tại console.groq.com"}
-                  </span>
+            {/* Trạng thái Kết Nối API Keys từ Biến Môi Trường (.env / Vercel) */}
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-stone-300 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  <span>Bảo Mật API Key (Tự động đọc từ .env / Vercel):</span>
+                </span>
+                <span className="text-[10px] text-stone-400">
+                  Không lưu Key trên DB / Trình duyệt
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* Gemini Status */}
+                <div className="px-3 py-2 rounded-xl bg-stone-950/80 border border-white/10 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-white truncate">1. GEMINI_API_KEY</p>
+                    <p className="text-[9px] text-stone-400">Tầng 1 (Ưu tiên)</p>
+                  </div>
+                  {envStatus.hasGemini ? (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black shrink-0">
+                      Đã kết nối
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold shrink-0">
+                      Chưa có trong .env
+                    </span>
+                  )}
                 </div>
-                <div className="relative">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    value={config.apiKey || ""}
-                    onChange={(e) => setConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder="Nhập API Key riêng (để trống nếu dùng mặc định trong .env)..."
-                    className="w-full bg-stone-950 border border-white/15 rounded-xl pl-3 pr-10 py-2 text-xs font-mono text-amber-200 focus:outline-hidden focus:border-amber-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white"
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+
+                {/* OpenRouter Status */}
+                <div className="px-3 py-2 rounded-xl bg-stone-950/80 border border-white/10 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-white truncate">2. OPEN_ROUTER_API_KEY</p>
+                    <p className="text-[9px] text-stone-400">Tầng 2 (Fallback)</p>
+                  </div>
+                  {envStatus.hasOpenRouter ? (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black shrink-0">
+                      Đã kết nối
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold shrink-0">
+                      Chưa có trong .env
+                    </span>
+                  )}
+                </div>
+
+                {/* Groq Status */}
+                <div className="px-3 py-2 rounded-xl bg-stone-950/80 border border-white/10 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-white truncate">3. GROQ_API_KEY</p>
+                    <p className="text-[9px] text-stone-400">Tầng 3 (Fallback)</p>
+                  </div>
+                  {envStatus.hasGroq ? (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black shrink-0">
+                      Đã kết nối
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold shrink-0">
+                      Chưa có trong .env
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Card B: SYSTEM PROMPT (Huấn Luyện AI) */}

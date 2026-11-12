@@ -13,10 +13,14 @@ export async function GET() {
     const config = await getAiConfig();
     return NextResponse.json({
       success: true,
-      config: {
-        ...config,
-        // Giữ nguyên apiKey để hiển thị trong input admin (vì admin cần kiểm tra/sửa)
-        hasApiKey: Boolean(config.apiKey && config.apiKey.trim().length > 5),
+      config,
+      envStatus: {
+        hasGemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 5),
+        hasOpenRouter: Boolean(
+          (process.env.OPEN_ROUTER_API_KEY && process.env.OPEN_ROUTER_API_KEY.trim().length > 5) ||
+          (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim().length > 5)
+        ),
+        hasGroq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim().length > 5),
       },
       defaultConfig: DEFAULT_AI_CONFIG,
     });
@@ -28,14 +32,17 @@ export async function GET() {
 
 /**
  * POST /api/ai/config
- * Lưu cấu hình AI Chatbot & System Prompt từ Admin Tools
+ * Lưu cấu hình AI Chatbot & System Prompt từ Admin Tools (Tuyệt đối không lưu API Key)
  */
 export async function POST(req: NextRequest) {
   try {
     const body: Partial<AiChatConfig> = await req.json().catch(() => ({}));
 
+    // Loại bỏ mọi trường apiKey nếu client vô tình gửi lên
+    const { apiKey, ...safeBody } = body as any;
+
     // Cập nhật cấu hình
-    const updated = await saveAiConfig(body);
+    const updated = await saveAiConfig(safeBody);
 
     return NextResponse.json({
       success: true,

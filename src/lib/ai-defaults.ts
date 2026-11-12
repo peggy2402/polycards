@@ -3,7 +3,6 @@ import { AiChatConfig } from "@/types/ai";
 export const DEFAULT_AI_CONFIG: AiChatConfig = {
   enabled: true,
   provider: "gemini",
-  apiKey: "",
   model: "gemini-flash-lite-latest",
   botName: "PolyCards AI",
   welcomeMessage:

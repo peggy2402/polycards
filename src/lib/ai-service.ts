@@ -24,10 +24,17 @@ export async function getAiConfig(): Promise<AiChatConfig> {
   try {
     const db = await getMongoDb();
     if (db) {
-      const col = db.collection<AiChatConfig>("ai_settings");
+      const col = db.collection("ai_settings");
       const saved = await col.findOne({ id: "default_ai_config" });
       if (saved) {
-        const { _id, ...rest } = saved as any;
+        // Tự động gỡ bỏ hoàn toàn trường apiKey trong MongoDB nếu còn tồn dư
+        if ("apiKey" in saved || "hasApiKey" in saved) {
+          col.updateOne(
+            { id: "default_ai_config" },
+            { $unset: { apiKey: "", hasApiKey: "" } }
+          ).catch(() => {});
+        }
+        const { _id, apiKey, hasApiKey, ...rest } = saved as any;
         const loaded: AiChatConfig = { ...DEFAULT_AI_CONFIG, ...rest };
         memoryAiConfig = loaded;
         return loaded;
@@ -41,13 +48,16 @@ export async function getAiConfig(): Promise<AiChatConfig> {
 }
 
 /**
- * Lưu cấu hình AI vào MongoDB
+ * Lưu cấu hình AI vào MongoDB (Tuyệt đối không lưu API Key lên Database)
  */
 export async function saveAiConfig(newConfig: Partial<AiChatConfig>): Promise<AiChatConfig> {
   const current = await getAiConfig();
+  const { apiKey: _k1, hasApiKey: _h1, ...cleanCurrent } = current as any;
+  const { apiKey: _k2, hasApiKey: _h2, ...cleanNew } = newConfig as any;
+
   const merged: AiChatConfig = {
-    ...current,
-    ...newConfig,
+    ...cleanCurrent,
+    ...cleanNew,
     id: "default_ai_config",
     updatedAt: new Date().toISOString(),
   };
@@ -57,10 +67,13 @@ export async function saveAiConfig(newConfig: Partial<AiChatConfig>): Promise<Ai
   try {
     const db = await getMongoDb();
     if (db) {
-      const col = db.collection<AiChatConfig>("ai_settings");
+      const col = db.collection("ai_settings");
       await col.updateOne(
         { id: "default_ai_config" },
-        { $set: merged },
+        {
+          $set: merged,
+          $unset: { apiKey: "", hasApiKey: "" },
+        },
         { upsert: true }
       );
     }
@@ -167,16 +180,15 @@ export function generateSmartFallbackReply(userMessage: string, contextSummary: 
 }
 
 /**
- * TẦNG 1: Google Gemini API (Free tier)
+ * TẦNG 1: Google Gemini API (Đọc trực tiếp từ process.env.GEMINI_API_KEY)
  */
 async function callGeminiTier(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   fullSystemInstruction: string,
   temperature: number,
-  primaryModel?: string,
-  userApiKey?: string
+  primaryModel?: string
 ): Promise<{ text: string; modelUsed: string } | null> {
-  const apiKey = userApiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
 
   const candidateModels = Array.from(
@@ -251,17 +263,15 @@ async function callGeminiTier(
 }
 
 /**
- * TẦNG 2: OpenRouter API (Free tier: openrouter/free, meta-llama/llama-3.3-70b-instruct:free)
+ * TẦNG 2: OpenRouter API (Đọc trực tiếp từ process.env.OPEN_ROUTER_API_KEY)
  */
 async function callOpenRouterTier(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   fullSystemInstruction: string,
   temperature: number,
-  primaryModel?: string,
-  userApiKey?: string
+  primaryModel?: string
 ): Promise<{ text: string; modelUsed: string } | null> {
   const apiKey =
-    userApiKey?.trim() ||
     process.env.OPEN_ROUTER_API_KEY?.trim() ||
     process.env.OPENROUTER_API_KEY?.trim();
 
@@ -319,16 +329,15 @@ async function callOpenRouterTier(
 }
 
 /**
- * TẦNG 3: Groq Cloud API (Free tier: openai/gpt-oss-20b, llama-3.3-70b-versatile, llama-3.1-8b-instant)
+ * TẦNG 3: Groq Cloud API (Đọc trực tiếp từ process.env.GROQ_API_KEY)
  */
 async function callGroqTier(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   fullSystemInstruction: string,
   temperature: number,
-  primaryModel?: string,
-  userApiKey?: string
+  primaryModel?: string
 ): Promise<{ text: string; modelUsed: string } | null> {
-  const apiKey = userApiKey?.trim() || process.env.GROQ_API_KEY?.trim();
+  const apiKey = process.env.GROQ_API_KEY?.trim();
   if (!apiKey) return null;
 
   const candidateModels = Array.from(
@@ -418,8 +427,7 @@ export async function callAiModel(
       messages,
       fullSystemInstruction,
       activeConfig.temperature,
-      activeConfig.provider === "gemini" ? activeConfig.model : undefined,
-      activeConfig.provider === "gemini" ? activeConfig.apiKey : undefined
+      activeConfig.provider === "gemini" ? activeConfig.model : undefined
     );
 
   const runOpenRouter: TierRunner = () =>
@@ -427,8 +435,7 @@ export async function callAiModel(
       messages,
       fullSystemInstruction,
       activeConfig.temperature,
-      activeConfig.provider === "openrouter" ? activeConfig.model : undefined,
-      activeConfig.provider === "openrouter" ? activeConfig.apiKey : undefined
+      activeConfig.provider === "openrouter" ? activeConfig.model : undefined
     );
 
   const runGroq: TierRunner = () =>
@@ -436,8 +443,7 @@ export async function callAiModel(
       messages,
       fullSystemInstruction,
       activeConfig.temperature,
-      activeConfig.provider === "groq" ? activeConfig.model : undefined,
-      activeConfig.provider === "groq" ? activeConfig.apiKey : undefined
+      activeConfig.provider === "groq" ? activeConfig.model : undefined
     );
 
   // Thứ tự ưu tiên mặc định: GEMINI -> OPEN ROUTER -> GROQ

@@ -15,7 +15,6 @@ export interface AiChatConfig {
   id?: string;
   enabled: boolean;
   provider: AiProvider;
-  apiKey?: string;
   model: string;
   systemPrompt: string;
   fallbackMessage: string;
