@@ -192,3 +192,101 @@ export function formatVnd(amount: number | undefined | null): string {
   return `${val.toLocaleString("vi-VN")} ₫`;
 }
 
+export interface DynamicPackPricing {
+  cardsCount: number;
+  originalPrice: number;
+  price: number;
+  discountPercent: number;
+  isCustomized: boolean;
+}
+
+/**
+ * Tính toán giá của Bộ Thẻ động dựa trên các thẻ lẻ con thực tế trong kho:
+ * - originalPrice: Tổng giá gốc của tất cả các thẻ con (hoặc giá cấu hình thủ công)
+ * - price (salePrice):
+ *   + Nếu cấu hình pack có isManualPrice: dùng salePrice thủ công
+ *   + Nếu có cấu hình % KM riêng: tính theo % KM của bộ
+ *   + Nếu không: tính bằng tổng giá bán của các thẻ lẻ con
+ * - discountPercent: Tính chuẩn 2 chiều
+ */
+export function computePackDynamicPricing(
+  packCode: string,
+  packConfig?: {
+    originalPrice?: number;
+    salePrice?: number;
+    discountPercent?: number;
+    isManualPrice?: boolean;
+    cardsCount?: number;
+  } | null,
+  allCards: Array<{ packCode?: string; price?: number; originalPrice?: number }> = []
+): DynamicPackPricing {
+  const codeClean = (packCode || "").trim().toUpperCase();
+  const matchingCards = allCards.filter(
+    (c) => c.packCode && c.packCode.trim().toUpperCase() === codeClean
+  );
+
+  if (matchingCards.length > 0) {
+    const cardsCount = matchingCards.length;
+
+    // Tổng giá gốc từ các thẻ con
+    const sumOriginal = matchingCards.reduce(
+      (sum, c) => sum + (c.originalPrice && c.originalPrice > 0 ? c.originalPrice : (c.price || 10000)),
+      0
+    );
+
+    // Tổng giá bán thực tế từ các thẻ con
+    const sumSale = matchingCards.reduce(
+      (sum, c) => sum + (c.price !== undefined ? c.price : 10000),
+      0
+    );
+
+    // Xác định originalPrice của bộ
+    let originalPrice = packConfig?.isManualPrice && packConfig?.originalPrice
+      ? packConfig.originalPrice
+      : sumOriginal;
+
+    // Xác định price (salePrice) của bộ
+    let price = sumSale;
+    let discountPercent = 0;
+
+    if (packConfig?.isManualPrice && packConfig?.salePrice) {
+      price = packConfig.salePrice;
+      discountPercent = originalPrice > price
+        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+        : 0;
+    } else if (packConfig?.discountPercent !== undefined && packConfig.discountPercent > 0) {
+      discountPercent = packConfig.discountPercent;
+      price = roundPrice(originalPrice * (1 - discountPercent / 100));
+    } else {
+      price = sumSale;
+      discountPercent = originalPrice > price
+        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+        : 0;
+    }
+
+    return {
+      cardsCount,
+      originalPrice,
+      price,
+      discountPercent,
+      isCustomized: true,
+    };
+  }
+
+  // Fallback nếu chưa có thẻ con trong kho
+  const cardsCount = packConfig?.cardsCount || 30;
+  const originalPrice = packConfig?.originalPrice || (cardsCount * 10000);
+  const price = packConfig?.salePrice || 249000;
+  const discountPercent = packConfig?.discountPercent !== undefined
+    ? packConfig.discountPercent
+    : (originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0);
+
+  return {
+    cardsCount,
+    originalPrice,
+    price,
+    discountPercent,
+    isCustomized: false,
+  };
+}
+

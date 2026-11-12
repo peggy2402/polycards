@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
+import { computePackDynamicPricing } from "@/lib/pricing";
 import { PackCodeItem } from "@/lib/pack-codes-store";
 
 export interface InvoiceCartItem {
@@ -252,25 +253,11 @@ export function CatalogPickerModal({
                             const inCartQty = getItemQtyInCart(itemId);
                             const isZh = pack.code.includes("ZHVI");
 
-                            // Đếm số lượng thẻ thực tế trong kho productsCatalog gắn với mã bộ này
-                            const actualCardsInPack = productsCatalog.filter(
-                              (p) =>
-                                p.packCode &&
-                                p.packCode.trim().toUpperCase() === pack.code.trim().toUpperCase()
-                            ).length;
-
-                            // Số thẻ hiển thị chính xác theo kho thực tế
-                            const displayCardCount = actualCardsInPack;
-
-                            // Giá gốc: Mỗi thẻ 10.000 VNĐ -> 30 thẻ là 300.000 VNĐ
-                            const singlePrice = pack.singleCardPrice || 10000;
-                            const computedOriginal =
-                              pack.originalPrice && pack.originalPrice !== 299000
-                                ? pack.originalPrice
-                                : displayCardCount > 0
-                                ? displayCardCount * singlePrice
-                                : 300000;
-                            const unitPrice = pack.salePrice || 249000;
+                            // Tính toán số lượng thẻ và giá động chuẩn xác theo danh sách thẻ lẻ thực tế
+                            const dynamic = computePackDynamicPricing(pack.code, pack, productsCatalog);
+                            const displayCardCount = dynamic.cardsCount;
+                            const computedOriginal = dynamic.originalPrice;
+                            const unitPrice = dynamic.price;
 
                             return (
                               <div

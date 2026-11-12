@@ -10,7 +10,7 @@ import { Navbar } from "@/components/common/navbar";
 import { Footer } from "@/components/common/footer";
 import { PackDetailModal } from "@/components/order/pack-detail-modal";
 import { formatVndCurrency } from "@/lib/formatters";
-import { formatVnd } from "@/lib/pricing";
+import { formatVnd, computePackDynamicPricing } from "@/lib/pricing";
 import {
   Sparkles,
   Layers,
@@ -54,63 +54,71 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
-    // 1. Tải thẻ lẻ để hiển thị trong modal chi tiết
-    fetch("/api/products")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data)) {
-          setCardsList(json.data);
-        }
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/products").then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch("/api/categories").then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch("/api/pack-codes").then((r) => r.json()).catch(() => ({ data: [] })),
+    ]).then(([productsRes, catsRes, packsRes]) => {
+      const allCards: Animal[] = Array.isArray(productsRes?.data) ? productsRes.data : [];
+      if (allCards.length > 0) setCardsList(allCards);
 
-    // 2. Tải danh mục
-    fetch("/api/categories")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data)) {
-          setCategories(json.data);
-        }
-      })
-      .catch(() => {});
+      if (Array.isArray(catsRes?.data)) setCategories(catsRes.data);
 
-    // 3. Tải các mã bộ mới từ MongoDB
-    fetch("/api/pack-codes")
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setPacks((prev) => {
-            const existingCodes = new Set(prev.map((p) => p.packCode));
-            const newPacks: CardComboPack[] = [];
+      const packConfigsList: any[] = Array.isArray(packsRes?.data) ? packsRes.data : [];
+      const packConfigMap = new Map<string, any>();
+      for (const p of packConfigsList) {
+        if (p?.code) packConfigMap.set(p.code.toUpperCase(), p);
+      }
 
-            for (const item of res.data) {
-              if (!existingCodes.has(item.code) && item.code.startsWith("POLY")) {
-                const isZh = item.code.includes("ZHVI");
-                newPacks.push({
-                  id: `pack-${item.code.toLowerCase()}`,
-                  name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
-                  packCode: item.code,
-                  categoryName: item.categoryName || "Chủ đề Poly Cards",
-                  categorySlug: item.categorySlug || "khac",
-                  languageType: isZh ? "zh-vi" : "en-vi",
-                  cardsCount: item.cardsCount || 30,
-                  price: item.salePrice || 249000,
-                  originalPrice: item.originalPrice || 300000,
-                  discountPercent: item.discountPercent || 17,
-                  badge: isZh ? "Song Ngữ Trung - Việt" : "Song Ngữ Anh - Việt",
-                  imageSrc: "/images/cards/butterfly-card.png",
-                  sampleSlug: "polycards",
-                  description: item.description || `Bộ thẻ AR tương tác 3D đa góc nhìn sống động.`,
-                  highlights: ["Thẻ AR 3D sống động", "Phát âm chuẩn", "Chống nước 100%"],
-                });
-              }
-            }
-            return newPacks.length > 0 ? [...prev, ...newPacks] : prev;
-          });
+      setPacks((prev) => {
+        // Cập nhật giá động cho các bộ hiện có từ danh sách thẻ lẻ thực tế trong kho
+        const updated = prev.map((pack) => {
+          const cfg = packConfigMap.get(pack.packCode.toUpperCase());
+          const dynamicPricing = computePackDynamicPricing(pack.packCode, cfg, allCards);
+
+          return {
+            ...pack,
+            cardsCount: dynamicPricing.cardsCount || pack.cardsCount,
+            price: dynamicPricing.price,
+            originalPrice: dynamicPricing.originalPrice,
+            discountPercent: dynamicPricing.discountPercent,
+          };
+        });
+
+        // Bổ sung các mã bộ mới từ database nếu chưa có
+        const existingCodes = new Set(updated.map((p) => p.packCode.toUpperCase()));
+        const newPacks: CardComboPack[] = [];
+
+        for (const item of packConfigsList) {
+          const codeUpper = (item.code || "").toUpperCase();
+          if (!existingCodes.has(codeUpper) && codeUpper.startsWith("POLY")) {
+            const isZh = codeUpper.includes("ZHVI");
+            const dynamicPricing = computePackDynamicPricing(item.code, item, allCards);
+
+            newPacks.push({
+              id: `pack-${item.code.toLowerCase()}`,
+              name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
+              packCode: item.code,
+              categoryName: item.categoryName || "Chủ đề Poly Cards",
+              categorySlug: item.categorySlug || "khac",
+              languageType: isZh ? "zh-vi" : "en-vi",
+              cardsCount: dynamicPricing.cardsCount || 30,
+              price: dynamicPricing.price,
+              originalPrice: dynamicPricing.originalPrice,
+              discountPercent: dynamicPricing.discountPercent,
+              badge: isZh ? "Song Ngữ Trung - Việt" : "Song Ngữ Anh - Việt",
+              imageSrc: "/images/cards/butterfly-card.png",
+              sampleSlug: "polycards",
+              description: item.description || `Bộ thẻ AR tương tác 3D đa góc nhìn sống động.`,
+              highlights: ["Thẻ AR 3D sống động", "Phát âm chuẩn", "Chống nước 100%"],
+            });
+          }
         }
-      })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
+
+        return newPacks.length > 0 ? [...updated, ...newPacks] : prev;
+      });
+      setIsLoading(false);
+    });
   }, []);
 
   // Lọc danh sách bộ thẻ
