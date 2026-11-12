@@ -425,7 +425,7 @@ function OrderContent() {
                   <div>
                     <label className="text-xs font-black text-stone-800 mb-1.5 flex items-center gap-1.5">
                       <Mail className="h-3.5 w-3.5 text-amber-600" />
-                      <span>Email nhận mã WebAR</span>
+                      <span>Email</span>
                     </label>
                     <input
                       type="email"

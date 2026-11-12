@@ -44,7 +44,7 @@ export function SelectedPacksStack({
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-black text-stone-950 leading-tight">
-              Thùng Hàng Poly Cards Của Bạn
+              Hàng Hóa Poly Cards Của Bạn
             </h2>
             <p className="text-[11px] sm:text-xs text-stone-600 font-medium">
               {items.length === 0
@@ -193,7 +193,7 @@ export function SelectedPacksStack({
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/50 hover:bg-amber-100/60 text-xs sm:text-sm font-black text-amber-900 active:scale-98 transition-all cursor-pointer mt-2"
             >
               <Plus className="h-4 w-4 text-amber-700" />
-              <span>Chọn Thêm Bộ Thẻ Khác Xếp Vào Thùng</span>
+              <span>Chọn Thêm Bộ Thẻ Khác</span>
             </button>
           </div>
         )}

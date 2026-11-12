@@ -2,7 +2,7 @@
  * Poly Cards - Types for AI Assistant & System Prompt Configuration
  */
 
-export type AiProvider = "gemini" | "groq" | "openai" | "fallback";
+export type AiProvider = "gemini" | "openrouter" | "groq" | "openai" | "fallback" | "auto";
 
 export interface AiChatMessage {
   id: string;

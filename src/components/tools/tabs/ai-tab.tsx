@@ -256,14 +256,16 @@ export function AiTab({ onShowToast }: AiTabProps) {
                   onChange={(e) => {
                     const prov = e.target.value as AiProvider;
                     let defaultModel = "gemini-flash-lite-latest";
-                    if (prov === "groq") defaultModel = "llama-3.3-70b-versatile";
+                    if (prov === "openrouter") defaultModel = "openrouter/free";
+                    if (prov === "groq") defaultModel = "openai/gpt-oss-20b";
                     setConfig((prev) => ({ ...prev, provider: prov, model: defaultModel }));
                   }}
                   className="w-full bg-stone-950 border border-white/15 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-hidden focus:border-amber-400"
                 >
-                  <option value="gemini">Google Gemini (Khuyên dùng - Miễn phí)</option>
-                  <option value="groq">Groq Cloud (Llama 3.3 - Cực nhanh)</option>
-                  <option value="fallback">Chế độ Fallback Thông Minh (Không cần Key)</option>
+                  <option value="gemini">Google Gemini (Tầng 1 - Khuyên dùng)</option>
+                  <option value="openrouter">OpenRouter (Tầng 2 - Free AI)</option>
+                  <option value="groq">Groq Cloud (Tầng 3 - Tốc độ cao)</option>
+                  <option value="fallback">Chế độ Mock Data Có Sẵn (Tầng 4)</option>
                 </select>
               </div>
 
@@ -323,7 +325,7 @@ export function AiTab({ onShowToast }: AiTabProps) {
                     type={showApiKey ? "text" : "password"}
                     value={config.apiKey || ""}
                     onChange={(e) => setConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder={config.provider === "gemini" ? "AIzaSy..." : "gsk_..."}
+                    placeholder="Nhập API Key riêng (để trống nếu dùng mặc định trong .env)..."
                     className="w-full bg-stone-950 border border-white/15 rounded-xl pl-3 pr-10 py-2 text-xs font-mono text-amber-200 focus:outline-hidden focus:border-amber-400"
                   />
                   <button

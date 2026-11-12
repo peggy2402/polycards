@@ -167,7 +167,222 @@ export function generateSmartFallbackReply(userMessage: string, contextSummary: 
 }
 
 /**
- * Xử lý gửi tin nhắn tới AI Provider (Gemini / Groq / OpenAI) kèm Fallback tự động
+ * TẦNG 1: Google Gemini API (Free tier)
+ */
+async function callGeminiTier(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  fullSystemInstruction: string,
+  temperature: number,
+  primaryModel?: string,
+  userApiKey?: string
+): Promise<{ text: string; modelUsed: string } | null> {
+  const apiKey = userApiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const candidateModels = Array.from(
+    new Set(
+      [
+        primaryModel,
+        "gemini-flash-lite-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash",
+      ].filter(Boolean) as string[]
+    )
+  );
+
+  const formattedContents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+  for (const m of messages) {
+    const role: "user" | "model" = m.role === "assistant" ? "model" : "user";
+    const text = m.content?.trim();
+    if (!text) continue;
+
+    const last = formattedContents[formattedContents.length - 1];
+    if (last && last.role === role) {
+      last.parts[0].text += `\n${text}`;
+    } else {
+      formattedContents.push({ role, parts: [{ text }] });
+    }
+  }
+
+  if (formattedContents.length === 0) {
+    formattedContents.push({ role: "user", parts: [{ text: "Xin chào" }] });
+  }
+
+  for (const modelName of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8500);
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: fullSystemInstruction }] },
+          contents: formattedContents,
+          generationConfig: {
+            temperature: temperature || 0.7,
+            maxOutputTokens: 800,
+          },
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.warn(`[AI Tier 1 - Gemini] Model ${modelName} returned HTTP ${res.status}:`, errText.slice(0, 120));
+        continue;
+      }
+
+      const data = await res.json();
+      const aiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (aiReply) {
+        return { text: aiReply, modelUsed: `gemini (${modelName})` };
+      }
+    } catch (err: any) {
+      console.warn(`[AI Tier 1 - Gemini] Model ${modelName} error (${err?.message || err}), thử model tiếp theo...`);
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * TẦNG 2: OpenRouter API (Free tier: openrouter/free, meta-llama/llama-3.3-70b-instruct:free)
+ */
+async function callOpenRouterTier(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  fullSystemInstruction: string,
+  temperature: number,
+  primaryModel?: string,
+  userApiKey?: string
+): Promise<{ text: string; modelUsed: string } | null> {
+  const apiKey =
+    userApiKey?.trim() ||
+    process.env.OPEN_ROUTER_API_KEY?.trim() ||
+    process.env.OPENROUTER_API_KEY?.trim();
+
+  if (!apiKey) return null;
+
+  const candidateModels = Array.from(
+    new Set([primaryModel, "openrouter/free", "liquid/lfm-2.5-2.6b:free", "google/gemini-2.0-flash-exp:free"].filter(Boolean) as string[])
+  );
+
+  for (const model of candidateModels) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://polycards.vn",
+          "X-Title": "PolyCards WebAR",
+          "User-Agent": "PolyCards-AI/1.0",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: fullSystemInstruction },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+          temperature: temperature || 0.7,
+          max_tokens: 800,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.warn(`[AI Tier 2 - OpenRouter] Model ${model} returned HTTP ${res.status}:`, errText.slice(0, 120));
+        continue;
+      }
+
+      const data = await res.json();
+      const aiReply = data?.choices?.[0]?.message?.content?.trim();
+      if (aiReply) {
+        return { text: aiReply, modelUsed: `openrouter (${model})` };
+      }
+    } catch (err: any) {
+      console.warn(`[AI Tier 2 - OpenRouter] Model ${model} error (${err?.message || err}), thử model tiếp theo...`);
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * TẦNG 3: Groq Cloud API (Free tier: openai/gpt-oss-20b, llama-3.3-70b-versatile, llama-3.1-8b-instant)
+ */
+async function callGroqTier(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  fullSystemInstruction: string,
+  temperature: number,
+  primaryModel?: string,
+  userApiKey?: string
+): Promise<{ text: string; modelUsed: string } | null> {
+  const apiKey = userApiKey?.trim() || process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const candidateModels = Array.from(
+    new Set([primaryModel, "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"].filter(Boolean) as string[])
+  );
+
+  for (const model of candidateModels) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8500);
+
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "User-Agent": "PolyCards-AI/1.0 (https://polycards.vn)",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: fullSystemInstruction },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+          temperature: temperature || 0.7,
+          max_tokens: 800,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.warn(`[AI Tier 3 - Groq] Model ${model} returned HTTP ${res.status}:`, errText.slice(0, 120));
+        continue;
+      }
+
+      const data = await res.json();
+      const aiReply = data?.choices?.[0]?.message?.content?.trim();
+      if (aiReply) {
+        return { text: aiReply, modelUsed: `groq (${model})` };
+      }
+    } catch (err: any) {
+      console.warn(`[AI Tier 3 - Groq] Model ${model} error (${err?.message || err}), thử model tiếp theo...`);
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Xử lý gửi tin nhắn tới AI với Chuỗi 4 Tầng Fallback Tự Động:
+ * GEMINI -> OPEN ROUTER -> GROQ -> MOCK DATA CÓ SẴN
  */
 export async function callAiModel(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
@@ -175,198 +390,101 @@ export async function callAiModel(
 ): Promise<AiChatResponse> {
   const activeConfig = config || (await getAiConfig());
   const knowledgeContext = await buildKnowledgeBaseContext();
-
   const userLastMessage = messages[messages.length - 1]?.content || "";
 
-  // Nếu tắt tính năng bot hoặc chọn provider fallback
+  // Nếu tắt tính năng bot hoặc chọn trực tiếp chế độ fallback
   if (!activeConfig.enabled || activeConfig.provider === "fallback") {
     return {
       success: true,
       message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-      providerUsed: "fallback-smart-engine",
+      providerUsed: "mock-data-engine",
       isFallback: true,
     };
   }
 
-  // Chuẩn bị system instructions
+  // Chuẩn bị toàn bộ System Prompt + Ngữ cảnh sản phẩm thời gian thực
   const fullSystemInstruction = `${activeConfig.systemPrompt}\n\n${knowledgeContext}`;
 
-  // 1. Google Gemini API (Free tier: Gemini Flash Lite / Gemini 3.5 Flash Lite)
-  if (activeConfig.provider === "gemini") {
-    // Dự phòng API key mặc định từ hệ thống nếu chưa cấu hình trên môi trường Vercel
-    const defaultGeminiKey = "AIzaSyAUyu8eS5h4uR_R5y4XWxfixwxInJHBGPc";
-    const apiKey = activeConfig.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim() || defaultGeminiKey;
+  // =========================================================================
+  // BỘ ĐIỀU PHỐI 4 TẦNG (4-TIER FALLBACK ENGINE)
+  // TẦNG 1: GEMINI -> TẦNG 2: OPEN ROUTER -> TẦNG 3: GROQ -> TẦNG 4: MOCK DATA
+  // =========================================================================
 
-    if (!apiKey) {
-      console.warn("[AI Service] Chưa có GEMINI_API_KEY, chuyển sang fallback phản hồi thông minh.");
-      return {
-        success: true,
-        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-        providerUsed: "fallback-smart-engine",
-        isFallback: true,
-      };
-    }
+  // Xác định thứ tự gọi dựa trên cấu hình người dùng (mặc định hoặc khi chọn Gemini)
+  type TierRunner = () => Promise<{ text: string; modelUsed: string } | null>;
 
-    // Danh sách model theo thứ tự ưu tiên:
-    // Thử model người dùng chỉ định trước (vd: gemini-2.5-flash, gemini-3.8-flash),
-    // nếu gặp 404 (model ngừng hỗ trợ) hoặc 503 (quá tải) sẽ tự động luân chuyển sang model ổn định
-    const requestedModel = activeConfig.model?.trim() || "gemini-flash-lite-latest";
-    const candidateModels = Array.from(
-      new Set(
-        [
-          requestedModel,
-          "gemini-flash-lite-latest",
-          "gemini-3.5-flash-lite",
-          "gemini-3.1-flash-lite",
-          "gemini-3.8-flash",
-        ].filter(Boolean)
-      )
+  const runGemini: TierRunner = () =>
+    callGeminiTier(
+      messages,
+      fullSystemInstruction,
+      activeConfig.temperature,
+      activeConfig.provider === "gemini" ? activeConfig.model : undefined,
+      activeConfig.provider === "gemini" ? activeConfig.apiKey : undefined
     );
 
-    // Chuẩn bị danh sách tin nhắn gửi Gemini: chuyển 'assistant' -> 'model', gộp các lượt liên tiếp
-    const formattedContents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
-    for (const m of messages) {
-      const role: "user" | "model" = m.role === "assistant" ? "model" : "user";
-      const text = m.content?.trim();
-      if (!text) continue;
+  const runOpenRouter: TierRunner = () =>
+    callOpenRouterTier(
+      messages,
+      fullSystemInstruction,
+      activeConfig.temperature,
+      activeConfig.provider === "openrouter" ? activeConfig.model : undefined,
+      activeConfig.provider === "openrouter" ? activeConfig.apiKey : undefined
+    );
 
-      const last = formattedContents[formattedContents.length - 1];
-      if (last && last.role === role) {
-        last.parts[0].text += `\n${text}`;
-      } else {
-        formattedContents.push({
-          role,
-          parts: [{ text }],
-        });
-      }
-    }
+  const runGroq: TierRunner = () =>
+    callGroqTier(
+      messages,
+      fullSystemInstruction,
+      activeConfig.temperature,
+      activeConfig.provider === "groq" ? activeConfig.model : undefined,
+      activeConfig.provider === "groq" ? activeConfig.apiKey : undefined
+    );
 
-    // Đảm bảo luôn có ít nhất 1 tin nhắn user
-    const finalContents =
-      formattedContents.length > 0
-        ? formattedContents
-        : [{ role: "user" as const, parts: [{ text: userLastMessage || "Xin chào" }] }];
+  // Thứ tự ưu tiên mặc định: GEMINI -> OPEN ROUTER -> GROQ
+  let tiers: Array<{ name: string; runner: TierRunner }> = [
+    { name: "Tầng 1: Google Gemini", runner: runGemini },
+    { name: "Tầng 2: OpenRouter", runner: runOpenRouter },
+    { name: "Tầng 3: Groq Cloud", runner: runGroq },
+  ];
 
-    for (const modelName of candidateModels) {
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9000);
-
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            system_instruction: {
-              parts: [{ text: fullSystemInstruction }],
-            },
-            contents: finalContents,
-            generationConfig: {
-              temperature: activeConfig.temperature || 0.7,
-              maxOutputTokens: 800,
-            },
-          }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          console.warn(`[AI Service] Model ${modelName} returned HTTP ${res.status}:`, errText.slice(0, 160));
-          // Model này bị lỗi (404/503/429) -> tiếp tục thử model dự phòng tiếp theo
-          continue;
-        }
-
-        const data = await res.json();
-        const aiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-        if (aiReply) {
-          return {
-            success: true,
-            message: aiReply,
-            providerUsed: `gemini (${modelName})`,
-            isFallback: false,
-          };
-        }
-      } catch (err: any) {
-        console.warn(`[AI Service] Model ${modelName} gặp lỗi kết nối (${err?.message || err}), thử model tiếp theo...`);
-        continue;
-      }
-    }
-
-    // Nếu tất cả candidate models đều không khả dụng
-    console.warn("[AI Service] Toàn bộ Gemini models đều không phản hồi, sử dụng fallback thông minh.");
-    return {
-      success: true,
-      message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-      providerUsed: "fallback-smart-engine",
-      isFallback: true,
-    };
+  // Nếu người dùng chọn trực tiếp OpenRouter làm ưu tiên số 1 trong cài đặt
+  if (activeConfig.provider === "openrouter") {
+    tiers = [
+      { name: "Tầng 1: OpenRouter (Ưu tiên theo cấu hình)", runner: runOpenRouter },
+      { name: "Tầng 2: Google Gemini", runner: runGemini },
+      { name: "Tầng 3: Groq Cloud", runner: runGroq },
+    ];
+  } else if (activeConfig.provider === "groq") {
+    tiers = [
+      { name: "Tầng 1: Groq Cloud (Ưu tiên theo cấu hình)", runner: runGroq },
+      { name: "Tầng 2: Google Gemini", runner: runGemini },
+      { name: "Tầng 3: OpenRouter", runner: runOpenRouter },
+    ];
   }
 
-  // 2. Groq Cloud API (Free tier: Llama 3.3 70B / Llama 3.1 8B)
-  if (activeConfig.provider === "groq") {
-    const apiKey = activeConfig.apiKey?.trim() || process.env.GROQ_API_KEY?.trim();
-    if (!apiKey) {
-      return {
-        success: true,
-        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-        providerUsed: "fallback-smart-engine",
-        isFallback: true,
-      };
-    }
-
+  // Chạy lần lượt qua các tầng AI
+  for (const tier of tiers) {
     try {
-      const modelName = activeConfig.model || "llama-3.3-70b-versatile";
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            { role: "system", content: fullSystemInstruction },
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
-          ],
-          temperature: activeConfig.temperature || 0.7,
-          max_tokens: 800,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Groq HTTP ${res.status}`);
+      const result = await tier.runner();
+      if (result && result.text) {
+        return {
+          success: true,
+          message: result.text,
+          providerUsed: result.modelUsed,
+          isFallback: false,
+        };
       }
-
-      const data = await res.json();
-      const aiReply = data?.choices?.[0]?.message?.content?.trim();
-      if (!aiReply) throw new Error("Empty response from Groq");
-
-      return {
-        success: true,
-        message: aiReply,
-        providerUsed: `groq (${modelName})`,
-        isFallback: false,
-      };
     } catch (err) {
-      console.warn("[AI Service] Groq API gặp lỗi, chuyển sang fallback thông minh:", err);
-      return {
-        success: true,
-        message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-        providerUsed: "fallback-smart-engine",
-        isFallback: true,
-      };
+      console.warn(`[AI Engine] ${tier.name} gặp lỗi không thể xử lý:`, err);
     }
   }
 
-  // 3. Fallback mặc định
+  // TẦNG 4: MOCK DATA CÓ SẴN (Smart Keyword Engine)
+  console.warn("[AI Engine] Cả 3 tầng AI (Gemini, OpenRouter, Groq) đều không phản hồi. Tự động chuyển sang Tầng 4: Mock Data có sẵn.");
   return {
     success: true,
     message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
-    providerUsed: "fallback-smart-engine",
+    providerUsed: "mock-data-engine",
     isFallback: true,
   };
 }
