@@ -78,44 +78,48 @@ export default function ProductsPage() {
 
           return {
             ...pack,
-            cardsCount: dynamicPricing.cardsCount || pack.cardsCount,
+            cardsCount: dynamicPricing.cardsCount,
             price: dynamicPricing.price,
             originalPrice: dynamicPricing.originalPrice,
             discountPercent: dynamicPricing.discountPercent,
           };
         });
 
-        // Bổ sung các mã bộ mới từ database nếu chưa có
+        // Bổ sung các mã bộ mới từ database nếu chưa có (chỉ thêm nếu có thẻ thực tế trong kho)
         const existingCodes = new Set(updated.map((p) => p.packCode.toUpperCase()));
         const newPacks: CardComboPack[] = [];
 
         for (const item of packConfigsList) {
           const codeUpper = (item.code || "").toUpperCase();
           if (!existingCodes.has(codeUpper) && codeUpper.startsWith("POLY")) {
-            const isZh = codeUpper.includes("ZHVI");
             const dynamicPricing = computePackDynamicPricing(item.code, item, allCards);
 
-            newPacks.push({
-              id: `pack-${item.code.toLowerCase()}`,
-              name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
-              packCode: item.code,
-              categoryName: item.categoryName || "Chủ đề Poly Cards",
-              categorySlug: item.categorySlug || "khac",
-              languageType: isZh ? "zh-vi" : "en-vi",
-              cardsCount: dynamicPricing.cardsCount || 30,
-              price: dynamicPricing.price,
-              originalPrice: dynamicPricing.originalPrice,
-              discountPercent: dynamicPricing.discountPercent,
-              badge: isZh ? "Song Ngữ Trung - Việt" : "Song Ngữ Anh - Việt",
-              imageSrc: "/images/cards/butterfly-card.png",
-              sampleSlug: "polycards",
-              description: item.description || `Bộ thẻ AR tương tác 3D đa góc nhìn sống động.`,
-              highlights: ["Thẻ AR 3D sống động", "Phát âm chuẩn", "Chống nước 100%"],
-            });
+            if (dynamicPricing.cardsCount > 0) {
+              const isZh = codeUpper.includes("ZHVI");
+
+              newPacks.push({
+                id: `pack-${item.code.toLowerCase()}`,
+                name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
+                packCode: item.code,
+                categoryName: item.categoryName || "Chủ đề Poly Cards",
+                categorySlug: item.categorySlug || "khac",
+                languageType: isZh ? "zh-vi" : "en-vi",
+                cardsCount: dynamicPricing.cardsCount,
+                price: dynamicPricing.price,
+                originalPrice: dynamicPricing.originalPrice,
+                discountPercent: dynamicPricing.discountPercent,
+                badge: isZh ? "Song Ngữ Trung - Việt" : "Song Ngữ Anh - Việt",
+                imageSrc: "/images/cards/butterfly-card.png",
+                sampleSlug: "polycards",
+                description: item.description || `Bộ thẻ AR tương tác 3D đa góc nhìn sống động.`,
+                highlights: ["Thẻ AR 3D sống động", "Phát âm chuẩn", "Chống nước 100%"],
+              });
+            }
           }
         }
 
-        return newPacks.length > 0 ? [...updated, ...newPacks] : prev;
+        const combined = newPacks.length > 0 ? [...updated, ...newPacks] : updated;
+        return combined.filter((p) => (p.cardsCount || 0) > 0);
       });
       setIsLoading(false);
     });
@@ -123,7 +127,9 @@ export default function ProductsPage() {
 
   // Lọc danh sách bộ thẻ
   const filteredPacks = useMemo(() => {
-    return packs.filter((p) => {
+    return packs
+      .filter((p) => (p.cardsCount || 0) > 0)
+      .filter((p) => {
       // 1. Lọc theo danh mục
       if (selectedCategorySlug !== "all") {
         const matchesCategory =

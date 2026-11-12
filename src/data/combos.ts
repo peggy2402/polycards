@@ -20,50 +20,29 @@ export interface CardComboPack {
   isFeatured?: boolean;
 }
 
-export const COMBO_PACKS: CardComboPack[] = [
-  // --- GÓI COMBO VIP ĐẠI GIA ĐÌNH ---
-  {
-    id: "pack-all-vip-270",
-    name: "Siêu Combo Trọn Bộ 9-in-1 (Toàn Bộ 270 Thẻ AR)",
-    packCode: "POLY270-ALLVIP",
-    categoryName: "Trọn Bộ VIP",
-    categorySlug: "all-vip",
-    languageType: "all",
-    cardsCount: 270,
-    price: 1490000,
-    originalPrice: 2241000,
-    discountPercent: 34,
-    badge: "Tiết Kiệm 751K • Bản Giới Hạn",
-    subBadge: "Đầy Đủ 9 Chủ Đề Toàn Diện Nhất Poly Cards",
-    imageSrc: "/images/cards/butterfly-card.png",
-    sampleSlug: "polycards",
-    targetUrl: "/products",
-    description: "Sở hữu toàn bộ 270 thẻ AR đa ngữ (Động vật, Xe cộ, Hoa quả, Hành động, Nghề nghiệp). Tặng hộp quà cao cấp và tài khoản VIP vĩnh viễn.",
-    highlights: ["Trọn bộ 270 Thẻ AR 3D", "Hộp quà sơn mài cao cấp", "Bảo hành bản quyền trọn đời"],
-    isFeatured: true,
-  },
-  {
-    id: "pack-combo-vip-120",
-    name: "Combo Trọn Bộ VIP 4-in-1 (120 Thẻ AR)",
-    packCode: "POLY120-COMBOVIP",
-    categoryName: "Trọn Bộ VIP",
-    categorySlug: "all-vip",
-    languageType: "all",
-    cardsCount: 120,
-    price: 799000,
-    originalPrice: 1196000,
-    discountPercent: 33,
-    badge: "Tiết Kiệm 397K • Hộp Quà VIP",
-    subBadge: "Gói Combo Đại Gia Đình Được Mua Nhiều Nhất",
-    imageSrc: "/images/cards/butterfly-card.png",
-    sampleSlug: "polycards",
-    targetUrl: "/products",
-    description: "Trọn bộ 4 chủ đề Động Vật + Hành Động + Xe Cộ + Hoa Quả. Tặng kèm Hộp quà cao cấp, thẻ bảo hành & mã kích hoạt trọn đời.",
-    highlights: ["Trọn bộ 120 Thẻ AR", "Hộp quà cứng cao cấp", "Bảo hành bản quyền trọn đời"],
-    isFeatured: true,
-  },
+export const DEFAULT_FEATURED_COMBO: CardComboPack = {
+  id: "pack-all-vip-300",
+  name: "Siêu Combo Trọn Bộ (Toàn Bộ 300 Thẻ AR)",
+  packCode: "POLY300-ALLVIP",
+  categoryName: "Trọn Bộ VIP",
+  categorySlug: "all-vip",
+  languageType: "all",
+  cardsCount: 300,
+  price: 1490000,
+  originalPrice: 3000000,
+  discountPercent: 50,
+  badge: "Tiết Kiệm 1.510K • Bản Giới Hạn",
+  subBadge: "Đầy Đủ 10 Chủ Đề Toàn Diện Nhất Poly Cards",
+  imageSrc: "/images/cards/butterfly-card.png",
+  sampleSlug: "polycards",
+  targetUrl: "/order",
+  description: "Sở hữu toàn bộ 300 thẻ AR đa ngữ (Động vật, Xe cộ, Hoa quả, Hành động, Nghề nghiệp). Tặng hộp quà cao cấp và tài khoản VIP vĩnh viễn.",
+  highlights: ["Trọn bộ 300 Thẻ AR 3D", "Hộp quà sơn mài cao cấp", "Bảo hành bản quyền trọn đời"],
+  isFeatured: true,
+};
 
-  // --- CÁC BỘ 30 THẺ CHỦ ĐỀ: ĐỘNG VẬT HOANG DÃ ---
+export const COMBO_PACKS: CardComboPack[] = [
+  // --- 1. ĐỘNG VẬT HOANG DÃ (ANH - VIỆT) ---
   {
     id: "pack-dongvat-envi-30",
     name: "Bộ 30 Thẻ AR Động Vật Hoang Dã (Anh - Việt)",
@@ -72,9 +51,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "dong-vat",
     languageType: "en-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Anh - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -82,6 +61,8 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Thẻ AR 3D Động Vật", "Chống nước 100%", "Phát âm chuẩn Anh - Việt"],
     isFeatured: true,
   },
+
+  // --- 2. ĐỘNG VẬT HOANG DÃ (TRUNG - VIỆT) ---
   {
     id: "pack-dongvat-zhvi-30",
     name: "Bộ 30 Thẻ AR Động Vật Hoang Dã (Trung - Việt)",
@@ -90,9 +71,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "dong-vat",
     languageType: "zh-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Trung - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -100,7 +81,7 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Thẻ AR Động Vật", "Pinyin chuẩn thanh điệu", "Hình ảnh 3D hoạt hình"],
   },
 
-  // --- CÁC BỘ 30 THẺ CHỦ ĐỀ: HÀNH ĐỘNG & THỂ CHẤT ---
+  // --- 3. HÀNH ĐỘNG & THỂ CHẤT (ANH - VIỆT) ---
   {
     id: "pack-hanhdong-envi-30",
     name: "Bộ 30 Thẻ AR Hành Động & Thể Chất (Anh - Việt)",
@@ -109,9 +90,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "hanh-dong",
     languageType: "en-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Anh - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -119,6 +100,8 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Thẻ AR Chuyển Động", "Phát âm chuẩn IPA", "Tương tác chạm chuyển động"],
     isFeatured: true,
   },
+
+  // --- 4. HÀNH ĐỘNG & THỂ CHẤT (TRUNG - VIỆT) ---
   {
     id: "pack-hanhdong-zhvi-30",
     name: "Bộ 30 Thẻ AR Hành Động & Thể Chất (Trung - Việt)",
@@ -127,9 +110,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "hanh-dong",
     languageType: "zh-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Trung - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -137,7 +120,7 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Động từ tiếng Trung", "Mô phỏng 3D trực quan", "Kích thích vận động"],
   },
 
-  // --- BỘ 30 THẺ CHỦ ĐỀ: HOA QUẢ & TRÁI CÂY ---
+  // --- 5. HOA QUẢ & TRÁI CÂY (ANH - VIỆT) ---
   {
     id: "pack-hoaqua-envi-30",
     name: "Bộ 30 Thẻ AR Trái Cây & Hoa Quả (Anh - Việt)",
@@ -146,9 +129,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "trai-cay",
     languageType: "en-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Anh - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "strawberry",
@@ -157,7 +140,26 @@ export const COMBO_PACKS: CardComboPack[] = [
     isFeatured: true,
   },
 
-  // --- CÁC BỘ 30 THẺ CHỦ ĐỀ: NGHỀ NGHIỆP ƯỚC MƠ ---
+  // --- 6. HOA QUẢ & TRÁI CÂY (TRUNG - VIỆT) ---
+  {
+    id: "pack-hoaqua-zhvi-30",
+    name: "Bộ 30 Thẻ AR Trái Cây & Hoa Quả (Trung - Việt)",
+    packCode: "POLY30-HOAQUA-ZHVI",
+    categoryName: "Trái Cây",
+    categorySlug: "trai-cay",
+    languageType: "zh-vi",
+    cardsCount: 30,
+    price: 300000,
+    originalPrice: 300000,
+    discountPercent: 0,
+    badge: "Song Ngữ Trung - Việt",
+    imageSrc: "/images/cards/butterfly-card.png",
+    sampleSlug: "strawberry",
+    description: "Khám phá thế giới hoa quả tươi ngon với từ vựng tiếng Trung và phát âm chuẩn bản xứ.",
+    highlights: ["30 Thẻ AR Trái Cây 3D", "Pinyin chuẩn thanh điệu", "Tương tác xoay 360°"],
+  },
+
+  // --- 7. NGHỀ NGHIỆP ƯỚC MƠ (ANH - VIỆT) ---
   {
     id: "pack-nghenghiep-envi-30",
     name: "Bộ 30 Thẻ AR Nghề Nghiệp Ước Mơ (Anh - Việt)",
@@ -166,9 +168,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "nghe-nghiep",
     languageType: "en-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Anh - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -176,6 +178,8 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Thẻ AR Nghề Nghiệp", "Mô phỏng trang phục 3D", "Phát âm song ngữ Anh - Việt"],
     isFeatured: true,
   },
+
+  // --- 8. NGHỀ NGHIỆP ƯỚC MƠ (TRUNG - VIỆT) ---
   {
     id: "pack-nghenghiep-zhvi-30",
     name: "Bộ 30 Thẻ AR Nghề Nghiệp Ước Mơ (Trung - Việt)",
@@ -184,9 +188,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "nghe-nghiep",
     languageType: "zh-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Trung - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -194,7 +198,7 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Nghề nghiệp xã hội", "Phát âm chuẩn bản xứ", "Hình ảnh 3D chân thực"],
   },
 
-  // --- CÁC BỘ 30 THẺ CHỦ ĐỀ: PHƯƠNG TIỆN GIAO THÔNG ---
+  // --- 9. PHƯƠNG TIỆN GIAO THÔNG (ANH - VIỆT) ---
   {
     id: "pack-xeco-envi-30",
     name: "Bộ 30 Thẻ AR Phương Tiện Giao Thông (Anh - Việt)",
@@ -203,9 +207,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "phuong-tien",
     languageType: "en-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Anh - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -213,6 +217,8 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Thẻ AR Phương Tiện", "Mô phỏng động cơ 3D", "Kích thích tư duy logic"],
     isFeatured: true,
   },
+
+  // --- 10. PHƯƠNG TIỆN GIAO THÔNG (TRUNG - VIỆT) ---
   {
     id: "pack-xeco-zhvi-30",
     name: "Bộ 30 Thẻ AR Phương Tiện Giao Thông (Trung - Việt)",
@@ -221,9 +227,9 @@ export const COMBO_PACKS: CardComboPack[] = [
     categorySlug: "phuong-tien",
     languageType: "zh-vi",
     cardsCount: 30,
-    price: 249000,
+    price: 300000,
     originalPrice: 300000,
-    discountPercent: 17,
+    discountPercent: 0,
     badge: "Song Ngữ Trung - Việt",
     imageSrc: "/images/cards/butterfly-card.png",
     sampleSlug: "polycards",
@@ -231,5 +237,3 @@ export const COMBO_PACKS: CardComboPack[] = [
     highlights: ["30 Phương tiện đa dạng", "Âm thanh còi máy chân thực", "Tương tác 3D đa góc nhìn"],
   },
 ];
-
-export const DEFAULT_FEATURED_COMBO: CardComboPack = COMBO_PACKS[1];

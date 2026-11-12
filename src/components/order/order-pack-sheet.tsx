@@ -25,14 +25,14 @@ interface OrderPackSheetProps {
   onOpenDetail: (pack: CardComboPack) => void;
 }
 
-const CATEGORY_TABS = [
+const ALL_CATEGORY_TABS = [
   { id: "all", name: "Tất cả các bộ" },
-  { id: "all-vip", name: "Trọn Bộ VIP" },
   { id: "dong-vat", name: "Động Vật" },
   { id: "hanh-dong", name: "Hành Động" },
   { id: "phuong-tien", name: "Phương Tiện" },
   { id: "trai-cay", name: "Hoa Quả" },
   { id: "nghe-nghiep", name: "Nghề Nghiệp" },
+  { id: "all-vip", name: "Trọn Bộ VIP" },
 ];
 
 const LANGUAGE_FILTERS = [
@@ -53,26 +53,55 @@ export function OrderPackSheet({
   const [activeCategory, setActiveCategory] = useState("all");
   const [activeLanguage, setActiveLanguage] = useState("all");
 
-  // Lọc danh sách bộ thẻ
-  const filteredPacks = useMemo(() => {
-    return availablePacks.filter((pack) => {
-      const matchCat =
-        activeCategory === "all" || pack.categorySlug === activeCategory;
+  // Tính tổng số lượng thẻ thực tế từ danh sách bộ có sẵn
+  const totalCardsInPacks = useMemo(() => {
+    return availablePacks.reduce((sum, p) => sum + (p.cardsCount || 0), 0);
+  }, [availablePacks]);
 
-      const matchLang =
-        activeLanguage === "all" ||
-        pack.languageType === "all" ||
-        pack.languageType === activeLanguage;
-
-      const q = searchQuery.toLowerCase().trim();
-      const matchQuery =
-        !q ||
-        pack.name.toLowerCase().includes(q) ||
-        pack.description.toLowerCase().includes(q) ||
-        pack.categoryName.toLowerCase().includes(q);
-
-      return matchCat && matchLang && matchQuery;
+  // Chỉ hiển thị các tab danh mục có bộ thẻ thực tế
+  const categoryTabs = useMemo(() => {
+    return ALL_CATEGORY_TABS.filter((tab) => {
+      if (tab.id === "all") return true;
+      return availablePacks.some((p) => {
+        if (tab.id === "trai-cay" || tab.id === "hoa-qua") {
+          return p.categorySlug === "trai-cay" || p.categorySlug === "hoa-qua";
+        }
+        if (tab.id === "phuong-tien" || tab.id === "xe-co") {
+          return p.categorySlug === "phuong-tien" || p.categorySlug === "xe-co";
+        }
+        return p.categorySlug === tab.id;
+      });
     });
+  }, [availablePacks]);
+
+  // Lọc danh sách bộ thẻ (chỉ hiển thị bộ có thẻ thực tế trong kho)
+  const filteredPacks = useMemo(() => {
+    return availablePacks
+      .filter((pack) => (pack.cardsCount || 0) > 0)
+      .filter((pack) => {
+        const matchCat =
+          activeCategory === "all" ||
+          pack.categorySlug === activeCategory ||
+          (activeCategory === "trai-cay" && pack.categorySlug === "hoa-qua") ||
+          (activeCategory === "hoa-qua" && pack.categorySlug === "trai-cay") ||
+          (activeCategory === "phuong-tien" && pack.categorySlug === "xe-co") ||
+          (activeCategory === "xe-co" && pack.categorySlug === "phuong-tien");
+
+        const matchLang =
+          activeLanguage === "all" ||
+          pack.languageType === "all" ||
+          pack.languageType === activeLanguage;
+
+        const q = searchQuery.toLowerCase().trim();
+        const matchQuery =
+          !q ||
+          pack.name.toLowerCase().includes(q) ||
+          pack.description.toLowerCase().includes(q) ||
+          pack.categoryName.toLowerCase().includes(q) ||
+          pack.packCode.toLowerCase().includes(q);
+
+        return matchCat && matchLang && matchQuery;
+      });
   }, [availablePacks, activeCategory, activeLanguage, searchQuery]);
 
   if (!isOpen) return null;
@@ -95,7 +124,7 @@ export function OrderPackSheet({
               <span>Chọn Thêm Bộ Thẻ AR Vào Giỏ</span>
             </h2>
             <p className="text-[11px] sm:text-xs text-stone-500 font-medium">
-              Đang có {availablePacks.length} bộ thẻ AR (270 thẻ) sẵn sàng xếp vào thùng hàng
+              Đang có {availablePacks.length} bộ thẻ AR ({totalCardsInPacks} thẻ) sẵn sàng xếp vào thùng hàng
             </p>
           </div>
 
@@ -118,7 +147,7 @@ export function OrderPackSheet({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm bộ thẻ (Động vật, Xe cộ, Hoa quả, VIP...)"
+              placeholder="Tìm kiếm bộ thẻ (Động vật, Xe cộ, Hoa quả...)"
               className="w-full rounded-2xl border border-stone-200 bg-white pl-10 pr-4 py-2 text-xs sm:text-sm font-semibold text-stone-900 placeholder:text-stone-400 focus:border-amber-400 focus:outline-hidden"
             />
             {searchQuery && (
@@ -134,7 +163,7 @@ export function OrderPackSheet({
 
           {/* Lọc Chủ Đề Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
-            {CATEGORY_TABS.map((tab) => (
+            {categoryTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"

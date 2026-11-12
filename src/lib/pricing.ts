@@ -273,10 +273,24 @@ export function computePackDynamicPricing(
     };
   }
 
-  // Fallback nếu chưa có thẻ con trong kho
-  const cardsCount = packConfig?.cardsCount || 30;
+  // Khi không tìm thấy thẻ con nào khớp với mã bộ
+  // Nếu đã nạp allCards từ DB mà không có thẻ nào khớp -> chắc chắn là bộ rỗng (cardsCount = 0)
+  const cardsCount = packConfig?.cardsCount !== undefined
+    ? packConfig.cardsCount
+    : (allCards.length > 0 ? 0 : 30);
+
+  if (cardsCount === 0) {
+    return {
+      cardsCount: 0,
+      originalPrice: 0,
+      price: 0,
+      discountPercent: 0,
+      isCustomized: false,
+    };
+  }
+
   const originalPrice = packConfig?.originalPrice || (cardsCount * 10000);
-  const price = packConfig?.salePrice || 249000;
+  const price = packConfig?.salePrice || (cardsCount * 10000);
   const discountPercent = packConfig?.discountPercent !== undefined
     ? packConfig.discountPercent
     : (originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0);

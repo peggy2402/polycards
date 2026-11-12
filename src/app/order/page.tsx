@@ -56,7 +56,7 @@ function OrderContent() {
         p.categorySlug.toLowerCase() === rawParam ||
         p.sampleSlug.toLowerCase() === rawParam ||
         rawParam.includes(p.categorySlug)
-    ) || COMBO_PACKS[1]; // Mặc định là Combo VIP 120 thẻ
+    ) || COMBO_PACKS[0]; // Mặc định là Bộ 30 Thẻ AR Động Vật Hoang Dã (Anh - Việt)
 
     return [{ pack: defaultPack, quantity: 1 }];
   });
@@ -111,7 +111,7 @@ function OrderContent() {
 
           return {
             ...pack,
-            cardsCount: dynamicPricing.cardsCount || pack.cardsCount,
+            cardsCount: dynamicPricing.cardsCount,
             price: dynamicPricing.price,
             originalPrice: dynamicPricing.originalPrice,
             discountPercent: dynamicPricing.discountPercent,
@@ -125,43 +125,46 @@ function OrderContent() {
         for (const item of packConfigsList) {
           const codeUpper = (item.code || "").toUpperCase();
           if (!existingCodes.has(codeUpper) && codeUpper.startsWith("POLY")) {
-            const nameUpper = (item.name || "").toUpperCase();
-            const isZh = codeUpper.includes("ZHVI") || nameUpper.includes("TRUNG");
-            const isEn = codeUpper.includes("ENVI") || nameUpper.includes("ANH");
-
-            const badge = isZh
-              ? "Song Ngữ Trung - Việt"
-              : isEn
-              ? "Song Ngữ Anh - Việt"
-              : item.code.includes("120") || item.code.includes("270")
-              ? "Trọn Bộ VIP"
-              : "Bộ Thẻ AR 3D";
-
             const dynamicPricing = computePackDynamicPricing(item.code, item, allCards);
 
-            newPacks.push({
-              id: `pack-${item.code.toLowerCase()}`,
-              name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
-              packCode: item.code,
-              categoryName: item.categoryName || "Chủ đề Poly Cards",
-              categorySlug: item.categorySlug || "khac",
-              languageType: isZh ? "zh-vi" : "en-vi",
-              cardsCount: dynamicPricing.cardsCount || 30,
-              price: dynamicPricing.price,
-              originalPrice: dynamicPricing.originalPrice,
-              discountPercent: dynamicPricing.discountPercent,
-              badge,
-              imageSrc: "/images/cards/butterfly-card.png",
-              sampleSlug: "polycards",
-              description: item.description || `Bộ 30 thẻ AR tương tác 3D đa góc nhìn sống động.`,
-              highlights: ["30 Thẻ AR 3D", "Phát âm chuẩn", "Chống nước 100%"],
-            });
+            // Chỉ thêm mã bộ mới nếu thực sự có thẻ trong kho (cardsCount > 0)
+            if (dynamicPricing.cardsCount > 0) {
+              const nameUpper = (item.name || "").toUpperCase();
+              const isZh = codeUpper.includes("ZHVI") || nameUpper.includes("TRUNG");
+              const isEn = codeUpper.includes("ENVI") || nameUpper.includes("ANH");
+
+              const badge = isZh
+                ? "Song Ngữ Trung - Việt"
+                : isEn
+                ? "Song Ngữ Anh - Việt"
+                : "Bộ Thẻ AR 3D";
+
+              newPacks.push({
+                id: `pack-${item.code.toLowerCase()}`,
+                name: item.name || `Bộ 30 Thẻ AR ${item.code}`,
+                packCode: item.code,
+                categoryName: item.categoryName || "Chủ đề Poly Cards",
+                categorySlug: item.categorySlug || "khac",
+                languageType: isZh ? "zh-vi" : "en-vi",
+                cardsCount: dynamicPricing.cardsCount,
+                price: dynamicPricing.price,
+                originalPrice: dynamicPricing.originalPrice,
+                discountPercent: dynamicPricing.discountPercent,
+                badge,
+                imageSrc: "/images/cards/butterfly-card.png",
+                sampleSlug: "polycards",
+                description: item.description || `Bộ 30 thẻ AR tương tác 3D đa góc nhìn sống động.`,
+                highlights: ["30 Thẻ AR 3D", "Phát âm chuẩn", "Chống nước 100%"],
+              });
+            }
           }
         }
 
-        const finalPacks = newPacks.length > 0 ? [...updated, ...newPacks] : updated;
+        // 3. Lọc bỏ triệt để các mã bộ rỗng (cardsCount === 0) như POLY30-NGHENGHIEP, POLY30-HANHDONG...
+        const combined = newPacks.length > 0 ? [...updated, ...newPacks] : updated;
+        const finalPacks = combined.filter((p) => (p.cardsCount || 0) > 0);
 
-        // 3. Tự động cập nhật lại các bộ đang có trong thùng hàng (selectedItems) theo giá mới nhất
+        // 4. Tự động cập nhật lại các bộ đang có trong thùng hàng (selectedItems) theo giá mới nhất
         setSelectedItems((currItems) =>
           currItems.map((it) => {
             const freshPack = finalPacks.find((p) => p.packCode === it.pack.packCode);

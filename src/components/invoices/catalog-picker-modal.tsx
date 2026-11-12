@@ -83,12 +83,24 @@ export function CatalogPickerModal({
 
   const totalCartCount = cartItems.reduce((acc, it) => acc + it.quantity, 0);
 
-  // Nhóm các pack code theo danh mục
+  // Nhóm các pack code theo danh mục (chỉ lấy các bộ thực sự có thẻ trong kho, loại bỏ triệt để các mã bộ rỗng 0 thẻ)
   const getPacksForCategory = (catSlug: string) => {
-    const matches = packCodesList.filter((p) => p.categorySlug === catSlug);
+    const matches = packCodesList.filter((p) => {
+      if (p.categorySlug !== catSlug) return false;
+      const count = productsCatalog.filter(
+        (c) => (c.packCode || "").toUpperCase() === (p.code || "").toUpperCase()
+      ).length;
+      const effectiveCount = productsCatalog.length > 0 ? count : (p.cardsCount ?? 0);
+      return effectiveCount > 0;
+    });
     if (matches.length > 0) return matches;
 
-    // Fallback nếu chưa có trong DB: tạo 2 bộ song ngữ Anh-Việt và Trung-Việt
+    // Fallback: chỉ tạo nếu danh mục này thực sự có thẻ lẻ trong kho
+    const cardsInCat = productsCatalog.filter(
+      (c) => c.categorySlug === catSlug || c.category === catSlug
+    );
+    if (cardsInCat.length === 0) return [];
+
     const cat = categoriesList.find((c) => c.slug === catSlug);
     const catUpper = catSlug.toUpperCase().replace(/[^A-Z0-9]/g, "");
     return [
@@ -97,18 +109,8 @@ export function CatalogPickerModal({
         name: `Bộ 30 Thẻ AR ${cat?.name || "Chủ đề"} (Anh - Việt)`,
         categorySlug: catSlug,
         categoryName: cat?.name || "Chủ đề",
-        cardsCount: 30,
-        salePrice: 249000,
-        originalPrice: 300000,
-        createdAt: "2026-10-25",
-      },
-      {
-        code: `POLY30-${catUpper}-ZHVI`,
-        name: `Bộ 30 Thẻ AR ${cat?.name || "Chủ đề"} (Trung - Việt)`,
-        categorySlug: catSlug,
-        categoryName: cat?.name || "Chủ đề",
-        cardsCount: 30,
-        salePrice: 249000,
+        cardsCount: cardsInCat.length,
+        salePrice: 300000,
         originalPrice: 300000,
         createdAt: "2026-10-25",
       },
@@ -192,6 +194,10 @@ export function CatalogPickerModal({
                 const countCardsInCat = productsCatalog.filter(
                   (p) => p.categorySlug === cat.slug || p.category === cat.name
                 ).length;
+
+                // Nếu danh mục không có thẻ lẻ và không có bộ thẻ nào có hàng thì bỏ qua
+                if (packsForCat.length === 0 && countCardsInCat === 0) return null;
+
                 const isExpanded = expandedCategory === cat.slug || categoriesList.length <= 3;
 
                 // Tìm 1 ảnh tiêu biểu
