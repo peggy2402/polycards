@@ -84,12 +84,15 @@ export function EditPackCodeModal({
         ? pack.originalPrice
         : calculatePackOriginalPrice(initialSinglePrice, initialCardsCount);
 
-      const initialSale = pack.salePrice || 249000;
       const initialPct = pack.discountPercent !== undefined
         ? pack.discountPercent
-        : calculatedOrig > 0
-        ? Math.max(0, Math.round(((calculatedOrig - initialSale) / calculatedOrig) * 100))
-        : 17;
+        : (pack.salePrice !== undefined && calculatedOrig > 0
+          ? Math.max(0, Math.round(((calculatedOrig - pack.salePrice) / calculatedOrig) * 100))
+          : 17);
+
+      const initialSale = pack.salePrice !== undefined && pack.salePrice > 0
+        ? pack.salePrice
+        : (initialPct === 0 ? calculatedOrig : 249000);
 
       setCardsCount(initialCardsCount);
       setSingleCardPrice(initialSinglePrice);

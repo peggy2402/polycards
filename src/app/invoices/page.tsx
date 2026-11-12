@@ -1285,7 +1285,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                       }`}
                     >
                       <User className="h-4 w-4" />
-                      <span>Khách Trực Tiếp Tại Quầy</span>
+                      <span>Khách Hàng Trực Tiếp</span>
                     </button>
 
                     <button

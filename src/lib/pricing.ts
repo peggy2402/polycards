@@ -251,7 +251,11 @@ export function computePackDynamicPricing(
     let price = 0;
     let discountPercent = 0;
 
-    if (packConfig?.salePrice && packConfig.salePrice > 0) {
+    if (packConfig?.discountPercent !== undefined && packConfig.discountPercent === 0) {
+      // Khi % khuyến mãi được thiết lập về 0: Giá bán bằng giá gốc niêm yết
+      discountPercent = 0;
+      price = packConfig.salePrice && packConfig.salePrice > 0 ? packConfig.salePrice : originalPrice;
+    } else if (packConfig?.salePrice && packConfig.salePrice > 0) {
       price = packConfig.salePrice;
       discountPercent = originalPrice > price
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
@@ -266,8 +270,8 @@ export function computePackDynamicPricing(
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
         : 0;
     } else {
-      // Giá chuẩn mặc định cho bộ 30 thẻ là 249.000đ (hoặc tỉ lệ tương ứng theo số thẻ)
-      price = cardsCount === 30 ? 249000 : roundPrice(cardsCount * 8300);
+      // Giá chuẩn mặc định cho bộ 30 thẻ là 300.000đ
+      price = cardsCount === 30 ? 300000 : roundPrice(cardsCount * 10000);
       discountPercent = originalPrice > price
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
         : 0;
@@ -299,10 +303,14 @@ export function computePackDynamicPricing(
   }
 
   const originalPrice = packConfig?.originalPrice || (cardsCount * 10000);
-  const price = packConfig?.salePrice || (cardsCount * 10000);
-  const discountPercent = packConfig?.discountPercent !== undefined
+  let price = packConfig?.salePrice || (cardsCount * 10000);
+  let discountPercent = packConfig?.discountPercent !== undefined
     ? packConfig.discountPercent
     : (originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0);
+
+  if (discountPercent === 0) {
+    price = packConfig?.salePrice && packConfig.salePrice > 0 ? packConfig.salePrice : originalPrice;
+  }
 
   return {
     cardsCount,

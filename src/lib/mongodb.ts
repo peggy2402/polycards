@@ -943,6 +943,13 @@ export async function dbUpsertPackCode(
     categorySlug: item.categorySlug || "khac",
     categoryName: item.categoryName || "Khác",
     description: item.description?.trim() || undefined,
+    cardsCount: item.cardsCount !== undefined ? Number(item.cardsCount) : undefined,
+    singleCardPrice: item.singleCardPrice !== undefined ? Number(item.singleCardPrice) : undefined,
+    originalPrice: item.originalPrice !== undefined ? Number(item.originalPrice) : undefined,
+    discountPercent: item.discountPercent !== undefined ? Number(item.discountPercent) : undefined,
+    salePrice: item.salePrice !== undefined ? Number(item.salePrice) : undefined,
+    isManualPrice: item.isManualPrice !== undefined ? Boolean(item.isManualPrice) : undefined,
+    imageSrc: item.imageSrc ? String(item.imageSrc).trim() : undefined,
     createdAt: item.createdAt || now,
     updatedAt: new Date().toISOString(),
   };
