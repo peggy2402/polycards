@@ -8,7 +8,6 @@ import { CardComboPack, COMBO_PACKS } from "@/data/combos";
 import { Navbar } from "@/components/common/navbar";
 import { Footer } from "@/components/common/footer";
 import { PackDetailModal } from "@/components/order/pack-detail-modal";
-import { EditPackModal } from "@/components/products/edit-pack-modal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { computePackDynamicPricing } from "@/lib/pricing";
 import {
@@ -18,7 +17,6 @@ import {
   X,
   ArrowLeft,
   ShoppingBag,
-  Settings2,
 } from "lucide-react";
 
 export default function ProductsPage() {
@@ -35,10 +33,6 @@ export default function ProductsPage() {
   // Modal xem chi tiết thẻ trong bộ
   const [detailPack, setDetailPack] = useState<CardComboPack | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
-
-  // Modal cấu hình bộ thẻ (Ảnh, Giá gốc, % KM, Giá ưu đãi)
-  const [editingPack, setEditingPack] = useState<CardComboPack | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
 
   // Bộ lọc
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("all");
@@ -160,19 +154,6 @@ export default function ProductsPage() {
   const handleOpenDetail = (pack: CardComboPack) => {
     setDetailPack(pack);
     setIsDetailModalOpen(true);
-  };
-
-  // Mở modal cấu hình pack (giá, ảnh, khuyến mãi)
-  const handleOpenEditPack = (pack: CardComboPack) => {
-    setEditingPack(pack);
-    setIsEditModalOpen(true);
-  };
-
-  // Cập nhật lại bộ thẻ sau khi lưu cấu hình thành công
-  const handleSavePackSuccess = (updatedPack: CardComboPack) => {
-    setPacks((prev) =>
-      prev.map((p) => (p.packCode === updatedPack.packCode ? updatedPack : p))
-    );
   };
 
   // Chuyển hướng đặt hàng
@@ -363,19 +344,6 @@ export default function ProductsPage() {
                           className="h-full w-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-300"
                         />
 
-                        {/* Nút Cấu Hình Bộ Thẻ */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditPack(pack);
-                          }}
-                          title="Cấu hình bộ thẻ (Ảnh, Giá, Khuyến mãi)"
-                          className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-stone-950/70 hover:bg-stone-950 text-stone-200 hover:text-amber-300 backdrop-blur-xs transition-all shadow-xs cursor-pointer"
-                        >
-                          <Settings2 className="h-3 w-3" />
-                        </button>
-
                         {/* Badge % Khuyến mãi */}
                         {pack.discountPercent > 0 && (
                           <div className="absolute top-2 left-2 bg-rose-600 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full shadow-xs">
@@ -456,14 +424,6 @@ export default function ProductsPage() {
         cardsList={cardsList}
         onClose={() => setIsDetailModalOpen(false)}
         onSelectAndAdd={(pack) => handleSelectBuy(pack)}
-      />
-
-      {/* Modal Cấu Hình Bộ Thẻ (Ảnh, Giá, % Khuyến Mãi) */}
-      <EditPackModal
-        pack={editingPack}
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSaveSuccess={handleSavePackSuccess}
       />
 
       <Footer />
