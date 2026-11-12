@@ -11,9 +11,13 @@ import {
   ShoppingCart,
   Filter,
   Eye,
+  ChevronDown,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
+import { PackCodeItem } from "@/lib/pack-codes-store";
 
 export interface InvoiceCartItem {
   id: string;
@@ -25,6 +29,7 @@ export interface InvoiceCartItem {
   slug?: string;
   quantity: number;
   unitPrice: number;
+  originalPrice?: number;
   image?: string;
 }
 
@@ -32,6 +37,7 @@ interface CatalogPickerModalProps {
   isOpen: boolean;
   categoriesList: ProductCategory[];
   productsCatalog: Animal[];
+  packCodesList?: PackCodeItem[];
   cartItems: InvoiceCartItem[];
   onClose: () => void;
   onAddToCart: (item: Omit<InvoiceCartItem, "quantity">, qty?: number) => void;
@@ -41,6 +47,7 @@ export function CatalogPickerModal({
   isOpen,
   categoriesList,
   productsCatalog,
+  packCodesList = [],
   cartItems,
   onClose,
   onAddToCart,
@@ -48,6 +55,7 @@ export function CatalogPickerModal({
   const [activeTab, setActiveTab] = useState<"PACKS" | "SINGLES">("PACKS");
   const [searchCardQuery, setSearchCardQuery] = useState<string>("");
   const [filterCardCategory, setFilterCardCategory] = useState<string>("all");
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -74,9 +82,41 @@ export function CatalogPickerModal({
 
   const totalCartCount = cartItems.reduce((acc, it) => acc + it.quantity, 0);
 
+  // Nhóm các pack code theo danh mục
+  const getPacksForCategory = (catSlug: string) => {
+    const matches = packCodesList.filter((p) => p.categorySlug === catSlug);
+    if (matches.length > 0) return matches;
+
+    // Fallback nếu chưa có trong DB: tạo 2 bộ song ngữ Anh-Việt và Trung-Việt
+    const cat = categoriesList.find((c) => c.slug === catSlug);
+    const catUpper = catSlug.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return [
+      {
+        code: `POLY30-${catUpper}-ENVI`,
+        name: `Bộ 30 Thẻ AR ${cat?.name || "Chủ đề"} (Anh - Việt)`,
+        categorySlug: catSlug,
+        categoryName: cat?.name || "Chủ đề",
+        cardsCount: 30,
+        salePrice: 249000,
+        originalPrice: 299000,
+        createdAt: "2026-10-25",
+      },
+      {
+        code: `POLY30-${catUpper}-ZHVI`,
+        name: `Bộ 30 Thẻ AR ${cat?.name || "Chủ đề"} (Trung - Việt)`,
+        categorySlug: catSlug,
+        categoryName: cat?.name || "Chủ đề",
+        cardsCount: 30,
+        salePrice: 249000,
+        originalPrice: 299000,
+        createdAt: "2026-10-25",
+      },
+    ];
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
-      <div className="bg-stone-900 border border-amber-400/40 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl shadow-amber-950/40 overflow-hidden">
+      <div className="bg-stone-900 border border-amber-400/40 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl shadow-amber-950/40 overflow-hidden">
         {/* Header Modal */}
         <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-stone-950/60">
           <div className="flex items-center gap-3">
@@ -93,7 +133,7 @@ export function CatalogPickerModal({
                 </span>
               </div>
               <p className="text-xs text-stone-400 mt-0.5">
-                Chọn các bộ thẻ bài hoặc thẻ lẻ để thêm vào phiếu hóa đơn bán hàng
+                Cấu trúc phân cấp 3 tầng: Danh Mục &gt; Bộ Thẻ Bản Quyền &gt; Thẻ Bài Lẻ
               </p>
             </div>
           </div>
@@ -101,7 +141,7 @@ export function CatalogPickerModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -119,7 +159,7 @@ export function CatalogPickerModal({
             }`}
           >
             <PackageCheck className="h-4 w-4" />
-            <span>1. Chọn Theo Bộ Thẻ Trọn Gói ({categoriesList.length} bộ)</span>
+            <span>1. Chọn Theo Danh Mục &amp; Bộ Thẻ ({categoriesList.length} danh mục)</span>
           </button>
 
           <button
@@ -137,23 +177,23 @@ export function CatalogPickerModal({
         </div>
 
         {/* ========================================================
-            TAB 1: CHỌN THEO BỘ THẺ TRỌN GÓI (30 THẺ / BỘ)
+            TAB 1: PHÂN CẤP CHUẨN: DANH MỤC -> CÁC BỘ THẺ -> THẺ LẺ
            ======================================================== */}
         {activeTab === "PACKS" && (
           <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
             <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 leading-relaxed">
-              <strong>Mẹo bán hàng:</strong> Khách hàng có thể mua cùng lúc nhiều bộ thẻ khác nhau (ví dụ: 2 bộ Động Vật, 1 bộ Hành Động, 1 bộ Nghề Nghiệp). Hệ thống sẽ cấp chung 1 mã bản quyền mở khóa trọn gói toàn bộ các bộ thẻ này cho khách!
+              <strong>Phân cấp chuẩn:</strong> Chọn Danh mục để xem các bộ thẻ ngôn ngữ (Anh - Việt, Trung - Việt). Khi thêm bộ thẻ vào giỏ, hệ thống tự động áp dụng combo tốt nhất (giảm 10%, 33%, 34%).
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-3">
               {categoriesList.map((cat) => {
-                const countCards = productsCatalog.filter(
+                const packsForCat = getPacksForCategory(cat.slug);
+                const countCardsInCat = productsCatalog.filter(
                   (p) => p.categorySlug === cat.slug || p.category === cat.name
                 ).length;
-                const itemId = `pack-${cat.slug}`;
-                const inCartQty = getItemQtyInCart(itemId);
+                const isExpanded = expandedCategory === cat.slug || categoriesList.length <= 3;
 
-                // Tìm 1 ảnh tiêu biểu của danh mục
+                // Tìm 1 ảnh tiêu biểu
                 const sampleCard =
                   productsCatalog.find(
                     (p) => p.categorySlug === cat.slug || p.category === cat.name
@@ -166,60 +206,127 @@ export function CatalogPickerModal({
                 return (
                   <div
                     key={cat.id || cat.slug}
-                    className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                      inCartQty > 0
-                        ? "bg-amber-500/15 border-amber-400/80 shadow-lg shadow-amber-500/10"
-                        : "bg-black/40 border-white/10 hover:border-white/20"
-                    }`}
+                    className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden transition-all"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-14 w-11 rounded-xl bg-stone-800 overflow-hidden shrink-0 border border-white/15 shadow-sm">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={thumb}
-                          alt={cat.name}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-black text-white truncate">
-                            Bộ 30 Thẻ {cat.name}
-                          </h4>
-                          {inCartQty > 0 && (
-                            <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950">
-                              x{inCartQty}
-                            </span>
-                          )}
+                    {/* CẤP 1: HEADER DANH MỤC */}
+                    <div
+                      onClick={() => setExpandedCategory(isExpanded ? null : cat.slug)}
+                      className="p-3.5 sm:p-4 bg-stone-950/70 hover:bg-stone-950 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-400/30 overflow-hidden shrink-0 flex items-center justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={thumb} alt={cat.name} className="h-full w-full object-cover" />
                         </div>
-                        <p className="text-[11px] text-stone-400 mt-0.5">
-                          {countCards > 0 ? `${countCards} thẻ trong kho` : "Trọn gói 30 thẻ AR"}
-                        </p>
-                        <span className="font-mono text-xs font-black text-amber-300 block mt-1">
-                          {formatVndCurrency(249000)}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-black text-white">{cat.name}</h4>
+                            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-white/10 text-stone-300">
+                              {countCardsInCat} thẻ trong kho
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-400 mt-0.5">
+                            Gồm {packsForCat.length} bộ thẻ bản quyền
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-stone-400">
+                        <span className="text-xs font-bold hidden sm:inline">
+                          {isExpanded ? "Thu gọn" : "Xem các bộ"}
                         </span>
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onAddToCart({
-                          id: itemId,
-                          type: "PACK",
-                          name: `Bộ 30 Thẻ AR ${cat.name}`,
-                          categorySlug: cat.slug,
-                          categoryName: cat.name,
-                          packCode: `POLY30-${cat.slug.toUpperCase().replace(/[^A-Z0-9]/g, "")}`,
-                          unitPrice: 249000,
-                          image: thumb,
-                        })
-                      }
-                      className="py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center gap-1 shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>{inCartQty > 0 ? "Thêm tiếp" : "Chọn bộ"}</span>
-                    </button>
+                    {/* CẤP 2: DANH SÁCH CÁC BỘ THẺ THUỘC DANH MỤC */}
+                    {isExpanded && (
+                      <div className="p-3 sm:p-4 bg-stone-900/60 border-t border-white/5 space-y-2.5 animate-in fade-in duration-150">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {packsForCat.map((pack) => {
+                            const itemId = `pack-${pack.code.toLowerCase()}`;
+                            const inCartQty = getItemQtyInCart(itemId);
+                            const unitPrice = pack.salePrice || 249000;
+                            const isZh = pack.code.includes("ZHVI");
+
+                            return (
+                              <div
+                                key={pack.code}
+                                className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                                  inCartQty > 0
+                                    ? "bg-amber-500/15 border-amber-400/80 shadow-md shadow-amber-500/10"
+                                    : "bg-stone-950/80 border-white/10 hover:border-white/20"
+                                }`}
+                              >
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                                        isZh
+                                          ? "bg-purple-500/20 text-purple-300"
+                                          : "bg-emerald-500/20 text-emerald-300"
+                                      }`}
+                                    >
+                                      {isZh ? "Trung - Việt" : "Anh - Việt"}
+                                    </span>
+                                    <h5 className="text-xs font-black text-white truncate">
+                                      {pack.name}
+                                    </h5>
+                                  </div>
+
+                                  <div className="text-[11px] text-stone-400 font-mono">
+                                    Mã: <strong className="text-amber-300">{pack.code}</strong> • {pack.cardsCount || 30} Thẻ AR
+                                  </div>
+
+                                  <div className="flex items-baseline gap-2 pt-0.5">
+                                    <span className="font-mono text-xs font-black text-emerald-400">
+                                      {formatVndCurrency(unitPrice)}
+                                    </span>
+                                    {pack.originalPrice && pack.originalPrice > unitPrice && (
+                                      <span className="font-mono text-[10px] text-stone-500 line-through">
+                                        {formatVndCurrency(pack.originalPrice)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {inCartQty > 0 && (
+                                    <span className="font-mono text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950">
+                                      x{inCartQty}
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onAddToCart({
+                                        id: itemId,
+                                        type: "PACK",
+                                        name: pack.name,
+                                        categorySlug: cat.slug,
+                                        categoryName: cat.name,
+                                        packCode: pack.code,
+                                        unitPrice,
+                                        originalPrice: pack.originalPrice || 299000,
+                                        image: thumb,
+                                      })
+                                    }
+                                    className="py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    <span>{inCartQty > 0 ? "Thêm" : "Chọn bộ"}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -259,70 +366,74 @@ export function CatalogPickerModal({
               </select>
             </div>
 
-            {/* Lưới thẻ lẻ */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {filteredSingleCards.slice(0, 30).map((card) => {
-                const itemId = `card-${card.slug}`;
+            {/* Danh sách thẻ lẻ */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+              {filteredSingleCards.map((card) => {
+                const itemId = `single-${card.slug}`;
                 const inCartQty = getItemQtyInCart(itemId);
-                const img =
+                const thumb =
                   card.posterUrl ||
-                  (Array.isArray(card.images) && card.images[0]) ||
+                  card.images?.[0] ||
                   "/images/cards/butterfly-card.png";
+                const unitPrice = card.price || 10000;
 
                 return (
                   <div
-                    key={card.slug}
-                    onClick={() =>
-                      onAddToCart({
-                        id: itemId,
-                        type: "SINGLE",
-                        name: `Thẻ ${card.nameVi || card.nameEn}`,
-                        categorySlug: card.categorySlug || "dong-vat",
-                        categoryName: card.category || "Động Vật",
-                        slug: card.slug,
-                        unitPrice: card.price || 219000,
-                        image: img,
-                      })
-                    }
-                    className={`rounded-2xl border overflow-hidden transition-all flex flex-col cursor-pointer group ${
+                    key={card.id || card.slug}
+                    className={`p-2.5 rounded-2xl border transition-all flex flex-col justify-between ${
                       inCartQty > 0
-                        ? "bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10"
-                        : "bg-black/40 border-white/10 hover:border-amber-400/40"
+                        ? "bg-amber-500/15 border-amber-400/80 shadow-md"
+                        : "bg-black/40 border-white/10 hover:border-white/20"
                     }`}
                   >
-                    <div className="aspect-[3/4] w-full bg-stone-800 relative overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img}
-                        alt={card.nameVi}
-                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      {inCartQty > 0 && (
-                        <div className="absolute top-1.5 right-1.5 font-mono text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 shadow-md">
-                          x{inCartQty}
-                        </div>
-                      )}
-                    </div>
+                    <div className="space-y-1.5">
+                      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-stone-800">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumb}
+                          alt={card.nameVi}
+                          className="h-full w-full object-cover"
+                        />
+                        {inCartQty > 0 && (
+                          <span className="absolute top-1.5 right-1.5 font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full bg-amber-400 text-stone-950 shadow-xs">
+                            x{inCartQty}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="p-2.5 flex-1 flex flex-col justify-between space-y-1">
-                      <div>
-                        <h4 className="text-xs font-bold text-white truncate" title={card.nameVi}>
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-black text-white truncate">
                           {card.nameVi}
-                        </h4>
+                        </h5>
                         <p className="text-[10px] text-stone-400 truncate">
-                          {card.nameEn || card.slug} &bull; {card.category || "Động Vật"}
+                          {card.nameEn}
                         </p>
-                      </div>
-
-                      <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[10px]">
-                        <span className="font-mono text-amber-300 font-bold">
-                          {formatVndCurrency(card.price || 219000)}
-                        </span>
-                        <span className="text-[10px] font-bold text-amber-400 group-hover:underline">
-                          + Chọn
+                        <span className="font-mono text-xs font-bold text-amber-300 block mt-0.5">
+                          {formatVndCurrency(unitPrice)}
                         </span>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onAddToCart({
+                          id: itemId,
+                          type: "SINGLE",
+                          name: `Thẻ AR: ${card.nameVi} (${card.nameEn})`,
+                          categorySlug: card.categorySlug || "khac",
+                          categoryName: card.category || "Thẻ Lẻ",
+                          packCode: card.packCode || `SINGLE-${card.slug.toUpperCase()}`,
+                          slug: card.slug,
+                          unitPrice,
+                          image: thumb,
+                        })
+                      }
+                      className="mt-2 w-full py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>{inCartQty > 0 ? "Thêm tiếp" : "Chọn thẻ"}</span>
+                    </button>
                   </div>
                 );
               })}
@@ -331,14 +442,16 @@ export function CatalogPickerModal({
         )}
 
         {/* Footer Modal */}
-        <div className="p-4 border-t border-white/10 bg-stone-950/60 flex items-center justify-between text-xs">
-          <span className="text-stone-400">
-            Tổng cộng trong đơn hiện tại: <strong className="text-amber-400">{totalCartCount}</strong> sản phẩm
-          </span>
+        <div className="p-4 border-t border-white/10 bg-stone-950 flex items-center justify-between">
+          <div className="text-xs text-stone-400">
+            Tổng cộng trong đơn hiện tại:{" "}
+            <strong className="text-amber-400 font-mono text-sm">{totalCartCount}</strong> sản phẩm
+          </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-stone-950 font-black transition-all shadow-md active:scale-95 cursor-pointer"
+            className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
           >
             Xong &amp; Về Hóa Đơn
           </button>
@@ -347,4 +460,3 @@ export function CatalogPickerModal({
     </div>
   );
 }
-

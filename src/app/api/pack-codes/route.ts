@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
       categorySlug: body.categorySlug || "khac",
       categoryName: body.categoryName || "Khác",
       description: body.description ? String(body.description).trim() : undefined,
+      cardsCount: body.cardsCount !== undefined ? Number(body.cardsCount) : undefined,
+      singleCardPrice: body.singleCardPrice !== undefined ? Number(body.singleCardPrice) : undefined,
+      originalPrice: body.originalPrice !== undefined ? Number(body.originalPrice) : undefined,
+      discountPercent: body.discountPercent !== undefined ? Number(body.discountPercent) : undefined,
+      salePrice: body.salePrice !== undefined ? Number(body.salePrice) : undefined,
+      isManualPrice: body.isManualPrice !== undefined ? Boolean(body.isManualPrice) : undefined,
     };
 
     const saved = await dbUpsertPackCode(itemData);

@@ -61,6 +61,7 @@ import { PublishProductModal } from "@/components/tools/modals/publish-product-m
 import { EditProductModal } from "@/components/tools/modals/edit-product-modal";
 import { CategoryModal } from "@/components/tools/modals/category-modal";
 import { ComboConfigModal } from "@/components/tools/modals/combo-config-modal";
+import { ComboRulesModal } from "@/components/tools/modals/combo-rules-modal";
 import { ZipProgressIndicator } from "@/components/tools/widgets/zip-progress-indicator";
 import { getPackCodeForCategory } from "@/lib/pack-codes-store";
 
@@ -287,6 +288,7 @@ export default function ToolsPage() {
   // 17. Cấu hình Khối Combo Lớn trên Trang Chủ (#products)
   const [featuredCombo, setFeaturedCombo] = useState<CardComboPack>(DEFAULT_FEATURED_COMBO);
   const [isComboModalOpen, setIsComboModalOpen] = useState<boolean>(false);
+  const [isComboRulesModalOpen, setIsComboRulesModalOpen] = useState<boolean>(false);
   const [isSavingCombo, setIsSavingCombo] = useState<boolean>(false);
 
   useEffect(() => {
@@ -3042,6 +3044,7 @@ export default function ToolsPage() {
           onBatchDeleteProducts={handleBatchDeleteProducts}
           onToggleShowOnHome={handleToggleShowOnHome}
           onOpenComboModal={() => setIsComboModalOpen(true)}
+          onOpenComboRulesModal={() => setIsComboRulesModalOpen(true)}
           onBatchAssignPackCode={handleBatchAssignPackCode}
           onBatchUpdateLanguage={handleBatchUpdateLanguage}
           onUpdatePackCode={handleUpdateSinglePackCode}
@@ -3158,6 +3161,12 @@ export default function ToolsPage() {
         isSaving={isSavingCombo}
         onClose={() => setIsComboModalOpen(false)}
         onSave={handleSaveFeaturedCombo}
+        onShowToast={showToast}
+      />
+
+      <ComboRulesModal
+        isOpen={isComboRulesModalOpen}
+        onClose={() => setIsComboRulesModalOpen(false)}
         onShowToast={showToast}
       />
 

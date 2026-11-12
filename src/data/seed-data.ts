@@ -1,4 +1,4 @@
-import { Animal, ProductCategory } from "@/types/animal";
+import { Animal, ProductCategory, OrderStatus, DeliveryMethod } from "@/types/animal";
 
 export interface SeedOrderLineItem {
   id: string;
@@ -8,6 +8,7 @@ export interface SeedOrderLineItem {
   categorySlug?: string;
   quantity: number;
   unitPrice: number;
+  originalPrice?: number;
   totalPrice: number;
 }
 
@@ -40,6 +41,12 @@ export interface SeedOrderItem {
   paymentMethod: "TIEN_MAT" | "CHUYEN_KHOAN";
   totalPrice?: number;
   status?: string;
+  orderStatus?: OrderStatus;
+  deliveryMethod?: DeliveryMethod;
+  codAmount?: number;
+  source?: "ONLINE" | "POS";
+  comboName?: string;
+  comboDiscount?: number;
   createdAt?: string;
   note?: string;
   directUrl?: string;

@@ -10,6 +10,30 @@ export interface CardQrPosition {
   size: number;
 }
 
+export type OrderStatus = "CHO_DUYET" | "DA_NHAN" | "DA_HUY";
+
+export type DeliveryMethod =
+  | "TRUC_TIEP"
+  | "VAN_CHUYEN_OTO"
+  | "CPN_NHTT"
+  | "CPN_COD";
+
+export interface DbComboRule {
+  id: string;
+  name: string;
+  description?: string;
+  minPacksCount: number;
+  discountType: "percent" | "fixed_amount";
+  discountValue: number;
+  scope: "all" | "categories" | "packs";
+  applicableSlugs?: string[];
+  isActive: boolean;
+  priority: number;
+  badge?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ProductCategory {
   id: string;
   name: string;

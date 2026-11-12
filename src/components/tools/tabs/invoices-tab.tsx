@@ -24,9 +24,16 @@ import {
   PackageCheck,
   FileText,
   ExternalLink,
+  Truck,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { SeedOrderItem } from "@/data/seed-data";
+import { OrderStatus, DeliveryMethod } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
+import { formatVnd } from "@/lib/pricing";
 
 interface InvoicesTabProps {
   onNavigateToPOS?: () => void;
@@ -38,12 +45,20 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterType, setFilterType] = useState<"ALL" | "TRUCTIEP" | "ONLINE">("ALL");
   const [filterPayment, setFilterPayment] = useState<"ALL" | "TIEN_MAT" | "CHUYEN_KHOAN">("ALL");
+  const [filterStatus, setFilterStatus] = useState<"ALL" | OrderStatus>("ALL");
+  const [filterDelivery, setFilterDelivery] = useState<"ALL" | DeliveryMethod>("ALL");
 
   // Hóa đơn đang chọn để xem / in
   const [selectedInvoice, setSelectedInvoice] = useState<SeedOrderItem | null>(null);
   const [invoiceQrUrl, setInvoiceQrUrl] = useState<string>("");
-  const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Dialog xác nhận chuyển trạng thái
+  const [statusConfirm, setStatusConfirm] = useState<{
+    invoice: SeedOrderItem;
+    targetStatus: OrderStatus;
+  } | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -86,24 +101,38 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       const matchesType = filterType === "ALL" || inv.customerType === filterType;
       const matchesPayment = filterPayment === "ALL" || inv.paymentMethod === filterPayment;
 
-      return matchesSearch && matchesType && matchesPayment;
+      const currentStatus: OrderStatus = inv.orderStatus || (inv.status === "PAID" ? "DA_NHAN" : "CHO_DUYET");
+      const matchesStatus = filterStatus === "ALL" || currentStatus === filterStatus;
+
+      const currentDelivery: DeliveryMethod = inv.deliveryMethod || "TRUC_TIEP";
+      const matchesDelivery = filterDelivery === "ALL" || currentDelivery === filterDelivery;
+
+      return matchesSearch && matchesType && matchesPayment && matchesStatus && matchesDelivery;
     });
-  }, [invoices, searchQuery, filterType, filterPayment]);
+  }, [invoices, searchQuery, filterType, filterPayment, filterStatus, filterDelivery]);
 
   // Thống kê doanh thu & hóa đơn
   const stats = useMemo(() => {
     let directCount = 0;
     let onlineCount = 0;
+    let pendingCount = 0;
     let totalRevenue = 0;
     invoices.forEach((i) => {
       if (i.customerType === "TRUCTIEP") directCount++;
       else onlineCount++;
-      totalRevenue += i.debitAmount || i.creditAmount || i.totalPrice || 0;
+
+      const st = i.orderStatus || (i.status === "PAID" ? "DA_NHAN" : "CHO_DUYET");
+      if (st === "CHO_DUYET") pendingCount++;
+
+      if (st !== "DA_HUY") {
+        totalRevenue += i.debitAmount || i.creditAmount || i.totalPrice || 0;
+      }
     });
     return {
       total: invoices.length,
       directCount,
       onlineCount,
+      pendingCount,
       totalRevenue,
     };
   }, [invoices]);
@@ -126,30 +155,114 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     }
   }, [selectedInvoice]);
 
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    showToast(`Đã sao chép mã bản quyền: ${code}`);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
-
   const handlePrint = () => {
     window.print();
   };
 
   const handleDelete = async (inv: SeedOrderItem) => {
-    if (!confirm(`Bạn có chắc muốn xóa hóa đơn "${inv.id} (${inv.code})"?`)) return;
+    if (!confirm(`Bạn có chắc muốn xóa hóa đơn ${inv.id || inv.code} không?`)) return;
     try {
-      const res = await fetch(`/api/orders?id=${inv.id}&code=${encodeURIComponent(inv.code)}`, {
+      const res = await fetch(`/api/orders?code=${encodeURIComponent(inv.code)}`, {
         method: "DELETE",
       });
       if (res.ok) {
         setInvoices((prev) => prev.filter((i) => i.id !== inv.id && i.code !== inv.code));
-        showToast(`Đã xóa hóa đơn ${inv.id} thành công!`);
-        if (selectedInvoice?.id === inv.id) setSelectedInvoice(null);
+        if (selectedInvoice?.id === inv.id || selectedInvoice?.code === inv.code) {
+          setSelectedInvoice(null);
+        }
+        showToast("Đã xóa hóa đơn.");
       }
     } catch {
       showToast("Lỗi khi xóa hóa đơn.");
+    }
+  };
+
+  const handleUpdateStatusConfirmed = async () => {
+    if (!statusConfirm) return;
+    try {
+      setIsUpdatingStatus(true);
+      const res = await fetch("/api/invoices/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: statusConfirm.invoice.id || statusConfirm.invoice.code,
+          orderStatus: statusConfirm.targetStatus,
+        }),
+      });
+
+      if (res.ok) {
+        setInvoices((prev) =>
+          prev.map((i) =>
+            i.id === statusConfirm.invoice.id || i.code === statusConfirm.invoice.code
+              ? {
+                  ...i,
+                  orderStatus: statusConfirm.targetStatus,
+                  status: statusConfirm.targetStatus === "DA_NHAN" ? "PAID" : statusConfirm.targetStatus === "DA_HUY" ? "CANCELLED" : i.status,
+                }
+              : i
+          )
+        );
+
+        if (selectedInvoice && (selectedInvoice.id === statusConfirm.invoice.id || selectedInvoice.code === statusConfirm.invoice.code)) {
+          setSelectedInvoice((prev) => prev ? { ...prev, orderStatus: statusConfirm.targetStatus } : null);
+        }
+
+        const label = statusConfirm.targetStatus === "DA_NHAN" ? "Đã nhận" : statusConfirm.targetStatus === "DA_HUY" ? "Đã hủy" : "Chờ duyệt";
+        showToast(`Đã chuyển trạng thái đơn hàng sang "${label}".`);
+        setStatusConfirm(null);
+      } else {
+        showToast("Lỗi khi cập nhật trạng thái hóa đơn.");
+      }
+    } catch {
+      showToast("Lỗi kết nối khi cập nhật trạng thái.");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Render badge trạng thái hóa đơn
+  const renderStatusBadge = (status?: OrderStatus | string) => {
+    const st = status || "CHO_DUYET";
+    if (st === "DA_NHAN" || st === "PAID") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+          <CheckCircle2 className="h-3 w-3" />
+          <span>Đã nhận</span>
+        </span>
+      );
+    }
+    if (st === "DA_HUY" || st === "CANCELLED") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-400/40">
+          <XCircle className="h-3 w-3" />
+          <span>Đã hủy</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40">
+        <Clock className="h-3 w-3" />
+        <span>Chờ duyệt</span>
+      </span>
+    );
+  };
+
+  // Render badge hình thức giao nhận
+  const renderDeliveryBadge = (method?: DeliveryMethod, codAmount?: number) => {
+    switch (method) {
+      case "VAN_CHUYEN_OTO":
+        return <span className="text-[11px] text-sky-300 font-medium">Ô tô</span>;
+      case "CPN_NHTT":
+        return <span className="text-[11px] text-purple-300 font-medium">CPN NHTT</span>;
+      case "CPN_COD":
+        return (
+          <span className="text-[11px] text-amber-300 font-medium">
+            CPN COD {codAmount ? `(${formatVndCurrency(codAmount)})` : ""}
+          </span>
+        );
+      case "TRUC_TIEP":
+      default:
+        return <span className="text-[11px] text-stone-300 font-medium">Trực tiếp</span>;
     }
   };
 
@@ -169,13 +282,18 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-400/30">
               Sales &amp; Invoices Studio
             </span>
+            {stats.pendingCount > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-400/30 animate-pulse">
+                {stats.pendingCount} đơn chờ duyệt
+              </span>
+            )}
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
             <Receipt className="h-6 w-6 text-amber-400" />
             <span>Quản Lý Hóa Đơn &amp; Sổ Thu Bán Hàng</span>
           </h2>
           <p className="text-xs text-stone-400 mt-1">
-            Theo dõi danh sách hóa đơn, đối soát công nợ, in phiếu thu tiền và kiểm tra mã bản quyền đã cấp cho từng khách hàng.
+            Theo dõi trạng thái hóa đơn (Chờ duyệt, Đã nhận, Đã hủy), đối soát hình thức giao nhận (Trực tiếp, Ô tô, CPN COD) và in phiếu bán hàng.
           </p>
         </div>
 
@@ -224,10 +342,10 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
         </div>
 
         <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-400/30 space-y-1">
-          <span className="text-[11px] font-bold text-emerald-300 block">Khách Trực Tiếp Tại Quầy</span>
+          <span className="text-[11px] font-bold text-emerald-300 block">Đơn Chờ Duyệt (Online)</span>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-emerald-400 font-mono">{stats.directCount}</span>
-            <span className="text-[10px] text-emerald-300/70 font-bold">POS Quầy</span>
+            <span className="text-2xl font-black text-amber-400 font-mono">{stats.pendingCount}</span>
+            <span className="text-[10px] text-amber-300/70 font-bold">Cần xử lý</span>
           </div>
         </div>
 
@@ -240,70 +358,86 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
         </div>
       </div>
 
-      {/* THANH TÌM KIẾM & BỘ LỌC */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-500" />
-          <input
-            type="text"
-            placeholder="Tìm theo mã HĐ, tên khách, số điện thoại, sản phẩm..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Lọc đối tượng khách */}
-          <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/10 text-xs">
-            <button
-              type="button"
-              onClick={() => setFilterType("ALL")}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                filterType === "ALL" ? "bg-amber-500 text-stone-950" : "text-stone-400 hover:text-white"
-              }`}
-            >
-              Tất Cả
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("TRUCTIEP")}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                filterType === "TRUCTIEP" ? "bg-emerald-500 text-stone-950" : "text-stone-400 hover:text-white"
-              }`}
-            >
-              Trực Tiếp
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType("ONLINE")}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                filterType === "ONLINE" ? "bg-sky-500 text-white" : "text-stone-400 hover:text-white"
-              }`}
-            >
-              Online
-            </button>
+      {/* THANH TÌM KIẾM & BỘ LỌC ĐA NĂNG */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-500" />
+            <input
+              type="text"
+              placeholder="Tìm theo mã HĐ, tên khách, số điện thoại, sản phẩm..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-900 border border-white/15 text-xs text-white placeholder-stone-500 focus:outline-hidden focus:border-amber-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Lọc hình thức thanh toán */}
-          <select
-            value={filterPayment}
-            onChange={(e) => setFilterPayment(e.target.value as any)}
-            className="bg-stone-900 border border-white/15 text-stone-300 font-bold text-xs rounded-xl px-3 py-2 focus:outline-hidden cursor-pointer"
-          >
-            <option value="ALL">Mọi hình thức</option>
-            <option value="TIEN_MAT">Tiền Mặt</option>
-            <option value="CHUYEN_KHOAN">Chuyển Khoản</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Lọc đối tượng khách */}
+            <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/10 text-xs">
+              <button
+                type="button"
+                onClick={() => setFilterType("ALL")}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  filterType === "ALL" ? "bg-amber-500 text-stone-950" : "text-stone-400 hover:text-white"
+                }`}
+              >
+                Tất Cả
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType("TRUCTIEP")}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  filterType === "TRUCTIEP" ? "bg-emerald-500 text-stone-950" : "text-stone-400 hover:text-white"
+                }`}
+              >
+                Trực Tiếp
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType("ONLINE")}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  filterType === "ONLINE" ? "bg-sky-500 text-white" : "text-stone-400 hover:text-white"
+                }`}
+              >
+                Online
+              </button>
+            </div>
+
+            {/* Lọc Trạng Thái Hóa Đơn */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="bg-stone-900 border border-white/15 text-stone-300 font-bold text-xs rounded-xl px-3 py-2 focus:outline-hidden cursor-pointer"
+            >
+              <option value="ALL">Mọi trạng thái</option>
+              <option value="CHO_DUYET">Chờ duyệt (Vàng)</option>
+              <option value="DA_NHAN">Đã nhận (Xanh lá)</option>
+              <option value="DA_HUY">Đã hủy (Đỏ)</option>
+            </select>
+
+            {/* Lọc Hình Thức Giao Nhận */}
+            <select
+              value={filterDelivery}
+              onChange={(e) => setFilterDelivery(e.target.value as any)}
+              className="bg-stone-900 border border-white/15 text-stone-300 font-bold text-xs rounded-xl px-3 py-2 focus:outline-hidden cursor-pointer"
+            >
+              <option value="ALL">Mọi giao nhận</option>
+              <option value="TRUC_TIEP">Trực tiếp</option>
+              <option value="VAN_CHUYEN_OTO">Gửi vận chuyển (ô tô)</option>
+              <option value="CPN_NHTT">Gửi CPN NHTT</option>
+              <option value="CPN_COD">Gửi CPN COD</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -324,22 +458,22 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-white/10 bg-stone-950/80 text-stone-400 font-bold uppercase text-[10px] tracking-wider">
-                  <th className="py-3 px-4 min-w-[140px]">Mã Hóa Đơn</th>
-                  <th className="py-3 px-4 min-w-[180px]">Khách Hàng</th>
-                  <th className="py-3 px-4 min-w-[200px]">Sản Phẩm / Gói Mua</th>
-                  <th className="py-3 px-3 min-w-[130px]">Mã Bản Quyền</th>
+                  <th className="py-3 px-4 min-w-[130px]">Mã Hóa Đơn</th>
+                  <th className="py-3 px-4 min-w-[110px]">Trạng Thái</th>
+                  <th className="py-3 px-4 min-w-[170px]">Khách Hàng</th>
+                  <th className="py-3 px-4 min-w-[190px]">Sản Phẩm / Gói Mua</th>
+                  <th className="py-3 px-3 min-w-[130px]">Hình Thức Giao</th>
                   <th className="py-3 px-3 min-w-[110px]">Cần Thu (Có)</th>
                   <th className="py-3 px-3 min-w-[110px]">Đã Thu (Nợ)</th>
-                  <th className="py-3 px-3 min-w-[120px]">Còn Lại</th>
                   <th className="py-3 px-3 min-w-[110px]">Thanh Toán</th>
-                  <th className="py-3 px-4 text-right min-w-[110px]">Thao Tác</th>
+                  <th className="py-3 px-4 text-right min-w-[140px]">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {filteredInvoices.map((inv) => {
                   const credit = inv.creditAmount || inv.totalPrice || 249000;
                   const debit = inv.debitAmount !== undefined ? inv.debitAmount : credit;
-                  const balance = debit - credit;
+                  const currentStatus: OrderStatus = inv.orderStatus || (inv.status === "PAID" ? "DA_NHAN" : "CHO_DUYET");
 
                   return (
                     <tr
@@ -357,50 +491,44 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                         </div>
                       </td>
 
+                      {/* Trạng thái hóa đơn */}
+                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                        {renderStatusBadge(currentStatus)}
+                      </td>
+
                       {/* Khách hàng */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 font-bold text-white">
-                          <User className="h-3 w-3 text-stone-400 shrink-0" />
-                          <span className="truncate max-w-[150px]">{inv.customerName}</span>
-                        </div>
-                        <div className="text-[10px] text-stone-400 font-mono flex items-center gap-1">
-                          {inv.customerType === "TRUCTIEP" ? (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px]">
-                              Trực Tiếp
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 font-bold text-[9px]">
-                              Online
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          <span>{inv.customerName}</span>
+                          {inv.customerId && (
+                            <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.2 rounded">
+                              {inv.customerId}
                             </span>
                           )}
-                          {inv.customerPhone && <span>• {inv.customerPhone}</span>}
+                        </div>
+                        <div className="text-[11px] text-stone-400 font-mono">
+                          {inv.customerPhone || "Khách vãng lai"}
                         </div>
                       </td>
 
-                      {/* Sản phẩm */}
+                      {/* Sản phẩm / Gói */}
                       <td className="py-3 px-4">
-                        <div className="font-bold text-stone-200 truncate max-w-[190px]">
-                          {inv.packTitle || "Bộ Thẻ AR"}
+                        <div className="font-medium text-stone-200 line-clamp-1">
+                          {inv.packTitle || "Bộ Thẻ AR Poly Cards"}
                         </div>
-                        {inv.items && inv.items.length > 0 && (
-                          <div className="text-[10px] text-stone-500">
-                            {inv.items.length} mục hàng
+                        {inv.comboName && (
+                          <div className="text-[10px] text-amber-300 font-bold">
+                            🎁 {inv.comboName}
                           </div>
                         )}
+                        <div className="text-[10px] text-stone-500 font-mono">
+                          Mã bản quyền: {inv.code}
+                        </div>
                       </td>
 
-                      {/* Mã bản quyền */}
+                      {/* Hình thức giao nhận */}
                       <td className="py-3 px-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30 truncate max-w-[140px] inline-block">
-                            {(inv as any).codeParent || inv.packCode || inv.code}
-                          </span>
-                          {(inv as any).childCodes && (inv as any).childCodes.length > 0 && (
-                            <span className="text-[9px] text-amber-300/80 font-mono">
-                              +{(inv as any).childCodes.length} mã con
-                            </span>
-                          )}
-                        </div>
+                        {renderDeliveryBadge(inv.deliveryMethod, inv.codAmount)}
                       </td>
 
                       {/* Phát sinh Có */}
@@ -413,23 +541,6 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                         {formatVndCurrency(debit)}
                       </td>
 
-                      {/* Còn lại (Balance) */}
-                      <td className="py-3 px-3 font-mono">
-                        {balance === 0 ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
-                            Trả đủ (0đ)
-                          </span>
-                        ) : balance > 0 ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300">
-                            Thừa: +{formatVndCurrency(balance)}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300">
-                            Thiếu: {formatVndCurrency(balance)}
-                          </span>
-                        )}
-                      </td>
-
                       {/* Thanh toán */}
                       <td className="py-3 px-3 text-[11px] text-stone-400">
                         {inv.paymentMethod === "CHUYEN_KHOAN" ? "Chuyển khoản" : "Tiền mặt"}
@@ -438,10 +549,34 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                       {/* Thao tác */}
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Nút duyệt nhanh nếu đang Chờ duyệt */}
+                          {currentStatus === "CHO_DUYET" && (
+                            <button
+                              type="button"
+                              onClick={() => setStatusConfirm({ invoice: inv, targetStatus: "DA_NHAN" })}
+                              className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 font-bold text-[11px] transition-all cursor-pointer"
+                              title="Duyệt đơn sang Đã nhận"
+                            >
+                              Duyệt
+                            </button>
+                          )}
+
+                          {/* Nút hủy nếu chưa hủy */}
+                          {currentStatus !== "DA_HUY" && (
+                            <button
+                              type="button"
+                              onClick={() => setStatusConfirm({ invoice: inv, targetStatus: "DA_HUY" })}
+                              className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white font-bold text-[11px] transition-all cursor-pointer"
+                              title="Hủy đơn hàng"
+                            >
+                              Hủy
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => setSelectedInvoice(inv)}
-                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-stone-300 hover:text-white border border-white/10 transition-colors"
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-stone-300 hover:text-white border border-white/10 transition-colors cursor-pointer"
                             title="Xem chi tiết phiếu hóa đơn"
                           >
                             <Eye className="h-3.5 w-3.5" />
@@ -449,7 +584,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                           <button
                             type="button"
                             onClick={() => handleDelete(inv)}
-                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-colors"
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-colors cursor-pointer"
                             title="Xóa hóa đơn này"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -461,6 +596,55 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG XÁC NHẬN CHUYỂN TRẠNG THÁI */}
+      {statusConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in">
+          <div className="max-w-sm w-full bg-stone-900 border-2 border-amber-400/60 rounded-3xl p-5 text-white shadow-2xl space-y-4">
+            <div className="flex items-center gap-2.5 text-amber-400">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <h4 className="text-sm font-black text-white">Xác Nhận Đổi Trạng Thái</h4>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Bạn có chắc chắn muốn chuyển hóa đơn{" "}
+              <strong className="text-amber-300 font-mono">{statusConfirm.invoice.id || statusConfirm.invoice.code}</strong>{" "}
+              của khách hàng <strong>{statusConfirm.invoice.customerName}</strong> sang trạng thái:
+            </p>
+
+            <div className="p-2.5 rounded-xl bg-stone-950 text-center font-bold text-sm">
+              {statusConfirm.targetStatus === "DA_NHAN" && (
+                <span className="text-emerald-400">ĐÃ NHẬN (ĐÃ HOÀN TẤT)</span>
+              )}
+              {statusConfirm.targetStatus === "DA_HUY" && (
+                <span className="text-rose-400">ĐÃ HỦY ĐƠN HÀNG</span>
+              )}
+              {statusConfirm.targetStatus === "CHO_DUYET" && (
+                <span className="text-amber-400">CHỜ DUYỆT</span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setStatusConfirm(null)}
+                disabled={isUpdatingStatus}
+                className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-stone-300 cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateStatusConfirmed}
+                disabled={isUpdatingStatus}
+                className="px-4 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-black shadow-md cursor-pointer"
+              >
+                {isUpdatingStatus ? "Đang Cập Nhật..." : "Xác Nhận Đổi"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -483,7 +667,11 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-white">Phiếu Thu &amp; Hóa Đơn Bán Lẻ</h3>
-                  <p className="text-[11px] text-amber-300 font-mono">{selectedInvoice.id || selectedInvoice.code}</p>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="text-amber-300 font-mono">{selectedInvoice.id || selectedInvoice.code}</span>
+                    <span>•</span>
+                    {renderStatusBadge(selectedInvoice.orderStatus)}
+                  </div>
                 </div>
               </div>
 
@@ -491,7 +679,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 transition-colors"
+                  className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Printer className="h-3.5 w-3.5" />
                   <span>In Phiếu Thu</span>
@@ -499,7 +687,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                 <button
                   type="button"
                   onClick={() => setSelectedInvoice(null)}
-                  className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white"
+                  className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white cursor-pointer"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -531,8 +719,8 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                     <strong className="text-stone-900 font-mono">{selectedInvoice.customerPhone || "Khách vãng lai"}</strong>
                   </div>
                   <div>
-                    <span className="text-stone-500 block text-[10px]">Hình thức bán:</span>
-                    <span>{selectedInvoice.customerType === "TRUCTIEP" ? "Trực tiếp tại quầy" : "Đặt hàng online"}</span>
+                    <span className="text-stone-500 block text-[10px]">Hình thức giao nhận:</span>
+                    <span>{renderDeliveryBadge(selectedInvoice.deliveryMethod, selectedInvoice.codAmount)}</span>
                   </div>
                   <div>
                     <span className="text-stone-500 block text-[10px]">Thời gian:</span>
@@ -557,7 +745,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                           <td className="py-2">
                             <strong className="text-stone-900">{item.name}</strong>
                             <div className="text-[10px] text-stone-500 font-mono">
-                              Mã con: {item.packCode || selectedInvoice.code}
+                              Mã: {item.packCode || selectedInvoice.code}
                             </div>
                           </td>
                           <td className="py-2 text-center font-bold">{item.quantity}</td>
@@ -591,6 +779,12 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
                 {/* Tổng kết tiền hạch toán */}
                 <div className="pt-2 border-t border-dashed border-stone-300 space-y-1.5 text-xs">
+                  {selectedInvoice.comboName && (
+                    <div className="flex justify-between text-amber-700 font-bold">
+                      <span>Ưu đãi Combo ({selectedInvoice.comboName}):</span>
+                      <span>-{formatVndCurrency(selectedInvoice.comboDiscount || 0)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-stone-700">
                     <span>Tổng tiền thanh toán (Có):</span>
                     <strong className="text-stone-950 font-mono text-sm">
@@ -602,14 +796,6 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                     <strong className="text-emerald-700 font-mono text-sm">
                       {formatVndCurrency(selectedInvoice.debitAmount !== undefined ? selectedInvoice.debitAmount : selectedInvoice.creditAmount || 249000)}
                     </strong>
-                  </div>
-                  <div className="flex justify-between font-bold text-xs pt-1 border-t border-stone-200">
-                    <span>Còn lại (Thừa / Thiếu):</span>
-                    <span className="font-mono text-stone-900">
-                      {((selectedInvoice.debitAmount || 0) - (selectedInvoice.creditAmount || 0)) === 0
-                        ? "Đã trả đủ (0 đ)"
-                        : formatVndCurrency((selectedInvoice.debitAmount || 0) - (selectedInvoice.creditAmount || 0))}
-                    </span>
                   </div>
                 </div>
 
@@ -644,4 +830,3 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     </div>
   );
 }
-

@@ -7,6 +7,11 @@ export interface PackCodeItem {
   categoryName: string;
   description?: string;
   cardsCount?: number;
+  singleCardPrice?: number;
+  originalPrice?: number;
+  discountPercent?: number;
+  salePrice?: number;
+  isManualPrice?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

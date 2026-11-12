@@ -25,6 +25,8 @@ import {
   PACK_CODES_UPDATED_EVENT,
 } from "@/lib/pack-codes-store";
 
+import { calculatePricing, sanitizeDiscountPercent } from "@/lib/pricing";
+
 interface EditProductModalProps {
   isOpen: boolean;
   editingProduct: Animal | null;
@@ -252,28 +254,112 @@ export function EditProductModal({
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                Giá Bán Ưu Đãi (VNĐ):
-              </label>
-              <input
-                type="number"
-                value={editProductForm.price}
-                onChange={(e) => onChangeForm({ price: Number(e.target.value) })}
-                className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
-              />
-            </div>
+            {/* BỘ 3 Ô TÍNH GIÁ ĐỒNG BỘ 2 CHIỀU */}
+            <div className="col-span-1 sm:col-span-2 p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider">
+                  Bảng Tính Giá & Khuyến Mãi (Tự Động 2 Chiều)
+                </span>
+                {editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice && (
+                  <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30">
+                    Lỗi: Giá bán vượt quá Giá gốc!
+                  </span>
+                )}
+              </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                Giá Gốc Niêm Yết (VNĐ):
-              </label>
-              <input
-                type="number"
-                value={editProductForm.originalPrice}
-                onChange={(e) => onChangeForm({ originalPrice: Number(e.target.value) })}
-                className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-400 font-mono focus:outline-hidden focus:border-amber-400"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Giá Gốc Niêm Yết (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editProductForm.originalPrice || ""}
+                    onChange={(e) => {
+                      const newOrig = Number(e.target.value) || 0;
+                      const currentPct = editProductForm.originalPrice > 0
+                        ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
+                        : 0;
+                      const calculated = calculatePricing({
+                        originalPrice: newOrig,
+                        discountPercent: currentPct,
+                        sourceField: "originalPrice",
+                      });
+                      onChangeForm({
+                        originalPrice: calculated.originalPrice,
+                        price: calculated.salePrice,
+                      });
+                    }}
+                    placeholder="VD: 300000"
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-300 font-mono focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    % Khuyến Mãi (0 - 99%):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={
+                      editProductForm.originalPrice > 0
+                        ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
+                        : 0
+                    }
+                    onChange={(e) => {
+                      const newPct = sanitizeDiscountPercent(e.target.value);
+                      const calculated = calculatePricing({
+                        originalPrice: editProductForm.originalPrice || editProductForm.price,
+                        discountPercent: newPct,
+                        sourceField: "discountPercent",
+                      });
+                      onChangeForm({
+                        originalPrice: calculated.originalPrice,
+                        price: calculated.salePrice,
+                      });
+                    }}
+                    placeholder="VD: 17"
+                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                    Giá Bán Ưu Đãi (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editProductForm.price || ""}
+                    onChange={(e) => {
+                      const newSale = Number(e.target.value) || 0;
+                      const calculated = calculatePricing({
+                        originalPrice: editProductForm.originalPrice,
+                        salePrice: newSale,
+                        sourceField: "salePrice",
+                      });
+                      onChangeForm({
+                        price: newSale,
+                      });
+                    }}
+                    placeholder="VD: 249000"
+                    className={`w-full bg-black/70 border rounded-xl px-3 py-2 text-xs font-bold font-mono focus:outline-hidden ${
+                      editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice
+                        ? "border-rose-500 text-rose-400 focus:border-rose-500"
+                        : "border-white/20 text-emerald-400 focus:border-emerald-400"
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice && (
+                <p className="text-[11px] text-rose-400 font-medium">
+                  Cảnh báo: Giá bán ưu đãi ({editProductForm.price.toLocaleString("vi-VN")} ₫) không được lớn hơn Giá gốc ({editProductForm.originalPrice.toLocaleString("vi-VN")} ₫). Vui lòng điều chỉnh lại trước khi lưu.
+                </p>
+              )}
             </div>
           </div>
 
@@ -442,9 +528,9 @@ export function EditProductModal({
 
             <button
               type="submit"
-              disabled={isSaving || isAssetUploading}
+              disabled={isSaving || isAssetUploading || (editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice)}
               className={`py-2.5 px-5 rounded-xl font-black text-xs shadow-lg flex items-center gap-1.5 transition-all ${
-                isSaving || isAssetUploading
+                isSaving || isAssetUploading || (editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice)
                   ? "bg-amber-400/50 text-stone-900 cursor-not-allowed opacity-60 shadow-none"
                   : "bg-amber-400 hover:bg-amber-300 text-stone-950 shadow-amber-500/20 active:scale-95 cursor-pointer"
               }`}

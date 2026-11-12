@@ -41,7 +41,9 @@ import {
 } from "lucide-react";
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
-import { Animal, ProductCategory } from "@/types/animal";
+import { Animal, ProductCategory, DbComboRule, OrderStatus, DeliveryMethod } from "@/types/animal";
+import { evaluateBestCombo, DEFAULT_COMBO_RULES } from "@/lib/combo-engine";
+import { normalizePhoneNumber } from "@/lib/pricing";
 import {
   getStoredPackCodes,
   fetchPackCodesFromApi,
@@ -92,6 +94,12 @@ export interface SaleInvoice {
   allowedCategorySlugs?: string[];
   directUrl: string;
   note?: string;
+  orderStatus?: OrderStatus;
+  deliveryMethod?: DeliveryMethod;
+  codAmount?: number;
+  comboName?: string;
+  comboDiscount?: number;
+  source?: "ONLINE" | "POS";
   createdAt: string;
   status: "PAID" | "PARTIAL";
 }
@@ -153,6 +161,13 @@ export default function InvoicesPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [customerAddress, setCustomerAddress] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>(() => `KH-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [isExistingCustomer, setIsExistingCustomer] = useState<boolean>(false);
+
+  // Trạng thái đơn hàng & Hình thức giao nhận
+  const [orderStatus, setOrderStatus] = useState<OrderStatus>("DA_NHAN");
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TRUC_TIEP");
+  const [codAmount, setCodAmount] = useState<number>(0);
+  const [comboRules, setComboRules] = useState<DbComboRule[]>(DEFAULT_COMBO_RULES);
 
   // 2. GIỎ HÀNG HÓA BÁN HÀNG (Cart Items: Hỗ trợ chọn nhiều bộ và nhiều thẻ lẻ)
   const [cartItems, setCartItems] = useState<InvoiceCartItem[]>([
@@ -239,8 +254,46 @@ export default function InvoicesPage() {
 
     const handlePackCodesUpdate = () => setStoredPackCodes(getStoredPackCodes());
     window.addEventListener(PACK_CODES_UPDATED_EVENT, handlePackCodesUpdate);
+
+    // Nạp combo rules từ API
+    fetch("/api/combos")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setComboRules(json.data);
+        }
+      })
+      .catch(() => {});
+
     return () => window.removeEventListener(PACK_CODES_UPDATED_EVENT, handlePackCodesUpdate);
   }, []);
+
+  // Tự động tìm kiếm và gợi ý thông tin khách hàng cũ khi gõ SĐT
+  useEffect(() => {
+    const normalized = normalizePhoneNumber(customerPhone);
+    if (!normalized || normalized.length < 9) {
+      setIsExistingCustomer(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/customers/search?phone=${encodeURIComponent(normalized)}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCustomerName(json.data.name);
+          if (json.data.address) setCustomerAddress(json.data.address);
+          if (json.data.id) setCustomerId(json.data.id);
+          setIsExistingCustomer(true);
+          showToast(`Tìm thấy khách hàng thân thiết: ${json.data.name} (${json.data.id})`, "success");
+        } else {
+          setIsExistingCustomer(false);
+        }
+      } catch {}
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [customerPhone, showToast]);
 
   // Tải danh sách hóa đơn từ API
   const loadInvoices = useCallback(async () => {
@@ -373,16 +426,36 @@ export default function InvoicesPage() {
     return cartItems.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
   }, [cartItems]);
 
+  // Đánh giá Combo Tự Động Áp Dụng Tốt Nhất
+  const comboEvaluationItems = useMemo(() => {
+    return cartItems
+      .filter((it) => it.type === "PACK")
+      .map((it) => ({
+        packCode: it.packCode || "",
+        categorySlug: it.categorySlug,
+        quantity: it.quantity,
+        salePrice: it.unitPrice,
+        originalPrice: it.originalPrice || it.unitPrice,
+      }));
+  }, [cartItems]);
+
+  const bestComboResult = useMemo(() => {
+    return evaluateBestCombo(comboEvaluationItems, comboRules);
+  }, [comboEvaluationItems, comboRules]);
+
+  const comboDiscount = bestComboResult.discountAmount || 0;
+
   // Tiền thuế VAT
   const vatAmount = useMemo(() => {
     if (vatRate <= 0) return 0;
-    return Math.round(subtotal * (vatRate / 100));
-  }, [subtotal, vatRate]);
+    const baseForVat = Math.max(0, subtotal - comboDiscount);
+    return Math.round(baseForVat * (vatRate / 100));
+  }, [subtotal, comboDiscount, vatRate]);
 
-  // Phát sinh Có = Tổng tiền khách cần trả
+  // Phát sinh Có = Tổng tiền khách cần trả (sau khi trừ ưu đãi Combo)
   const creditAmount = useMemo(() => {
-    return subtotal + vatAmount;
-  }, [subtotal, vatAmount]);
+    return Math.max(0, subtotal - comboDiscount + vatAmount);
+  }, [subtotal, comboDiscount, vatAmount]);
 
   // Tự động gán Phát sinh Nợ = Phát sinh Có khi subtotal / VAT thay đổi
   useEffect(() => {
@@ -601,6 +674,12 @@ export default function InvoicesPage() {
       balanceAmount: balance,
       remainingAmount: creditAmount - debitAmount,
       paymentMethod,
+      orderStatus,
+      deliveryMethod,
+      codAmount: deliveryMethod === "CPN_COD" ? (codAmount || creditAmount) : 0,
+      comboName: bestComboResult.rule?.name || undefined,
+      comboDiscount,
+      source: customerType === "ONLINE" ? "ONLINE" : "POS",
       packTitle,
       packCode: licenseCode,
       allowedCategorySlug: allowedCategorySlug || "dong-vat",
@@ -1119,6 +1198,14 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                       <span>Tạm tính ({totalItemsCount} món):</span>
                       <span className="font-mono font-bold text-stone-300">{formatVndCurrency(subtotal)}</span>
                     </div>
+
+                    {comboDiscount > 0 && (
+                      <div className="flex items-center justify-between text-amber-300 font-bold">
+                        <span className="truncate pr-2">🎁 {bestComboResult.rule?.name || "Ưu đãi Combo"}:</span>
+                        <span className="font-mono text-emerald-400 shrink-0">-{formatVndCurrency(comboDiscount)}</span>
+                      </div>
+                    )}
+
                     {vatRate > 0 && (
                       <div className="flex items-center justify-between text-stone-400">
                         <span>Tiền thuế VAT ({vatRate}%):</span>
@@ -1126,6 +1213,56 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* HÌNH THỨC GIAO NHẬN & TRẠNG THÁI HÓA ĐƠN */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-white/10">
+                  <div>
+                    <label className="block text-[10px] text-stone-400 mb-0.5 font-bold">
+                      Hình thức giao nhận:
+                    </label>
+                    <select
+                      value={deliveryMethod}
+                      onChange={(e) => setDeliveryMethod(e.target.value as any)}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-stone-200 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                    >
+                      <option value="TRUC_TIEP">Trực tiếp tại quầy</option>
+                      <option value="VAN_CHUYEN_OTO">Gửi vận chuyển (ô tô)</option>
+                      <option value="CPN_NHTT">Gửi CPN NHTT</option>
+                      <option value="CPN_COD">Gửi CPN COD (Thu hộ tiền)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-stone-400 mb-0.5 font-bold">
+                      Trạng thái hóa đơn:
+                    </label>
+                    <select
+                      value={orderStatus}
+                      onChange={(e) => setOrderStatus(e.target.value as any)}
+                      className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-stone-200 font-bold focus:outline-hidden focus:border-amber-400 cursor-pointer"
+                    >
+                      <option value="DA_NHAN">Đã nhận (Hoàn tất)</option>
+                      <option value="CHO_DUYET">Chờ duyệt (Chờ giao/xác nhận)</option>
+                      <option value="DA_HUY">Đã hủy</option>
+                    </select>
+                  </div>
+
+                  {deliveryMethod === "CPN_COD" && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <label className="block text-[10px] text-amber-300 mb-0.5 font-bold">
+                        Số tiền thu hộ COD (VNĐ):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={codAmount || creditAmount}
+                        onChange={(e) => setCodAmount(Number(e.target.value) || 0)}
+                        placeholder={`Mặc định: ${formatVndCurrency(creditAmount)}`}
+                        className="w-full bg-black/70 border border-amber-400/40 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-mono font-bold focus:outline-hidden focus:border-amber-400"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1599,6 +1736,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards!`;
         isOpen={isCatalogModalOpen}
         categoriesList={categoriesList}
         productsCatalog={productsCatalog}
+        packCodesList={storedPackCodes}
         cartItems={cartItems}
         onClose={() => setIsCatalogModalOpen(false)}
         onAddToCart={handleAddToCart}

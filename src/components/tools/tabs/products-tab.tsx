@@ -67,6 +67,7 @@ interface ProductsTabProps {
   onDeleteProduct: (card: Animal) => void;
   onToggleShowOnHome: (card: Animal) => void;
   onOpenComboModal: () => void;
+  onOpenComboRulesModal?: () => void;
   onBatchAssignPackCode: (slugs: string[], packCode: string) => Promise<void> | void;
   onBatchUpdateLanguage?: (slugs: string[], langMode: "en-vi" | "zh-vi" | "both") => Promise<void> | void;
   onUpdatePackCode?: (card: Animal, newPackCode: string) => Promise<void> | void;
@@ -90,6 +91,7 @@ export function ProductsTab({
   onDeleteProduct,
   onToggleShowOnHome,
   onOpenComboModal,
+  onOpenComboRulesModal,
   onBatchAssignPackCode,
   onBatchUpdateLanguage,
   onUpdatePackCode,
@@ -696,6 +698,19 @@ export function ProductsTab({
             <Star className="h-3.5 w-3.5 shrink-0 text-teal-400 group-hover:text-stone-950 transition-colors" />
             <span className="truncate">Khối Combo (#products)</span>
           </button>
+
+          {/* Quản Lý Combo Ưu Đãi Động */}
+          {onOpenComboRulesModal && (
+            <button
+              type="button"
+              onClick={onOpenComboRulesModal}
+              className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-amber-500/15 hover:bg-amber-400 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
+              title="Cấu hình các gói combo ưu đãi trong MongoDB (Siêu Combo 9-in-1, Combo 4-in-1...)"
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-400 group-hover:text-stone-950 transition-colors" />
+              <span className="truncate">Combo Ưu Đãi Động</span>
+            </button>
+          )}
         </div>
       </div>
 

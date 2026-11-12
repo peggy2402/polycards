@@ -5,7 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { formatVndCurrency } from "@/lib/formatters";
+import { formatVnd } from "@/lib/pricing";
 import { CardComboPack, COMBO_PACKS } from "@/data/combos";
+import { DeliveryMethod, DbComboRule } from "@/types/animal";
+import { evaluateBestCombo, DEFAULT_COMBO_RULES } from "@/lib/combo-engine";
 import { SelectedPacksStack, SelectedPackItem } from "@/components/order/selected-packs-stack";
 import { OrderPackSheet } from "@/components/order/order-pack-sheet";
 import { PackDetailModal } from "@/components/order/pack-detail-modal";
@@ -65,11 +68,27 @@ function OrderContent() {
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "banking">("cod");
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("CPN_COD");
+  const [comboRules, setComboRules] = useState<DbComboRule[]>(DEFAULT_COMBO_RULES);
 
   // Trạng thái gửi đơn
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [createdOrderCode, setCreatedOrderCode] = useState<string>("");
+  const [createdCustomerCode, setCreatedCustomerCode] = useState<string>("");
+
+  // Nạp danh sách combo rules từ API
+  useEffect(() => {
+    fetch("/api/combos")
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setComboRules(res.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Nạp thêm các mã bộ mới từ MongoDB Atlas nếu có
   useEffect(() => {
@@ -167,32 +186,56 @@ function OrderContent() {
     setIsDetailModalOpen(true);
   };
 
-  // Tính tổng tiền & giảm giá
-  const { totalPacksCount, totalCardsCount, totalPrice, originalTotalPrice, discountTotal } = useMemo(() => {
+  // Tính tổng tiền & giảm giá (kết hợp Best Combo Engine)
+  const {
+    totalPacksCount,
+    totalCardsCount,
+    subtotalPrice,
+    originalTotalPrice,
+    packDiscountTotal,
+    comboDiscountTotal,
+    finalTotalPrice,
+    appliedComboRule,
+    comboSuggestion,
+  } = useMemo(() => {
     let packsCount = 0;
     let cardsCount = 0;
-    let priceSum = 0;
-    let origPriceSum = 0;
+    let origSum = 0;
 
     for (const item of selectedItems) {
       packsCount += item.quantity;
       cardsCount += item.pack.cardsCount * item.quantity;
-      priceSum += item.pack.price * item.quantity;
-      origPriceSum += item.pack.originalPrice * item.quantity;
+      origSum += (item.pack.originalPrice || item.pack.price) * item.quantity;
     }
+
+    const evaluationItems = selectedItems.map((item) => ({
+      packCode: item.pack.packCode,
+      categorySlug: item.pack.categorySlug,
+      quantity: item.quantity,
+      salePrice: item.pack.price,
+      originalPrice: item.pack.originalPrice,
+    }));
+
+    const comboEval = evaluateBestCombo(evaluationItems, comboRules);
+    const packDiscount = Math.max(0, origSum - comboEval.subtotal);
 
     return {
       totalPacksCount: packsCount,
       totalCardsCount: cardsCount,
-      totalPrice: priceSum,
-      originalTotalPrice: origPriceSum,
-      discountTotal: Math.max(0, origPriceSum - priceSum),
+      subtotalPrice: comboEval.subtotal,
+      originalTotalPrice: origSum,
+      packDiscountTotal: packDiscount,
+      comboDiscountTotal: comboEval.discountAmount,
+      finalTotalPrice: comboEval.finalPrice,
+      appliedComboRule: comboEval.rule,
+      comboSuggestion: comboEval.nextSuggestion,
     };
-  }, [selectedItems]);
+  }, [selectedItems, comboRules]);
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return; // Chặn double submit
     setErrorMessage(null);
 
     if (selectedItems.length === 0) {
@@ -220,17 +263,25 @@ function OrderContent() {
           phone,
           email,
           address,
-          productId: selectedItems.map((i) => i.pack.id).join(";"),
           productName: `[${totalPacksCount} Bộ, ${totalCardsCount} Thẻ]: ${itemsSummary}`,
           quantity: totalPacksCount,
-          totalPrice,
+          subtotal: subtotalPrice,
+          totalPrice: finalTotalPrice,
+          discountTotal: packDiscountTotal + comboDiscountTotal,
+          comboName: appliedComboRule?.name || "",
+          comboDiscount: comboDiscountTotal,
           paymentMethod,
+          deliveryMethod,
+          codAmount: deliveryMethod === "CPN_COD" ? finalTotalPrice : 0,
+          items: selectedItems,
           note,
         }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
+        if (data.data?.orderCode) setCreatedOrderCode(data.data.orderCode);
+        if (data.data?.customerCode) setCreatedCustomerCode(data.data.customerCode);
         setSubmitSuccess(true);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
@@ -260,7 +311,12 @@ function OrderContent() {
             Cảm Ơn Bạn Đã Đặt Mua Poly Cards!
           </h1>
           <p className="text-sm sm:text-base text-stone-600 max-w-lg mx-auto font-medium">
-            Đơn hàng của bạn đã được ghi nhận vào hệ thống. Đội ngũ Poly Cards sẽ liên hệ qua số điện thoại <strong>{phone}</strong> để xác nhận và gửi bộ thẻ đến tay bé.
+            Đơn hàng của bạn đã được ghi nhận vào hệ thống với mã đơn:{" "}
+            <strong className="text-amber-700 font-mono text-base">{createdOrderCode || "Đang tạo..."}</strong>
+            {createdCustomerCode && (
+              <> (Mã Khách Hàng: <strong className="text-emerald-700 font-mono">{createdCustomerCode}</strong>)</>
+            )}
+            . Đội ngũ Poly Cards sẽ liên hệ qua số điện thoại <strong>{phone}</strong> để xác nhận và gửi bộ thẻ đến tay bé.
           </p>
         </div>
 
@@ -308,7 +364,7 @@ function OrderContent() {
             <div>
               <span className="text-stone-500">Tổng thanh toán:</span>{" "}
               <strong className="text-base text-amber-600 font-black">
-                {formatVndCurrency(totalPrice)}
+                {formatVndCurrency(finalTotalPrice)}
               </strong>
             </div>
           </div>
@@ -469,7 +525,109 @@ function OrderContent() {
                 </div>
               </div>
 
-              {/* 3. KHỐI PHƯƠNG THỨC THANH TOÁN (COD & BANKING) */}
+              {/* 3. KHỐI HÌNH THỨC GIAO NHẬN (4 LỰA CHỌN) */}
+              <div className="rounded-3xl border-2 border-stone-200 bg-white p-4 sm:p-6 shadow-sm space-y-3">
+                <div className="border-b border-stone-100 pb-2">
+                  <h2 className="text-sm sm:text-base font-black text-stone-900 flex items-center gap-2">
+                    <Truck className="h-4 w-4 text-amber-600" />
+                    <span>Hình Thức Giao Nhận Hàng</span>
+                  </h2>
+                  <p className="text-xs text-stone-500 font-medium">
+                    Chọn hình thức nhận hàng phù hợp và thuận tiện nhất cho Ba Mẹ.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {/* CPN COD */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryMethod("CPN_COD");
+                      setPaymentMethod("cod");
+                    }}
+                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
+                      deliveryMethod === "CPN_COD"
+                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
+                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                    }`}
+                  >
+                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
+                      {deliveryMethod === "CPN_COD" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
+                    </div>
+                    <div>
+                      <span className="block text-xs font-black">Gửi CPN COD (Thu Tiền Tận Nơi)</span>
+                      <span className="text-[11px] text-stone-500">
+                        Bưu tá giao tận tay, kiểm tra thẻ trước khi thanh toán
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* CPN NHTT */}
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethod("CPN_NHTT")}
+                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
+                      deliveryMethod === "CPN_NHTT"
+                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
+                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                    }`}
+                  >
+                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
+                      {deliveryMethod === "CPN_NHTT" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
+                    </div>
+                    <div>
+                      <span className="block text-xs font-black">Gửi CPN NHTT</span>
+                      <span className="text-[11px] text-stone-500">
+                        Chuyển phát nhanh (Người nhận thanh toán cước)
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Vận chuyển Ô tô */}
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethod("VAN_CHUYEN_OTO")}
+                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
+                      deliveryMethod === "VAN_CHUYEN_OTO"
+                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
+                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                    }`}
+                  >
+                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
+                      {deliveryMethod === "VAN_CHUYEN_OTO" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
+                    </div>
+                    <div>
+                      <span className="block text-xs font-black">Gửi Vận Chuyển (Ô Tô)</span>
+                      <span className="text-[11px] text-stone-500">
+                        Gửi xe khách / chành xe liên tỉnh nhận trong ngày
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Trực tiếp */}
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethod("TRUC_TIEP")}
+                    className={`flex items-start gap-2.5 rounded-2xl border-2 p-3 text-left transition-all cursor-pointer ${
+                      deliveryMethod === "TRUC_TIEP"
+                        ? "border-amber-500 bg-amber-50/80 text-amber-950 shadow-sm ring-2 ring-amber-300"
+                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                    }`}
+                  >
+                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-600">
+                      {deliveryMethod === "TRUC_TIEP" && <div className="h-2 w-2 rounded-full bg-amber-600" />}
+                    </div>
+                    <div>
+                      <span className="block text-xs font-black">Nhận Hàng Trực Tiếp</span>
+                      <span className="text-[11px] text-stone-500">
+                        Đến nhận trực tiếp tại văn phòng / điểm phát Poly Cards
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. KHỐI PHƯƠNG THỨC THANH TOÁN (COD & BANKING) */}
               <div className="rounded-3xl border-2 border-stone-200 bg-white p-4 sm:p-6 shadow-sm space-y-3">
                 <div className="border-b border-stone-100 pb-2">
                   <h2 className="text-sm sm:text-base font-black text-stone-900 flex items-center gap-2">
@@ -566,28 +724,57 @@ function OrderContent() {
                   )}
                 </div>
 
-                {/* Tính toán tiền */}
+                {/* Tính toán tiền theo chuẩn POS/Hóa Đơn */}
                 <div className="space-y-2 border-t border-amber-100 pt-3 text-xs text-stone-600">
                   <div className="flex justify-between">
-                    <span>Tổng giá niêm yết:</span>
-                    <span className="font-semibold text-stone-900">{formatVndCurrency(originalTotalPrice)}</span>
+                    <span>Tạm tính (Giá gốc niêm yết):</span>
+                    <span className="font-semibold text-stone-900 font-mono">
+                      {formatVndCurrency(originalTotalPrice)}
+                    </span>
                   </div>
 
-                  {discountTotal > 0 && (
-                    <div className="flex justify-between text-rose-600 font-semibold">
-                      <span>Ưu đãi tiết kiệm:</span>
-                      <span>-{formatVndCurrency(discountTotal)}</span>
+                  {packDiscountTotal > 0 && (
+                    <div className="flex justify-between text-stone-600">
+                      <span>Giảm giá theo bộ thẻ:</span>
+                      <span className="font-semibold text-rose-600 font-mono">
+                        -{formatVndCurrency(packDiscountTotal)}
+                      </span>
                     </div>
                   )}
 
-                  <div className="flex justify-between">
+                  {comboDiscountTotal > 0 && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 space-y-1">
+                      <div className="flex justify-between items-center text-amber-900 font-bold">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          <span>{appliedComboRule?.name || "Ưu Đãi Combo"}</span>
+                        </span>
+                        <span className="font-mono text-emerald-700">
+                          -{formatVndCurrency(comboDiscountTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Gợi ý Upsell Combo nếu có */}
+                  {comboSuggestion && (
+                    <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-sky-900 font-medium">
+                      💡 {comboSuggestion.message}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center">
                     <span>Phí vận chuyển:</span>
-                    <span className="font-bold text-emerald-600 uppercase">Miễn phí toàn quốc (0đ)</span>
+                    <span className="font-bold text-emerald-600 uppercase text-[11px]">
+                      Miễn phí toàn quốc (0đ)
+                    </span>
                   </div>
 
                   <div className="border-t border-stone-200 pt-3 flex justify-between items-baseline text-sm font-black text-stone-900">
                     <span>Tổng thanh toán:</span>
-                    <span className="text-xl font-black text-amber-700">{formatVndCurrency(totalPrice)}</span>
+                    <span className="text-xl font-black text-amber-700 font-mono">
+                      {formatVndCurrency(finalTotalPrice)}
+                    </span>
                   </div>
                 </div>
 
@@ -631,14 +818,14 @@ function OrderContent() {
               <span className="text-[11px] sm:text-xs text-stone-500 font-bold">
                 Tổng ({totalPacksCount} bộ):
               </span>
-              {discountTotal > 0 && (
+              {(packDiscountTotal + comboDiscountTotal) > 0 && (
                 <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded-sm">
-                  Tiết kiệm {formatVndCurrency(discountTotal)}
+                  Tiết kiệm {formatVndCurrency(packDiscountTotal + comboDiscountTotal)}
                 </span>
               )}
             </div>
-            <div className="text-base sm:text-xl font-black text-amber-700 leading-tight">
-              {formatVndCurrency(totalPrice)}
+            <div className="text-base sm:text-xl font-black text-amber-700 leading-tight font-mono">
+              {formatVndCurrency(finalTotalPrice)}
             </div>
           </div>
 

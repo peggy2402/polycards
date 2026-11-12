@@ -1,6 +1,8 @@
 import { MongoClient, Db, Document, OptionalUnlessRequiredId } from "mongodb";
-import { Animal, ProductCategory } from "@/types/animal";
+import { Animal, ProductCategory, DbComboRule, OrderStatus, DeliveryMethod } from "@/types/animal";
 import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
+import { DEFAULT_COMBO_RULES } from "@/lib/combo-engine";
+import { normalizePhoneNumber } from "@/lib/pricing";
 import {
   INITIAL_PRODUCTS,
   INITIAL_CATEGORIES,
@@ -19,6 +21,11 @@ export interface DbPackCodeItem {
   categoryName: string;
   description?: string;
   cardsCount?: number;
+  singleCardPrice?: number;
+  originalPrice?: number;
+  discountPercent?: number;
+  salePrice?: number;
+  isManualPrice?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -121,6 +128,7 @@ interface InMemoryStore {
   customers: SeedCustomerItem[];
   featuredCombo: CardComboPack;
   packCodes: DbPackCodeItem[];
+  combos: DbComboRule[];
 }
 
 declare global {
@@ -138,6 +146,7 @@ function getInMemoryStore(): InMemoryStore {
       customers: structuredClone(INITIAL_CUSTOMERS),
       featuredCombo: structuredClone(DEFAULT_FEATURED_COMBO),
       packCodes: structuredClone(INITIAL_PACK_CODES),
+      combos: structuredClone(DEFAULT_COMBO_RULES),
     };
   }
   return globalThis._inMemoryStore;
@@ -230,6 +239,19 @@ async function autoSeedDatabaseIfEmpty(db: Db): Promise<void> {
       await customersCol.insertMany(
         INITIAL_CUSTOMERS.map((item) => ({ ...item })) as OptionalUnlessRequiredId<SeedCustomerItem>[]
       );
+    }
+
+    // Tự động seed collection combos nếu chưa có
+    const combosCol = db.collection<DbComboRule>("combos");
+    const comboCount = await combosCol.countDocuments();
+    if (comboCount === 0) {
+      await combosCol.insertMany(
+        DEFAULT_COMBO_RULES.map((rule) => ({
+          ...rule,
+          createdAt: new Date().toISOString(),
+        })) as OptionalUnlessRequiredId<DbComboRule>[]
+      );
+      await combosCol.createIndex({ id: 1 }, { unique: true }).catch(() => {});
     }
 
     // Tự động seed và đồng bộ collection pack_codes
@@ -473,32 +495,47 @@ export async function dbDeleteOrder(id?: string | null, code?: string | null): P
   return mem.orders.length;
 }
 
-export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<void> {
-  if (!order.customerName) return;
+export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<SeedCustomerItem | null> {
+  if (!order.customerName) return null;
 
+  const normalizedPhone = normalizePhoneNumber(order.customerPhone);
   const mem = getInMemoryStore();
-  const custIdx = mem.customers.findIndex(
-    (c) =>
-      (order.customerPhone && c.phone === order.customerPhone) ||
-      c.name === order.customerName
-  );
+  const spentAmount = order.totalPrice || order.creditAmount || 0;
+
+  // Tìm trong in-memory store
+  const custIdx = mem.customers.findIndex((c) => {
+    if (normalizedPhone && normalizePhoneNumber(c.phone) === normalizedPhone) return true;
+    return c.name.toLowerCase().trim() === order.customerName.toLowerCase().trim();
+  });
 
   let targetCust: SeedCustomerItem;
+
   if (custIdx >= 0) {
     targetCust = { ...mem.customers[custIdx] };
     if (!targetCust.orders.includes(order.id)) {
       targetCust.orders = [...targetCust.orders, order.id];
-      targetCust.totalSpent += order.totalPrice || 0;
+      targetCust.totalSpent = (targetCust.totalSpent || 0) + spentAmount;
+    }
+    if (order.customerAddress) {
+      targetCust.address = order.customerAddress;
+    }
+    if (normalizedPhone) {
+      targetCust.phone = normalizedPhone;
     }
     mem.customers[custIdx] = targetCust;
   } else {
+    // Sinh mã KHxxxx chuẩn mực (ví dụ KH1001, KH1002...)
+    const currentCount = mem.customers.length;
+    const khCode = `KH${String(1001 + currentCount).padStart(4, "0")}`;
+
     targetCust = {
-      id: `CUST-${Date.now().toString().slice(-4)}`,
-      name: order.customerName,
-      phone: order.customerPhone || "",
-      type: order.customerType,
+      id: khCode,
+      name: order.customerName.trim(),
+      phone: normalizedPhone || order.customerPhone || "",
+      address: order.customerAddress || "",
+      type: order.customerType || "ONLINE",
       orders: [order.id],
-      totalSpent: order.totalPrice || 0,
+      totalSpent: spentAmount,
       createdAt: new Date().toLocaleString("vi-VN"),
     };
     mem.customers.push(targetCust);
@@ -507,11 +544,11 @@ export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<voi
   const db = await getMongoDb();
   if (db) {
     const col = db.collection<SeedCustomerItem>("customers");
-    const existing = await col.findOne(
-      order.customerPhone
-        ? { $or: [{ phone: order.customerPhone }, { name: order.customerName }] }
-        : { name: order.customerName }
-    );
+    const filterQuery = normalizedPhone
+      ? { $or: [{ phone: normalizedPhone }, { phone: order.customerPhone }, { name: order.customerName }] }
+      : { name: order.customerName };
+
+    const existing = await col.findOne(filterQuery);
 
     if (existing) {
       const updatedOrders = existing.orders.includes(order.id)
@@ -519,16 +556,187 @@ export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<voi
         : [...existing.orders, order.id];
       const updatedSpent = existing.orders.includes(order.id)
         ? existing.totalSpent
-        : existing.totalSpent + (order.totalPrice || order.creditAmount || 0);
+        : (existing.totalSpent || 0) + spentAmount;
       const updatedAddress = order.customerAddress || existing.address || "";
+      const updatedPhone = normalizedPhone || existing.phone || "";
+
       await col.updateOne(
         { _id: existing._id },
-        { $set: { orders: updatedOrders, totalSpent: updatedSpent, address: updatedAddress } }
+        {
+          $set: {
+            orders: updatedOrders,
+            totalSpent: updatedSpent,
+            address: updatedAddress,
+            phone: updatedPhone,
+          },
+        }
       );
+      targetCust = {
+        ...stripMongoId(existing),
+        orders: updatedOrders,
+        totalSpent: updatedSpent,
+        address: updatedAddress,
+        phone: updatedPhone,
+      };
     } else {
-      await col.insertOne({ ...targetCust, address: order.customerAddress || "" });
+      const totalDbCusts = await col.countDocuments();
+      const khCode = `KH${String(1001 + totalDbCusts).padStart(4, "0")}`;
+      targetCust.id = khCode;
+      await col.insertOne({ ...targetCust });
     }
   }
+
+  return targetCust;
+}
+
+export async function dbSearchCustomerByPhone(phoneQuery: string): Promise<SeedCustomerItem | null> {
+  const normalized = normalizePhoneNumber(phoneQuery);
+  if (!normalized || normalized.length < 4) return null;
+
+  const mem = getInMemoryStore();
+  const localMatch = mem.customers.find((c) => {
+    const p = normalizePhoneNumber(c.phone);
+    return p && (p === normalized || p.includes(normalized));
+  });
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<SeedCustomerItem>("customers");
+    const doc = await col.findOne({
+      $or: [
+        { phone: normalized },
+        { phone: phoneQuery },
+        { phone: { $regex: normalized, $options: "i" } },
+      ],
+    });
+    if (doc) return stripMongoId(doc);
+  }
+
+  return localMatch ? { ...localMatch } : null;
+}
+
+export async function dbUpdateOrderStatus(orderId: string, orderStatus: OrderStatus): Promise<SeedOrderItem | null> {
+  const mem = getInMemoryStore();
+  const idx = mem.orders.findIndex((o) => o.id === orderId || o.code === orderId);
+  if (idx >= 0) {
+    mem.orders[idx].orderStatus = orderStatus;
+    if (orderStatus === "DA_NHAN") {
+      mem.orders[idx].status = "PAID";
+    } else if (orderStatus === "DA_HUY") {
+      mem.orders[idx].status = "CANCELLED";
+    }
+  }
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<SeedOrderItem>("orders");
+    const statusUpdate: Record<string, unknown> = { orderStatus };
+    if (orderStatus === "DA_NHAN") statusUpdate.status = "PAID";
+    if (orderStatus === "DA_HUY") statusUpdate.status = "CANCELLED";
+
+    await col.updateOne(
+      { $or: [{ id: orderId }, { code: orderId }] },
+      { $set: statusUpdate }
+    );
+    const doc = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
+    if (doc) return stripMongoId(doc);
+  }
+
+  return idx >= 0 ? mem.orders[idx] : null;
+}
+
+export async function dbUpdateOrderDelivery(
+  orderId: string,
+  deliveryMethod: DeliveryMethod,
+  codAmount?: number
+): Promise<SeedOrderItem | null> {
+  const mem = getInMemoryStore();
+  const idx = mem.orders.findIndex((o) => o.id === orderId || o.code === orderId);
+  if (idx >= 0) {
+    mem.orders[idx].deliveryMethod = deliveryMethod;
+    if (deliveryMethod === "CPN_COD") {
+      mem.orders[idx].codAmount = codAmount || 0;
+    }
+  }
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<SeedOrderItem>("orders");
+    const updateObj: Record<string, unknown> = { deliveryMethod };
+    if (deliveryMethod === "CPN_COD") {
+      updateObj.codAmount = codAmount || 0;
+    }
+    await col.updateOne({ $or: [{ id: orderId }, { code: orderId }] }, { $set: updateObj });
+    const doc = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
+    if (doc) return stripMongoId(doc);
+  }
+
+  return idx >= 0 ? mem.orders[idx] : null;
+}
+
+// ==========================================
+// QUẢN LÝ DYNAMIC COMBO RULES TRONG MONGODB
+// ==========================================
+
+export async function dbGetComboRules(): Promise<DbComboRule[]> {
+  const db = await getMongoDb();
+  if (!db) {
+    return getInMemoryStore().combos.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+  }
+
+  const docs = await db
+    .collection<DbComboRule>("combos")
+    .find({})
+    .sort({ priority: 1 })
+    .toArray();
+
+  if (docs.length === 0) {
+    // Khởi tạo combo rules mặc định nếu chưa có
+    await db.collection<DbComboRule>("combos").insertMany(
+      DEFAULT_COMBO_RULES.map((rule) => ({
+        ...rule,
+        createdAt: new Date().toISOString(),
+      })) as OptionalUnlessRequiredId<DbComboRule>[]
+    );
+    return DEFAULT_COMBO_RULES;
+  }
+
+  return docs.map((d) => stripMongoId(d));
+}
+
+export async function dbUpsertComboRule(rule: DbComboRule): Promise<DbComboRule> {
+  const cleanRule = stripMongoId(rule as DbComboRule & { _id?: unknown });
+  const mem = getInMemoryStore();
+  const idx = mem.combos.findIndex((r) => r.id === cleanRule.id);
+  if (idx >= 0) {
+    mem.combos[idx] = cleanRule;
+  } else {
+    mem.combos.push(cleanRule);
+  }
+
+  const db = await getMongoDb();
+  if (db) {
+    await db.collection<DbComboRule>("combos").updateOne(
+      { id: cleanRule.id },
+      { $set: { ...cleanRule, updatedAt: new Date().toISOString() } },
+      { upsert: true }
+    );
+  }
+
+  return cleanRule;
+}
+
+export async function dbDeleteComboRule(id: string): Promise<boolean> {
+  const mem = getInMemoryStore();
+  mem.combos = mem.combos.filter((r) => r.id !== id);
+
+  const db = await getMongoDb();
+  if (db) {
+    const res = await db.collection<DbComboRule>("combos").deleteOne({ id });
+    return res.deletedCount > 0;
+  }
+
+  return true;
 }
 
 export async function dbGetCustomers(): Promise<SeedCustomerItem[]> {
