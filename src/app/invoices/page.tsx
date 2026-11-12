@@ -42,6 +42,7 @@ import {
   Edit,
   Clock,
   Filter,
+  FileSpreadsheet,
 } from "lucide-react";
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
@@ -783,6 +784,106 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
     return { totalCount, totalCredit, totalDebit, totalRemain };
   }, [filteredInvoices]);
 
+  // Nhãn Doanh Thu động theo bộ lọc thời gian
+  const revenueLabel = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1 - 12
+    const currentYear = now.getFullYear();
+
+    switch (timeFilter) {
+      case "THIS_MONTH":
+        return `Doanh thu T${currentMonth}`;
+      case "LAST_MONTH": {
+        const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+        return `Doanh thu T${prevMonth}`;
+      }
+      case "THIS_QUARTER":
+      case "LAST_QUARTER":
+      case "CUSTOM":
+        return "Doanh thu";
+      case "THIS_YEAR":
+        return `Doanh thu ${currentYear}`;
+      case "LAST_YEAR":
+        return `Doanh thu ${currentYear - 1}`;
+      case "ALL":
+      default:
+        return "Doanh thu";
+    }
+  }, [timeFilter]);
+
+  // Xuất danh sách hóa đơn đang lọc ra file Excel (CSV UTF-8 BOM)
+  const handleExportExcel = () => {
+    if (filteredInvoices.length === 0) {
+      showToast("Không có hóa đơn nào trong danh sách để xuất.", "warning");
+      return;
+    }
+
+    const headers = [
+      "STT",
+      "Mã Hóa Đơn",
+      "Ngày Lập",
+      "Khách Hàng",
+      "Mã KH",
+      "Số Điện Thoại",
+      "Địa Chỉ",
+      "Kênh Bán",
+      "Sản Phẩm Mua",
+      "Tiền Hàng (VNĐ)",
+      "VAT (VNĐ)",
+      "Tổng Tiền (VNĐ)",
+      "Đã Thanh Toán (VNĐ)",
+      "Còn Thiếu (VNĐ)",
+      "Trạng Thái",
+      "Hình Thức",
+      "Ghi Chú",
+    ];
+
+    const escapeCsv = (val: any) => {
+      const str = String(val ?? "").replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = filteredInvoices.map((inv, idx) => {
+      const itemsSummary = Array.isArray(inv.items)
+        ? inv.items.map((it) => `${it.name} (x${it.quantity})`).join("; ")
+        : inv.packTitle || "";
+
+      return [
+        idx + 1,
+        escapeCsv(inv.code),
+        escapeCsv(inv.createdAt),
+        escapeCsv(inv.customerName),
+        escapeCsv(inv.customerId || ""),
+        escapeCsv(inv.customerPhone || ""),
+        escapeCsv(inv.customerAddress || ""),
+        escapeCsv(inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"),
+        escapeCsv(itemsSummary),
+        inv.subtotal || inv.creditAmount,
+        inv.vatAmount || 0,
+        inv.creditAmount,
+        inv.debitAmount,
+        Math.max(0, (inv.creditAmount || 0) - (inv.debitAmount || 0)),
+        escapeCsv(inv.status === "PAID" ? "Đã Thu Đủ" : "Thu Một Phần"),
+        escapeCsv(inv.paymentMethod === "TIEN_MAT" ? "Tiền Mặt" : "Chuyển Khoản"),
+        escapeCsv(inv.note || ""),
+      ].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    link.href = url;
+    link.download = `Danh_Sach_Hoa_Don_PolyCards_${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast(`Đã xuất thành công ${filteredInvoices.length} hóa đơn ra file Excel!`, "success");
+  };
+
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans pb-12 sm:pb-8">
       {/* ========================================================
@@ -878,14 +979,26 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleStartCreate}
-              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-stone-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all self-start sm:self-auto"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Tạo Phiếu Hóa Đơn Mới</span>
-            </button>
+            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer border border-emerald-500/40"
+                title="Xuất danh sách hóa đơn đang lọc ra file Excel/CSV"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>Xuất Excel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleStartCreate}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-stone-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Tạo Phiếu Hóa Đơn Mới</span>
+              </button>
+            </div>
           </div>
 
           {/* 4 Thẻ Thống Kê KPI */}
@@ -896,7 +1009,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             </div>
 
             <div className="p-3.5 rounded-2xl bg-stone-900/80 border border-amber-400/30 space-y-1">
-              <span className="text-[11px] font-bold text-amber-300 block">Tổng Tiền Đơn Hàng</span>
+              <span className="text-[11px] font-bold text-amber-300 block">{revenueLabel}</span>
               <span className="text-base sm:text-lg font-black text-amber-400 font-mono">
                 {formatVndCurrency(stats.totalCredit)}
               </span>
@@ -1842,7 +1955,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                   {selectedInvoice.customerType === "TRUCTIEP" ? "Bán Tại Quầy" : "Giao Hàng Online"}
                 </span>
                 <span className="block mt-1 font-semibold text-slate-700">
-                  Hình thức: {selectedInvoice.paymentMethod === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản"}
+                  HT Thanh Toánc: {selectedInvoice.paymentMethod === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản"}
                 </span>
               </div>
             </div>
