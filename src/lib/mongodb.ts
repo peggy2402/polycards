@@ -132,10 +132,54 @@ interface InMemoryStore {
   combos: DbComboRule[];
 }
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = {
+  orders: 30_000, // 30s
+  products: 60_000, // 60s
+  categories: 120_000, // 2m
+  customers: 30_000, // 30s
+  packCodes: 60_000, // 60s
+  comboRules: 120_000, // 2m
+  featuredCombo: 60_000, // 60s
+};
+
 declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
   var _mongoSeeded: boolean | undefined;
   var _inMemoryStore: InMemoryStore | undefined;
+  var _dbCache:
+    | {
+        orders?: CacheEntry<SeedOrderItem[]>;
+        products?: CacheEntry<Animal[]>;
+        categories?: CacheEntry<ProductCategory[]>;
+        customers?: CacheEntry<SeedCustomerItem[]>;
+        packCodes?: CacheEntry<DbPackCodeItem[]>;
+        comboRules?: CacheEntry<DbComboRule[]>;
+        featuredCombo?: CacheEntry<CardComboPack>;
+      }
+    | undefined;
+}
+
+function getDbCache() {
+  if (!globalThis._dbCache) {
+    globalThis._dbCache = {};
+  }
+  return globalThis._dbCache;
+}
+
+export function invalidateDbCache(
+  key?: "orders" | "products" | "categories" | "customers" | "packCodes" | "comboRules" | "featuredCombo" | "all"
+) {
+  const cache = getDbCache();
+  if (!key || key === "all") {
+    globalThis._dbCache = {};
+  } else {
+    delete cache[key];
+  }
 }
 
 function getInMemoryStore(): InMemoryStore {
@@ -173,12 +217,12 @@ export async function getMongoDb(): Promise<Db | null> {
   try {
     if (!globalThis._mongoClientPromise) {
       const client = new MongoClient(uri, {
-        maxPoolSize: 10,
-        minPoolSize: 0,
-        maxIdleTimeMS: 10000,
+        maxPoolSize: 20,
+        minPoolSize: 2,
+        maxIdleTimeMS: 60000,
         serverSelectionTimeoutMS: 5000,
         connectTimeoutMS: 5000,
-        socketTimeoutMS: 10000,
+        socketTimeoutMS: 15000,
       });
       globalThis._mongoClientPromise = client.connect();
     }
@@ -186,10 +230,12 @@ export async function getMongoDb(): Promise<Db | null> {
     const client = await globalThis._mongoClientPromise;
     const db = client.db(DB_NAME);
 
-    // Tự động seed dữ liệu ban đầu nếu các collection trên MongoDB Atlas đang rỗng
+    // Tự động seed dữ liệu ban đầu nếu các collection trên MongoDB Atlas đang rỗng (chạy background non-blocking)
     if (!globalThis._mongoSeeded) {
       globalThis._mongoSeeded = true;
-      await autoSeedDatabaseIfEmpty(db);
+      autoSeedDatabaseIfEmpty(db).catch((err) => {
+        console.warn("[MongoDB Atlas] Lỗi autoSeed nền:", err);
+      });
     }
 
     return db;
@@ -273,13 +319,23 @@ function stripMongoId<T extends Document>(doc: T): Omit<T, "_id"> {
 // ============================================================================
 
 export async function dbGetProducts(): Promise<Animal[]> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.products && now - cache.products.timestamp < CACHE_TTL_MS.products) {
+    return cache.products.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().products;
+    const list = getInMemoryStore().products;
+    cache.products = { data: list, timestamp: now };
+    return list;
   }
 
   const docs = await db.collection<Animal>("products").find({}).toArray();
-  return docs.map((d) => stripMongoId(d));
+  const result = docs.map((d) => stripMongoId(d));
+  cache.products = { data: result, timestamp: now };
+  return result;
 }
 
 export async function dbGetProductBySlug(slug: string): Promise<Animal | undefined> {
@@ -323,6 +379,8 @@ export async function dbUpsertProduct(product: Animal): Promise<Animal> {
     );
   }
 
+  invalidateDbCache("products");
+  invalidateDbCache("packCodes");
   return cleanProduct;
 }
 
@@ -347,10 +405,14 @@ export async function dbDeleteProduct(idOrSlug: string): Promise<Animal | null> 
     });
     if (existing) {
       await col.deleteOne({ _id: existing._id });
+      invalidateDbCache("products");
+      invalidateDbCache("packCodes");
       return stripMongoId(existing);
     }
   }
 
+  invalidateDbCache("products");
+  invalidateDbCache("packCodes");
   return targetInMem;
 }
 
@@ -378,6 +440,8 @@ export async function dbDeleteProducts(idsOrSlugs: string[]): Promise<number> {
     deletedCount = res.deletedCount;
   }
 
+  invalidateDbCache("products");
+  invalidateDbCache("packCodes");
   return deletedCount;
 }
 
@@ -386,13 +450,23 @@ export async function dbDeleteProducts(idsOrSlugs: string[]): Promise<number> {
 // ============================================================================
 
 export async function dbGetCategories(): Promise<ProductCategory[]> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.categories && now - cache.categories.timestamp < CACHE_TTL_MS.categories) {
+    return cache.categories.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().categories;
+    const list = getInMemoryStore().categories;
+    cache.categories = { data: list, timestamp: now };
+    return list;
   }
 
   const docs = await db.collection<ProductCategory>("categories").find({}).toArray();
-  return docs.map((d) => stripMongoId(d));
+  const result = docs.map((d) => stripMongoId(d));
+  cache.categories = { data: result, timestamp: now };
+  return result;
 }
 
 export async function dbUpsertCategory(category: ProductCategory): Promise<ProductCategory> {
@@ -418,6 +492,7 @@ export async function dbUpsertCategory(category: ProductCategory): Promise<Produ
     );
   }
 
+  invalidateDbCache("categories");
   return cleanCategory;
 }
 
@@ -428,8 +503,10 @@ export async function dbDeleteCategory(id: string): Promise<boolean> {
   const db = await getMongoDb();
   if (db) {
     const res = await db.collection<ProductCategory>("categories").deleteOne({ id });
+    invalidateDbCache("categories");
     return res.deletedCount > 0;
   }
+  invalidateDbCache("categories");
   return true;
 }
 
@@ -441,15 +518,25 @@ const MOCK_ORDER_IDS = new Set(["ORD-505718", "ORD-001", "ORD-002", "SEED-001"])
 const MOCK_CUSTOMER_IDS = new Set(["CUST-001", "CUST-002"]);
 
 export async function dbGetOrders(): Promise<SeedOrderItem[]> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.orders && now - cache.orders.timestamp < CACHE_TTL_MS.orders) {
+    return cache.orders.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().orders.filter((o) => !MOCK_ORDER_IDS.has(o.id));
+    const list = getInMemoryStore().orders.filter((o) => !MOCK_ORDER_IDS.has(o.id));
+    cache.orders = { data: list, timestamp: now };
+    return list;
   }
 
   const docs = await db.collection<SeedOrderItem>("orders").find({}).toArray();
-  return docs
+  const result = docs
     .map((d) => stripMongoId(d))
     .filter((o) => !MOCK_ORDER_IDS.has(o.id) && !o.code.startsWith("SEED-"));
+  cache.orders = { data: result, timestamp: now };
+  return result;
 }
 
 export async function dbUpsertOrder(order: SeedOrderItem): Promise<SeedOrderItem> {
@@ -475,6 +562,8 @@ export async function dbUpsertOrder(order: SeedOrderItem): Promise<SeedOrderItem
     );
   }
 
+  invalidateDbCache("orders");
+  invalidateDbCache("customers");
   return cleanOrder;
 }
 
@@ -490,9 +579,13 @@ export async function dbDeleteOrder(id?: string | null, code?: string | null): P
     } else if (code) {
       await col.deleteOne({ code });
     }
+    invalidateDbCache("orders");
+    invalidateDbCache("customers");
     return await col.countDocuments();
   }
 
+  invalidateDbCache("orders");
+  invalidateDbCache("customers");
   return mem.orders.length;
 }
 
@@ -587,6 +680,7 @@ export async function dbSyncCustomerFromOrder(order: SeedOrderItem): Promise<See
     }
   }
 
+  invalidateDbCache("customers");
   return targetCust;
 }
 
@@ -640,9 +734,13 @@ export async function dbUpdateOrderStatus(orderId: string, orderStatus: OrderSta
       { $set: statusUpdate }
     );
     const doc = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
+    invalidateDbCache("orders");
+    invalidateDbCache("customers");
     if (doc) return stripMongoId(doc);
   }
 
+  invalidateDbCache("orders");
+  invalidateDbCache("customers");
   return idx >= 0 ? mem.orders[idx] : null;
 }
 
@@ -669,9 +767,11 @@ export async function dbUpdateOrderDelivery(
     }
     await col.updateOne({ $or: [{ id: orderId }, { code: orderId }] }, { $set: updateObj });
     const doc = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
+    invalidateDbCache("orders");
     if (doc) return stripMongoId(doc);
   }
 
+  invalidateDbCache("orders");
   return idx >= 0 ? mem.orders[idx] : null;
 }
 
@@ -680,9 +780,17 @@ export async function dbUpdateOrderDelivery(
 // ==========================================
 
 export async function dbGetComboRules(): Promise<DbComboRule[]> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.comboRules && now - cache.comboRules.timestamp < CACHE_TTL_MS.comboRules) {
+    return cache.comboRules.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().combos.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    const list = getInMemoryStore().combos.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    cache.comboRules = { data: list, timestamp: now };
+    return list;
   }
 
   const docs = await db
@@ -699,10 +807,13 @@ export async function dbGetComboRules(): Promise<DbComboRule[]> {
         createdAt: new Date().toISOString(),
       })) as OptionalUnlessRequiredId<DbComboRule>[]
     );
+    cache.comboRules = { data: DEFAULT_COMBO_RULES, timestamp: now };
     return DEFAULT_COMBO_RULES;
   }
 
-  return docs.map((d) => stripMongoId(d));
+  const result = docs.map((d) => stripMongoId(d));
+  cache.comboRules = { data: result, timestamp: now };
+  return result;
 }
 
 export async function dbUpsertComboRule(rule: DbComboRule): Promise<DbComboRule> {
@@ -724,6 +835,7 @@ export async function dbUpsertComboRule(rule: DbComboRule): Promise<DbComboRule>
     );
   }
 
+  invalidateDbCache("comboRules");
   return cleanRule;
 }
 
@@ -734,25 +846,37 @@ export async function dbDeleteComboRule(id: string): Promise<boolean> {
   const db = await getMongoDb();
   if (db) {
     const res = await db.collection<DbComboRule>("combos").deleteOne({ id });
+    invalidateDbCache("comboRules");
     return res.deletedCount > 0;
   }
 
+  invalidateDbCache("comboRules");
   return true;
 }
 
 export async function dbGetCustomers(): Promise<SeedCustomerItem[]> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.customers && now - cache.customers.timestamp < CACHE_TTL_MS.customers) {
+    return cache.customers.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().customers.filter((c) => !MOCK_CUSTOMER_IDS.has(c.id));
+    const list = getInMemoryStore().customers.filter((c) => !MOCK_CUSTOMER_IDS.has(c.id));
+    cache.customers = { data: list, timestamp: now };
+    return list;
   }
   const col = db.collection<SeedCustomerItem>("customers");
   const list = await col.find({}).sort({ createdAt: -1 }).toArray();
-  return list
+  const result = list
     .map((doc) => {
       const { _id, ...rest } = doc as any;
       return rest as SeedCustomerItem;
     })
     .filter((c) => !MOCK_CUSTOMER_IDS.has(c.id));
+  cache.customers = { data: result, timestamp: now };
+  return result;
 }
 
 export async function dbUpsertCustomer(customer: SeedCustomerItem): Promise<SeedCustomerItem> {
@@ -774,6 +898,7 @@ export async function dbUpsertCustomer(customer: SeedCustomerItem): Promise<Seed
     );
   }
 
+  invalidateDbCache("customers");
   return customer;
 }
 
@@ -785,9 +910,11 @@ export async function dbDeleteCustomer(id: string): Promise<number> {
   if (db) {
     const col = db.collection<SeedCustomerItem>("customers");
     await col.deleteOne({ id });
+    invalidateDbCache("customers");
     return await col.countDocuments();
   }
 
+  invalidateDbCache("customers");
   return mem.customers.length;
 }
 
@@ -796,9 +923,17 @@ export async function dbDeleteCustomer(id: string): Promise<number> {
 // ============================================================================
 
 export async function dbGetFeaturedCombo(): Promise<CardComboPack> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.featuredCombo && now - cache.featuredCombo.timestamp < CACHE_TTL_MS.featuredCombo) {
+    return cache.featuredCombo.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().featuredCombo || DEFAULT_FEATURED_COMBO;
+    const result = getInMemoryStore().featuredCombo || DEFAULT_FEATURED_COMBO;
+    cache.featuredCombo = { data: result, timestamp: now };
+    return result;
   }
 
   try {
@@ -806,12 +941,15 @@ export async function dbGetFeaturedCombo(): Promise<CardComboPack> {
       .collection<{ key: string; data: CardComboPack }>("settings")
       .findOne({ key: "featured_combo" });
     if (doc && doc.data) {
+      cache.featuredCombo = { data: doc.data, timestamp: now };
       return doc.data;
     }
   } catch (err) {
     console.warn("[MongoDB] Không thể đọc featured_combo:", err);
   }
-  return getInMemoryStore().featuredCombo || DEFAULT_FEATURED_COMBO;
+  const fallback = getInMemoryStore().featuredCombo || DEFAULT_FEATURED_COMBO;
+  cache.featuredCombo = { data: fallback, timestamp: now };
+  return fallback;
 }
 
 export async function dbSaveFeaturedCombo(combo: CardComboPack): Promise<CardComboPack> {
@@ -828,6 +966,7 @@ export async function dbSaveFeaturedCombo(combo: CardComboPack): Promise<CardCom
         { upsert: true }
       );
   }
+  invalidateDbCache("featuredCombo");
   return combo;
 }
 
@@ -889,9 +1028,17 @@ async function autoSeedPackCodes(db: Db): Promise<void> {
 }
 
 export async function dbGetPackCodes(): Promise<DbPackCodeItem[]> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.packCodes && now - cache.packCodes.timestamp < CACHE_TTL_MS.packCodes) {
+    return cache.packCodes.data;
+  }
+
   const db = await getMongoDb();
   if (!db) {
-    return getInMemoryStore().packCodes || INITIAL_PACK_CODES;
+    const result = getInMemoryStore().packCodes || INITIAL_PACK_CODES;
+    cache.packCodes = { data: result, timestamp: now };
+    return result;
   }
 
   try {
@@ -918,16 +1065,20 @@ export async function dbGetPackCodes(): Promise<DbPackCodeItem[]> {
       if (c._id) countMap.set(c._id, c.count);
     });
 
-    return docs.map((d) => {
+    const result = docs.map((d) => {
       const clean = stripMongoId(d);
       return {
         ...clean,
         cardsCount: countMap.get(clean.code.toUpperCase()) || 0,
       };
     });
+    cache.packCodes = { data: result, timestamp: now };
+    return result;
   } catch (err) {
     console.error("[MongoDB] Lỗi dbGetPackCodes:", err);
-    return getInMemoryStore().packCodes || INITIAL_PACK_CODES;
+    const fallback = getInMemoryStore().packCodes || INITIAL_PACK_CODES;
+    cache.packCodes = { data: fallback, timestamp: now };
+    return fallback;
   }
 }
 
@@ -972,6 +1123,7 @@ export async function dbUpsertPackCode(
     );
   }
 
+  invalidateDbCache("packCodes");
   return packData;
 }
 
@@ -984,9 +1136,11 @@ export async function dbDeletePackCode(code: string): Promise<number> {
   if (db) {
     const col = db.collection<DbPackCodeItem>("pack_codes");
     await col.deleteOne({ code: cleanCode });
+    invalidateDbCache("packCodes");
     return await col.countDocuments();
   }
 
+  invalidateDbCache("packCodes");
   return mem.packCodes.length;
 }
 

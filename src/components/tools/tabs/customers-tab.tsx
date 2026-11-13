@@ -47,7 +47,9 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
 
   const loadData = async () => {
     try {
-      setIsLoading(true);
+      if (customers.length === 0) {
+        setIsLoading(true);
+      }
       const [resCust, resOrd] = await Promise.all([
         fetch("/api/customers"),
         fetch("/api/orders"),

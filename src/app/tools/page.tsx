@@ -250,7 +250,13 @@ export default function ToolsPage() {
   });
 
   // 15. Quản lý Thẻ Bài Sản Phẩm (CRUD Products Studio)
-  const [productsList, setProductsList] = useState<Animal[]>([]);
+  const [productsList, setProductsList] = useState<Animal[]>(() => {
+    try {
+      return getMergedProducts();
+    } catch {
+      return [];
+    }
+  });
   const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(false);
   const [filterCardCategory, setFilterCardCategory] = useState<string>("all");
 
@@ -354,13 +360,10 @@ export default function ToolsPage() {
   // Tải danh sách sản phẩm từ API (hoặc fallback store) — Hỗ trợ chế độ silent không làm nháy/reload danh sách
   const loadStudioProducts = useCallback(async (silent = false) => {
     try {
-      if (!silent) {
+      if (!silent && productsList.length === 0) {
         setIsLoadingProducts(true);
       }
-      const res = await fetch(`/api/products?t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
+      const res = await fetch("/api/products");
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -376,12 +379,10 @@ export default function ToolsPage() {
     } catch (e) {
       console.warn("Fallback getMergedProducts:", e);
     } finally {
-      if (!silent) {
-        setIsLoadingProducts(false);
-      }
+      setIsLoadingProducts(false);
     }
     setProductsList(getMergedProducts());
-  }, []);
+  }, [productsList.length]);
 
   useEffect(() => {
     loadStudioProducts(false);

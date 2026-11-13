@@ -120,12 +120,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
-      total: list.length,
-      data: list,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+        total: list.length,
+        data: list,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
+        },
+      }
+    );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Lỗi đọc danh sách sản phẩm";
     return NextResponse.json({ success: false, message: msg }, { status: 500 });

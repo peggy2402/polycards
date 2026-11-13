@@ -10,12 +10,19 @@ import {
 export async function GET() {
   try {
     const categories = await dbGetCategories();
-    return NextResponse.json({
-      success: true,
-      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
-      total: categories.length,
-      data: categories,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+        total: categories.length,
+        data: categories,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Lỗi tải danh mục";
     return NextResponse.json({ success: false, message: msg }, { status: 500 });

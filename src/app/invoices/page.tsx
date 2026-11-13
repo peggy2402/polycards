@@ -419,16 +419,14 @@ export default function InvoicesPage() {
           return tB - tA;
         });
         setInvoices(sorted);
-        if (sorted.length > 0 && !selectedInvoice) {
-          setSelectedInvoice(sorted[0]);
-        }
+        setSelectedInvoice((prev) => prev || (sorted.length > 0 ? sorted[0] : null));
       }
     } catch (err) {
       console.warn("Lỗi tải hóa đơn:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedInvoice]);
+  }, []);
 
   useEffect(() => {
     loadInvoices();

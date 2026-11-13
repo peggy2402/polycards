@@ -172,7 +172,9 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
   const loadInvoices = async () => {
     try {
-      setIsLoading(true);
+      if (invoices.length === 0) {
+        setIsLoading(true);
+      }
       const res = await fetch("/api/orders");
       if (res.ok) {
         const json = await res.json();

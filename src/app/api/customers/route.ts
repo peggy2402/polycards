@@ -33,12 +33,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
-      total: filtered.length,
-      data: filtered,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        storage: isMongoConfigured() ? "mongodb-atlas" : "in-memory-fallback",
+        total: filtered.length,
+        data: filtered,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15",
+        },
+      }
+    );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Lỗi tải danh sách khách hàng";
     return NextResponse.json({ success: false, message: msg }, { status: 500 });
