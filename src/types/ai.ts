@@ -23,6 +23,10 @@ export interface AiChatConfig {
   welcomeMessage: string;
   botName: string;
   temperature: number;
+  bubbleDurationSec?: number; // Thời gian bong bóng tự biến mất (giây) - mặc định 30
+  bubbleIntervalMin?: number; // Thời gian chờ hiển thị lại bong bóng (phút) - mặc định 60
+  bubbleTitle?: string;       // Tiêu đề bong bóng
+  bubbleMessage?: string;     // Lời nhắn trên bong bóng
   updatedAt?: string;
 }
 

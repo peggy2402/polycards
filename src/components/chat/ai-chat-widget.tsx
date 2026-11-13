@@ -18,6 +18,7 @@ import {
 import { AiChatMessage } from "@/types/ai";
 
 const STORAGE_KEY = "polycards_ai_chat_session";
+const BUBBLE_DISMISSED_AT_KEY = "polycards_ai_bubble_last_dismissed";
 const DEFAULT_TTL_HOURS = 24;
 
 const DEFAULT_QUICK_QUESTIONS = [
@@ -77,8 +78,29 @@ export function AiChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [quickQuestions, setQuickQuestions] = useState<string[]>(DEFAULT_QUICK_QUESTIONS);
 
+  // Cấu hình linh hoạt từ server (đồng bộ từ Admin Tools)
+  const [botName, setBotName] = useState<string>("PolyCards AI");
+  const [welcomeMessage, setWelcomeMessage] = useState<string>(
+    "Xin chào Ba Mẹ! Em là Trợ lý AI PolyCards. Em có thể giúp Ba Mẹ tra cứu giá các bộ thẻ học AR, tư vấn chọn bộ thẻ theo độ tuổi của bé, hoặc hướng dẫn cách quét 3D không cần cài app nhé!"
+  );
+  const [bubbleDurationSec, setBubbleDurationSec] = useState<number>(30);
+  const [bubbleIntervalMin, setBubbleIntervalMin] = useState<number>(60);
+  const [bubbleMessage, setBubbleMessage] = useState<string>(
+    "Ba Mẹ cần tư vấn giá combo hoặc cách quét 3D cho bé không ạ? Chạm vào đây nhé!"
+  );
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Tắt bong bóng gợi ý và lưu lại mốc thời gian đã tắt
+  const dismissPromptBubble = useCallback(() => {
+    setHasNewMessagePrompt(false);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(BUBBLE_DISMISSED_AT_KEY, Date.now().toString());
+      } catch {}
+    }
+  }, []);
 
   // Cuộn xuống cuối khung chat
   const scrollToBottom = useCallback((smooth = true) => {
@@ -111,20 +133,43 @@ export function AiChatWidget() {
     const initialWelcome: AiChatMessage = {
       id: `bot-welcome-${Date.now()}`,
       role: "assistant",
-      content:
-        "Xin chào Ba Mẹ! Em là Trợ lý AI PolyCards. Em có thể giúp Ba Mẹ tra cứu giá các bộ thẻ học AR, tư vấn chọn bộ thẻ theo độ tuổi của bé, hoặc hướng dẫn cách quét 3D không cần cài app nhé!",
+      content: welcomeMessage,
       createdAt: Date.now(),
     };
     setMessages([initialWelcome]);
-  }, []);
+  }, [welcomeMessage]);
 
-  // Tải cấu hình câu hỏi nhanh từ server nếu có
+  // Tải cấu hình bot, tên hiển thị, bong bóng và câu hỏi nhanh từ server
   useEffect(() => {
     fetch("/api/ai/config")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.config?.quickQuestions && Array.isArray(data.config.quickQuestions)) {
-          setQuickQuestions(data.config.quickQuestions);
+        if (data?.config) {
+          const cfg = data.config;
+          const currentBotName = cfg.botName || "PolyCards AI";
+          setBotName(currentBotName);
+          if (cfg.welcomeMessage) setWelcomeMessage(cfg.welcomeMessage);
+          if (typeof cfg.bubbleDurationSec === "number") setBubbleDurationSec(cfg.bubbleDurationSec);
+          if (typeof cfg.bubbleIntervalMin === "number") setBubbleIntervalMin(cfg.bubbleIntervalMin);
+          if (cfg.bubbleMessage) setBubbleMessage(cfg.bubbleMessage);
+          if (Array.isArray(cfg.quickQuestions) && cfg.quickQuestions.length > 0) {
+            setQuickQuestions(cfg.quickQuestions);
+          }
+
+          // Cập nhật lại tin nhắn chào mừng nếu cuộc hội thoại mới chỉ có 1 tin nhắn chào mặc định
+          setMessages((prev) => {
+            if (prev.length === 1 && prev[0].role === "assistant" && prev[0].id.startsWith("bot-welcome-")) {
+              return [
+                {
+                  ...prev[0],
+                  content:
+                    cfg.welcomeMessage ||
+                    `Xin chào Ba Mẹ! Em là ${currentBotName}. Em có thể giúp Ba Mẹ tra cứu giá các bộ thẻ học AR, tư vấn chọn bộ thẻ theo độ tuổi của bé, hoặc hướng dẫn cách quét 3D không cần cài app nhé!`,
+                },
+              ];
+            }
+            return prev;
+          });
         }
       })
       .catch(() => {});
@@ -161,16 +206,41 @@ export function AiChatWidget() {
     }
   }, [messages, isLoading, isOpen, scrollToBottom]);
 
-  // Hiển thị lời mời trò chuyện sau 4 giây truy cập (trừ trang /order để không che khuất thao tác đặt hàng)
+  // Hiển thị lời mời trò chuyện sau 4 giây truy cập (kiểm tra khoảng cách thời gian từ lần đóng trước)
   useEffect(() => {
-    if (pathname === "/order") return;
+    if (pathname === "/order" || isOpen) return;
+
+    if (typeof window !== "undefined") {
+      try {
+        const lastDismissed = localStorage.getItem(BUBBLE_DISMISSED_AT_KEY);
+        if (lastDismissed) {
+          const elapsedMin = (Date.now() - Number(lastDismissed)) / (60 * 1000);
+          if (elapsedMin < bubbleIntervalMin) {
+            return; // Chưa hết thời gian chờ (mặc định 60 phút)
+          }
+        }
+      } catch {}
+    }
+
     const timer = setTimeout(() => {
       if (!isOpen) {
         setHasNewMessagePrompt(true);
       }
     }, 4000);
+
     return () => clearTimeout(timer);
-  }, [isOpen, pathname]);
+  }, [isOpen, pathname, bubbleIntervalMin]);
+
+  // Tự động ẩn bóng thoại sau bubbleDurationSec giây (mặc định 30 giây) và tính thời gian chờ
+  useEffect(() => {
+    if (!hasNewMessagePrompt) return;
+
+    const hideTimer = setTimeout(() => {
+      dismissPromptBubble();
+    }, (bubbleDurationSec || 30) * 1000);
+
+    return () => clearTimeout(hideTimer);
+  }, [hasNewMessagePrompt, bubbleDurationSec, dismissPromptBubble]);
 
   // Gửi tin nhắn
   const handleSendMessage = async (textToSend?: string) => {
@@ -178,7 +248,7 @@ export function AiChatWidget() {
     if (!text || isLoading) return;
 
     setInputValue("");
-    setHasNewMessagePrompt(false);
+    dismissPromptBubble();
 
     const userMsg: AiChatMessage = {
       id: `user-${Date.now()}`,
@@ -203,7 +273,7 @@ export function AiChatWidget() {
       const data = await res.json();
       const botReplyText =
         data?.message ||
-        "Dạ em là PolyCards AI. Hiện tại em đang tổng hợp thông tin, Ba Mẹ có thể xem chi tiết bảng giá tại mục Sản phẩm hoặc liên hệ hotline để được phục vụ chu đáo nhất ạ!";
+        `Dạ em là ${botName}. Hiện tại em đang tổng hợp thông tin, Ba Mẹ có thể xem chi tiết bảng giá tại mục Sản phẩm hoặc liên hệ hotline để được phục vụ chu đáo nhất ạ!`;
 
       const botMsg: AiChatMessage = {
         id: `bot-${Date.now()}`,
@@ -218,7 +288,7 @@ export function AiChatWidget() {
         id: `bot-fallback-${Date.now()}`,
         role: "assistant",
         content:
-          "Dạ em là PolyCards AI. Em luôn sẵn sàng hỗ trợ Ba Mẹ về bảng giá bộ thẻ, cách quét mã QR WebAR hoặc tư vấn độ tuổi cho bé. Ba Mẹ có câu hỏi nào cần giải đáp không ạ?",
+          `Dạ em là ${botName}. Em luôn sẵn sàng hỗ trợ Ba Mẹ về bảng giá bộ thẻ, cách quét mã QR WebAR hoặc tư vấn độ tuổi cho bé. Ba Mẹ có câu hỏi nào cần giải đáp không ạ?`,
         createdAt: Date.now(),
       };
       setMessages((prev) => [...prev, fallbackMsg]);
@@ -236,7 +306,7 @@ export function AiChatWidget() {
       id: `bot-welcome-${Date.now()}`,
       role: "assistant",
       content:
-        "Cuộc trò chuyện đã được làm mới. Em là Trợ lý AI PolyCards, Ba Mẹ cần em hỗ trợ giải đáp điều gì ạ?",
+        `Cuộc trò chuyện đã được làm mới. Em là ${botName}, Ba Mẹ cần em hỗ trợ giải đáp điều gì ạ?`,
       createdAt: Date.now(),
     };
     setMessages([resetWelcome]);
@@ -269,7 +339,7 @@ export function AiChatWidget() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-black text-stone-950">PolyCards AI</h3>
+                  <h3 className="text-sm font-black text-stone-950">{botName}</h3>
                   <span className="rounded-md bg-stone-950/15 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider text-stone-900">
                     24/7
                   </span>
@@ -336,7 +406,7 @@ export function AiChatWidget() {
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse delay-150" />
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse delay-300" />
-                  <span className="text-[11px] font-bold text-stone-500 ml-1">PolyCards AI đang trả lời...</span>
+                  <span className="text-[11px] font-bold text-stone-500 ml-1">{botName} đang trả lời...</span>
                 </div>
               </div>
             )}
@@ -392,7 +462,7 @@ export function AiChatWidget() {
 
           {/* Footer nhỏ dẫn hướng */}
           <div className="py-1 px-3 bg-stone-100/60 text-center text-[9px] text-stone-400 flex items-center justify-center gap-2">
-            <span>Powered by PolyCards AI</span>
+            <span>Powered by {botName}</span>
             <span>•</span>
             <Link href="/order" className="text-amber-700 hover:underline font-bold flex items-center gap-0.5">
               <ShoppingBag className="h-2.5 w-2.5" />
@@ -413,24 +483,25 @@ export function AiChatWidget() {
         >
           <button
             type="button"
-            onClick={() => setHasNewMessagePrompt(false)}
-            className="absolute top-1.5 right-1.5 h-5 w-5 flex items-center justify-center rounded-full text-stone-400 hover:text-stone-600"
+            onClick={dismissPromptBubble}
+            className="absolute top-1.5 right-1.5 h-5 w-5 flex items-center justify-center rounded-full text-stone-400 hover:text-stone-600 cursor-pointer"
+            aria-label="Đóng gợi ý"
           >
             <X className="h-3 w-3" />
           </button>
           <div
             onClick={() => {
               setIsOpen(true);
-              setHasNewMessagePrompt(false);
+              dismissPromptBubble();
             }}
             className="cursor-pointer space-y-1"
           >
             <p className="text-[11px] font-black text-amber-800 flex items-center gap-1">
               <Sparkles className="h-3 w-3 text-amber-500" />
-              <span>Hỏi đáp cùng PolyCards AI</span>
+              <span>Hỏi đáp cùng {botName}</span>
             </p>
             <p className="text-[11px] text-stone-600 leading-snug">
-              Ba Mẹ cần tư vấn giá combo hoặc cách quét 3D cho bé không ạ? Chạm vào đây nhé!
+              {bubbleMessage}
             </p>
           </div>
         </div>
@@ -441,14 +512,14 @@ export function AiChatWidget() {
         type="button"
         onClick={() => {
           setIsOpen((prev) => !prev);
-          setHasNewMessagePrompt(false);
+          dismissPromptBubble();
         }}
         className={`print:hidden fixed right-4 sm:right-6 z-40 flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer ring-4 ring-amber-300/40 group ${
           isOrderPage
             ? "bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-6"
             : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:bottom-6"
         }`}
-        aria-label="Mở Trợ lý AI PolyCards"
+        aria-label={`Mở Trợ lý AI ${botName}`}
       >
         <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />

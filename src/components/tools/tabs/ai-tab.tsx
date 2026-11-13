@@ -473,6 +473,75 @@ export function AiTab({ onShowToast }: AiTabProps) {
               </select>
             </div>
 
+            {/* Cấu hình Bóng thoại gợi ý Teaser */}
+            <div className="pt-2 border-t border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Bóng thoại gợi ý mở chat (Teaser):</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-stone-400 mb-1">
+                    Tự biến mất sau (giây):
+                  </label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={config.bubbleDurationSec ?? 30}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        bubbleDurationSec: Math.max(5, parseInt(e.target.value) || 30),
+                      }))
+                    }
+                    className="w-full bg-stone-950 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                  />
+                  <span className="text-[9px] text-stone-500">Mặc định: 30s</span>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-stone-400 mb-1">
+                    Xuất hiện lại sau (phút):
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={config.bubbleIntervalMin ?? 60}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        bubbleIntervalMin: Math.max(1, parseInt(e.target.value) || 60),
+                      }))
+                    }
+                    className="w-full bg-stone-950 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-hidden focus:border-amber-400"
+                  />
+                  <span className="text-[9px] text-stone-500">Mặc định: 60p (1 giờ)</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-stone-400 mb-1">
+                  Lời nhắn trên bóng thoại:
+                </label>
+                <textarea
+                  rows={2}
+                  value={
+                    config.bubbleMessage ??
+                    "Ba Mẹ cần tư vấn giá combo hoặc cách quét 3D cho bé không ạ? Chạm vào đây nhé!"
+                  }
+                  onChange={(e) =>
+                    setConfig((prev) => ({ ...prev, bubbleMessage: e.target.value }))
+                  }
+                  className="w-full bg-stone-950 border border-white/15 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-hidden focus:border-amber-400"
+                />
+              </div>
+            </div>
+
             {/* Danh sách câu hỏi nhanh */}
             <div className="space-y-2 pt-1">
               <label className="block text-[11px] font-bold text-stone-300">

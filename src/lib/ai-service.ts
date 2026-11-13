@@ -130,13 +130,13 @@ ${combosDetail}
 /**
  * Phản hồi Fallback thông minh theo từ khóa khi API của Provider bị lỗi hoặc chưa có API Key
  */
-export function generateSmartFallbackReply(userMessage: string, contextSummary: string): string {
+export function generateSmartFallbackReply(userMessage: string, contextSummary: string, botName = "PolyCards AI"): string {
   const q = userMessage.toLowerCase();
 
   // 1. Hỏi về giá, mua hàng, combo
   if (q.includes("giá") || q.includes("bao nhiêu") || q.includes("mua") || q.includes("combo") || q.includes("tiền") || q.includes("đặt hàng")) {
     return (
-      "Dạ PolyCards hiện đang có các gói ưu đãi hấp dẫn dành cho Ba Mẹ:\n\n" +
+      `Dạ ${botName} hiện đang có các gói ưu đãi hấp dẫn dành cho Ba Mẹ:\n\n` +
       "1. Siêu Combo Trọn Bộ 9-in-1 (270 Thẻ AR): 1.490.000đ (Tiết kiệm 751K, trọn bộ đầy đủ nhất).\n" +
       "2. Combo VIP 4-in-1 (120 Thẻ AR): 799.000đ (Tiết kiệm 397K, tặng hộp quà cao cấp).\n" +
       "3. Bộ Lẻ Theo Chủ Đề (30 Thẻ AR): 249.000đ / bộ (Động vật, Xe cộ, Hoa quả, Nghề nghiệp...).\n\n" +
@@ -177,7 +177,7 @@ export function generateSmartFallbackReply(userMessage: string, contextSummary: 
 
   // Phản hồi tổng quát
   return (
-    "Dạ em là PolyCards AI luôn sẵn sàng hỗ trợ Ba Mẹ! Ba Mẹ có thể hỏi em về:\n" +
+    `Dạ em là ${botName} luôn sẵn sàng hỗ trợ Ba Mẹ! Ba Mẹ có thể hỏi em về:\n` +
     "- Bảng giá và các gói Combo thẻ AR ưu đãi nhất.\n" +
     "- Cách quét thẻ AR 3D bằng điện thoại không cần cài app.\n" +
     "- Chọn chủ đề thẻ phù hợp theo lứa tuổi của bé.\n\n" +
@@ -411,14 +411,17 @@ export async function callAiModel(
   if (!activeConfig.enabled || activeConfig.provider === "fallback") {
     return {
       success: true,
-      message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+      message: generateSmartFallbackReply(userLastMessage, knowledgeContext, activeConfig.botName),
       providerUsed: "mock-data-engine",
       isFallback: true,
     };
   }
 
-  // Chuẩn bị toàn bộ System Prompt + Ngữ cảnh sản phẩm thời gian thực
-  const fullSystemInstruction = `${activeConfig.systemPrompt}\n\n${knowledgeContext}`;
+  // Chuẩn bị toàn bộ System Prompt + Tên hiển thị động + Ngữ cảnh sản phẩm thời gian thực
+  const botNameDirective = activeConfig.botName
+    ? `\nTÊN TRỢ LÝ CỦA BẠN: Tên hiển thị chính thức của bạn là "${activeConfig.botName}". Luôn tự giới thiệu và xưng hô là "${activeConfig.botName}".\n`
+    : "";
+  const fullSystemInstruction = `${activeConfig.systemPrompt}\n${botNameDirective}\n${knowledgeContext}`;
 
   // =========================================================================
   // BỘ ĐIỀU PHỐI 4 TẦNG (4-TIER FALLBACK ENGINE)
@@ -495,7 +498,7 @@ export async function callAiModel(
   console.warn("[AI Engine] Cả 3 tầng AI (Gemini, OpenRouter, Groq) đều không phản hồi. Tự động chuyển sang Tầng 4: Mock Data có sẵn.");
   return {
     success: true,
-    message: generateSmartFallbackReply(userLastMessage, knowledgeContext),
+    message: generateSmartFallbackReply(userLastMessage, knowledgeContext, activeConfig.botName),
     providerUsed: "mock-data-engine",
     isFallback: true,
   };

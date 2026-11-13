@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callAiModel } from "@/lib/ai-service";
+import { callAiModel, getAiConfig } from "@/lib/ai-service";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +31,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("[API AI Chat Error]:", err);
+    let fallbackText = "Dạ hiện đường truyền mạng đang hơi chậm một chút, Ba Mẹ có thể bấm xem trực tiếp các Bộ Thẻ AR tại trang Sản phẩm hoặc liên hệ hotline để được hỗ trợ tức thì nhé!";
+    try {
+      const cfg = await getAiConfig();
+      const botName = cfg?.botName || "PolyCards AI";
+      fallbackText = cfg?.fallbackMessage || `Dạ em là ${botName}. Hiện đường truyền mạng đang hơi chậm một chút, Ba Mẹ có thể bấm xem trực tiếp các Bộ Thẻ AR tại trang Sản phẩm hoặc liên hệ hotline để được hỗ trợ tức thì nhé!`;
+    } catch {
+      // fallback giữ nguyên
+    }
     // Luôn trả về phản hồi fallback thân thiện, không bao giờ để crash giao diện người dùng
     return NextResponse.json({
       success: true,
-      message:
-        "Dạ em là PolyCards AI. Hiện đường truyền mạng đang hơi chậm một chút, Ba Mẹ có thể bấm xem trực tiếp các Bộ Thẻ AR tại trang Sản phẩm hoặc liên hệ hotline để được hỗ trợ tức thì nhé!",
+      message: fallbackText,
       providerUsed: "fallback-safe",
       isFallback: true,
     });
