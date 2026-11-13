@@ -151,6 +151,43 @@ function parseInvoiceDate(dateStr: string): Date | null {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
+interface ParsedProductInfo {
+  countBadge?: string;
+  title: string;
+  quantity?: number;
+}
+
+// Bóc tách text sản phẩm thô dạng [1 Bộ, 30 Thẻ]: ... (x1) thành dữ liệu cấu trúc UI
+function parsePackTitle(rawText?: string): ParsedProductInfo {
+  if (!rawText) return { title: "Chưa có thông tin sản phẩm" };
+
+  // Khớp định dạng: [1 Bộ, 30 Thẻ]: Bộ 30 Thẻ AR... (x1)
+  const bracketMatch = rawText.match(/^\[([^\]]+)\]:\s*(.+)$/);
+  if (bracketMatch) {
+    const badgeRaw = bracketMatch[1]; // "1 Bộ, 30 Thẻ"
+    const rest = bracketMatch[2];
+
+    // Tách số lượng (xN) ở cuối
+    const qtyMatch = rest.match(/^(.*?)(?:\s*\(x(\d+)\))?$/);
+    const cleanTitle = (qtyMatch?.[1] || rest).trim();
+    const qty = qtyMatch?.[2] ? parseInt(qtyMatch[2], 10) : undefined;
+    const formattedBadge = badgeRaw.replace(/,\s*/g, " • "); // "1 Bộ • 30 Thẻ"
+
+    return {
+      countBadge: formattedBadge,
+      title: cleanTitle,
+      quantity: qty,
+    };
+  }
+
+  // Không có ngoặc vuông, kiểm tra (xN) ở cuối
+  const qtyMatch = rawText.match(/^(.*?)(?:\s*\(x(\d+)\))?$/);
+  return {
+    title: (qtyMatch?.[1] || rawText).trim(),
+    quantity: qtyMatch?.[2] ? parseInt(qtyMatch[2], 10) : undefined,
+  };
+}
+
 export default function InvoicesPage() {
   // Navigation: LIST | CREATE | PREVIEW
   const [activeView, setActiveView] = useState<"LIST" | "CREATE" | "PREVIEW">("LIST");
@@ -786,8 +823,13 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
     return invoices.filter((inv) => {
       // 1. Lọc theo trạng thái thanh toán & kênh bán
-      if (filterStatus === "PAID" && inv.status !== "PAID") return false;
-      if (filterStatus === "PARTIAL" && inv.status !== "PARTIAL") return false;
+      const totalAmount = inv.creditAmount || 0;
+      const paidAmount = inv.debitAmount || 0;
+      const remainAmount = Math.max(0, totalAmount - paidAmount);
+      const isPaid = inv.status === "PAID" || (remainAmount === 0 && totalAmount > 0);
+
+      if (filterStatus === "PAID" && !isPaid) return false;
+      if (filterStatus === "PARTIAL" && isPaid) return false;
       if (filterStatus === "TRUCTIEP" && inv.customerType !== "TRUCTIEP") return false;
       if (filterStatus === "ONLINE" && inv.customerType !== "ONLINE") return false;
 
@@ -872,6 +914,24 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
     const totalRemain = filteredInvoices.reduce((s, i) => s + Math.max(0, (i.creditAmount || 0) - (i.debitAmount || 0)), 0);
     return { totalCount, totalCredit, totalDebit, totalRemain };
   }, [filteredInvoices]);
+
+  // Đếm số lượng hóa đơn theo từng phân loại trạng thái
+  const statusCounts = useMemo(() => {
+    let paid = 0;
+    let partial = 0;
+    let tructiep = 0;
+    let online = 0;
+    invoices.forEach((inv) => {
+      const tot = inv.creditAmount || 0;
+      const deb = inv.debitAmount || 0;
+      const isP = inv.status === "PAID" || (deb >= tot && tot > 0);
+      if (isP) paid++;
+      else partial++;
+      if (inv.customerType === "TRUCTIEP") tructiep++;
+      else online++;
+    });
+    return { paid, partial, tructiep, online };
+  }, [invoices]);
 
   // Nhãn Doanh Thu động theo bộ lọc thời gian
   const revenueLabel = useMemo(() => {
@@ -1187,10 +1247,10 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
                 {[
                   { id: "ALL", label: `Tất cả (${invoices.length})` },
-                  { id: "PAID", label: "Đã TT" },
-                  { id: "PARTIAL", label: "Còn thiếu" },
-                  { id: "TRUCTIEP", label: "Tại quầy" },
-                  { id: "ONLINE", label: "Online" },
+                  { id: "PAID", label: `Đã TT (${statusCounts.paid})` },
+                  { id: "PARTIAL", label: `Còn thiếu (${statusCounts.partial})` },
+                  { id: "TRUCTIEP", label: `Tại quầy (${statusCounts.tructiep})` },
+                  { id: "ONLINE", label: `Online (${statusCounts.online})` },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1285,9 +1345,12 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {filteredInvoices.map((inv) => {
-                const isPaid = inv.status === "PAID" || (inv.debitAmount >= inv.creditAmount);
-                const remain = Math.max(0, (inv.creditAmount || 0) - (inv.debitAmount || 0));
+                const totalAmount = inv.creditAmount || 0;
+                const paidAmount = inv.debitAmount || 0;
+                const remain = Math.max(0, totalAmount - paidAmount);
+                const isPaid = inv.status === "PAID" || (remain === 0 && totalAmount > 0);
                 const isNewlyCreated = inv.id === newlyCreatedInvoiceId;
+                const parsedProd = parsePackTitle(inv.packTitle);
 
                 return (
                   <div
@@ -1299,56 +1362,90 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                         : "bg-stone-900/90 border border-white/10 hover:border-amber-400/50"
                     }`}
                   >
-                    {/* Badge Mới Tạo */}
-                    {isNewlyCreated && (
-                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black text-[9px] uppercase tracking-wider animate-pulse">
-                        MỚI TẠO
-                      </span>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2 pr-16">
-                        <span className="font-mono text-xs font-black text-amber-400">
-                          {highlightMatch(inv.code, searchInvoiceQuery)}
-                        </span>
-                        <span
-                          className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
-                            isPaid
-                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                              : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                          }`}
-                        >
-                          {isPaid ? "Đã Thanh Toán" : "Còn Thiếu"}
-                        </span>
-                      </div>
-
-                      {/* Khách hàng */}
+                    <div className="space-y-2.5">
+                      {/* Hàng 1: Mã hóa đơn & 2 Badge thẳng hàng ngay ngắn */}
                       <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-black text-white truncate">
-                            {highlightMatch(inv.customerName, searchInvoiceQuery)}
-                          </h4>
-                          {inv.customerPhone && (
-                            <span className="text-[11px] text-stone-400 font-mono block">
-                              {highlightMatch(inv.customerPhone, searchInvoiceQuery)}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-xs font-black text-amber-400 truncate">
+                            {highlightMatch(inv.code, searchInvoiceQuery)}
+                          </span>
+                          {isNewlyCreated && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black text-[8px] uppercase tracking-wider animate-pulse shrink-0">
+                              MỚI
                             </span>
                           )}
                         </div>
 
-                        <span
-                          className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase shrink-0 ${
-                            inv.customerType === "TRUCTIEP"
-                              ? "bg-amber-500/15 text-amber-300"
-                              : "bg-sky-500/15 text-sky-300"
-                          }`}
-                        >
-                          {inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"}
-                        </span>
+                        {/* Cụm 2 Badge nằm ngang đồng bộ, tuyệt đối không bị lệch */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase border ${
+                              inv.customerType === "TRUCTIEP"
+                                ? "bg-amber-500/10 text-amber-300 border-amber-500/25"
+                                : "bg-sky-500/10 text-sky-300 border-sky-500/25"
+                            }`}
+                          >
+                            {inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"}
+                          </span>
+
+                          <span
+                            className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
+                              isPaid
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            }`}
+                          >
+                            {isPaid ? "Đã Thanh Toán" : "Còn Thiếu"}
+                          </span>
+                        </div>
                       </div>
 
-                      <p className="text-xs text-stone-300 line-clamp-2 leading-relaxed pt-1">
-                        {inv.packTitle}
-                      </p>
+                      {/* Hàng 2: Khách hàng & SĐT */}
+                      <div className="space-y-0.5">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <h4 className="text-sm font-black text-white truncate">
+                            {highlightMatch(inv.customerName, searchInvoiceQuery)}
+                          </h4>
+                          {inv.createdAt && (
+                            <span className="text-[10px] text-stone-500 font-mono shrink-0">
+                              {inv.createdAt.split(" ")[0]}
+                            </span>
+                          )}
+                        </div>
+                        {inv.customerPhone && (
+                          <div className="flex items-center gap-1 text-[11px] text-stone-400 font-mono">
+                            <Phone className="h-3 w-3 text-stone-500 shrink-0" />
+                            <span>{highlightMatch(inv.customerPhone, searchInvoiceQuery)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Hàng 3: Khối thông tin sản phẩm trực quan UI/UX */}
+                      <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/5 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          {parsedProd.countBadge ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-400/10 text-amber-300 border border-amber-400/25">
+                              <Layers className="h-3 w-3 text-amber-400 shrink-0" />
+                              <span>{parsedProd.countBadge}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-stone-800 text-stone-300 border border-white/10">
+                              <PackageCheck className="h-3 w-3 text-stone-400 shrink-0" />
+                              <span>Hàng Hóa AR</span>
+                            </span>
+                          )}
+
+                          {parsedProd.quantity && (
+                            <span className="px-1.5 py-0.5 rounded bg-stone-800/80 border border-white/10 text-[10px] font-mono font-black text-amber-400 shrink-0">
+                              x{parsedProd.quantity}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs font-bold text-stone-200 line-clamp-2 leading-relaxed">
+                          {parsedProd.title}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Bottom: Tiền & Nút Thao Tác */}
