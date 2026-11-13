@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { SeedOrderItem } from "@/data/seed-data";
 import { OrderStatus, DeliveryMethod } from "@/types/animal";
@@ -59,6 +60,10 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     targetStatus: OrderStatus;
   } | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
+
+  // Dialog xác nhận xóa hóa đơn
+  const [deleteConfirmInvoice, setDeleteConfirmInvoice] = useState<SeedOrderItem | null>(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -159,21 +164,36 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     window.print();
   };
 
-  const handleDelete = async (inv: SeedOrderItem) => {
-    if (!confirm(`Bạn có chắc muốn xóa hóa đơn ${inv.id || inv.code} không?`)) return;
+  const handleDeleteClick = (inv: SeedOrderItem) => {
+    setDeleteConfirmInvoice(inv);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmInvoice) return;
     try {
-      const res = await fetch(`/api/orders?code=${encodeURIComponent(inv.code)}`, {
+      setIsDeletingInvoice(true);
+      const res = await fetch(`/api/orders?code=${encodeURIComponent(deleteConfirmInvoice.code)}`, {
         method: "DELETE",
       });
       if (res.ok) {
-        setInvoices((prev) => prev.filter((i) => i.id !== inv.id && i.code !== inv.code));
-        if (selectedInvoice?.id === inv.id || selectedInvoice?.code === inv.code) {
+        setInvoices((prev) =>
+          prev.filter((i) => i.id !== deleteConfirmInvoice.id && i.code !== deleteConfirmInvoice.code)
+        );
+        if (
+          selectedInvoice?.id === deleteConfirmInvoice.id ||
+          selectedInvoice?.code === deleteConfirmInvoice.code
+        ) {
           setSelectedInvoice(null);
         }
-        showToast("Đã xóa hóa đơn.");
+        showToast("Đã xóa hóa đơn thành công.");
+        setDeleteConfirmInvoice(null);
+      } else {
+        showToast("Lỗi khi xóa hóa đơn.");
       }
     } catch {
-      showToast("Lỗi khi xóa hóa đơn.");
+      showToast("Lỗi kết nối khi xóa hóa đơn.");
+    } finally {
+      setIsDeletingInvoice(false);
     }
   };
 
@@ -583,7 +603,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(inv)}
+                            onClick={() => handleDeleteClick(inv)}
                             className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-colors cursor-pointer"
                             title="Xóa hóa đơn này"
                           >
@@ -643,6 +663,81 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                 className="px-4 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-black shadow-md cursor-pointer"
               >
                 {isUpdatingStatus ? "Đang Cập Nhật..." : "Xác Nhận Đổi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG XÁC NHẬN XÓA HÓA ĐƠN */}
+      {deleteConfirmInvoice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in">
+          <div className="max-w-sm w-full bg-stone-900 border-2 border-rose-500/60 rounded-3xl p-5 text-white shadow-2xl space-y-4">
+            <div className="flex items-center gap-2.5 text-rose-400">
+              <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                <Trash2 className="h-5 w-5 shrink-0" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white">Xác Nhận Xóa Hóa Đơn</h4>
+                <p className="text-[11px] text-stone-400">Hành động này không thể hoàn tác</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-stone-950 border border-white/5 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-stone-300">
+                <span className="text-stone-400">Mã hóa đơn:</span>
+                <span className="font-mono font-bold text-amber-400">
+                  {deleteConfirmInvoice.id || deleteConfirmInvoice.code}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-stone-300">
+                <span className="text-stone-400">Khách hàng:</span>
+                <span className="font-bold text-white">
+                  {deleteConfirmInvoice.customerName}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-stone-300">
+                <span className="text-stone-400">Tổng tiền:</span>
+                <span className="font-bold text-amber-300">
+                  {formatVnd(deleteConfirmInvoice.totalPrice || deleteConfirmInvoice.creditAmount || 0)}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Bạn có chắc chắn muốn xóa vĩnh viễn hóa đơn{" "}
+              <strong className="text-rose-400 font-mono">
+                {deleteConfirmInvoice.id || deleteConfirmInvoice.code}
+              </strong>{" "}
+              khỏi hệ thống không?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmInvoice(null)}
+                disabled={isDeletingInvoice}
+                className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-stone-300 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeletingInvoice}
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isDeletingInvoice ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Đang Xóa...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Xác Nhận Xóa
+                  </>
+                )}
               </button>
             </div>
           </div>
