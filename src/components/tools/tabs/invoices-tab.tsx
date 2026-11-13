@@ -42,12 +42,49 @@ import { formatVnd } from "@/lib/pricing";
 // Phân tích ngày tháng của hóa đơn
 function parseInvoiceDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
-  const dmyMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (dmyMatch) {
-    return new Date(Number(dmyMatch[3]), Number(dmyMatch[2]) - 1, Number(dmyMatch[1]));
+  const fullMatch = dateStr.match(/(?:(\d{1,2}):(\d{1,2}):(\d{1,2})\s+)?(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (fullMatch && fullMatch[4]) {
+    const h = fullMatch[1] ? Number(fullMatch[1]) : 0;
+    const mi = fullMatch[2] ? Number(fullMatch[2]) : 0;
+    const s = fullMatch[3] ? Number(fullMatch[3]) : 0;
+    const d = Number(fullMatch[4]);
+    const m = Number(fullMatch[5]) - 1;
+    const y = Number(fullMatch[6]);
+    return new Date(y, m, d, h, mi, s);
   }
   const parsed = new Date(dateStr);
   return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// Định dạng ngày giờ chuẩn: HH:mm:ss dd/MM/yyyy
+function formatInvoiceDateTime(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const d = parseInvoiceDate(dateStr);
+  if (!d) return dateStr;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  const dd = pad(d.getDate());
+  const MM = pad(d.getMonth() + 1);
+  const yyyy = d.getFullYear();
+  return `${hh}:${mm}:${ss} ${dd}/${MM}/${yyyy}`;
+}
+
+// Tự động suy luận Mã KH nếu đơn hàng chưa có mã
+function getCustomerCode(inv: { customerId?: string; customerPhone?: string; code?: string; id?: string }): string {
+  if (inv.customerId && String(inv.customerId).trim()) {
+    return String(inv.customerId).trim();
+  }
+  const phone = String(inv.customerPhone || "").replace(/\D/g, "");
+  if (phone.length >= 4) {
+    return `KH-${phone.slice(-4)}`;
+  }
+  const cleanCode = String(inv.code || inv.id || "").replace(/\D/g, "");
+  if (cleanCode.length >= 4) {
+    return `KH-${cleanCode.slice(-4)}`;
+  }
+  return "KH-ONLINE";
 }
 
 interface InvoicesTabProps {
@@ -253,6 +290,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       "Mã Hóa Đơn",
       "Ngày Lập",
       "Khách Hàng",
+      "Mã KH",
       "Số Điện Thoại",
       "Địa Chỉ",
       "Kênh Bán",
@@ -270,6 +308,12 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       return `"${str}"`;
     };
 
+    // Định dạng Text chuẩn trong Excel CSV để không bị ######## và không bị mất số 0 đầu
+    const excelText = (val: any) => {
+      const str = String(val ?? "").replace(/"/g, '""');
+      return `="${str}"`;
+    };
+
     const rows = filteredInvoices.map((inv, idx) => {
       const itemsSummary = Array.isArray(inv.items)
         ? inv.items.map((it: any) => `${it.name} (x${it.quantity})`).join("; ")
@@ -281,10 +325,11 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
       return [
         idx + 1,
-        escapeCsv(inv.id || inv.code),
-        escapeCsv(inv.createdAt),
+        excelText(inv.id || inv.code),
+        excelText(formatInvoiceDateTime(inv.createdAt)),
         escapeCsv(inv.customerName),
-        escapeCsv(inv.customerPhone || ""),
+        excelText(getCustomerCode(inv)),
+        excelText(inv.customerPhone || ""),
         escapeCsv(inv.customerAddress || ""),
         escapeCsv(inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"),
         escapeCsv(itemsSummary),
