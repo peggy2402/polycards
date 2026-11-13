@@ -100,6 +100,32 @@ function formatPhoneNumber(phone?: string | null): string {
   return String(phone).trim();
 }
 
+// Xác định chính xác trạng thái thanh toán 3 nấc: Đã Thu Đủ / Thu Một Phần / Chưa Thu
+function getInvoicePaymentStatus(inv: {
+  status?: string;
+  creditAmount?: number;
+  totalPrice?: number;
+  subtotal?: number;
+  debitAmount?: number;
+}): "Đã Thu Đủ" | "Thu Một Phần" | "Chưa Thu" {
+  const total = inv.creditAmount || inv.totalPrice || inv.subtotal || 0;
+  const paid = inv.debitAmount || 0;
+  const remain = Math.max(0, total - paid);
+
+  // Đã thu đủ: status là PAID, hoặc đã trả đủ tiền, hoặc không còn nợ
+  if (inv.status === "PAID" || (total > 0 && paid >= total) || (total > 0 && remain === 0)) {
+    return "Đã Thu Đủ";
+  }
+
+  // Thu một phần: Đã trả được một khoản > 0 nhưng vẫn còn thiếu
+  if (paid > 0 && paid < total) {
+    return "Thu Một Phần";
+  }
+
+  // Chưa thu: Chưa thanh toán đồng nào (paid <= 0)
+  return "Chưa Thu";
+}
+
 interface InvoicesTabProps {
   onNavigateToPOS?: () => void;
 }
@@ -301,7 +327,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     const headers = [
       "STT",
       "Mã Hóa Đơn",
-      "Ngày Lập",
+      "Ngày Giờ Lập (HH:mm:ss dd/MM/yyyy)",
       "Khách Hàng",
       "Mã KH",
       "Số Điện Thoại",
@@ -334,7 +360,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       return [
         idx + 1,
         escapeCsv(invoiceCode),
-        escapeCsv(formatInvoiceDateTime(inv.createdAt)),
+        escapeCsv(" " + formatInvoiceDateTime(inv.createdAt)),
         escapeCsv(inv.customerName),
         escapeCsv(getCustomerCode(inv)),
         escapeCsv(formatPhoneNumber(inv.customerPhone)),
@@ -344,13 +370,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
         totalVal,
         debitVal,
         remainVal,
-        escapeCsv(
-          inv.orderStatus === "DA_NHAN"
-            ? "Đã Nhận"
-            : inv.orderStatus === "DA_HUY"
-            ? "Đã Hủy"
-            : "Chờ Duyệt"
-        ),
+        escapeCsv(getInvoicePaymentStatus(inv)),
         escapeCsv(inv.deliveryMethod || "TRUC_TIEP"),
         escapeCsv(inv.note || ""),
       ].join(",");

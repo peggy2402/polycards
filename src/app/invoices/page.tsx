@@ -204,6 +204,32 @@ function formatPhoneNumber(phone?: string | null): string {
   return String(phone).trim();
 }
 
+// Xác định chính xác trạng thái thanh toán 3 nấc: Đã Thu Đủ / Thu Một Phần / Chưa Thu
+function getInvoicePaymentStatus(inv: {
+  status?: string;
+  creditAmount?: number;
+  totalPrice?: number;
+  subtotal?: number;
+  debitAmount?: number;
+}): "Đã Thu Đủ" | "Thu Một Phần" | "Chưa Thu" {
+  const total = inv.creditAmount || inv.totalPrice || inv.subtotal || 0;
+  const paid = inv.debitAmount || 0;
+  const remain = Math.max(0, total - paid);
+
+  // Đã thu đủ: status là PAID, hoặc đã trả đủ tiền, hoặc không còn nợ
+  if (inv.status === "PAID" || (total > 0 && paid >= total) || (total > 0 && remain === 0)) {
+    return "Đã Thu Đủ";
+  }
+
+  // Thu một phần: Đã trả được một khoản > 0 nhưng vẫn còn thiếu
+  if (paid > 0 && paid < total) {
+    return "Thu Một Phần";
+  }
+
+  // Chưa thu: Chưa thanh toán đồng nào (paid <= 0)
+  return "Chưa Thu";
+}
+
 interface ParsedProductInfo {
   countBadge?: string;
   title: string;
@@ -1037,7 +1063,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
     const headers = [
       "STT",
       "Mã Hóa Đơn",
-      "Ngày Lập",
+      "Ngày Giờ Lập (HH:mm:ss dd/MM/yyyy)",
       "Khách Hàng",
       "Mã KH",
       "Số Điện Thoại",
@@ -1069,7 +1095,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       return [
         idx + 1,
         escapeCsv(invoiceCode),
-        escapeCsv(formatInvoiceDateTime(inv.createdAt)),
+        escapeCsv(" " + formatInvoiceDateTime(inv.createdAt)),
         escapeCsv(inv.customerName),
         escapeCsv(getCustomerCode(inv)),
         escapeCsv(formatPhoneNumber(inv.customerPhone)),
@@ -1081,7 +1107,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
         inv.creditAmount,
         inv.debitAmount,
         Math.max(0, (inv.creditAmount || 0) - (inv.debitAmount || 0)),
-        escapeCsv(inv.status === "PAID" ? "Đã Thu Đủ" : "Thu Một Phần"),
+        escapeCsv(getInvoicePaymentStatus(inv)),
         escapeCsv(inv.paymentMethod === "TIEN_MAT" ? "Tiền Mặt" : "Chuyển Khoản"),
         escapeCsv(inv.note || ""),
       ].join(",");
@@ -1481,12 +1507,14 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
                             <span
                               className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
-                                isPaid
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                  : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                getInvoicePaymentStatus(inv) === "Đã Thu Đủ"
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                  : getInvoicePaymentStatus(inv) === "Thu Một Phần"
+                                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                  : "bg-rose-500/20 text-rose-300 border-rose-500/30"
                               }`}
                             >
-                              {isPaid ? "Đã Thanh Toán" : "Còn Thiếu"}
+                              {getInvoicePaymentStatus(inv)}
                             </span>
                           </div>
                         </div>
@@ -1643,12 +1671,14 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                           </span>
                           <span
                             className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
-                              isPaid
+                              getInvoicePaymentStatus(inv) === "Đã Thu Đủ"
                                 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                : getInvoicePaymentStatus(inv) === "Thu Một Phần"
+                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                                 : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
                             }`}
                           >
-                            {isPaid ? "Đã Thanh Toán" : "Còn Thiếu"}
+                            {getInvoicePaymentStatus(inv)}
                           </span>
                           {inv.createdAt && (
                             <span className="text-[10px] text-stone-500 font-mono">
