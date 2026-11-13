@@ -30,11 +30,23 @@ import {
   XCircle,
   AlertTriangle,
   Loader2,
+  FileSpreadsheet,
 } from "lucide-react";
 import { SeedOrderItem } from "@/data/seed-data";
 import { OrderStatus, DeliveryMethod } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { formatVnd } from "@/lib/pricing";
+
+// Phân tích ngày tháng của hóa đơn
+function parseInvoiceDate(dateStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  const dmyMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmyMatch) {
+    return new Date(Number(dmyMatch[3]), Number(dmyMatch[2]) - 1, Number(dmyMatch[1]));
+  }
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
 
 interface InvoicesTabProps {
   onNavigateToPOS?: () => void;
@@ -48,6 +60,13 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
   const [filterPayment, setFilterPayment] = useState<"ALL" | "TIEN_MAT" | "CHUYEN_KHOAN">("ALL");
   const [filterStatus, setFilterStatus] = useState<"ALL" | OrderStatus>("ALL");
   const [filterDelivery, setFilterDelivery] = useState<"ALL" | DeliveryMethod>("ALL");
+
+  // Bộ lọc thời gian
+  const [timeFilter, setTimeFilter] = useState<
+    "ALL" | "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "LAST_QUARTER" | "THIS_YEAR" | "LAST_YEAR" | "CUSTOM"
+  >("ALL");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
   // Hóa đơn đang chọn để xem / in
   const [selectedInvoice, setSelectedInvoice] = useState<SeedOrderItem | null>(null);
@@ -77,7 +96,13 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setInvoices(json.data);
+          // Sắp xếp phiếu mới nhất lên đầu danh sách
+          const sorted = [...json.data].sort((a, b) => {
+            const tA = parseInvoiceDate(a.createdAt)?.getTime() || 0;
+            const tB = parseInvoiceDate(b.createdAt)?.getTime() || 0;
+            return tB - tA;
+          });
+          setInvoices(sorted);
         }
       }
     } catch (e) {
@@ -91,9 +116,51 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     loadInvoices();
   }, []);
 
-  // Lọc hóa đơn
+  // Lọc hóa đơn theo thời gian, từ khóa tìm kiếm và các tiêu chí
   const filteredInvoices = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0 - 11
+    const currentQuarter = Math.floor(currentMonth / 3);
+
     return invoices.filter((inv) => {
+      // 1. Lọc theo thời gian
+      const invDate = parseInvoiceDate(inv.createdAt);
+      if (invDate && timeFilter !== "ALL") {
+        const y = invDate.getFullYear();
+        const m = invDate.getMonth();
+        const q = Math.floor(m / 3);
+
+        if (timeFilter === "THIS_MONTH" && (y !== currentYear || m !== currentMonth)) return false;
+        if (timeFilter === "LAST_MONTH") {
+          const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          if (y !== prevYear || m !== prevMonth) return false;
+        }
+        if (timeFilter === "THIS_QUARTER" && (y !== currentYear || q !== currentQuarter)) return false;
+        if (timeFilter === "LAST_QUARTER") {
+          const prevQ = currentQuarter === 0 ? 3 : currentQuarter - 1;
+          const prevQYear = currentQuarter === 0 ? currentYear - 1 : currentYear;
+          if (y !== prevQYear || q !== prevQ) return false;
+        }
+        if (timeFilter === "THIS_YEAR" && y !== currentYear) return false;
+        if (timeFilter === "LAST_YEAR" && y !== currentYear - 1) return false;
+
+        if (timeFilter === "CUSTOM") {
+          if (customStartDate) {
+            const start = new Date(customStartDate);
+            start.setHours(0, 0, 0, 0);
+            if (invDate < start) return false;
+          }
+          if (customEndDate) {
+            const end = new Date(customEndDate);
+            end.setHours(23, 59, 59, 999);
+            if (invDate > end) return false;
+          }
+        }
+      }
+
+      // 2. Tìm kiếm từ khóa
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -114,15 +181,42 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
       return matchesSearch && matchesType && matchesPayment && matchesStatus && matchesDelivery;
     });
-  }, [invoices, searchQuery, filterType, filterPayment, filterStatus, filterDelivery]);
+  }, [invoices, searchQuery, filterType, filterPayment, filterStatus, filterDelivery, timeFilter, customStartDate, customEndDate]);
 
-  // Thống kê doanh thu & hóa đơn
+  // Nhãn Doanh Thu động theo bộ lọc thời gian
+  const revenueLabel = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1 - 12
+    const currentYear = now.getFullYear();
+
+    switch (timeFilter) {
+      case "THIS_MONTH":
+        return `Doanh thu T${currentMonth}`;
+      case "LAST_MONTH": {
+        const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+        return `Doanh thu T${prevMonth}`;
+      }
+      case "THIS_QUARTER":
+      case "LAST_QUARTER":
+      case "CUSTOM":
+        return "Doanh thu";
+      case "THIS_YEAR":
+        return `Doanh thu ${currentYear}`;
+      case "LAST_YEAR":
+        return `Doanh thu ${currentYear - 1}`;
+      case "ALL":
+      default:
+        return "Doanh thu";
+    }
+  }, [timeFilter]);
+
+  // Thống kê doanh thu & hóa đơn theo danh sách đang lọc
   const stats = useMemo(() => {
     let directCount = 0;
     let onlineCount = 0;
     let pendingCount = 0;
     let totalRevenue = 0;
-    invoices.forEach((i) => {
+    filteredInvoices.forEach((i) => {
       if (i.customerType === "TRUCTIEP") directCount++;
       else onlineCount++;
 
@@ -134,13 +228,90 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       }
     });
     return {
-      total: invoices.length,
+      total: filteredInvoices.length,
       directCount,
       onlineCount,
       pendingCount,
       totalRevenue,
     };
-  }, [invoices]);
+  }, [filteredInvoices]);
+
+  // Xuất danh sách hóa đơn đang lọc ra file Excel (CSV UTF-8 BOM)
+  const handleExportExcel = () => {
+    if (filteredInvoices.length === 0) {
+      showToast("Không có hóa đơn nào trong danh sách để xuất.");
+      return;
+    }
+
+    const headers = [
+      "STT",
+      "Mã Hóa Đơn",
+      "Ngày Lập",
+      "Khách Hàng",
+      "Số Điện Thoại",
+      "Địa Chỉ",
+      "Kênh Bán",
+      "Sản Phẩm Mua",
+      "Tổng Tiền (VNĐ)",
+      "Đã Thanh Toán (VNĐ)",
+      "Còn Thiếu (VNĐ)",
+      "Trạng Thái",
+      "Hình Thức Giao Nhận",
+      "Ghi Chú",
+    ];
+
+    const escapeCsv = (val: any) => {
+      const str = String(val ?? "").replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = filteredInvoices.map((inv, idx) => {
+      const itemsSummary = Array.isArray(inv.items)
+        ? inv.items.map((it: any) => `${it.name} (x${it.quantity})`).join("; ")
+        : inv.packTitle || "";
+
+      const totalVal = inv.creditAmount || inv.totalPrice || 0;
+      const debitVal = inv.debitAmount || (inv.status === "PAID" ? totalVal : 0);
+      const remainVal = Math.max(0, totalVal - debitVal);
+
+      return [
+        idx + 1,
+        escapeCsv(inv.id || inv.code),
+        escapeCsv(inv.createdAt),
+        escapeCsv(inv.customerName),
+        escapeCsv(inv.customerPhone || ""),
+        escapeCsv(inv.customerAddress || ""),
+        escapeCsv(inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"),
+        escapeCsv(itemsSummary),
+        totalVal,
+        debitVal,
+        remainVal,
+        escapeCsv(
+          inv.orderStatus === "DA_NHAN"
+            ? "Đã Nhận"
+            : inv.orderStatus === "DA_HUY"
+            ? "Đã Hủy"
+            : "Chờ Duyệt"
+        ),
+        escapeCsv(inv.deliveryMethod || "TRUC_TIEP"),
+        escapeCsv(inv.note || ""),
+      ].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    link.href = url;
+    link.download = `Danh_Sach_Hoa_Don_PolyCards_${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast(`Đã xuất thành công ${filteredInvoices.length} hóa đơn ra file Excel!`);
+  };
 
   // Tạo QR khi xem hóa đơn
   useEffect(() => {
@@ -320,6 +491,16 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
           <button
             type="button"
+            onClick={handleExportExcel}
+            className="min-h-[44px] py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-500/40 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
+            title="Xuất danh sách hóa đơn đang lọc ra file Excel/CSV"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Xuất Excel</span>
+          </button>
+
+          <button
+            type="button"
             onClick={loadInvoices}
             className="min-h-[44px] py-2.5 px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 transition-all cursor-pointer"
             title="Đồng bộ lại danh sách"
@@ -352,7 +533,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
         </div>
 
         <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-400/30 space-y-1">
-          <span className="text-[11px] font-bold text-amber-300 block">Doanh Thu Thu Được</span>
+          <span className="text-[11px] font-bold text-amber-300 block">{revenueLabel}</span>
           <div className="flex items-baseline justify-between">
             <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
               {formatVndCurrency(stats.totalRevenue)}
@@ -458,6 +639,65 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
               <option value="CPN_COD">Gửi CPN COD</option>
             </select>
           </div>
+        </div>
+
+        {/* BỘ LỌC THỜI GIAN THEO YÊU CẦU */}
+        <div className="p-3 rounded-2xl bg-stone-900/60 border border-white/10 space-y-2.5">
+          <div className="flex items-center gap-2 text-xs font-bold text-stone-300">
+            <Clock className="h-3.5 w-3.5 text-amber-400" />
+            <span>Bộ Lọc Thời Gian:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            {[
+              { id: "ALL", label: "Tất cả" },
+              { id: "THIS_MONTH", label: "Tháng này" },
+              { id: "LAST_MONTH", label: "Tháng trước" },
+              { id: "THIS_QUARTER", label: "Quý này" },
+              { id: "LAST_QUARTER", label: "Quý trước" },
+              { id: "THIS_YEAR", label: "Năm này" },
+              { id: "LAST_YEAR", label: "Năm trước" },
+              { id: "CUSTOM", label: "Khoảng thời gian" },
+            ].map((tf) => (
+              <button
+                key={tf.id}
+                type="button"
+                onClick={() => setTimeFilter(tf.id as typeof timeFilter)}
+                className={`py-1 px-2.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  timeFilter === tf.id
+                    ? "bg-amber-500 text-stone-950 font-black shadow-xs"
+                    : "bg-stone-900/90 text-stone-400 border border-white/10 hover:text-white"
+                }`}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tùy chọn Khoảng thời gian (Từ ngày -> Đến ngày) */}
+          {timeFilter === "CUSTOM" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2 bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-xs">
+                <span className="text-stone-400 shrink-0 font-bold">Từ ngày:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-transparent text-white font-mono focus:outline-hidden w-full cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-xs">
+                <span className="text-stone-400 shrink-0 font-bold">Đến ngày:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-transparent text-white font-mono focus:outline-hidden w-full cursor-pointer"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
