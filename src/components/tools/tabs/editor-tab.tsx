@@ -229,7 +229,7 @@ export function EditorTab({
               </div>
             </div>
             <Link
-              href="/invoices"
+              href="/invoices?fromTab=editor"
               className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1 transition-all shadow-md active:scale-95 shrink-0"
             >
               <span>Mở POS</span>

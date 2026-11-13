@@ -33,6 +33,8 @@ import {
   Trash2,
   Minus,
   ArrowLeft,
+  LayoutGrid,
+  List,
   ArrowRight,
   Eye,
   FileText,
@@ -192,6 +194,20 @@ export default function InvoicesPage() {
   // Navigation: LIST | CREATE | PREVIEW
   const [activeView, setActiveView] = useState<"LIST" | "CREATE" | "PREVIEW">("LIST");
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
+
+  // Tab nguồn điều hướng từ trang /tools sang
+  const [fromTab, setFromTab] = useState<string>("invoices");
+
+  // Chế độ xem: Dạng Lưới Thẻ (Grid) hoặc Dạng Danh Sách (List)
+  const [displayMode, setDisplayMode] = useState<"grid" | "list">("grid");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("fromTab") || params.get("tab") || params.get("from");
+      if (tab) setFromTab(tab);
+    }
+  }, []);
 
   // Invoices Data
   const [invoices, setInvoices] = useState<SaleInvoice[]>([]);
@@ -1041,7 +1057,11 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       <header className="border-b border-amber-500/20 bg-stone-900/80 backdrop-blur-md sticky top-0 z-40 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 group transition-transform active:scale-95">
+            <Link
+              href={`/tools?tab=${fromTab || "invoices"}`}
+              className="flex items-center gap-2 group transition-transform active:scale-95"
+              title="Quay lại Poly Cards Studio"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/icons/logo.png"
@@ -1060,8 +1080,15 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
             <span className="h-5 w-px bg-white/10 hidden sm:block" />
 
-            <div className="hidden sm:block">
-              <h1 className="text-xs font-black uppercase text-amber-300">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/tools?tab=${fromTab || "invoices"}`}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-amber-400 hover:text-stone-950 text-stone-300 border border-white/10 transition-colors flex items-center justify-center shrink-0"
+                title={`Quay về tab ${fromTab || "invoices"}`}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+              <h1 className="text-xs font-black uppercase text-amber-300 truncate">
                 {activeView === "LIST" && "Phân Hệ Hóa Đơn Bán Hàng (POS)"}
                 {activeView === "CREATE" && (editingInvoiceId ? "Chỉnh Sửa Hóa Đơn Bán Hàng" : "Lập Phiếu Hóa Đơn Bán Hàng")}
                 {activeView === "PREVIEW" && "Form Mẫu In Hóa Đơn"}
@@ -1119,10 +1146,19 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
         <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-5 animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div>
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-amber-400" />
-                <span>Phân Hệ Hóa Đơn Bán Hàng (POS)</span>
-              </h2>
+              <div className="flex items-center gap-2.5">
+                <Link
+                  href={`/tools?tab=${fromTab || "invoices"}`}
+                  className="p-2 rounded-xl bg-stone-900 hover:bg-amber-400 hover:text-stone-950 text-stone-300 border border-white/10 transition-all active:scale-95 shadow-sm shrink-0 flex items-center justify-center"
+                  title={`Quay lại tab ${fromTab || "invoices"}`}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-amber-400" />
+                  <span>Phân Hệ Hóa Đơn Bán Hàng (POS)</span>
+                </h2>
+              </div>
               <p className="text-xs text-stone-400 mt-1">
                 Quản lý toàn bộ hóa đơn bán hàng trực tiếp tại quầy &amp; online, in phiếu xuất kho chuẩn bán lẻ
               </p>
@@ -1243,28 +1279,58 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                 )}
               </div>
 
-              {/* Lọc Trạng Thái */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
-                {[
-                  { id: "ALL", label: `Tất cả (${invoices.length})` },
-                  { id: "PAID", label: `Đã TT (${statusCounts.paid})` },
-                  { id: "PARTIAL", label: `Còn thiếu (${statusCounts.partial})` },
-                  { id: "TRUCTIEP", label: `Tại quầy (${statusCounts.tructiep})` },
-                  { id: "ONLINE", label: `Online (${statusCounts.online})` },
-                ].map((tab) => (
+              {/* Lọc Trạng Thái & Chuyển Layout Grid / List */}
+              <div className="flex items-center gap-2 justify-between flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                  {[
+                    { id: "ALL", label: `Tất cả (${invoices.length})` },
+                    { id: "PAID", label: `Đã TT (${statusCounts.paid})` },
+                    { id: "PARTIAL", label: `Còn thiếu (${statusCounts.partial})` },
+                    { id: "TRUCTIEP", label: `Tại quầy (${statusCounts.tructiep})` },
+                    { id: "ONLINE", label: `Online (${statusCounts.online})` },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setFilterStatus(tab.id as typeof filterStatus)}
+                      className={`py-1.5 px-3 rounded-xl font-bold shrink-0 transition-all ${
+                        filterStatus === tab.id
+                          ? "bg-amber-400 text-stone-950 font-black shadow-sm"
+                          : "bg-stone-900 text-stone-300 border border-white/10 hover:bg-stone-800"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Chế độ xem: Thẻ Lưới (Grid) / Danh Sách (List) */}
+                <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/10 shrink-0 self-end sm:self-auto">
                   <button
-                    key={tab.id}
                     type="button"
-                    onClick={() => setFilterStatus(tab.id as typeof filterStatus)}
-                    className={`py-1.5 px-3 rounded-xl font-bold shrink-0 transition-all ${
-                      filterStatus === tab.id
-                        ? "bg-amber-400 text-stone-950 font-black shadow-sm"
-                        : "bg-stone-900 text-stone-300 border border-white/10 hover:bg-stone-800"
+                    onClick={() => setDisplayMode("grid")}
+                    className={`p-1.5 rounded-lg transition-all ${
+                      displayMode === "grid"
+                        ? "bg-amber-400 text-stone-950 shadow-xs"
+                        : "text-stone-400 hover:text-white"
                     }`}
+                    title="Hiển thị dạng thẻ lưới (Grid)"
                   >
-                    {tab.label}
+                    <LayoutGrid className="h-4 w-4" />
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("list")}
+                    className={`p-1.5 rounded-lg transition-all ${
+                      displayMode === "list"
+                        ? "bg-amber-400 text-stone-950 shadow-xs"
+                        : "text-stone-400 hover:text-white"
+                    }`}
+                    title="Hiển thị dạng danh sách (List)"
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1343,41 +1409,205 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {filteredInvoices.map((inv) => {
-                const totalAmount = inv.creditAmount || 0;
-                const paidAmount = inv.debitAmount || 0;
-                const remain = Math.max(0, totalAmount - paidAmount);
-                const isPaid = inv.status === "PAID" || (remain === 0 && totalAmount > 0);
-                const isNewlyCreated = inv.id === newlyCreatedInvoiceId;
-                const parsedProd = parsePackTitle(inv.packTitle);
+            displayMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {filteredInvoices.map((inv) => {
+                  const totalAmount = inv.creditAmount || 0;
+                  const paidAmount = inv.debitAmount || 0;
+                  const remain = Math.max(0, totalAmount - paidAmount);
+                  const isPaid = inv.status === "PAID" || (remain === 0 && totalAmount > 0);
+                  const isNewlyCreated = inv.id === newlyCreatedInvoiceId;
+                  const parsedProd = parsePackTitle(inv.packTitle);
 
-                return (
-                  <div
-                    key={inv.id || inv.code}
-                    onClick={() => handleViewInvoice(inv)}
-                    className={`cursor-pointer p-4 rounded-2xl transition-all space-y-3 shadow-lg flex flex-col justify-between group relative overflow-hidden ${
-                      isNewlyCreated
-                        ? "bg-amber-500/15 border-2 border-amber-400 shadow-xl shadow-amber-500/25 ring-2 ring-amber-400/50"
-                        : "bg-stone-900/90 border border-white/10 hover:border-amber-400/50"
-                    }`}
-                  >
-                    <div className="space-y-2.5">
-                      {/* Hàng 1: Mã hóa đơn & 2 Badge thẳng hàng ngay ngắn */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="font-mono text-xs font-black text-amber-400 truncate">
-                            {highlightMatch(inv.code, searchInvoiceQuery)}
-                          </span>
-                          {isNewlyCreated && (
-                            <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black text-[8px] uppercase tracking-wider animate-pulse shrink-0">
-                              MỚI
+                  return (
+                    <div
+                      key={inv.id || inv.code}
+                      onClick={() => handleViewInvoice(inv)}
+                      className={`cursor-pointer p-4 rounded-2xl transition-all space-y-3 shadow-lg flex flex-col justify-between group relative overflow-hidden ${
+                        isNewlyCreated
+                          ? "bg-amber-500/15 border-2 border-amber-400 shadow-xl shadow-amber-500/25 ring-2 ring-amber-400/50"
+                          : "bg-stone-900/90 border border-white/10 hover:border-amber-400/50"
+                      }`}
+                    >
+                      <div className="space-y-2.5">
+                        {/* Hàng 1: Mã hóa đơn & 2 Badge thẳng hàng ngay ngắn */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono text-xs font-black text-amber-400 truncate">
+                              {highlightMatch(inv.code, searchInvoiceQuery)}
                             </span>
+                            {isNewlyCreated && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black text-[8px] uppercase tracking-wider animate-pulse shrink-0">
+                                MỚI
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Cụm 2 Badge nằm ngang đồng bộ, tuyệt đối không bị lệch */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase border ${
+                                inv.customerType === "TRUCTIEP"
+                                ? "bg-amber-500/10 text-amber-300 border-amber-500/25"
+                                : "bg-sky-500/10 text-sky-300 border-sky-500/25"
+                              }`}
+                            >
+                              {inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"}
+                            </span>
+
+                            <span
+                              className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
+                                isPaid
+                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                  : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                              }`}
+                            >
+                              {isPaid ? "Đã Thanh Toán" : "Còn Thiếu"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Hàng 2: Khách hàng & SĐT */}
+                        <div className="space-y-0.5">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <h4 className="text-sm font-black text-white truncate">
+                              {highlightMatch(inv.customerName, searchInvoiceQuery)}
+                            </h4>
+                            {inv.createdAt && (
+                              <span className="text-[10px] text-stone-500 font-mono shrink-0">
+                                {inv.createdAt.split(" ")[0]}
+                              </span>
+                            )}
+                          </div>
+                          {inv.customerPhone && (
+                            <div className="flex items-center gap-1 text-[11px] text-stone-400 font-mono">
+                              <Phone className="h-3 w-3 text-stone-500 shrink-0" />
+                              <span>{highlightMatch(inv.customerPhone, searchInvoiceQuery)}</span>
+                            </div>
                           )}
                         </div>
 
-                        {/* Cụm 2 Badge nằm ngang đồng bộ, tuyệt đối không bị lệch */}
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Hàng 3: Khối thông tin sản phẩm trực quan UI/UX */}
+                        <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/5 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            {parsedProd.countBadge ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-400/10 text-amber-300 border border-amber-400/25">
+                                <Layers className="h-3 w-3 text-amber-400 shrink-0" />
+                                <span>{parsedProd.countBadge}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-stone-800 text-stone-300 border border-white/10">
+                                <PackageCheck className="h-3 w-3 text-stone-400 shrink-0" />
+                                <span>Hàng Hóa AR</span>
+                              </span>
+                            )}
+
+                            {parsedProd.quantity && (
+                              <span className="px-1.5 py-0.5 rounded bg-stone-800/80 border border-white/10 text-[10px] font-mono font-black text-amber-400 shrink-0">
+                                x{parsedProd.quantity}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs font-bold text-stone-200 line-clamp-2 leading-relaxed">
+                            {parsedProd.title}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Bottom: Tiền & Nút Thao Tác */}
+                      <div className="space-y-3 pt-2 border-t border-white/10">
+                        <div className="flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-[10px] text-stone-400 block">Tổng Tiền</span>
+                            <span className="font-mono font-black text-amber-300">
+                              {formatVndCurrency(inv.creditAmount)}
+                            </span>
+                          </div>
+
+                          {remain > 0 ? (
+                            <div className="text-right">
+                              <span className="text-[10px] text-rose-400 block">Còn thiếu</span>
+                              <span className="font-mono font-black text-rose-400">
+                                {formatVndCurrency(remain)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-right">
+                              <span className="text-[10px] text-emerald-400 block">Hình thức</span>
+                              <span className="font-bold text-stone-300 text-[11px]">
+                                {inv.paymentMethod === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="grid grid-cols-3 gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => handleViewInvoice(inv)}
+                            className="py-2 px-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>Xem In</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditInvoice(inv)}
+                            className="py-2 px-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                            <span>Sửa</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyZaloMessage(inv)}
+                            className="py-2 px-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
+                          >
+                            <Copy className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Zalo</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* DẠNG DANH SÁCH (LIST CARDS DÒNG NGANG) */
+              <div className="space-y-2.5">
+                {filteredInvoices.map((inv) => {
+                  const totalAmount = inv.creditAmount || 0;
+                  const paidAmount = inv.debitAmount || 0;
+                  const remain = Math.max(0, totalAmount - paidAmount);
+                  const isPaid = inv.status === "PAID" || (remain === 0 && totalAmount > 0);
+                  const isNewlyCreated = inv.id === newlyCreatedInvoiceId;
+                  const parsedProd = parsePackTitle(inv.packTitle);
+
+                  return (
+                    <div
+                      key={inv.id || inv.code}
+                      onClick={() => handleViewInvoice(inv)}
+                      className={`cursor-pointer p-3 sm:p-4 rounded-2xl transition-all shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3 group relative overflow-hidden ${
+                        isNewlyCreated
+                          ? "bg-amber-500/15 border-2 border-amber-400 shadow-xl shadow-amber-500/25 ring-2 ring-amber-400/50"
+                          : "bg-stone-900/90 border border-white/10 hover:border-amber-400/50"
+                      }`}
+                    >
+                      {/* Cột 1: Mã HĐ + Badge + Khách hàng */}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-black text-amber-400">
+                            {highlightMatch(inv.code, searchInvoiceQuery)}
+                          </span>
+                          {isNewlyCreated && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-stone-950 font-black text-[8px] uppercase tracking-wider animate-pulse">
+                              MỚI
+                            </span>
+                          )}
                           <span
                             className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase border ${
                               inv.customerType === "TRUCTIEP"
@@ -1387,7 +1617,6 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                           >
                             {inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"}
                           </span>
-
                           <span
                             className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
                               isPaid
@@ -1397,118 +1626,97 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                           >
                             {isPaid ? "Đã Thanh Toán" : "Còn Thiếu"}
                           </span>
-                        </div>
-                      </div>
-
-                      {/* Hàng 2: Khách hàng & SĐT */}
-                      <div className="space-y-0.5">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <h4 className="text-sm font-black text-white truncate">
-                            {highlightMatch(inv.customerName, searchInvoiceQuery)}
-                          </h4>
                           {inv.createdAt && (
-                            <span className="text-[10px] text-stone-500 font-mono shrink-0">
+                            <span className="text-[10px] text-stone-500 font-mono">
                               {inv.createdAt.split(" ")[0]}
                             </span>
                           )}
                         </div>
-                        {inv.customerPhone && (
-                          <div className="flex items-center gap-1 text-[11px] text-stone-400 font-mono">
-                            <Phone className="h-3 w-3 text-stone-500 shrink-0" />
-                            <span>{highlightMatch(inv.customerPhone, searchInvoiceQuery)}</span>
-                          </div>
+
+                        <div className="flex items-center gap-2 text-xs truncate">
+                          <span className="font-black text-white truncate">
+                            {highlightMatch(inv.customerName, searchInvoiceQuery)}
+                          </span>
+                          {inv.customerPhone && (
+                            <span className="text-stone-400 font-mono text-[11px] shrink-0">
+                              • {highlightMatch(inv.customerPhone, searchInvoiceQuery)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cột 2: Widget hàng hóa */}
+                      <div className="md:w-64 shrink-0 bg-stone-950/70 border border-white/5 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-stone-200 block truncate">
+                            {parsedProd.title}
+                          </span>
+                          {parsedProd.countBadge && (
+                            <span className="text-[10px] font-bold text-amber-300 flex items-center gap-1">
+                              <Layers className="h-3 w-3 text-amber-400" />
+                              {parsedProd.countBadge}
+                            </span>
+                          )}
+                        </div>
+                        {parsedProd.quantity && (
+                          <span className="px-1.5 py-0.5 rounded bg-stone-800 border border-white/10 text-[10px] font-mono font-black text-amber-400 shrink-0">
+                            x{parsedProd.quantity}
+                          </span>
                         )}
                       </div>
 
-                      {/* Hàng 3: Khối thông tin sản phẩm trực quan UI/UX */}
-                      <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/5 space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          {parsedProd.countBadge ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-400/10 text-amber-300 border border-amber-400/25">
-                              <Layers className="h-3 w-3 text-amber-400 shrink-0" />
-                              <span>{parsedProd.countBadge}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-stone-800 text-stone-300 border border-white/10">
-                              <PackageCheck className="h-3 w-3 text-stone-400 shrink-0" />
-                              <span>Hàng Hóa AR</span>
-                            </span>
-                          )}
-
-                          {parsedProd.quantity && (
-                            <span className="px-1.5 py-0.5 rounded bg-stone-800/80 border border-white/10 text-[10px] font-mono font-black text-amber-400 shrink-0">
-                              x{parsedProd.quantity}
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs font-bold text-stone-200 line-clamp-2 leading-relaxed">
-                          {parsedProd.title}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Bottom: Tiền & Nút Thao Tác */}
-                    <div className="space-y-3 pt-2 border-t border-white/10">
-                      <div className="flex items-center justify-between text-xs">
-                        <div>
-                          <span className="text-[10px] text-stone-400 block">Tổng Tiền</span>
-                          <span className="font-mono font-black text-amber-300">
-                            {formatVndCurrency(inv.creditAmount)}
+                      {/* Cột 3: Tiền hàng & Công nợ */}
+                      <div className="flex items-center md:flex-col md:items-end justify-between md:justify-center shrink-0 min-w-[120px]">
+                        <div className="text-left md:text-right">
+                          <span className="text-[10px] text-stone-400 block leading-tight">Tổng tiền</span>
+                          <span className="font-mono font-black text-amber-300 text-sm">
+                            {formatVndCurrency(totalAmount)}
                           </span>
                         </div>
-
                         {remain > 0 ? (
                           <div className="text-right">
-                            <span className="text-[10px] text-rose-400 block">Còn thiếu</span>
-                            <span className="font-mono font-black text-rose-400">
-                              {formatVndCurrency(remain)}
+                            <span className="text-[10px] text-rose-400 block leading-tight">
+                              Còn thiếu: <strong className="font-mono">{formatVndCurrency(remain)}</strong>
                             </span>
                           </div>
                         ) : (
-                          <div className="text-right">
-                            <span className="text-[10px] text-emerald-400 block">Hình thức</span>
-                            <span className="font-bold text-stone-300 text-[11px]">
-                              {inv.paymentMethod === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản"}
-                            </span>
-                          </div>
+                          <span className="text-[10px] text-emerald-400 font-bold">Đã thu đủ</span>
                         )}
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="grid grid-cols-3 gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {/* Cột 4: Nút Action */}
+                      <div className="flex items-center gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/10" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => handleViewInvoice(inv)}
-                          className="py-2 px-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all"
+                          className="py-1.5 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           <span>Xem In</span>
                         </button>
-
                         <button
                           type="button"
                           onClick={() => handleEditInvoice(inv)}
-                          className="py-2 px-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
+                          className="py-1.5 px-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
                         >
                           <Edit className="h-3.5 w-3.5" />
                           <span>Sửa</span>
                         </button>
-
                         <button
                           type="button"
                           onClick={() => handleCopyZaloMessage(inv)}
-                          className="py-2 px-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
+                          className="py-1.5 px-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition-all"
+                          title="Sao chép tin nhắn Zalo"
                         >
                           <Copy className="h-3.5 w-3.5 text-emerald-400" />
                           <span>Zalo</span>
                         </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </main>
       )}

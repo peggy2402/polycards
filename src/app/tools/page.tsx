@@ -2771,7 +2771,7 @@ export default function ToolsPage() {
           </Link>
 
           <Link
-            href="/invoices"
+            href={`/invoices?fromTab=${activeStudioTab}`}
             className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-black text-amber-300 hover:text-stone-950 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-400 border border-amber-500/40 transition-all shadow-sm active:scale-95"
             title="Mở Module Lập Hóa Đơn Bán Hàng & POS chuyên biệt"
           >
@@ -2915,7 +2915,7 @@ export default function ToolsPage() {
             </button>
 
             <Link
-              href="/invoices"
+              href={`/invoices?fromTab=${activeStudioTab}`}
               className="py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 text-stone-300 hover:text-amber-400 hover:bg-white/5 border border-dashed border-white/15 transition-all whitespace-nowrap shrink-0"
             >
               <ExternalLink className="h-3.5 w-3.5 text-amber-400 shrink-0" />
@@ -3084,7 +3084,7 @@ export default function ToolsPage() {
           productsList={productsList}
           categoriesList={categoriesList}
           onNavigateToPOS={() => {
-            window.location.href = "/invoices";
+            window.location.href = "/invoices?fromTab=licenses";
           }}
         />
       )}
@@ -3093,7 +3093,7 @@ export default function ToolsPage() {
       {activeStudioTab === "invoices" && (
         <InvoicesTab
           onNavigateToPOS={() => {
-            window.location.href = "/invoices";
+            window.location.href = "/invoices?fromTab=invoices";
           }}
         />
       )}
@@ -3102,7 +3102,7 @@ export default function ToolsPage() {
       {activeStudioTab === "customers" && (
         <CustomersTab
           onNavigateToPOS={() => {
-            window.location.href = "/invoices";
+            window.location.href = "/invoices?fromTab=customers";
           }}
         />
       )}

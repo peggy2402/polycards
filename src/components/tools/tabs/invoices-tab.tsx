@@ -31,6 +31,8 @@ import {
   AlertTriangle,
   Loader2,
   FileSpreadsheet,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 import { SeedOrderItem } from "@/data/seed-data";
 import { OrderStatus, DeliveryMethod } from "@/types/animal";
@@ -67,6 +69,9 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
   >("ALL");
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
+
+  // Chế độ hiển thị: Dạng Bảng (Table) hoặc Dạng Thẻ (Cards)
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
 
   // Hóa đơn đang chọn để xem / in
   const [selectedInvoice, setSelectedInvoice] = useState<SeedOrderItem | null>(null);
@@ -638,6 +643,34 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
               <option value="CPN_NHTT">Gửi CPN NHTT</option>
               <option value="CPN_COD">Gửi CPN COD</option>
             </select>
+
+            {/* Toggle View Mode: Bảng (Table) / Thẻ (Cards) */}
+            <div className="flex items-center p-1 rounded-xl bg-stone-900 border border-white/10 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-amber-400 text-stone-950 shadow-xs font-black"
+                    : "text-stone-400 hover:text-white"
+                }`}
+                title="Hiển thị dạng bảng (Table)"
+              >
+                <TableIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "cards"
+                    ? "bg-amber-400 text-stone-950 shadow-xs font-black"
+                    : "text-stone-400 hover:text-white"
+                }`}
+                title="Hiển thị dạng thẻ (Cards / List)"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -712,7 +745,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
           <Receipt className="h-10 w-10 text-stone-600 mx-auto" />
           <h4 className="text-sm font-bold text-stone-300">Không tìm thấy hóa đơn nào phù hợp</h4>
         </div>
-      ) : (
+      ) : viewMode === "table" ? (
         <div className="rounded-2xl bg-stone-900/90 border border-white/10 overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -857,6 +890,130 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
               </tbody>
             </table>
           </div>
+        </div>
+      ) : (
+        /* DẠNG THẺ (CARDS / LIST) */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {filteredInvoices.map((inv) => {
+            const credit = inv.creditAmount || inv.totalPrice || 249000;
+            const debit = inv.debitAmount !== undefined ? inv.debitAmount : credit;
+            const currentStatus: OrderStatus = inv.orderStatus || (inv.status === "PAID" ? "DA_NHAN" : "CHO_DUYET");
+
+            return (
+              <div
+                key={inv.id || inv.code}
+                onClick={() => setSelectedInvoice(inv)}
+                className="cursor-pointer p-4 rounded-2xl bg-stone-900/90 border border-white/10 hover:border-amber-400/50 transition-all space-y-3 shadow-lg flex flex-col justify-between group"
+              >
+                <div className="space-y-2.5">
+                  {/* Top: Mã đơn & 2 Badge thẳng hàng */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-black text-amber-400 truncate">
+                      {inv.id || inv.code}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase border ${
+                          inv.customerType === "TRUCTIEP"
+                            ? "bg-amber-500/10 text-amber-300 border-amber-500/25"
+                            : "bg-sky-500/10 text-sky-300 border-sky-500/25"
+                        }`}
+                      >
+                        {inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"}
+                      </span>
+                      {renderStatusBadge(currentStatus)}
+                    </div>
+                  </div>
+
+                  {/* Khách hàng */}
+                  <div className="space-y-0.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <h4 className="text-sm font-black text-white truncate">
+                        {inv.customerName}
+                      </h4>
+                      {inv.createdAt && (
+                        <span className="text-[10px] text-stone-500 font-mono shrink-0">
+                          {inv.createdAt.split(" ")[0]}
+                        </span>
+                      )}
+                    </div>
+                    {inv.customerPhone && (
+                      <div className="flex items-center gap-1 text-[11px] text-stone-400 font-mono">
+                        <Phone className="h-3 w-3 text-stone-500 shrink-0" />
+                        <span>{inv.customerPhone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hàng hóa */}
+                  <div className="p-2.5 rounded-xl bg-stone-950/70 border border-white/5 space-y-1">
+                    <span className="text-xs font-bold text-stone-200 block truncate">
+                      {inv.packTitle || "Chưa có tên gói"}
+                    </span>
+                    <div className="flex items-center justify-between text-[11px] text-stone-400">
+                      <span>Giao: {renderDeliveryBadge(inv.deliveryMethod, inv.codAmount)}</span>
+                      <span>{inv.paymentMethod === "CHUYEN_KHOAN" ? "Chuyển khoản" : "Tiền mặt"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom: Tiền & Action */}
+                <div className="space-y-2.5 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] text-stone-400 block">Cần thu</span>
+                      <span className="font-mono font-black text-amber-300">
+                        {formatVndCurrency(credit)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-stone-400 block">Đã thu</span>
+                      <span className="font-mono font-black text-emerald-400">
+                        {formatVndCurrency(debit)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                    {currentStatus === "CHO_DUYET" && (
+                      <button
+                        type="button"
+                        onClick={() => setStatusConfirm({ invoice: inv, targetStatus: "DA_NHAN" })}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs transition-all cursor-pointer shadow-sm"
+                      >
+                        Duyệt
+                      </button>
+                    )}
+                    {currentStatus !== "DA_HUY" && (
+                      <button
+                        type="button"
+                        onClick={() => setStatusConfirm({ invoice: inv, targetStatus: "DA_HUY" })}
+                        className="px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-rose-500 text-stone-300 hover:text-white font-bold text-xs border border-white/10 transition-all cursor-pointer"
+                      >
+                        Hủy
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInvoice(inv)}
+                      className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>Xem Chi Tiết</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteClick(inv)}
+                      className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-colors cursor-pointer"
+                      title="Xóa hóa đơn"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
