@@ -255,116 +255,155 @@ export function EditProductModal({
             </div>
 
             {/* BỘ 3 Ô TÍNH GIÁ ĐỒNG BỘ 2 CHIỀU */}
-            <div className="col-span-1 sm:col-span-2 p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider">
-                  Bảng Tính Giá & Khuyến Mãi (Tự Động 2 Chiều)
-                </span>
-                {editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice && (
-                  <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30">
-                    Lỗi: Giá bán vượt quá Giá gốc!
-                  </span>
-                )}
-              </div>
+            {(() => {
+              const isAssignedToPack = Boolean(editProductForm.packCode && editProductForm.packCode.trim());
+              return (
+                <div className={`col-span-1 sm:col-span-2 p-3.5 rounded-2xl border space-y-2.5 transition-all ${
+                  isAssignedToPack
+                    ? "bg-purple-950/20 border-purple-500/30 shadow-inner"
+                    : "bg-white/5 border-white/10"
+                }`}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                      <span>Bảng Tính Giá & Khuyến Mãi</span>
+                      {isAssignedToPack && (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/40">
+                          Theo Mã Bộ: {editProductForm.packCode}
+                        </span>
+                      )}
+                    </span>
+                    {!isAssignedToPack && editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice && (
+                      <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/30">
+                        Lỗi: Giá bán vượt quá Giá gốc!
+                      </span>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Giá Gốc Niêm Yết (VNĐ):
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editProductForm.originalPrice || ""}
-                    onChange={(e) => {
-                      const newOrig = Number(e.target.value) || 0;
-                      const currentPct = editProductForm.originalPrice > 0
-                        ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
-                        : 0;
-                      const calculated = calculatePricing({
-                        originalPrice: newOrig,
-                        discountPercent: currentPct,
-                        sourceField: "originalPrice",
-                      });
-                      onChangeForm({
-                        originalPrice: calculated.originalPrice,
-                        price: calculated.salePrice,
-                      });
-                    }}
-                    placeholder="VD: 300000"
-                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-stone-300 font-mono focus:outline-hidden focus:border-amber-400"
-                  />
+                  {isAssignedToPack && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-xl bg-purple-500/10 border border-purple-400/30 text-[11px] text-purple-200">
+                      <PackageCheck className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-purple-300">Đã khóa tính giá lẻ: </span>
+                        <span>
+                          Thẻ này đã thuộc bộ <strong>{editProductForm.packCode}</strong>. Giá bán được quản lý tập trung theo Bộ Thẻ để đảm bảo tính đồng bộ trên Web và POS. Hãy mở tab <strong>&ldquo;Mã Bộ Thẻ&rdquo;</strong> để điều chỉnh giá chung cho toàn bộ.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                        Giá Gốc Niêm Yết (VNĐ):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        disabled={isAssignedToPack}
+                        value={editProductForm.originalPrice || ""}
+                        onChange={(e) => {
+                          const newOrig = Number(e.target.value) || 0;
+                          const currentPct = editProductForm.originalPrice > 0
+                            ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
+                            : 0;
+                          const calculated = calculatePricing({
+                            originalPrice: newOrig,
+                            discountPercent: currentPct,
+                            sourceField: "originalPrice",
+                          });
+                          onChangeForm({
+                            originalPrice: calculated.originalPrice,
+                            price: calculated.salePrice,
+                          });
+                        }}
+                        placeholder="VD: 300000"
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-hidden ${
+                          isAssignedToPack
+                            ? "bg-stone-900/80 border-white/10 text-stone-400 cursor-not-allowed"
+                            : "bg-black/70 border-white/20 text-stone-300 focus:border-amber-400"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                        % Khuyến Mãi (0 - 99%):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        disabled={isAssignedToPack}
+                        value={
+                          (() => {
+                            const pct = editProductForm.originalPrice > 0
+                              ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
+                              : 0;
+                            return pct === 0 ? "" : pct;
+                          })()
+                        }
+                        placeholder="0"
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                          const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
+                          const calculated = calculatePricing({
+                            originalPrice: editProductForm.originalPrice || editProductForm.price,
+                            discountPercent: newPct,
+                            sourceField: "discountPercent",
+                          });
+                          onChangeForm({
+                            originalPrice: calculated.originalPrice,
+                            price: calculated.salePrice,
+                          });
+                        }}
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-bold font-mono focus:outline-hidden ${
+                          isAssignedToPack
+                            ? "bg-stone-900/80 border-white/10 text-stone-400 cursor-not-allowed"
+                            : "bg-black/70 border-white/20 text-amber-400 focus:border-amber-400"
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                        Giá Bán Ưu Đãi (VNĐ):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        disabled={isAssignedToPack}
+                        value={editProductForm.price || ""}
+                        onChange={(e) => {
+                          const newSale = Number(e.target.value) || 0;
+                          const calculated = calculatePricing({
+                            originalPrice: editProductForm.originalPrice,
+                            salePrice: newSale,
+                            sourceField: "salePrice",
+                          });
+                          onChangeForm({
+                            price: newSale,
+                          });
+                        }}
+                        placeholder="VD: 249000"
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-bold font-mono focus:outline-hidden ${
+                          isAssignedToPack
+                            ? "bg-stone-900/80 border-white/10 text-emerald-500/70 cursor-not-allowed"
+                            : editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice
+                            ? "border-rose-500 text-rose-400 focus:border-rose-500 bg-black/70"
+                            : "border-white/20 text-emerald-400 focus:border-emerald-400 bg-black/70"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {!isAssignedToPack && editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice && (
+                    <p className="text-[11px] text-rose-400 font-medium">
+                      Cảnh báo: Giá bán ưu đãi ({editProductForm.price.toLocaleString("vi-VN")} ₫) không được lớn hơn Giá gốc ({editProductForm.originalPrice.toLocaleString("vi-VN")} ₫). Vui lòng điều chỉnh lại trước khi lưu.
+                    </p>
+                  )}
                 </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    % Khuyến Mãi (0 - 99%):
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={
-                      (() => {
-                        const pct = editProductForm.originalPrice > 0
-                          ? Math.max(0, Math.round(((editProductForm.originalPrice - editProductForm.price) / editProductForm.originalPrice) * 100))
-                          : 0;
-                        return pct === 0 ? "" : pct;
-                      })()
-                    }
-                    placeholder="0"
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/^0+(?=\d)/, "");
-                      const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
-                      const calculated = calculatePricing({
-                        originalPrice: editProductForm.originalPrice || editProductForm.price,
-                        discountPercent: newPct,
-                        sourceField: "discountPercent",
-                      });
-                      onChangeForm({
-                        originalPrice: calculated.originalPrice,
-                        price: calculated.salePrice,
-                      });
-                    }}
-                    className="w-full bg-black/70 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                    Giá Bán Ưu Đãi (VNĐ):
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editProductForm.price || ""}
-                    onChange={(e) => {
-                      const newSale = Number(e.target.value) || 0;
-                      const calculated = calculatePricing({
-                        originalPrice: editProductForm.originalPrice,
-                        salePrice: newSale,
-                        sourceField: "salePrice",
-                      });
-                      onChangeForm({
-                        price: newSale,
-                      });
-                    }}
-                    placeholder="VD: 249000"
-                    className={`w-full bg-black/70 border rounded-xl px-3 py-2 text-xs font-bold font-mono focus:outline-hidden ${
-                      editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice
-                        ? "border-rose-500 text-rose-400 focus:border-rose-500"
-                        : "border-white/20 text-emerald-400 focus:border-emerald-400"
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {editProductForm.originalPrice > 0 && editProductForm.price > editProductForm.originalPrice && (
-                <p className="text-[11px] text-rose-400 font-medium">
-                  Cảnh báo: Giá bán ưu đãi ({editProductForm.price.toLocaleString("vi-VN")} ₫) không được lớn hơn Giá gốc ({editProductForm.originalPrice.toLocaleString("vi-VN")} ₫). Vui lòng điều chỉnh lại trước khi lưu.
-                </p>
-              )}
-            </div>
+              );
+            })()}
           </div>
 
           {/* MÃ BỘ BẢN QUYỀN (PACK CODE - &code=) */}

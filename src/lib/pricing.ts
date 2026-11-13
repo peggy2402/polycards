@@ -12,11 +12,27 @@
 export const ROUNDING_STEP = 1;
 
 /**
+ * Làm tròn tiền VND về số nguyên đẹp, loại bỏ số lẻ vài đồng (ví dụ 299.997đ -> 300.000đ)
+ */
+export function roundToNiceVnd(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  const rounded = Math.round(amount);
+  // Nếu chỉ chênh lệch dưới 10 đồng so với bội số 1.000đ, làm tròn về hàng nghìn
+  if (rounded >= 10000) {
+    const nearThousand = Math.round(rounded / 1000) * 1000;
+    if (Math.abs(rounded - nearThousand) <= 10) {
+      return nearThousand;
+    }
+  }
+  return rounded;
+}
+
+/**
  * Làm tròn tiền theo cấu hình ROUNDING_STEP
  */
 export function roundPrice(amount: number, step = ROUNDING_STEP): number {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
-  if (step <= 1) return Math.round(amount);
+  if (step <= 1) return roundToNiceVnd(amount);
   return Math.round(amount / step) * step;
 }
 
@@ -256,7 +272,7 @@ export function computePackDynamicPricing(
       discountPercent = 0;
       price = packConfig.salePrice && packConfig.salePrice > 0 ? packConfig.salePrice : originalPrice;
     } else if (packConfig?.salePrice && packConfig.salePrice > 0) {
-      price = packConfig.salePrice;
+      price = roundToNiceVnd(packConfig.salePrice);
       discountPercent = originalPrice > price
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
         : 0;

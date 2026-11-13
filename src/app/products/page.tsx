@@ -389,10 +389,15 @@ export default function ProductsPage() {
                           </span>
                         </div>
                         {pack.originalPrice && pack.originalPrice > pack.price && (
-                          <div className="text-right">
+                          <div className="text-right flex items-center gap-1">
                             <span className="text-[10px] text-stone-400 line-through font-mono">
                               {formatVndCurrency(pack.originalPrice)}
                             </span>
+                            {pack.discountPercent > 0 && (
+                              <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-200">
+                                -{pack.discountPercent}%
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>

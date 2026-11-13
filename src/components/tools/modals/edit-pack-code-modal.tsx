@@ -76,7 +76,7 @@ export function EditPackCodeModal({
         (p) => p.packCode && p.packCode.trim().toUpperCase() === pack.code.trim().toUpperCase()
       ).length;
 
-      const initialCardsCount = pack.cardsCount || (matchedCount > 0 ? matchedCount : 30);
+      const initialCardsCount = matchedCount > 0 ? matchedCount : (pack.cardsCount || 30);
       const initialSinglePrice = pack.singleCardPrice || 10000;
       const initialIsManual = Boolean(pack.isManualPrice);
 
@@ -226,11 +226,15 @@ export function EditPackCodeModal({
         code: cleanNewCode,
       };
 
-      // Đồng bộ sang các thẻ bài trong kho nếu mã code thay đổi và người dùng chọn syncCards
-      if (syncCards && cleanNewCode !== pack.code && matchedCardsCount > 0) {
-        const matchingCards = productsList.filter(
-          (p) => p.packCode && p.packCode.trim().toUpperCase() === pack.code.trim().toUpperCase()
-        );
+      // Đồng bộ sang các thẻ bài trong kho: Cập nhật mã bộ mới (nếu đổi) và tự động đồng bộ giá thẻ lẻ
+      const matchingCards = productsList.filter(
+        (p) => p.packCode && (p.packCode.trim().toUpperCase() === pack.code.trim().toUpperCase() || p.packCode.trim().toUpperCase() === cleanNewCode)
+      );
+
+      if (matchingCards.length > 0) {
+        const countForDivision = cardsCount > 0 ? cardsCount : matchingCards.length;
+        const perCardPrice = Math.max(1000, Math.round(salePrice / countForDivision));
+        const perCardOrig = Math.max(1000, Math.round(originalPrice / countForDivision));
 
         for (const card of matchingCards) {
           try {
@@ -240,6 +244,8 @@ export function EditPackCodeModal({
               body: JSON.stringify({
                 ...card,
                 packCode: cleanNewCode,
+                price: perCardPrice,
+                originalPrice: perCardOrig,
               }),
             });
           } catch {
@@ -438,165 +444,242 @@ export function EditPackCodeModal({
           </div>
 
           {/* CẤU HÌNH GIÁ THEO THẺ LẺ */}
-          <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-1.5">
                 <Calculator className="h-4 w-4" />
-                <span>Quy Tắc Tính Giá Bộ Từ Thẻ Lẻ</span>
+                <span>Quy Tắc Tính Giá Bộ & Khuyến Mãi</span>
               </span>
 
-              {/* Toggle Tự tính vs Nhập tay */}
-              <div className="flex items-center gap-2 bg-stone-950 px-2 py-1 rounded-lg border border-white/10">
-                <span className={`text-[11px] font-bold ${!isManualPrice ? "text-amber-400" : "text-stone-400"}`}>
-                  Tự tính theo thẻ lẻ
-                </span>
-                <input
-                  type="checkbox"
-                  checked={isManualPrice}
-                  onChange={(e) => {
-                    const manual = e.target.checked;
-                    setIsManualPrice(manual);
-                    if (!manual) {
-                      const newOrig = calculatePackOriginalPrice(singleCardPrice, cardsCount);
-                      const calculated = calculatePricing({
-                        originalPrice: newOrig,
-                        discountPercent,
-                        sourceField: "originalPrice",
-                      });
-                      setOriginalPrice(calculated.originalPrice);
-                      setSalePrice(calculated.salePrice);
-                    }
+              {/* Toggle 2 chế độ trực quan */}
+              <div className="flex items-center p-1 bg-stone-950 rounded-xl border border-white/15 gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsManualPrice(false);
+                    const newOrig = calculatePackOriginalPrice(singleCardPrice, cardsCount);
+                    const calculated = calculatePricing({
+                      originalPrice: newOrig,
+                      discountPercent,
+                      sourceField: "originalPrice",
+                    });
+                    setOriginalPrice(calculated.originalPrice);
+                    setSalePrice(calculated.salePrice);
                   }}
-                  className="rounded text-amber-500 cursor-pointer"
-                />
-                <span className={`text-[11px] font-bold ${isManualPrice ? "text-amber-400" : "text-stone-400"}`}>
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    !isManualPrice
+                      ? "bg-amber-500 text-stone-950 shadow-xs"
+                      : "text-stone-400 hover:text-white"
+                  }`}
+                >
+                  Tự tính theo thẻ lẻ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsManualPrice(true)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    isManualPrice
+                      ? "bg-amber-500 text-stone-950 shadow-xs"
+                      : "text-stone-400 hover:text-white"
+                  }`}
+                >
                   Nhập tay giá bộ
-                </span>
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                  Số lượng thẻ trong bộ:
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={cardsCount}
-                  onChange={(e) => handleCardUnitChange(singleCardPrice, Number(e.target.value) || 1)}
-                  className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-hidden focus:border-amber-400"
-                />
-              </div>
+            {/* Chế độ 1: Tự tính theo thẻ lẻ */}
+            {!isManualPrice ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-stone-300">
+                        Số lượng thẻ trong bộ:
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      value={cardsCount}
+                      onChange={(e) => handleCardUnitChange(singleCardPrice, Number(e.target.value) || 1)}
+                      className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-hidden focus:border-amber-400"
+                    />
+                    <div className="mt-1 flex items-center gap-1 text-[10px]">
+                      {matchedCardsCount > 0 ? (
+                        <span className="text-emerald-400 font-medium">
+                          ✓ Đã gắn {matchedCardsCount} thẻ trong kho
+                        </span>
+                      ) : (
+                        <span className="text-stone-400">
+                          Chưa có thẻ gán mã này
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-stone-300 mb-1">
-                  Đơn giá 1 thẻ lẻ (VNĐ):
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1000"
-                  value={singleCardPrice}
-                  onChange={(e) => handleCardUnitChange(Number(e.target.value) || 0, cardsCount)}
-                  className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
-                />
-              </div>
-            </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      Đơn giá 1 thẻ lẻ (VNĐ):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={singleCardPrice}
+                      onChange={(e) => handleCardUnitChange(Number(e.target.value) || 0, cardsCount)}
+                      className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
+                    />
+                    <div className="mt-1 text-[10px] text-stone-400">
+                      Đơn giá tính cho từng thẻ
+                    </div>
+                  </div>
 
-            {/* BỘ 3 Ô TÍNH GIÁ ĐỒNG BỘ 2 CHIỀU */}
-            <div className="pt-2 border-t border-white/10 space-y-2">
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-400 mb-1">
-                    Giá Gốc Niêm Yết:
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    disabled={!isManualPrice}
-                    value={originalPrice || ""}
-                    onChange={(e) => {
-                      const newOrig = Number(e.target.value) || 0;
-                      const calculated = calculatePricing({
-                        originalPrice: newOrig,
-                        discountPercent,
-                        sourceField: "originalPrice",
-                      });
-                      setOriginalPrice(calculated.originalPrice);
-                      setSalePrice(calculated.salePrice);
-                    }}
-                    className={`w-full border rounded-xl px-2.5 py-1.5 text-xs font-mono focus:outline-hidden ${
-                      !isManualPrice
-                        ? "bg-stone-900 border-white/10 text-stone-400 cursor-not-allowed"
-                        : "bg-stone-950 border-white/20 text-white focus:border-amber-400"
-                    }`}
-                  />
-                  {!isManualPrice && (
-                    <span className="text-[9px] text-amber-400 font-medium">
-                      = {cardsCount} x {formatVnd(singleCardPrice)}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-300 mb-1">
+                      % Khuyến Mãi (0 - 99%):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="99"
+                      value={discountPercent === 0 ? "" : discountPercent}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                        const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
+                        setDiscountPercent(newPct);
+                        const calculated = calculatePricing({
+                          originalPrice,
+                          discountPercent: newPct,
+                          sourceField: "discountPercent",
+                        });
+                        setSalePrice(calculated.salePrice);
+                      }}
+                      className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
+                    />
+                    <div className="mt-1 text-[10px] text-stone-400">
+                      Mức chiết khấu khi mua cả bộ
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hộp giải thích công thức minh bạch trực quan */}
+                <div className="p-3 rounded-xl bg-stone-950/90 border border-amber-400/30 space-y-1.5 text-xs">
+                  <div className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
+                    Kết quả tự động tính cho cả bộ:
+                  </div>
+                  <div className="flex items-center justify-between text-stone-300 text-xs">
+                    <span>1. Giá Gốc Niêm Yết:</span>
+                    <span className="font-mono font-bold text-white">
+                      {cardsCount} thẻ × {formatVnd(singleCardPrice)} = <span className="text-amber-300">{formatVnd(originalPrice)}</span>
                     </span>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-400 mb-1">
-                    % Khuyến Mãi (0 - 99%):
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={discountPercent === 0 ? "" : discountPercent}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/^0+(?=\d)/, "");
-                      const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
-                      setDiscountPercent(newPct);
-                      const calculated = calculatePricing({
-                        originalPrice,
-                        discountPercent: newPct,
-                        sourceField: "discountPercent",
-                      });
-                      setSalePrice(calculated.salePrice);
-                    }}
-                    className="w-full bg-stone-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-400 mb-1">
-                    Giá Bán Ưu Đãi (VNĐ):
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={salePrice || ""}
-                    onChange={(e) => {
-                      const newSale = Number(e.target.value) || 0;
-                      setSalePrice(newSale);
-                      const calculated = calculatePricing({
-                        originalPrice,
-                        salePrice: newSale,
-                        sourceField: "salePrice",
-                      });
-                      setDiscountPercent(calculated.discountPercent);
-                    }}
-                    className={`w-full bg-stone-950 border rounded-xl px-2.5 py-1.5 text-xs font-bold font-mono focus:outline-hidden ${
-                      isPriceInvalid
-                        ? "border-rose-500 text-rose-400 focus:border-rose-500"
-                        : "border-white/20 text-emerald-400 focus:border-emerald-400"
-                    }`}
-                  />
+                  </div>
+                  <div className="flex items-center justify-between text-stone-300 text-xs">
+                    <span>2. Mức Giảm Giá ({discountPercent}%):</span>
+                    <span className="font-mono text-rose-300">
+                      -{formatVnd(Math.max(0, originalPrice - salePrice))}
+                    </span>
+                  </div>
+                  <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-xs">
+                    <span className="font-black text-emerald-400 uppercase">3. Giá Bán Ưu Đãi (Cả Bộ):</span>
+                    <span className="font-mono font-black text-sm sm:text-base text-emerald-400">
+                      {formatVnd(salePrice)}
+                    </span>
+                  </div>
                 </div>
               </div>
+            ) : (
+              /* Chế độ 2: Nhập tay giá bộ */
+              <div className="space-y-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-400/30 text-[11px] text-amber-200">
+                  <span>
+                    Chế độ nhập tay cho phép bạn đặt giá bán cố định cho trọn bộ mà không phụ thuộc vào phép nhân thẻ lẻ.
+                  </span>
+                </div>
 
-              {isPriceInvalid && (
-                <p className="text-[11px] text-rose-400 font-medium">
-                  Cảnh báo: Giá bán ưu đãi ({formatVnd(salePrice)}) không được lớn hơn Giá gốc ({formatVnd(originalPrice)}).
-                </p>
-              )}
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 mb-1">
+                      Giá Gốc Niêm Yết Bộ:
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={originalPrice || ""}
+                      onChange={(e) => {
+                        const newOrig = Number(e.target.value) || 0;
+                        const calculated = calculatePricing({
+                          originalPrice: newOrig,
+                          discountPercent,
+                          sourceField: "originalPrice",
+                        });
+                        setOriginalPrice(calculated.originalPrice);
+                        setSalePrice(calculated.salePrice);
+                      }}
+                      className="w-full bg-stone-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-hidden focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 mb-1">
+                      % Khuyến Mãi (0 - 99%):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="99"
+                      value={discountPercent === 0 ? "" : discountPercent}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                        const newPct = raw === "" ? 0 : sanitizeDiscountPercent(raw);
+                        setDiscountPercent(newPct);
+                        const calculated = calculatePricing({
+                          originalPrice,
+                          discountPercent: newPct,
+                          sourceField: "discountPercent",
+                        });
+                        setSalePrice(calculated.salePrice);
+                      }}
+                      className="w-full bg-stone-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 mb-1">
+                      Giá Bán Ưu Đãi (VNĐ):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={salePrice || ""}
+                      onChange={(e) => {
+                        const newSale = Number(e.target.value) || 0;
+                        setSalePrice(newSale);
+                        const calculated = calculatePricing({
+                          originalPrice,
+                          salePrice: newSale,
+                          sourceField: "salePrice",
+                        });
+                        setDiscountPercent(calculated.discountPercent);
+                      }}
+                      className={`w-full bg-stone-950 border rounded-xl px-2.5 py-1.5 text-xs font-bold font-mono focus:outline-hidden ${
+                        isPriceInvalid
+                          ? "border-rose-500 text-rose-400 focus:border-rose-500"
+                          : "border-white/20 text-emerald-400 focus:border-emerald-400"
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isPriceInvalid && (
+              <p className="text-[11px] text-rose-400 font-medium">
+                Cảnh báo: Giá bán ưu đãi ({formatVnd(salePrice)}) không được lớn hơn Giá gốc ({formatVnd(originalPrice)}).
+              </p>
+            )}
           </div>
 
           {/* Mô tả */}
