@@ -1107,74 +1107,44 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       {/* ========================================================
           HEADER TOP BAR: BRANDING, TITLE & VIEW ACTIONS
          ======================================================== */}
-      <header className="border-b border-amber-500/20 bg-stone-900/80 backdrop-blur-md sticky top-0 z-40 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/tools?tab=${fromTab || "invoices"}`}
-              className="flex items-center gap-2 group transition-transform active:scale-95"
-              title="Quay lại Poly Cards Studio"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/images/icons/logo.png"
-                alt="Logo"
-                className="h-9 w-9 object-contain rounded-xl"
-              />
-              <div>
-                <span className="text-sm font-black tracking-wider uppercase text-white block leading-none">
-                  Poly Cards
-                </span>
-                <span className="text-[10px] text-amber-400 font-bold tracking-widest block uppercase mt-0.5">
-                  POS &bull; Bán Hàng
-                </span>
-              </div>
-            </Link>
-
-            <span className="h-5 w-px bg-white/10 hidden sm:block" />
-
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/tools?tab=${fromTab || "invoices"}`}
-                className="p-1.5 rounded-xl bg-white/5 hover:bg-amber-400 hover:text-stone-950 text-stone-300 border border-white/10 transition-colors flex items-center justify-center shrink-0"
-                title={`Quay về tab ${fromTab || "invoices"}`}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-              <h1 className="text-xs font-black uppercase text-amber-300 truncate">
-                {activeView === "LIST" && "Phân Hệ Hóa Đơn Bán Hàng (POS)"}
-                {activeView === "CREATE" && (editingInvoiceId ? "Chỉnh Sửa Hóa Đơn Bán Hàng" : "Lập Phiếu Hóa Đơn Bán Hàng")}
-                {activeView === "PREVIEW" && "Form Mẫu In Hóa Đơn"}
-              </h1>
+      <header className="border-b border-amber-500/20 bg-stone-900/90 backdrop-blur-md sticky top-0 z-40 print:hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3">
+          <Link
+            href={`/tools?tab=${fromTab || "invoices"}`}
+            className="flex items-center gap-2 group transition-transform active:scale-95 shrink-0"
+            title="Quay lại Poly Cards Studio"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/icons/logo.png"
+              alt="Logo"
+              className="h-8 w-8 sm:h-9 sm:w-9 object-contain rounded-xl"
+            />
+            <div>
+              <span className="text-sm font-black tracking-wider uppercase text-white block leading-none">
+                Poly Cards
+              </span>
+              <span className="text-[10px] text-amber-400 font-bold tracking-widest block uppercase mt-0.5">
+                POS &bull; Bán Hàng
+              </span>
             </div>
-          </div>
+          </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {activeView === "LIST" && (
               <button
                 type="button"
                 onClick={handleStartCreate}
-                className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/25 active:scale-95 transition-all shrink-0 min-h-[38px]"
+                className="py-1.5 px-3 sm:py-2 sm:px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all shrink-0 min-h-[36px]"
               >
                 <Plus className="h-4 w-4" />
                 <span>Tạo Phiếu</span>
               </button>
             )}
 
-            {activeView !== "LIST" && (
-              <button
-                type="button"
-                onClick={() => setActiveView("LIST")}
-                className="py-1.5 px-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/10 shrink-0 min-h-[38px]"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Danh Sách</span>
-              </button>
-            )}
-
             <Link
               href="/tools?tab=licenses"
-              className="py-1.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-xs hidden md:flex items-center gap-1.5 transition-colors border border-white/10 min-h-[38px]"
+              className="py-1.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-stone-300 hover:text-white font-bold text-xs hidden md:flex items-center gap-1.5 transition-colors border border-white/10 min-h-[36px]"
             >
               <KeyRound className="h-3.5 w-3.5 text-amber-400" />
               <span>Mã Thẻ/Bộ</span>
@@ -1183,7 +1153,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
             <button
               type="button"
               onClick={loadInvoices}
-              className="py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 font-bold text-xs flex items-center gap-1 border border-white/10 transition-colors shrink-0 min-h-[38px]"
+              className="py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 font-bold text-xs flex items-center gap-1 border border-white/10 transition-colors shrink-0 min-h-[36px]"
               title="Đồng bộ hóa đơn"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
@@ -1217,24 +1187,25 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer border border-emerald-500/40"
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer border border-emerald-500/40 w-full sm:w-auto"
                 title="Xuất danh sách hóa đơn đang lọc ra file Excel/CSV"
               >
-                <FileSpreadsheet className="h-4 w-4" />
+                <FileSpreadsheet className="h-4 w-4 shrink-0" />
                 <span>Xuất Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleStartCreate}
-                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-stone-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+                className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer w-full sm:w-auto shrink-0"
               >
-                <Plus className="h-4 w-4" />
-                <span>Tạo Phiếu Hóa Đơn Mới</span>
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Tạo Phiếu Hóa Đơn Mới</span>
+                <span className="sm:hidden">Tạo Phiếu Mới</span>
               </button>
             </div>
           </div>
