@@ -191,6 +191,19 @@ function getCustomerCode(inv: { customerId?: string; customerPhone?: string; cod
   return "KH-ONLINE";
 }
 
+// Định dạng số điện thoại hiển thị đẹp mắt và tránh lỗi số/ngày trên bảng tính
+function formatPhoneNumber(phone?: string | null): string {
+  if (!phone) return "";
+  const cleaned = String(phone).trim().replace(/\D/g, "");
+  if (cleaned.length === 10) {
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+  }
+  if (cleaned.length === 11) {
+    return `${cleaned.slice(0, 5)} ${cleaned.slice(5, 8)} ${cleaned.slice(8)}`;
+  }
+  return String(phone).trim();
+}
+
 interface ParsedProductInfo {
   countBadge?: string;
   title: string;
@@ -1046,24 +1059,20 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
       return `"${str}"`;
     };
 
-    // Định dạng Text chuẩn trong Excel CSV để không bị ######## và không bị mất số 0 đầu
-    const excelText = (val: any) => {
-      const str = String(val ?? "").replace(/"/g, '""');
-      return `="${str}"`;
-    };
-
     const rows = filteredInvoices.map((inv, idx) => {
       const itemsSummary = Array.isArray(inv.items)
         ? inv.items.map((it) => `${it.name} (x${it.quantity})`).join("; ")
         : inv.packTitle || "";
 
+      const invoiceCode = (inv.code || inv.id || "").toUpperCase();
+
       return [
         idx + 1,
-        excelText(inv.code),
-        excelText(formatInvoiceDateTime(inv.createdAt)),
+        escapeCsv(invoiceCode),
+        escapeCsv(formatInvoiceDateTime(inv.createdAt)),
         escapeCsv(inv.customerName),
-        excelText(getCustomerCode(inv)),
-        excelText(inv.customerPhone || ""),
+        escapeCsv(getCustomerCode(inv)),
+        escapeCsv(formatPhoneNumber(inv.customerPhone)),
         escapeCsv(inv.customerAddress || ""),
         escapeCsv(inv.customerType === "TRUCTIEP" ? "Tại Quầy" : "Online"),
         escapeCsv(itemsSummary),
