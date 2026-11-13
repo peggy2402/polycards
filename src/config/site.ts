@@ -6,11 +6,11 @@ export const siteConfig: SiteConfig = {
   description:
     "Bộ thẻ & đồ chơi giáo dục AR thông minh dành cho trẻ từ 3 đến 8 tuổi. Quét mã QR để mở ra thế giới động vật 3D sống động kèm phát âm chuẩn bản xứ.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://polycards.vn",
-  hotline: "1900 8866 22",
+  hotline: "0356226707",
   email: "hello@polycards.vn",
-  address: "294 Lĩnh Nam, Hoàng Mai, Hà Nội",
+  address: "Số 24, Đường Thăng Long, Đông Anh, Hà Nội, Việt Nam",
   socials: {
-    facebook: "https://facebook.com/polycards.vn",
+    facebook: "https://www.facebook.com/share/1JRy4cHAVV/?mibextid=wwXIfr",
     zalo: "https://zalo.me/polycards",
     tiktok: "https://tiktok.com/@polycards",
   },

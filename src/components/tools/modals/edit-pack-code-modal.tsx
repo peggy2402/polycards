@@ -289,7 +289,7 @@ export function EditPackCodeModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form noValidate onSubmit={handleSubmit} className="space-y-3.5">
           {/* Mã Bộ Code */}
           <div className="space-y-1">
             <label className="block text-xs font-bold text-stone-300">
@@ -501,8 +501,14 @@ export function EditPackCodeModal({
                     <input
                       type="number"
                       min="1"
-                      value={cardsCount}
-                      onChange={(e) => handleCardUnitChange(singleCardPrice, Number(e.target.value) || 1)}
+                      step="any"
+                      value={cardsCount === 0 ? "" : cardsCount}
+                      placeholder="30"
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                        const val = raw === "" ? 0 : Number(raw);
+                        handleCardUnitChange(singleCardPrice, val);
+                      }}
                       className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-hidden focus:border-amber-400"
                     />
                     <div className="mt-1 flex items-center gap-1 text-[10px]">
@@ -525,9 +531,14 @@ export function EditPackCodeModal({
                     <input
                       type="number"
                       min="0"
-                      step="1000"
-                      value={singleCardPrice}
-                      onChange={(e) => handleCardUnitChange(Number(e.target.value) || 0, cardsCount)}
+                      step="any"
+                      value={singleCardPrice === 0 ? "" : singleCardPrice}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                        const val = raw === "" ? 0 : Number(raw);
+                        handleCardUnitChange(val, cardsCount);
+                      }}
                       className="w-full bg-stone-950 border border-white/20 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold font-mono focus:outline-hidden focus:border-amber-400"
                     />
                     <div className="mt-1 text-[10px] text-stone-400">
@@ -543,6 +554,7 @@ export function EditPackCodeModal({
                       type="number"
                       min="0"
                       max="99"
+                      step="any"
                       value={discountPercent === 0 ? "" : discountPercent}
                       placeholder="0"
                       onChange={(e) => {
@@ -606,9 +618,12 @@ export function EditPackCodeModal({
                     <input
                       type="number"
                       min="0"
-                      value={originalPrice || ""}
+                      step="any"
+                      value={originalPrice === 0 ? "" : originalPrice}
+                      placeholder="0"
                       onChange={(e) => {
-                        const newOrig = Number(e.target.value) || 0;
+                        const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                        const newOrig = raw === "" ? 0 : Number(raw);
                         const calculated = calculatePricing({
                           originalPrice: newOrig,
                           discountPercent,
@@ -629,6 +644,7 @@ export function EditPackCodeModal({
                       type="number"
                       min="0"
                       max="99"
+                      step="any"
                       value={discountPercent === 0 ? "" : discountPercent}
                       placeholder="0"
                       onChange={(e) => {
@@ -653,9 +669,12 @@ export function EditPackCodeModal({
                     <input
                       type="number"
                       min="0"
-                      value={salePrice || ""}
+                      step="any"
+                      value={salePrice === 0 ? "" : salePrice}
+                      placeholder="0"
                       onChange={(e) => {
-                        const newSale = Number(e.target.value) || 0;
+                        const raw = e.target.value.replace(/^0+(?=\d)/, "");
+                        const newSale = raw === "" ? 0 : Number(raw);
                         setSalePrice(newSale);
                         const calculated = calculatePricing({
                           originalPrice,

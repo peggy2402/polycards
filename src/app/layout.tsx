@@ -167,8 +167,8 @@ const jsonLdSchema = {
       "email": siteConfig.email,
       "address": {
         "@type": "PostalAddress",
-        "streetAddress": "294 Lĩnh Nam",
-        "addressLocality": "Hoàng Mai",
+        "streetAddress": "Số 24, Đường Thăng Long",
+        "addressLocality": "Đông Anh",
         "addressRegion": "Hà Nội",
         "addressCountry": "VN",
       },
