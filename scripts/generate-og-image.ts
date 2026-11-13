@@ -54,7 +54,7 @@ async function generateStaticOg() {
 
     <!-- Hero Badge -->
     <rect x="80" y="160" width="310" height="36" rx="18" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.4)"/>
-    <text x="235" y="184" font-family="-apple-system, system-ui, sans-serif" font-weight="800" font-size="13" fill="#f59e0b" text-anchor="middle" letter-spacing="0.5">KHO 270 THẺ HỌC THỰC TẾ ẢO 3D</text>
+    <text x="235" y="184" font-family="-apple-system, system-ui, sans-serif" font-weight="800" font-size="13" fill="#f59e0b" text-anchor="middle" letter-spacing="0.5">KHO 300 THẺ HỌC THỰC TẾ ẢO 3D</text>
 
     <!-- Main Title -->
     <text x="80" y="270" font-family="-apple-system, system-ui, sans-serif" font-weight="900" font-size="56" fill="url(#goldText)" letter-spacing="-1">
@@ -74,7 +74,7 @@ async function generateStaticOg() {
 
     <!-- Bottom Feature Tags -->
     <rect x="80" y="540" width="160" height="42" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)"/>
-    <text x="160" y="567" font-family="-apple-system, system-ui, sans-serif" font-weight="700" font-size="14" fill="#fef3c7" text-anchor="middle">270 Thẻ AR 3D</text>
+    <text x="160" y="567" font-family="-apple-system, system-ui, sans-serif" font-weight="700" font-size="14" fill="#fef3c7" text-anchor="middle">300 Thẻ AR 3D</text>
 
     <rect x="254" y="540" width="180" height="42" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)"/>
     <text x="344" y="567" font-family="-apple-system, system-ui, sans-serif" font-weight="700" font-size="14" fill="#fef3c7" text-anchor="middle">Không Cần Cài App</text>
