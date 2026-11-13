@@ -463,8 +463,8 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                   <th className="py-3 px-4 min-w-[170px]">Khách Hàng</th>
                   <th className="py-3 px-4 min-w-[190px]">Sản Phẩm / Gói Mua</th>
                   <th className="py-3 px-3 min-w-[130px]">Hình Thức Giao</th>
-                  <th className="py-3 px-3 min-w-[110px]">Cần Thu (Có)</th>
-                  <th className="py-3 px-3 min-w-[110px]">Đã Thu (Nợ)</th>
+                  <th className="py-3 px-3 min-w-[110px]">Cần Thu</th>
+                  <th className="py-3 px-3 min-w-[110px]">Đã Thu</th>
                   <th className="py-3 px-3 min-w-[110px]">Thanh Toán</th>
                   <th className="py-3 px-4 text-right min-w-[140px]">Thao Tác</th>
                 </tr>
