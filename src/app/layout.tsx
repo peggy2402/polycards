@@ -87,7 +87,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${SITE_URL}/og-image.png`,
+        url: `${SITE_URL}/og-image.png?v=2`,
         width: 1200,
         height: 630,
         alt: "Poly Cards - Bộ Thẻ Học AR Thực Tế Ảo 3D Song Ngữ Cho Bé",
@@ -100,7 +100,7 @@ export const metadata: Metadata = {
     title: "Poly Cards - Bộ Thẻ Học AR Thực Tế Ảo 3D Song Ngữ Cho Bé",
     description:
       "Bộ 270 thẻ học thực tế ảo WebAR 3D thông minh cho bé. Học song ngữ chuẩn bản xứ, xem mô hình 3D không cần tải app!",
-    images: [`${SITE_URL}/twitter-image.png`],
+    images: [`${SITE_URL}/twitter-image.png?v=2`],
     creator: "@polycards",
     site: "@polycards",
   },
@@ -196,7 +196,7 @@ const jsonLdSchema = {
       "@type": "Product",
       "@id": `${SITE_URL}/#product`,
       "name": "Siêu Combo Trọn Bộ 270 Thẻ Học AR Thực Tế Ảo 3D Poly Cards",
-      "image": `${SITE_URL}/og-image.png`,
+      "image": `${SITE_URL}/og-image.png?v=2`,
       "description":
         "Bộ 270 thẻ học thực tế ảo WebAR 3D đa ngữ cho bé. Quét mã QR mở ngay mô hình 3D tương tác, phát âm chuẩn bản xứ, không cần cài app.",
       "brand": {

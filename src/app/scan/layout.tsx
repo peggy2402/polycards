@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${SITE_URL}/og-image.png`,
+        url: `${SITE_URL}/og-image.png?v=2`,
         width: 1200,
         height: 630,
         alt: "Quét Mã QR WebAR Poly Cards",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Quét Mã QR WebAR - Mở Khóa Mô Hình 3D Poly Cards",
     description: "Quét mã QR thẻ bài Poly Cards mở ngay mô hình 3D trên Safari/Chrome.",
-    images: [`${SITE_URL}/twitter-image.png`],
+    images: [`${SITE_URL}/twitter-image.png?v=2`],
   },
 };
 

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${SITE_URL}/og-image.png`,
+        url: `${SITE_URL}/og-image.png?v=2`,
         width: 1200,
         height: 630,
         alt: "Đặt Mua Bộ Thẻ Poly Cards - Giao Hàng Toàn Quốc",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     title: "Đặt Mua Bộ Thẻ Poly Cards - Giao Hàng Miễn Phí Toàn Quốc",
     description:
       "Chọn mua bộ thẻ học thực tế ảo WebAR cho bé. Miễn phí vận chuyển, bản quyền trọn đời.",
-    images: [`${SITE_URL}/twitter-image.png`],
+    images: [`${SITE_URL}/twitter-image.png?v=2`],
   },
 };
 

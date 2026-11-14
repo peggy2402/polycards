@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${SITE_URL}/og-image.png`,
+        url: `${SITE_URL}/og-image.png?v=2`,
         width: 1200,
         height: 630,
         alt: "Kho 300 Thẻ Học AR Thực Tế Ảo 3D Poly Cards",
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     title: "Kho 300 Thẻ Học AR Thực Tế Ảo 3D Song Ngữ - Poly Cards",
     description:
       "Khám phá danh mục 300 thẻ bài WebAR tương tác 3D thông minh cho bé. 10 chủ đề đa dạng, phát âm chuẩn song ngữ Anh - Việt - Trung.",
-    images: [`${SITE_URL}/twitter-image.png`],
+    images: [`${SITE_URL}/twitter-image.png?v=2`],
   },
   robots: {
     index: true,
