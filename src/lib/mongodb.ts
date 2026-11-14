@@ -1,5 +1,6 @@
 import { MongoClient, Db, Document, OptionalUnlessRequiredId } from "mongodb";
 import { Animal, ProductCategory, DbComboRule, OrderStatus, DeliveryMethod } from "@/types/animal";
+import { ShippingConfig, DEFAULT_SHIPPING_CONFIG } from "@/types/shipping";
 import { CardComboPack, DEFAULT_FEATURED_COMBO } from "@/data/combos";
 import { DEFAULT_COMBO_RULES } from "@/lib/combo-engine";
 import { normalizePhoneNumber } from "@/lib/pricing";
@@ -130,6 +131,7 @@ interface InMemoryStore {
   featuredCombo: CardComboPack;
   packCodes: DbPackCodeItem[];
   combos: DbComboRule[];
+  shippingConfig: ShippingConfig;
 }
 
 interface CacheEntry<T> {
@@ -145,6 +147,7 @@ const CACHE_TTL_MS = {
   packCodes: 60_000, // 60s
   comboRules: 120_000, // 2m
   featuredCombo: 60_000, // 60s
+  shippingConfig: 60_000, // 60s
 };
 
 declare global {
@@ -160,6 +163,7 @@ declare global {
         packCodes?: CacheEntry<DbPackCodeItem[]>;
         comboRules?: CacheEntry<DbComboRule[]>;
         featuredCombo?: CacheEntry<CardComboPack>;
+        shippingConfig?: CacheEntry<ShippingConfig>;
       }
     | undefined;
 }
@@ -172,7 +176,7 @@ function getDbCache() {
 }
 
 export function invalidateDbCache(
-  key?: "orders" | "products" | "categories" | "customers" | "packCodes" | "comboRules" | "featuredCombo" | "all"
+  key?: "orders" | "products" | "categories" | "customers" | "packCodes" | "comboRules" | "featuredCombo" | "shippingConfig" | "all"
 ) {
   const cache = getDbCache();
   if (!key || key === "all") {
@@ -192,6 +196,7 @@ function getInMemoryStore(): InMemoryStore {
       featuredCombo: structuredClone(DEFAULT_FEATURED_COMBO),
       packCodes: structuredClone(INITIAL_PACK_CODES),
       combos: structuredClone(DEFAULT_COMBO_RULES),
+      shippingConfig: structuredClone(DEFAULT_SHIPPING_CONFIG),
     };
   }
   return globalThis._inMemoryStore;
@@ -717,6 +722,11 @@ export async function dbUpdateOrderStatus(orderId: string, orderStatus: OrderSta
     mem.orders[idx].orderStatus = orderStatus;
     if (orderStatus === "DA_NHAN") {
       mem.orders[idx].status = "PAID";
+      const credit = Number(mem.orders[idx].creditAmount) || Number(mem.orders[idx].totalPrice) || 0;
+      if (!mem.orders[idx].debitAmount || mem.orders[idx].debitAmount === 0) {
+        mem.orders[idx].debitAmount = credit;
+        mem.orders[idx].remainingAmount = 0;
+      }
     } else if (orderStatus === "DA_HUY") {
       mem.orders[idx].status = "CANCELLED";
     }
@@ -726,7 +736,17 @@ export async function dbUpdateOrderStatus(orderId: string, orderStatus: OrderSta
   if (db) {
     const col = db.collection<SeedOrderItem>("orders");
     const statusUpdate: Record<string, unknown> = { orderStatus };
-    if (orderStatus === "DA_NHAN") statusUpdate.status = "PAID";
+    if (orderStatus === "DA_NHAN") {
+      statusUpdate.status = "PAID";
+      const existing = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
+      if (existing) {
+        const credit = Number(existing.creditAmount) || Number(existing.totalPrice) || 0;
+        if (!existing.debitAmount || existing.debitAmount === 0) {
+          statusUpdate.debitAmount = credit;
+          statusUpdate.remainingAmount = 0;
+        }
+      }
+    }
     if (orderStatus === "DA_HUY") statusUpdate.status = "CANCELLED";
 
     await col.updateOne(
@@ -736,6 +756,61 @@ export async function dbUpdateOrderStatus(orderId: string, orderStatus: OrderSta
     const doc = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
     invalidateDbCache("orders");
     invalidateDbCache("customers");
+    if (doc) return stripMongoId(doc);
+  }
+
+  invalidateDbCache("orders");
+  invalidateDbCache("customers");
+  return idx >= 0 ? mem.orders[idx] : null;
+}
+
+export async function dbUpdateOrderPayment(
+  orderId: string,
+  debitAmount: number
+): Promise<SeedOrderItem | null> {
+  const cleanDebit = Math.max(0, Number(debitAmount) || 0);
+  const mem = getInMemoryStore();
+  const idx = mem.orders.findIndex((o) => o.id === orderId || o.code === orderId);
+
+  if (idx >= 0) {
+    const credit = Number(mem.orders[idx].creditAmount) || Number(mem.orders[idx].totalPrice) || 0;
+    mem.orders[idx].debitAmount = cleanDebit;
+    mem.orders[idx].remainingAmount = Math.max(0, credit - cleanDebit);
+    mem.orders[idx].balanceAmount = cleanDebit - credit;
+    if (cleanDebit >= credit && credit > 0) {
+      mem.orders[idx].status = "PAID";
+    } else if (cleanDebit > 0) {
+      mem.orders[idx].status = "PARTIAL";
+    } else {
+      mem.orders[idx].status = "UNPAID";
+    }
+  }
+
+  const db = await getMongoDb();
+  if (db) {
+    const col = db.collection<SeedOrderItem>("orders");
+    const existing = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
+    if (existing) {
+      const credit = Number(existing.creditAmount) || Number(existing.totalPrice) || 0;
+      const remainingAmount = Math.max(0, credit - cleanDebit);
+      const balanceAmount = cleanDebit - credit;
+      const status = cleanDebit >= credit && credit > 0 ? "PAID" : cleanDebit > 0 ? "PARTIAL" : "UNPAID";
+
+      await col.updateOne(
+        { $or: [{ id: orderId }, { code: orderId }] },
+        {
+          $set: {
+            debitAmount: cleanDebit,
+            remainingAmount,
+            balanceAmount,
+            status,
+          },
+        }
+      );
+    }
+    invalidateDbCache("orders");
+    invalidateDbCache("customers");
+    const doc = await col.findOne({ $or: [{ id: orderId }, { code: orderId }] });
     if (doc) return stripMongoId(doc);
   }
 
@@ -1142,5 +1217,82 @@ export async function dbDeletePackCode(code: string): Promise<number> {
 
   invalidateDbCache("packCodes");
   return mem.packCodes.length;
+}
+
+// ==========================================
+// QUẢN LÝ CẤU HÌNH PHÍ VẬN CHUYỂN (SHIPPING)
+// ==========================================
+
+export async function dbGetShippingConfig(): Promise<ShippingConfig> {
+  const cache = getDbCache();
+  const now = Date.now();
+  if (cache.shippingConfig && now - cache.shippingConfig.timestamp < CACHE_TTL_MS.shippingConfig) {
+    return cache.shippingConfig.data;
+  }
+
+  const db = await getMongoDb();
+  if (!db) {
+    const fallback = getInMemoryStore().shippingConfig || DEFAULT_SHIPPING_CONFIG;
+    cache.shippingConfig = { data: fallback, timestamp: now };
+    return fallback;
+  }
+
+  try {
+    const doc = await db.collection<ShippingConfig & { _id?: unknown }>("settings").findOne({ _key: "shipping_config" });
+    if (!doc) {
+      // Khởi tạo bản ghi mặc định
+      const initial: ShippingConfig & { _key: string } = {
+        _key: "shipping_config",
+        ...DEFAULT_SHIPPING_CONFIG,
+      };
+      await db.collection("settings").insertOne(initial as any);
+      cache.shippingConfig = { data: DEFAULT_SHIPPING_CONFIG, timestamp: now };
+      return DEFAULT_SHIPPING_CONFIG;
+    }
+
+    const { _id, _key, ...clean } = doc as any;
+    const finalConfig: ShippingConfig = {
+      ...DEFAULT_SHIPPING_CONFIG,
+      ...clean,
+    };
+    cache.shippingConfig = { data: finalConfig, timestamp: now };
+    return finalConfig;
+  } catch (err) {
+    console.error("[MongoDB] Lỗi dbGetShippingConfig:", err);
+    const fallback = getInMemoryStore().shippingConfig || DEFAULT_SHIPPING_CONFIG;
+    cache.shippingConfig = { data: fallback, timestamp: now };
+    return fallback;
+  }
+}
+
+export async function dbSaveShippingConfig(config: Partial<ShippingConfig>): Promise<ShippingConfig> {
+  const current = await dbGetShippingConfig();
+  const updated: ShippingConfig = {
+    ...current,
+    ...config,
+    standardFee: config.standardFee !== undefined ? Math.max(0, Number(config.standardFee) || 0) : current.standardFee,
+    minPacksCount: config.minPacksCount !== undefined ? Math.max(1, Number(config.minPacksCount) || 1) : current.minPacksCount,
+    minOrderAmount: config.minOrderAmount !== undefined ? Math.max(0, Number(config.minOrderAmount) || 0) : current.minOrderAmount,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const mem = getInMemoryStore();
+  mem.shippingConfig = updated;
+
+  const db = await getMongoDb();
+  if (db) {
+    try {
+      await db.collection("settings").updateOne(
+        { _key: "shipping_config" },
+        { $set: { ...updated, _key: "shipping_config" } },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.error("[MongoDB] Lỗi lưu shipping_config vào collection settings:", err);
+    }
+  }
+
+  invalidateDbCache("shippingConfig");
+  return updated;
 }
 

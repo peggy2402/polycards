@@ -43,6 +43,7 @@ export interface SeedOrderItem {
   status?: string;
   orderStatus?: OrderStatus;
   deliveryMethod?: DeliveryMethod;
+  shippingFee?: number;
   codAmount?: number;
   source?: "ONLINE" | "POS";
   comboName?: string;

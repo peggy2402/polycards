@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import QRCode from "qrcode";
 import {
   Receipt,
   Search,
@@ -10,6 +9,7 @@ import {
   Copy,
   Check,
   Eye,
+  Edit2,
   Trash2,
   RefreshCw,
   Plus,
@@ -42,14 +42,26 @@ import { formatVnd } from "@/lib/pricing";
 // Phân tích ngày tháng của hóa đơn
 function parseInvoiceDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
-  const fullMatch = dateStr.match(/(?:(\d{1,2}):(\d{1,2}):(\d{1,2})\s+)?(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (fullMatch && fullMatch[4]) {
-    const h = fullMatch[1] ? Number(fullMatch[1]) : 0;
-    const mi = fullMatch[2] ? Number(fullMatch[2]) : 0;
-    const s = fullMatch[3] ? Number(fullMatch[3]) : 0;
-    const d = Number(fullMatch[4]);
-    const m = Number(fullMatch[5]) - 1;
-    const y = Number(fullMatch[6]);
+  // Match định dạng: "HH:mm:ss dd/MM/yyyy" hoặc "HH:mm:ss, dd/MM/yyyy"
+  const timeFirstMatch = dateStr.match(/^(?:(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?[,\s]+)(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (timeFirstMatch) {
+    const h = Number(timeFirstMatch[1]);
+    const mi = Number(timeFirstMatch[2]);
+    const s = timeFirstMatch[3] ? Number(timeFirstMatch[3]) : 0;
+    const d = Number(timeFirstMatch[4]);
+    const m = Number(timeFirstMatch[5]) - 1;
+    const y = Number(timeFirstMatch[6]);
+    return new Date(y, m, d, h, mi, s);
+  }
+  // Match định dạng: "dd/MM/yyyy HH:mm:ss" hoặc "dd/MM/yyyy"
+  const dateFirstMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dateFirstMatch) {
+    const d = Number(dateFirstMatch[1]);
+    const m = Number(dateFirstMatch[2]) - 1;
+    const y = Number(dateFirstMatch[3]);
+    const h = dateFirstMatch[4] ? Number(dateFirstMatch[4]) : 0;
+    const mi = dateFirstMatch[5] ? Number(dateFirstMatch[5]) : 0;
+    const s = dateFirstMatch[6] ? Number(dateFirstMatch[6]) : 0;
     return new Date(y, m, d, h, mi, s);
   }
   const parsed = new Date(dateStr);
@@ -128,9 +140,10 @@ function getInvoicePaymentStatus(inv: {
 
 interface InvoicesTabProps {
   onNavigateToPOS?: () => void;
+  onEditInvoice?: (invoice: SeedOrderItem) => void;
 }
 
-export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
+export function InvoicesTab({ onNavigateToPOS, onEditInvoice }: InvoicesTabProps) {
   const [invoices, setInvoices] = useState<SeedOrderItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -138,6 +151,14 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
   const [filterPayment, setFilterPayment] = useState<"ALL" | "TIEN_MAT" | "CHUYEN_KHOAN">("ALL");
   const [filterStatus, setFilterStatus] = useState<"ALL" | OrderStatus>("ALL");
   const [filterDelivery, setFilterDelivery] = useState<"ALL" | DeliveryMethod>("ALL");
+
+  const handleEditClick = (inv: SeedOrderItem) => {
+    if (onEditInvoice) {
+      onEditInvoice(inv);
+    } else {
+      window.location.href = `/invoices?editId=${encodeURIComponent(inv.id || inv.code)}&fromTab=invoices`;
+    }
+  };
 
   // Bộ lọc thời gian
   const [timeFilter, setTimeFilter] = useState<
@@ -151,7 +172,6 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
   // Hóa đơn đang chọn để xem / in
   const [selectedInvoice, setSelectedInvoice] = useState<SeedOrderItem | null>(null);
-  const [invoiceQrUrl, setInvoiceQrUrl] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Dialog xác nhận chuyển trạng thái
@@ -164,6 +184,13 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
   // Dialog xác nhận xóa hóa đơn
   const [deleteConfirmInvoice, setDeleteConfirmInvoice] = useState<SeedOrderItem | null>(null);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState<boolean>(false);
+
+  // Dialog cập nhật nhanh tiền thực thu (Quick Payment Update)
+  const [quickPaymentInvoice, setQuickPaymentInvoice] = useState<{
+    invoice: SeedOrderItem;
+    amount: number;
+  } | null>(null);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -293,12 +320,13 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     }
   }, [timeFilter]);
 
-  // Thống kê doanh thu & hóa đơn theo danh sách đang lọc
+  // Thống kê doanh thu & hóa đơn theo danh sách đang lọc (Chuẩn kế toán Thực thu Cash-flow)
   const stats = useMemo(() => {
     let directCount = 0;
     let onlineCount = 0;
     let pendingCount = 0;
-    let totalRevenue = 0;
+    let totalRevenue = 0; // Thực thu (ĐÃ THU thực tế vào tài khoản / ví)
+    let totalReceivable = 0; // Tổng doanh số phát sinh (CẦN THU)
     filteredInvoices.forEach((i) => {
       if (i.customerType === "TRUCTIEP") directCount++;
       else onlineCount++;
@@ -306,8 +334,12 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       const st = i.orderStatus || (i.status === "PAID" ? "DA_NHAN" : "CHO_DUYET");
       if (st === "CHO_DUYET") pendingCount++;
 
+      // Các đơn chưa hủy: tính thực thu & cần thu
       if (st !== "DA_HUY") {
-        totalRevenue += i.debitAmount || i.creditAmount || i.totalPrice || 0;
+        const debit = Number(i.debitAmount) || 0;
+        const credit = Number(i.creditAmount) || Number(i.totalPrice) || 0;
+        totalRevenue += debit;
+        totalReceivable += credit;
       }
     });
     return {
@@ -316,6 +348,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       onlineCount,
       pendingCount,
       totalRevenue,
+      totalReceivable,
     };
   }, [filteredInvoices]);
 
@@ -393,24 +426,6 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
     showToast(`Đã xuất thành công ${filteredInvoices.length} hóa đơn ra file Excel!`);
   };
 
-  // Tạo QR khi xem hóa đơn
-  useEffect(() => {
-    if (selectedInvoice) {
-      const url =
-        selectedInvoice.directUrl ||
-        `https://polycards.vn/ar/${selectedInvoice.unlockedSlug || "lion"}?ar=1&code=${selectedInvoice.code}`;
-      QRCode.toDataURL(url, {
-        margin: 1,
-        width: 300,
-        color: { dark: "#0F172A", light: "#FFFFFF" },
-      })
-        .then(setInvoiceQrUrl)
-        .catch(() => setInvoiceQrUrl(""));
-    } else {
-      setInvoiceQrUrl("");
-    }
-  }, [selectedInvoice]);
-
   const handlePrint = () => {
     window.print();
   };
@@ -469,13 +484,25 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                   ...i,
                   orderStatus: statusConfirm.targetStatus,
                   status: statusConfirm.targetStatus === "DA_NHAN" ? "PAID" : statusConfirm.targetStatus === "DA_HUY" ? "CANCELLED" : i.status,
+                  debitAmount: statusConfirm.targetStatus === "DA_NHAN" ? (Number(i.creditAmount) || Number(i.totalPrice) || 0) : i.debitAmount,
+                  remainingAmount: statusConfirm.targetStatus === "DA_NHAN" ? 0 : i.remainingAmount,
                 }
               : i
           )
         );
 
         if (selectedInvoice && (selectedInvoice.id === statusConfirm.invoice.id || selectedInvoice.code === statusConfirm.invoice.code)) {
-          setSelectedInvoice((prev) => prev ? { ...prev, orderStatus: statusConfirm.targetStatus } : null);
+          setSelectedInvoice((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  orderStatus: statusConfirm.targetStatus,
+                  status: statusConfirm.targetStatus === "DA_NHAN" ? "PAID" : statusConfirm.targetStatus === "DA_HUY" ? "CANCELLED" : prev.status,
+                  debitAmount: statusConfirm.targetStatus === "DA_NHAN" ? (Number(prev.creditAmount) || Number(prev.totalPrice) || 0) : prev.debitAmount,
+                  remainingAmount: statusConfirm.targetStatus === "DA_NHAN" ? 0 : prev.remainingAmount,
+                }
+              : null
+          );
         }
 
         const label = statusConfirm.targetStatus === "DA_NHAN" ? "Đã nhận" : statusConfirm.targetStatus === "DA_HUY" ? "Đã hủy" : "Chờ duyệt";
@@ -488,6 +515,64 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       showToast("Lỗi kết nối khi cập nhật trạng thái.");
     } finally {
       setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleUpdatePaymentConfirmed = async () => {
+    if (!quickPaymentInvoice) return;
+    try {
+      setIsUpdatingPayment(true);
+      const { invoice, amount } = quickPaymentInvoice;
+      const cleanAmount = Math.max(0, Number(amount) || 0);
+      const credit = Number(invoice.creditAmount) || Number(invoice.totalPrice) || 0;
+
+      const res = await fetch("/api/invoices/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: invoice.id || invoice.code,
+          debitAmount: cleanAmount,
+        }),
+      });
+
+      if (res.ok) {
+        setInvoices((prev) =>
+          prev.map((i) =>
+            i.id === invoice.id || i.code === invoice.code
+              ? {
+                  ...i,
+                  debitAmount: cleanAmount,
+                  remainingAmount: Math.max(0, credit - cleanAmount),
+                  balanceAmount: cleanAmount - credit,
+                  status: cleanAmount >= credit && credit > 0 ? "PAID" : cleanAmount > 0 ? "PARTIAL" : "UNPAID",
+                }
+              : i
+          )
+        );
+
+        if (selectedInvoice && (selectedInvoice.id === invoice.id || selectedInvoice.code === invoice.code)) {
+          setSelectedInvoice((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  debitAmount: cleanAmount,
+                  remainingAmount: Math.max(0, credit - cleanAmount),
+                  balanceAmount: cleanAmount - credit,
+                  status: cleanAmount >= credit && credit > 0 ? "PAID" : cleanAmount > 0 ? "PARTIAL" : "UNPAID",
+                }
+              : null
+          );
+        }
+
+        showToast(`Đã cập nhật tiền thực thu cho ${invoice.customerName}: ${formatVndCurrency(cleanAmount)}.`);
+        setQuickPaymentInvoice(null);
+      } else {
+        showToast("Lỗi khi cập nhật số tiền thực thu.");
+      }
+    } catch {
+      showToast("Lỗi kết nối khi cập nhật số tiền.");
+    } finally {
+      setIsUpdatingPayment(false);
     }
   };
 
@@ -524,7 +609,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
       case "VAN_CHUYEN_OTO":
         return <span className="text-[11px] text-sky-300 font-medium">Ô tô</span>;
       case "CPN_NHTT":
-        return <span className="text-[11px] text-purple-300 font-medium">CPN NHTT</span>;
+        return <span className="text-[11px] text-sky-300 font-medium">CPN Tiêu chuẩn</span>;
       case "CPN_COD":
         return (
           <span className="text-[11px] text-amber-300 font-medium">
@@ -620,6 +705,14 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
             </span>
             <span className="text-[10px] text-amber-300/70 font-bold">Thực thu</span>
           </div>
+          {stats.totalReceivable !== stats.totalRevenue && (
+            <div className="text-[10px] text-stone-400 pt-1 border-t border-amber-400/10 flex items-center justify-between">
+              <span>Doanh số (Cần thu):</span>
+              <span className="font-mono font-bold text-stone-300">
+                {formatVndCurrency(stats.totalReceivable)}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-400/30 space-y-1">
@@ -855,7 +948,7 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                           {inv.id || inv.code}
                         </span>
                         <div className="text-[10px] text-stone-500 font-mono">
-                          {inv.createdAt || "Hôm nay"}
+                          {formatInvoiceDateTime(inv.createdAt) || "Hôm nay"}
                         </div>
                       </td>
 
@@ -866,11 +959,11 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
                       {/* Khách hàng */}
                       <td className="py-3 px-4">
-                        <div className="font-bold text-white flex items-center gap-1.5">
+                        <div className="font-bold text-white flex items-center gap-1.5 flex-wrap">
                           <span>{inv.customerName}</span>
-                          {inv.customerId && (
-                            <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.2 rounded">
-                              {inv.customerId}
+                          {getCustomerCode(inv) && (
+                            <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 rounded shadow-2xs">
+                              {getCustomerCode(inv)}
                             </span>
                           )}
                         </div>
@@ -899,19 +992,82 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                         {renderDeliveryBadge(inv.deliveryMethod, inv.codAmount)}
                       </td>
 
-                      {/* Phát sinh Có */}
+                      {/* Phát sinh Có (Cần thu) */}
                       <td className="py-3 px-3 font-mono font-black text-stone-200">
                         {formatVndCurrency(credit)}
                       </td>
 
-                      {/* Phát sinh Nợ */}
-                      <td className="py-3 px-3 font-mono font-black text-emerald-400">
-                        {formatVndCurrency(debit)}
+                      {/* Phát sinh Nợ (Đã thu) - Nhấp trực tiếp để cập nhật nhanh số tiền */}
+                      <td
+                        className="py-3 px-3 cursor-pointer group hover:bg-amber-400/10 transition-colors relative"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuickPaymentInvoice({ invoice: inv, amount: debit });
+                        }}
+                        title="Nhấn để cập nhật nhanh số tiền khách đã trả"
+                      >
+                        {debit === 0 ? (
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="font-mono font-bold text-rose-400 flex items-center gap-1 text-xs group-hover:text-amber-300 transition-colors">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                              0 ₫
+                              <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity ml-0.5" />
+                            </span>
+                            <span className="text-[9px] font-semibold text-rose-300 bg-rose-500/15 px-1.5 py-0.2 rounded border border-rose-500/30 group-hover:border-amber-400/40">
+                              Chưa thu tiền (chạm sửa)
+                            </span>
+                          </div>
+                        ) : debit < credit ? (
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="font-mono font-bold text-amber-300 text-xs flex items-center gap-1">
+                              {formatVndCurrency(debit)}
+                              <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity ml-0.5" />
+                            </span>
+                            <span className="text-[9px] font-medium text-amber-300/90 bg-amber-400/10 px-1 py-0.2 rounded border border-amber-400/20 group-hover:border-amber-400/40">
+                              Thiếu {formatVndCurrency(credit - debit)}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="font-mono font-black text-emerald-400 text-xs flex items-center gap-1 group-hover:text-amber-300 transition-colors">
+                              {formatVndCurrency(debit)}
+                              <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity ml-0.5" />
+                            </span>
+                            <span className="text-[9px] font-semibold text-emerald-300 bg-emerald-500/15 px-1.5 py-0.2 rounded border border-emerald-500/30 group-hover:border-amber-400/40">
+                              Đã thu đủ
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Thanh toán */}
-                      <td className="py-3 px-3 text-[11px] text-stone-400">
-                        {inv.paymentMethod === "CHUYEN_KHOAN" ? "Chuyển khoản" : "Tiền mặt"}
+                      <td className="py-3 px-3 text-[11px]">
+                        {inv.paymentMethod === "CHUYEN_KHOAN" ? (
+                          <div>
+                            <span className="font-medium text-stone-200 block">Chuyển khoản</span>
+                            {debit < credit ? (
+                              <span className="mt-0.5 inline-flex items-center gap-1 text-[9px] font-bold text-amber-300 bg-amber-400/15 px-1.5 py-0.2 rounded border border-amber-400/30">
+                                <span className="h-1 w-1 rounded-full bg-amber-400 animate-ping"></span>
+                                Chờ đối soát QR
+                              </span>
+                            ) : (
+                              <span className="mt-0.5 inline-block text-[9px] font-medium text-emerald-400/90">
+                                Đã khớp lệnh QR
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="font-medium text-stone-200 block">
+                              {inv.deliveryMethod === "CPN_COD" ? "Thu hộ COD" : "Tiền mặt"}
+                            </span>
+                            {debit < credit && inv.deliveryMethod === "CPN_COD" && (
+                              <span className="mt-0.5 inline-block text-[9px] text-stone-400 font-medium">
+                                Bưu tá thu khi giao
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Thao tác */}
@@ -948,6 +1104,14 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                             title="Xem chi tiết phiếu hóa đơn"
                           >
                             <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEditClick(inv)}
+                            className="p-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400 text-amber-300 hover:text-stone-950 border border-amber-400/30 transition-colors cursor-pointer"
+                            title="Sửa phiếu hóa đơn trong phân hệ POS"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
@@ -1003,12 +1167,19 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                   {/* Khách hàng */}
                   <div className="space-y-0.5">
                     <div className="flex items-baseline justify-between gap-2">
-                      <h4 className="text-sm font-black text-white truncate">
-                        {inv.customerName}
-                      </h4>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <h4 className="text-sm font-black text-white truncate">
+                          {inv.customerName}
+                        </h4>
+                        {getCustomerCode(inv) && (
+                          <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.2 rounded shrink-0">
+                            {getCustomerCode(inv)}
+                          </span>
+                        )}
+                      </div>
                       {inv.createdAt && (
                         <span className="text-[10px] text-stone-500 font-mono shrink-0">
-                          {inv.createdAt.split(" ")[0]}
+                          {formatInvoiceDateTime(inv.createdAt)}
                         </span>
                       )}
                     </div>
@@ -1027,7 +1198,15 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                     </span>
                     <div className="flex items-center justify-between text-[11px] text-stone-400">
                       <span>Giao: {renderDeliveryBadge(inv.deliveryMethod, inv.codAmount)}</span>
-                      <span>{inv.paymentMethod === "CHUYEN_KHOAN" ? "Chuyển khoản" : "Tiền mặt"}</span>
+                      <span>
+                        {inv.paymentMethod === "CHUYEN_KHOAN" ? (
+                          <span className={debit < credit ? "text-amber-300 font-semibold" : "text-emerald-400 font-semibold"}>
+                            CK {debit < credit ? "(Chờ QR)" : "(Khớp)"}
+                          </span>
+                        ) : (
+                          "Tiền mặt"
+                        )}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1041,12 +1220,33 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                         {formatVndCurrency(credit)}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-stone-400 block">Đã thu</span>
-                      <span className="font-mono font-black text-emerald-400">
-                        {formatVndCurrency(debit)}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuickPaymentInvoice({ invoice: inv, amount: debit });
+                      }}
+                      className="text-right cursor-pointer group"
+                      title="Nhấn để cập nhật nhanh tiền đã thu"
+                    >
+                      <span className="text-[10px] text-stone-400 block group-hover:text-amber-300 transition-colors">
+                        Đã thu (chạm sửa)
                       </span>
-                    </div>
+                      {debit === 0 ? (
+                        <span className="font-mono font-bold text-rose-400 flex items-center justify-end gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                          0 ₫ (Chưa thu)
+                        </span>
+                      ) : debit < credit ? (
+                        <span className="font-mono font-bold text-amber-300">
+                          {formatVndCurrency(debit)} (Thiếu)
+                        </span>
+                      ) : (
+                        <span className="font-mono font-black text-emerald-400">
+                          {formatVndCurrency(debit)}
+                        </span>
+                      )}
+                    </button>
                   </div>
 
                   <div className="flex items-center justify-end gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
@@ -1075,6 +1275,18 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                     >
                       <Eye className="h-3.5 w-3.5" />
                       <span>Xem Chi Tiết</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditClick(inv);
+                      }}
+                      className="py-1.5 px-3 rounded-xl bg-white/5 hover:bg-amber-400 hover:text-stone-950 text-stone-300 font-bold text-xs flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                      title="Sửa phiếu hóa đơn (POS)"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                      <span>Sửa</span>
                     </button>
                     <button
                       type="button"
@@ -1135,6 +1347,126 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
                 className="px-4 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-black shadow-md cursor-pointer"
               >
                 {isUpdatingStatus ? "Đang Cập Nhật..." : "Xác Nhận Đổi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG CẬP NHẬT TIỀN THỰC THU NHANH (QUICK PAYMENT UPDATE) */}
+      {quickPaymentInvoice && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in">
+          <div className="max-w-md w-full bg-stone-900 border-2 border-amber-400/60 rounded-3xl p-5 sm:p-6 text-white shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  <Banknote className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white">Cập Nhật Tiền Thực Thu</h4>
+                  <p className="text-[11px] text-stone-400">
+                    Mã đơn: <strong className="font-mono text-amber-300">{quickPaymentInvoice.invoice.code || quickPaymentInvoice.invoice.id}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickPaymentInvoice(null)}
+                className="h-8 w-8 rounded-full hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Thông tin đơn */}
+            <div className="p-3 rounded-2xl bg-stone-950 border border-white/5 space-y-2 text-xs">
+              <div className="flex items-center justify-between text-stone-300">
+                <span>Khách hàng:</span>
+                <strong className="text-white">{quickPaymentInvoice.invoice.customerName}</strong>
+              </div>
+              <div className="flex items-center justify-between text-stone-300">
+                <span>Tổng tiền đơn (Cần thu):</span>
+                <strong className="font-mono text-amber-300 text-sm">
+                  {formatVndCurrency(quickPaymentInvoice.invoice.creditAmount || quickPaymentInvoice.invoice.totalPrice || 0)}
+                </strong>
+              </div>
+            </div>
+
+            {/* Nút Preset nhanh */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-stone-400 block">Chọn nhanh mức thanh toán:</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuickPaymentInvoice((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            amount: Number(prev.invoice.creditAmount) || Number(prev.invoice.totalPrice) || 0,
+                          }
+                        : null
+                    )
+                  }
+                  className="py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-emerald-300 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Thu đủ 100%</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuickPaymentInvoice((prev) => (prev ? { ...prev, amount: 0 } : null))
+                  }
+                  className="py-2 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Đã hoàn hàng (0 ₫)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Ô nhập số tiền tùy ý */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-300 flex items-center justify-between">
+                <span>Số tiền thực tế đã thu (VNĐ):</span>
+                <span className="text-amber-400 font-mono font-bold">
+                  {formatVndCurrency(quickPaymentInvoice.amount)}
+                </span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={quickPaymentInvoice.amount === 0 ? "" : quickPaymentInvoice.amount}
+                placeholder="0"
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  setQuickPaymentInvoice((prev) =>
+                    prev ? { ...prev, amount: val === "" ? 0 : Math.max(0, Number(val)) } : null
+                  );
+                }}
+                className="w-full bg-stone-950 border border-amber-400/40 rounded-xl px-3.5 py-2.5 text-base text-amber-300 font-mono font-black focus:outline-hidden focus:border-amber-400 transition-colors"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setQuickPaymentInvoice(null)}
+                disabled={isUpdatingPayment}
+                className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-xs font-bold text-stone-300 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdatePaymentConfirmed}
+                disabled={isUpdatingPayment}
+                className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-black shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isUpdatingPayment ? "Đang Lưu..." : "Xác Nhận Thu Tiền"}
               </button>
             </div>
           </div>
@@ -1245,6 +1577,19 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => {
+                    if (selectedInvoice) {
+                      handleEditClick(selectedInvoice);
+                    }
+                  }}
+                  className="py-1.5 px-3 rounded-xl bg-white/5 hover:bg-amber-400 hover:text-stone-950 text-stone-300 font-bold text-xs flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                  title="Chỉnh sửa hóa đơn này trong phân hệ POS"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                  <span>Sửa Phiếu</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handlePrint}
                   className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
@@ -1264,34 +1609,83 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
             {/* Phiếu in hiển thị trực quan */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div className="p-6 rounded-2xl bg-white text-stone-900 shadow-md space-y-4">
-                {/* Tiêu đề tiệm */}
-                <div className="text-center pb-3 border-b border-dashed border-stone-300 space-y-1">
-                  <h4 className="text-lg font-black uppercase tracking-wider text-amber-900">
-                    POLY CARDS • THẾ GIỚI THẺ BÀI AR
-                  </h4>
-                  <p className="text-xs text-stone-600">Thực tế ảo 3D tương tác song ngữ thông minh cho bé</p>
-                  <p className="text-[11px] font-mono text-stone-500">
-                    Số phiếu: <strong>{selectedInvoice.id}</strong> • Mã bản quyền: <strong>{selectedInvoice.code}</strong>
-                  </p>
+                {/* Tiêu đề tiệm + Logo chuẩn nhận diện thương hiệu Poly Cards */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b-2 border-stone-900">
+                  <div className="flex items-center gap-2.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/icons/logo.png"
+                      alt="Poly Cards Logo"
+                      className="h-11 w-11 object-contain rounded-xl shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                    <div>
+                      <h4 className="text-base font-black uppercase tracking-wider text-stone-900 block leading-tight">
+                        POLY CARDS VIỆT NAM
+                      </h4>
+                      <p className="text-[11px] text-stone-500 mt-0.5">
+                        Hệ sinh thái Thẻ bài Học tập Thực tế ảo WebAR tương tác 3D
+                      </p>
+                      <p className="text-[10px] text-stone-500 font-mono">
+                        Website: polycards.vn &bull; Hotline: 0988.xxx.xxx
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold block">
+                      HÓA ĐƠN BÁN HÀNG
+                    </span>
+                    <span className="text-sm font-black font-mono text-stone-900 block">
+                      {selectedInvoice.code || selectedInvoice.id}
+                    </span>
+                    <span className="text-[10px] text-stone-500 block mt-0.5">
+                      Ngày: {formatInvoiceDateTime(selectedInvoice.createdAt) || "Hôm nay"}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Thông tin khách hàng */}
-                <div className="grid grid-cols-2 gap-2 text-xs text-stone-700">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
                   <div>
-                    <span className="text-stone-500 block text-[10px]">Khách hàng:</span>
-                    <strong className="text-stone-900 text-sm">{selectedInvoice.customerName}</strong>
+                    <span className="text-stone-400 font-bold block text-[10px] uppercase">
+                      Thông Tin Người Mua
+                    </span>
+                    <strong className="text-sm text-stone-900 block mt-0.5">
+                      {selectedInvoice.customerName}
+                    </strong>
+                    {getCustomerCode(selectedInvoice) && (
+                      <span className="text-stone-600 block text-[11px]">
+                        Mã KH: <strong className="font-mono text-amber-700">{getCustomerCode(selectedInvoice)}</strong>
+                      </span>
+                    )}
+                    {selectedInvoice.customerPhone && (
+                      <span className="text-stone-600 block text-[11px]">
+                        SĐT: <strong className="font-mono">{selectedInvoice.customerPhone}</strong>
+                      </span>
+                    )}
+                    {selectedInvoice.customerAddress && (
+                      <span className="text-stone-600 block text-[11px] truncate">
+                        Địa chỉ: {selectedInvoice.customerAddress}
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">Số điện thoại:</span>
-                    <strong className="text-stone-900 font-mono">{selectedInvoice.customerPhone || "Khách vãng lai"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">Hình thức giao nhận:</span>
-                    <span>{renderDeliveryBadge(selectedInvoice.deliveryMethod, selectedInvoice.codAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">Thời gian:</span>
-                    <span>{selectedInvoice.createdAt || "Hôm nay"}</span>
+
+                  <div className="text-left sm:text-right">
+                    <span className="text-stone-400 font-bold block text-[10px] uppercase">
+                      Phương Thức &amp; Kênh
+                    </span>
+                    <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-stone-200 text-stone-800 uppercase">
+                      {selectedInvoice.customerType === "TRUCTIEP" ? "Bán Tại Quầy" : "Giao Hàng Online"}
+                    </span>
+                    <span className="block mt-1 font-semibold text-stone-700">
+                      HT Thanh Toán: {selectedInvoice.paymentMethod === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản"}
+                    </span>
+                    <span className="block mt-0.5 text-[11px] text-stone-500">
+                      Giao nhận: {renderDeliveryBadge(selectedInvoice.deliveryMethod, selectedInvoice.codAmount)}
+                    </span>
                   </div>
                 </div>
 
@@ -1346,44 +1740,69 @@ export function InvoicesTab({ onNavigateToPOS }: InvoicesTabProps) {
 
                 {/* Tổng kết tiền hạch toán */}
                 <div className="pt-2 border-t border-dashed border-stone-300 space-y-1.5 text-xs">
-                  {selectedInvoice.comboName && (
-                    <div className="flex justify-between text-amber-700 font-bold">
-                      <span>Ưu đãi Combo ({selectedInvoice.comboName}):</span>
-                      <span>-{formatVndCurrency(selectedInvoice.comboDiscount || 0)}</span>
+                  {selectedInvoice.subtotal !== undefined && (
+                    <div className="flex justify-between text-stone-600">
+                      <span>Tiền hàng tạm tính:</span>
+                      <span className="font-mono font-bold text-stone-900">
+                        {formatVndCurrency(selectedInvoice.subtotal || selectedInvoice.creditAmount)}
+                      </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-stone-700">
-                    <span>Tổng tiền thanh toán (Có):</span>
-                    <strong className="text-stone-950 font-mono text-sm">
+
+                  {selectedInvoice.comboDiscount !== undefined && selectedInvoice.comboDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-bold">
+                      <span>Khuyến mãi {selectedInvoice.comboName ? `(${selectedInvoice.comboName})` : ""}:</span>
+                      <span className="font-mono">-{formatVndCurrency(selectedInvoice.comboDiscount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-stone-900 font-bold text-sm pt-1 border-t border-stone-200">
+                    <span>Tổng Tiền (Có):</span>
+                    <strong className="text-amber-800 font-mono">
                       {formatVndCurrency(selectedInvoice.creditAmount || selectedInvoice.totalPrice || 249000)}
                     </strong>
                   </div>
+
                   <div className="flex justify-between text-stone-700">
-                    <span>Số tiền khách đã trả (Nợ):</span>
-                    <strong className="text-emerald-700 font-mono text-sm">
+                    <span>Đã Thanh Toán (Nợ):</span>
+                    <strong className="text-emerald-700 font-mono">
                       {formatVndCurrency(selectedInvoice.debitAmount !== undefined ? selectedInvoice.debitAmount : selectedInvoice.creditAmount || 249000)}
                     </strong>
                   </div>
-                </div>
 
-                {/* QR Code kích hoạt */}
-                <div className="pt-3 border-t border-dashed border-stone-300 flex items-center justify-between gap-4">
-                  <div className="space-y-1 text-xs text-stone-600">
-                    <strong className="text-stone-900 block text-sm">Quét Mã Kích Hoạt AR:</strong>
-                    <p className="text-[11px] leading-relaxed">
-                      Dùng Camera điện thoại quét mã QR bên cạnh để mở khóa trọn bộ thẻ và trải nghiệm mô hình 3D AR ngay lập tức.
-                    </p>
-                    <span className="font-mono font-bold text-[10px] text-amber-800">
-                      Website: polycards.vn
-                    </span>
-                  </div>
-
-                  {invoiceQrUrl && (
-                    <div className="h-24 w-24 shrink-0 rounded-xl bg-white p-1.5 border border-stone-300 shadow-xs">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={invoiceQrUrl} alt="QR Code" className="h-full w-full object-contain" />
+                  {selectedInvoice.remainingAmount !== undefined && selectedInvoice.remainingAmount > 0 && (
+                    <div className="flex justify-between text-rose-600 font-bold pt-0.5">
+                      <span>Còn thiếu:</span>
+                      <span className="font-mono">{formatVndCurrency(selectedInvoice.remainingAmount)}</span>
                     </div>
                   )}
+                </div>
+
+                {/* GHI CHÚ BẢO HÀNH & KÍCH HOẠT (ĐỒNG BỘ 100% VỚI /invoices) */}
+                <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200 text-xs text-amber-950 space-y-1">
+                  <span className="font-black text-amber-900 block uppercase text-[10px]">
+                    Lưu Ý Bản Quyền &amp; Hướng Dẫn Kích Hoạt WebAR 3D:
+                  </span>
+                  <p className="text-[11px] leading-relaxed text-amber-900/90">
+                    Sản phẩm Thẻ Học AR Poly Cards chính hãng đã được gắn sẵn mã kích hoạt và mã QR trực tiếp trên từng mặt thẻ bài khi xuất xưởng. Ba Mẹ và các bé chỉ cần mở camera điện thoại quét trực tiếp trên mặt thẻ là có thể tương tác 3D WebAR không cần cài đặt ứng dụng.
+                  </p>
+                </div>
+
+                {/* Chữ Ký Người Bán & Người Mua */}
+                <div className="pt-3 border-t border-stone-200 grid grid-cols-2 text-center text-xs text-stone-700">
+                  <div>
+                    <span className="font-bold block">Người Mua Hàng</span>
+                    <span className="text-[10px] text-stone-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
+                    <div className="h-8" />
+                    <span className="font-bold text-stone-800">{selectedInvoice.customerName}</span>
+                  </div>
+
+                  <div>
+                    <span className="font-bold block">Người Lập Phiếu / Thu Ngân</span>
+                    <span className="text-[10px] text-stone-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
+                    <div className="h-8" />
+                    <span className="font-bold text-stone-800">Poly Cards Store</span>
+                  </div>
                 </div>
 
                 <div className="text-center text-[10px] text-stone-500 pt-2 border-t border-stone-200">

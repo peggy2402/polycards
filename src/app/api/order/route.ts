@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
       quantity = 1,
       totalPrice = 0,
       subtotal = 0,
+      shippingFee = 0,
       discountTotal = 0,
       comboName = "",
       comboDiscount = 0,
@@ -64,40 +65,66 @@ export async function POST(req: NextRequest) {
     const finalTotal = Number(totalPrice) || 0;
     const finalSubtotal = Number(subtotal) || finalTotal;
 
-    // Chuẩn bị bản ghi Order để lưu MongoDB
+    const cleanCustName = fullName.trim();
+    const cleanCustPhone = normalizedPhone || phone.trim();
+    const cleanCustAddress = address.trim();
+
+    // 1. Đồng bộ / tạo hồ sơ khách hàng để cấp Mã Khách Hàng (ví dụ KH-2853)
+    const customer = await dbSyncCustomerFromOrder({
+      id: orderId,
+      customerName: cleanCustName,
+      customerPhone: cleanCustPhone,
+      customerAddress: cleanCustAddress,
+      customerType: "ONLINE",
+      totalPrice: finalTotal,
+      creditAmount: finalTotal,
+    } as any);
+
+    const assignedCustomerId = customer?.id || (cleanCustPhone.length >= 4 ? `KH-${cleanCustPhone.slice(-4)}` : "KH-ONLINE");
+
+    const isBanking = paymentMethod === "banking";
+    const effectiveDeliveryMethod: DeliveryMethod = isBanking
+      ? "CPN_NHTT"
+      : ((deliveryMethod as DeliveryMethod) || "CPN_COD");
+    const effectiveCodAmount = isBanking
+      ? 0
+      : (effectiveDeliveryMethod === "CPN_COD" ? (Number(codAmount) || finalTotal) : 0);
+
+    // 2. Chuẩn bị bản ghi Order để lưu MongoDB
+    // LƯU Ý KẾ TOÁN: Khách mới đặt hàng trực tuyến, tiền chưa về tài khoản nên debitAmount = 0 và status = "UNPAID"
     const newOrder: SeedOrderItem = {
       id: orderId,
       code: orderCode,
       codeType: "PACK",
-      customerName: fullName.trim(),
-      customerPhone: normalizedPhone || phone.trim(),
-      customerAddress: address.trim(),
+      customerId: assignedCustomerId,
+      customerName: cleanCustName,
+      customerPhone: cleanCustPhone,
+      customerAddress: cleanCustAddress,
       customerType: "ONLINE",
       source: "ONLINE",
       orderStatus: "CHO_DUYET" as OrderStatus,
-      deliveryMethod: (deliveryMethod as DeliveryMethod) || "TRUC_TIEP",
-      codAmount: deliveryMethod === "CPN_COD" ? (Number(codAmount) || finalTotal) : 0,
+      deliveryMethod: effectiveDeliveryMethod,
+      shippingFee: Number(shippingFee) || 0,
+      codAmount: effectiveCodAmount,
       packTitle: productName || (lineItems[0]?.name ?? "Bộ Thẻ Poly Cards"),
       items: lineItems,
       subtotal: finalSubtotal,
       creditAmount: finalTotal,
-      debitAmount: paymentMethod === "banking" ? finalTotal : 0,
+      debitAmount: 0, // Đơn mới đặt: Chưa thu tiền thực tế
+      remainingAmount: finalTotal,
       totalPrice: finalTotal,
-      status: paymentMethod === "banking" ? "PAID" : "UNPAID",
-      paymentMethod: paymentMethod === "banking" ? "CHUYEN_KHOAN" : "TIEN_MAT",
+      status: "UNPAID", // Trạng thái: Chưa thanh toán
+      paymentMethod: isBanking ? "CHUYEN_KHOAN" : "TIEN_MAT",
       comboName: comboName || undefined,
       comboDiscount: Number(comboDiscount) || 0,
       note: note && note.trim() !== "" ? note.trim() : undefined,
       createdAt: new Date().toISOString(),
     };
 
-    // 1. Lưu vào cơ sở dữ liệu MongoDB
+    // 3. Lưu vào cơ sở dữ liệu MongoDB
     await dbUpsertOrder(newOrder);
 
-    // 2. Tự động đồng bộ và quản lý khách hàng
-    const customer = await dbSyncCustomerFromOrder(newOrder);
-
-    // 3. Gửi thông báo Discord Webhook
+    // 4. Gửi thông báo Discord Webhook
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
     const formattedPrice = new Intl.NumberFormat("vi-VN", {
       style: "currency",
@@ -221,7 +248,7 @@ export async function POST(req: NextRequest) {
       data: {
         orderId,
         orderCode,
-        customerCode: customer?.id,
+        customerCode: assignedCustomerId,
       },
     });
   } catch (error: any) {

@@ -62,6 +62,7 @@ import { EditProductModal } from "@/components/tools/modals/edit-product-modal";
 import { CategoryModal } from "@/components/tools/modals/category-modal";
 import { ComboConfigModal } from "@/components/tools/modals/combo-config-modal";
 import { ComboRulesModal } from "@/components/tools/modals/combo-rules-modal";
+import { ShippingConfigModal } from "@/components/tools/modals/shipping-config-modal";
 import { ZipProgressIndicator } from "@/components/tools/widgets/zip-progress-indicator";
 import { getPackCodeForCategory } from "@/lib/pack-codes-store";
 
@@ -295,6 +296,7 @@ export default function ToolsPage() {
   const [featuredCombo, setFeaturedCombo] = useState<CardComboPack>(DEFAULT_FEATURED_COMBO);
   const [isComboModalOpen, setIsComboModalOpen] = useState<boolean>(false);
   const [isComboRulesModalOpen, setIsComboRulesModalOpen] = useState<boolean>(false);
+  const [isShippingModalOpen, setIsShippingModalOpen] = useState<boolean>(false);
   const [isSavingCombo, setIsSavingCombo] = useState<boolean>(false);
 
   useEffect(() => {
@@ -3046,6 +3048,7 @@ export default function ToolsPage() {
           onToggleShowOnHome={handleToggleShowOnHome}
           onOpenComboModal={() => setIsComboModalOpen(true)}
           onOpenComboRulesModal={() => setIsComboRulesModalOpen(true)}
+          onOpenShippingModal={() => setIsShippingModalOpen(true)}
           onBatchAssignPackCode={handleBatchAssignPackCode}
           onBatchUpdateLanguage={handleBatchUpdateLanguage}
           onUpdatePackCode={handleUpdateSinglePackCode}
@@ -3095,6 +3098,9 @@ export default function ToolsPage() {
         <InvoicesTab
           onNavigateToPOS={() => {
             window.location.href = "/invoices?fromTab=invoices";
+          }}
+          onEditInvoice={(inv) => {
+            window.location.href = `/invoices?editId=${encodeURIComponent(inv.id || inv.code)}&fromTab=invoices`;
           }}
         />
       )}
@@ -3168,6 +3174,12 @@ export default function ToolsPage() {
       <ComboRulesModal
         isOpen={isComboRulesModalOpen}
         onClose={() => setIsComboRulesModalOpen(false)}
+        onShowToast={showToast}
+      />
+
+      <ShippingConfigModal
+        isOpen={isShippingModalOpen}
+        onClose={() => setIsShippingModalOpen(false)}
         onShowToast={showToast}
       />
 

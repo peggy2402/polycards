@@ -36,6 +36,7 @@ import {
   Smartphone,
   HardDrive,
   Wrench,
+  Truck,
 } from "lucide-react";
 import { Animal, ProductCategory } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -68,6 +69,7 @@ interface ProductsTabProps {
   onToggleShowOnHome: (card: Animal) => void;
   onOpenComboModal: () => void;
   onOpenComboRulesModal?: () => void;
+  onOpenShippingModal?: () => void;
   onBatchAssignPackCode: (slugs: string[], packCode: string) => Promise<void> | void;
   onBatchUpdateLanguage?: (slugs: string[], langMode: "en-vi" | "zh-vi" | "both") => Promise<void> | void;
   onUpdatePackCode?: (card: Animal, newPackCode: string) => Promise<void> | void;
@@ -92,6 +94,7 @@ export function ProductsTab({
   onToggleShowOnHome,
   onOpenComboModal,
   onOpenComboRulesModal,
+  onOpenShippingModal,
   onBatchAssignPackCode,
   onBatchUpdateLanguage,
   onUpdatePackCode,
@@ -622,95 +625,121 @@ export function ProductsTab({
         </div>
       </div>
 
-      {/* 2. Trạm Kỹ Thuật AR & Quản Lý Xưởng In (Quick Tools Dock) - Tách biệt, thoáng đãng, chuyên nghiệp */}
-      <div className="p-3 sm:p-3.5 rounded-2xl bg-stone-900/60 border border-white/10 backdrop-blur-md flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-md">
-        <div className="flex items-center gap-2 text-stone-400 text-xs font-bold">
-          <div className="h-7 w-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-amber-400 shrink-0">
-            <Wrench className="h-3.5 w-3.5" />
+      {/* 2. Trạm Điều Hành & Cấu Hình Xưởng Thẻ (Studio & Policy Hub) */}
+      <div className="p-3 sm:p-4 rounded-3xl bg-stone-900/80 border border-white/10 backdrop-blur-xl flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 shadow-xl">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="h-9 w-9 rounded-2xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 shadow-xs">
+            <Wrench className="h-4 w-4" />
           </div>
           <div>
-            <span className="font-black text-stone-200 uppercase tracking-wider text-[11px]">Trạm Kỹ Thuật AR & In Ấn</span>
-            <span className="hidden sm:inline text-stone-400 text-[11px] ml-2 font-normal">• Công cụ tối ưu 3D, MindAR và Cloud R2</span>
+            <div className="flex items-center gap-2">
+              <span className="font-black text-stone-100 uppercase tracking-wider text-xs">Trạm Kỹ Thuật AR & Quản Trị</span>
+              <span className="text-[10px] font-bold text-amber-400/90 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">Studio Hub</span>
+            </div>
+            <p className="text-[11px] text-stone-400 font-medium">Tối ưu 3D WebAR & Cài đặt chính sách kinh doanh</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap items-center gap-2">
-          {/* Bác Sĩ 3D */}
-          <button
-            type="button"
-            onClick={() => {
-              setDoctorTargetAnimal(null);
-              setIsDoctorModalOpen(true);
-            }}
-            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-sky-500/15 hover:bg-sky-500 text-sky-300 hover:text-stone-950 border border-sky-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
-            title="Bác sĩ 3D: Kiểm tra đa giác, chống sập RAM iPhone Safari & sinh USDZ lên R2"
-          >
-            <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400 group-hover:text-stone-950 transition-colors" />
-            <span className="truncate">Bác Sĩ 3D</span>
-          </button>
+        {/* 2 Cụm công cụ chuyên biệt có tổ chức cao cấp */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
+          {/* Cụm 1: KỸ THUẬT 3D & WEBAR */}
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10">
+            <span className="text-[10px] font-black text-sky-400/90 uppercase tracking-wider px-2 shrink-0 hidden lg:inline">
+              Kỹ Thuật AR:
+            </span>
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setDoctorTargetAnimal(null);
+                  setIsDoctorModalOpen(true);
+                }}
+                className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-sky-500 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-sky-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                title="Bác sĩ 3D: Kiểm tra đa giác, chống sập RAM iPhone Safari & sinh USDZ lên R2"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-sky-400 group-hover:text-stone-950 transition-colors" />
+                <span>Bác Sĩ 3D</span>
+              </button>
 
-          {/* Tạo .mind */}
-          <button
-            type="button"
-            onClick={() => {
-              setTargetModalAnimal(null);
-              setIsTargetModalOpen(true);
-            }}
-            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
-            title="Biên dịch tệp .mind từ ảnh phôi thẻ bài chuẩn xác 100%"
-          >
-            <ScanLine className="h-3.5 w-3.5 shrink-0 text-amber-400 group-hover:text-stone-950 transition-colors" />
-            <span className="truncate">Tạo .mind</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetModalAnimal(null);
+                  setIsTargetModalOpen(true);
+                }}
+                className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-amber-400 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-amber-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                title="Biên dịch tệp .mind từ ảnh phôi thẻ bài chuẩn xác 100%"
+              >
+                <ScanLine className="h-3.5 w-3.5 text-amber-400 group-hover:text-stone-950 transition-colors" />
+                <span>Tạo .mind</span>
+              </button>
 
-          {/* Giả Lập & QA */}
-          <button
-            type="button"
-            onClick={() => {
-              setSimulatorModalAnimal(null);
-              setIsSimulatorModalOpen(true);
-            }}
-            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500 text-indigo-300 hover:text-stone-950 border border-indigo-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
-            title="Giả lập Camera AR & Thẩm định 6 tiêu chí xuất xưởng trước khi in"
-          >
-            <Smartphone className="h-3.5 w-3.5 shrink-0 text-indigo-400 group-hover:text-stone-950 transition-colors" />
-            <span className="truncate">Giả Lập & QA</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSimulatorModalAnimal(null);
+                  setIsSimulatorModalOpen(true);
+                }}
+                className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-indigo-400 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-indigo-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                title="Giả lập Camera AR & Thẩm định 6 tiêu chí xuất xưởng trước khi in"
+              >
+                <Smartphone className="h-3.5 w-3.5 text-indigo-400 group-hover:text-stone-950 transition-colors" />
+                <span>Giả Lập QA</span>
+              </button>
 
-          {/* Kho R2 */}
-          <button
-            type="button"
-            onClick={() => setIsR2StorageModalOpen(true)}
-            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
-            title="Kiểm soát dung lượng 10GB Cloudflare R2 & Dọn dẹp tệp cần dọn dẹp"
-          >
-            <HardDrive className="h-3.5 w-3.5 shrink-0 text-emerald-400 group-hover:text-stone-950 transition-colors" />
-            <span className="truncate">Kho R2 (10GB)</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsR2StorageModalOpen(true)}
+                className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-emerald-400 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-emerald-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                title="Kiểm soát dung lượng 10GB Cloudflare R2 & Dọn dẹp tệp"
+              >
+                <HardDrive className="h-3.5 w-3.5 text-emerald-400 group-hover:text-stone-950 transition-colors" />
+                <span>Kho R2</span>
+              </button>
+            </div>
+          </div>
 
-          {/* Khối Combo (#products) */}
-          <button
-            type="button"
-            onClick={onOpenComboModal}
-            className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-teal-500/15 hover:bg-teal-500 text-teal-300 hover:text-stone-950 border border-teal-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
-            title="Cấu hình ghim thẻ bài và khối combo lớn hiển thị ở trang chủ"
-          >
-            <Star className="h-3.5 w-3.5 shrink-0 text-teal-400 group-hover:text-stone-950 transition-colors" />
-            <span className="truncate">Khối Combo (#products)</span>
-          </button>
+          {/* Cụm 2: CHÍNH SÁCH BÁN HÀNG & COMBO */}
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10">
+            <span className="text-[10px] font-black text-amber-400/90 uppercase tracking-wider px-2 shrink-0 hidden lg:inline">
+              Bán Hàng:
+            </span>
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={onOpenComboModal}
+                className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-teal-400 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-teal-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                title="Cấu hình ghim thẻ bài và khối combo lớn hiển thị ở trang chủ"
+              >
+                <Star className="h-3.5 w-3.5 text-teal-400 group-hover:text-stone-950 transition-colors" />
+                <span>Combo #products</span>
+              </button>
 
-          {/* Quản Lý Combo Ưu Đãi Động */}
-          {onOpenComboRulesModal && (
-            <button
-              type="button"
-              onClick={onOpenComboRulesModal}
-              className="min-h-[38px] py-2 px-3 sm:px-3.5 rounded-xl bg-amber-500/15 hover:bg-amber-400 text-amber-300 hover:text-stone-950 border border-amber-400/40 font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm group"
-              title="Cấu hình các gói combo ưu đãi trong MongoDB (Siêu Combo 9-in-1, Combo 4-in-1...)"
-            >
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-400 group-hover:text-stone-950 transition-colors" />
-              <span className="truncate">Combo Ưu Đãi Động</span>
-            </button>
-          )}
+              {onOpenComboRulesModal && (
+                <button
+                  type="button"
+                  onClick={onOpenComboRulesModal}
+                  className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-amber-400 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-amber-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                  title="Cấu hình các gói combo ưu đãi trong MongoDB (Siêu Combo 9-in-1, Combo 4-in-1...)"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400 group-hover:text-stone-950 transition-colors" />
+                  <span>Combo Động</span>
+                </button>
+              )}
+
+              {onOpenShippingModal && (
+                <button
+                  type="button"
+                  onClick={onOpenShippingModal}
+                  className="min-h-[34px] py-1.5 px-3 rounded-xl bg-white/5 hover:bg-sky-400 hover:text-stone-950 text-stone-300 border border-white/10 hover:border-sky-400 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer group"
+                  title="Cấu hình phí ship cố định & điều kiện Freeship trong MongoDB"
+                >
+                  <Truck className="h-3.5 w-3.5 text-sky-400 group-hover:text-stone-950 transition-colors" />
+                  <span>Phí Ship</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

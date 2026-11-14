@@ -57,19 +57,29 @@ export function ComboRulesModal({ isOpen, onClose, onShowToast }: ComboRulesModa
   if (!isOpen) return null;
 
   const handleToggleActive = async (rule: DbComboRule) => {
+    const nextState = !rule.isActive;
+    const updated: DbComboRule = { ...rule, isActive: nextState };
+
+    // 1. Optimistic Update: Cập nhật giao diện lập tức trong 0ms
+    setRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)));
+
     try {
-      const updated: DbComboRule = { ...rule, isActive: !rule.isActive };
       const res = await fetch("/api/combos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updated),
       });
       if (res.ok) {
-        setRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)));
-        onShowToast(`Đã ${updated.isActive ? "bật" : "tắt"} combo "${rule.name}".`, "info");
+        onShowToast(`Đã ${nextState ? "bật" : "tắt"} combo "${rule.name}".`, "info");
+      } else {
+        // Rollback nếu API báo lỗi
+        setRules((prev) => prev.map((r) => (r.id === rule.id ? rule : r)));
+        onShowToast("Lỗi khi lưu trạng thái combo.", "error");
       }
     } catch {
-      onShowToast("Lỗi cập nhật trạng thái combo.", "error");
+      // Rollback nếu mất kết nối
+      setRules((prev) => prev.map((r) => (r.id === rule.id ? rule : r)));
+      onShowToast("Lỗi kết nối khi cập nhật trạng thái combo.", "error");
     }
   };
 
@@ -210,15 +220,18 @@ export function ComboRulesModal({ isOpen, onClose, onShowToast }: ComboRulesModa
                             {rule.badge}
                           </span>
                         )}
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(rule)}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-all ${
                             rule.isActive
-                              ? "bg-emerald-500/20 text-emerald-300"
-                              : "bg-stone-800 text-stone-400"
+                              ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-400/30"
+                              : "bg-stone-800 text-stone-400 hover:bg-stone-700 hover:text-stone-300 border border-white/5"
                           }`}
+                          title="Nhấn để Bật/Tắt nhanh"
                         >
                           {rule.isActive ? "Đang Bật" : "Đã Tắt"}
-                        </span>
+                        </button>
                       </div>
 
                       {rule.description && (
@@ -248,19 +261,23 @@ export function ComboRulesModal({ isOpen, onClose, onShowToast }: ComboRulesModa
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Công tắc Toggle dạng Switch chuẩn UI/UX dễ bấm */}
                       <button
                         type="button"
                         onClick={() => handleToggleActive(rule)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 text-stone-300 hover:text-white transition-colors cursor-pointer"
-                        title={rule.isActive ? "Tắt combo" : "Bật combo"}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                          rule.isActive ? "bg-emerald-500" : "bg-stone-700"
+                        }`}
+                        title={rule.isActive ? "Nhấn để Tắt combo" : "Nhấn để Bật combo"}
                       >
-                        {rule.isActive ? (
-                          <ToggleRight className="h-5 w-5 text-emerald-400" />
-                        ) : (
-                          <ToggleLeft className="h-5 w-5 text-stone-500" />
-                        )}
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            rule.isActive ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
                       </button>
+
                       <button
                         type="button"
                         onClick={() => setEditingRule(rule)}

@@ -145,15 +145,26 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 // Phân tích ngày tháng của hóa đơn
 function parseInvoiceDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
-  // Match định dạng: "HH:mm:ss dd/MM/yyyy" hoặc "dd/MM/yyyy"
-  const fullMatch = dateStr.match(/(?:(\d{1,2}):(\d{1,2}):(\d{1,2})\s+)?(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (fullMatch && fullMatch[4]) {
-    const h = fullMatch[1] ? Number(fullMatch[1]) : 0;
-    const mi = fullMatch[2] ? Number(fullMatch[2]) : 0;
-    const s = fullMatch[3] ? Number(fullMatch[3]) : 0;
-    const d = Number(fullMatch[4]);
-    const m = Number(fullMatch[5]) - 1;
-    const y = Number(fullMatch[6]);
+  // Match định dạng: "HH:mm:ss dd/MM/yyyy" hoặc "HH:mm:ss, dd/MM/yyyy"
+  const timeFirstMatch = dateStr.match(/^(?:(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?[,\s]+)(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (timeFirstMatch) {
+    const h = Number(timeFirstMatch[1]);
+    const mi = Number(timeFirstMatch[2]);
+    const s = timeFirstMatch[3] ? Number(timeFirstMatch[3]) : 0;
+    const d = Number(timeFirstMatch[4]);
+    const m = Number(timeFirstMatch[5]) - 1;
+    const y = Number(timeFirstMatch[6]);
+    return new Date(y, m, d, h, mi, s);
+  }
+  // Match định dạng: "dd/MM/yyyy HH:mm:ss" hoặc "dd/MM/yyyy"
+  const dateFirstMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dateFirstMatch) {
+    const d = Number(dateFirstMatch[1]);
+    const m = Number(dateFirstMatch[2]) - 1;
+    const y = Number(dateFirstMatch[3]);
+    const h = dateFirstMatch[4] ? Number(dateFirstMatch[4]) : 0;
+    const mi = dateFirstMatch[5] ? Number(dateFirstMatch[5]) : 0;
+    const s = dateFirstMatch[6] ? Number(dateFirstMatch[6]) : 0;
     return new Date(y, m, d, h, mi, s);
   }
   const parsed = new Date(dateStr);
@@ -513,6 +524,14 @@ export default function InvoicesPage() {
     return bestComboResult.discountAmount || 0;
   }, [bestComboResult]);
 
+  const discountPercent = useMemo(() => {
+    if (!subtotal || subtotal <= 0 || !comboDiscount || comboDiscount <= 0) return 0;
+    if (bestComboResult.rule?.discountType === "percent" && bestComboResult.rule.discountValue) {
+      return bestComboResult.rule.discountValue;
+    }
+    return Math.round((comboDiscount / subtotal) * 100);
+  }, [subtotal, comboDiscount, bestComboResult]);
+
   const amountAfterCombo = useMemo(() => {
     return Math.max(0, subtotal - comboDiscount);
   }, [subtotal, comboDiscount]);
@@ -648,7 +667,7 @@ export default function InvoicesPage() {
     setActiveView("CREATE");
   };
 
-  const handleEditInvoice = (inv: SaleInvoice) => {
+  const handleEditInvoice = useCallback((inv: SaleInvoice) => {
     setEditingInvoiceId(inv.id || inv.code);
     setCustomerType(inv.customerType || "TRUCTIEP");
     setCustomerName(inv.customerName || "Khách Hàng");
@@ -682,7 +701,29 @@ export default function InvoicesPage() {
 
     setCreateStep(1);
     setActiveView("CREATE");
-  };
+  }, []);
+
+  // Tự động kích hoạt Sửa Phiếu nếu URL có ?editId=... (khi chuyển từ /tools?tab=invoices sang)
+  useEffect(() => {
+    if (typeof window !== "undefined" && invoices.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const editId = params.get("editId") || params.get("edit");
+      if (editId) {
+        const target = invoices.find(
+          (i) =>
+            (i.id && i.id.toLowerCase() === editId.toLowerCase()) ||
+            (i.code && i.code.toLowerCase() === editId.toLowerCase())
+        );
+        if (target) {
+          handleEditInvoice(target);
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete("editId");
+          newUrl.searchParams.delete("edit");
+          window.history.replaceState({}, "", newUrl.toString());
+        }
+      }
+    }
+  }, [invoices, handleEditInvoice]);
 
   const handleNextToStep2 = () => {
     if (!customerName.trim()) {
@@ -752,7 +793,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const invoicePrefix = customerType === "TRUCTIEP" ? "HD-DIR" : "HD-ONL";
     const invoiceCode = editingInvoiceId
-      ? (invoices.find((i) => i.id === editingInvoiceId)?.code || `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`)
+      ? (invoices.find((i) => i.id === editingInvoiceId || i.code === editingInvoiceId)?.code || `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`)
       : `${invoicePrefix}-${Date.now().toString().slice(-4)}-${randomNum}`;
     const cleanCustCode = customerId.trim() || `KH${randomNum}`;
 
@@ -1520,12 +1561,19 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                         {/* Hàng 2: Khách hàng & SĐT */}
                         <div className="space-y-0.5">
                           <div className="flex items-baseline justify-between gap-2">
-                            <h4 className="text-sm font-black text-white truncate">
-                              {highlightMatch(inv.customerName, searchInvoiceQuery)}
-                            </h4>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <h4 className="text-sm font-black text-white truncate">
+                                {highlightMatch(inv.customerName, searchInvoiceQuery)}
+                              </h4>
+                              {getCustomerCode(inv) && (
+                                <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.2 rounded shrink-0">
+                                  {getCustomerCode(inv)}
+                                </span>
+                              )}
+                            </div>
                             {inv.createdAt && (
                               <span className="text-[10px] text-stone-500 font-mono shrink-0">
-                                {inv.createdAt.split(" ")[0]}
+                                {formatInvoiceDateTime(inv.createdAt)}
                               </span>
                             )}
                           </div>
@@ -1680,7 +1728,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                           </span>
                           {inv.createdAt && (
                             <span className="text-[10px] text-stone-500 font-mono">
-                              {inv.createdAt.split(" ")[0]}
+                              {formatInvoiceDateTime(inv.createdAt)}
                             </span>
                           )}
                         </div>
@@ -1689,6 +1737,11 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                           <span className="font-black text-white truncate">
                             {highlightMatch(inv.customerName, searchInvoiceQuery)}
                           </span>
+                          {getCustomerCode(inv) && (
+                            <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.2 rounded shrink-0">
+                              {getCustomerCode(inv)}
+                            </span>
+                          )}
                           {inv.customerPhone && (
                             <span className="text-stone-400 font-mono text-[11px] shrink-0">
                               • {highlightMatch(inv.customerPhone, searchInvoiceQuery)}
@@ -2107,19 +2160,30 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                   </div>
 
                   {cartItems.length > 0 && (
-                    <div className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-1 text-xs">
-                      <div className="flex justify-between text-stone-400">
+                    <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 space-y-2 text-xs">
+                      <div className="flex justify-between items-center text-stone-400">
                         <span>Tiền hàng tạm tính:</span>
                         <span className="font-mono font-bold text-white">
                           {formatVndCurrency(subtotal)}
                         </span>
                       </div>
                       {comboDiscount > 0 && (
-                        <div className="flex justify-between text-emerald-400 font-bold">
-                          <span>Khuyến mãi ({bestComboResult.rule?.name || "Combo"}):</span>
+                        <div className="flex justify-between items-center text-emerald-400 font-bold">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>Khuyến mãi ({bestComboResult.rule?.name || "Combo"}):</span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-[10px] font-black">
+                              -{discountPercent}%
+                            </span>
+                          </div>
                           <span className="font-mono">-{formatVndCurrency(comboDiscount)}</span>
                         </div>
                       )}
+                      <div className="flex justify-between items-center text-amber-300 font-black pt-2 border-t border-white/10">
+                        <span className="text-xs uppercase tracking-wide">Thành tiền:</span>
+                        <span className="font-mono text-sm sm:text-base text-amber-300">
+                          {formatVndCurrency(amountAfterCombo)}
+                        </span>
+                      </div>
                     </div>
                   )}
 
@@ -2181,16 +2245,81 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-black/80 border-2 border-amber-400/50 space-y-3">
+                    {/* Bảng Kê Chi Tiết: Tiền Tạm Tính, Khuyến Mãi & Thuế VAT */}
+                    <div className="p-3 rounded-xl bg-stone-900 border border-white/10 space-y-2 text-xs">
+                      {/* Tiền hàng tạm tính */}
+                      <div className="flex justify-between items-center text-stone-400">
+                        <span>Tiền hàng tạm tính:</span>
+                        <span className="font-mono font-bold text-white">
+                          {formatVndCurrency(subtotal)}
+                        </span>
+                      </div>
+
+                      {/* Khuyến mãi & badge % KM */}
+                      {comboDiscount > 0 ? (
+                        <div className="flex justify-between items-center text-emerald-400 font-bold">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>Khuyến mãi ({bestComboResult.rule?.name || "Combo"}):</span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-[10px] font-black">
+                              -{discountPercent}%
+                            </span>
+                          </div>
+                          <span className="font-mono">-{formatVndCurrency(comboDiscount)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center text-stone-500 text-[11px]">
+                          <span>Khuyến mãi:</span>
+                          <span>0 ₫</span>
+                        </div>
+                      )}
+
+                      {/* Thuế VAT & badge % VAT */}
+                      <div className="flex justify-between items-center text-stone-300 pt-1.5 border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
+                          <span>Thuế VAT:</span>
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded-md font-mono text-[10px] font-black border ${
+                              vatRate > 0
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                : "bg-white/5 text-stone-400 border-white/10"
+                            }`}
+                          >
+                            {vatRate > 0 ? `+${vatRate}%` : "0% (Miễn thuế)"}
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-stone-200">
+                          {vatRate > 0 ? `+${formatVndCurrency(vatAmount)}` : "0 ₫"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Khối Tổng Tiền Chốt */}
                     <div className="p-3 rounded-xl bg-stone-900 border border-amber-400/30 flex items-center justify-between">
                       <div>
-                        <span className="block text-xs font-black text-amber-300">
-                          Tổng Tiền:
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="block text-xs font-black text-amber-300">
+                            Tổng Tiền:
+                          </span>
+                          {discountPercent > 0 && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-[10px] font-black">
+                              -{discountPercent}%
+                            </span>
+                          )}
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded-md font-mono text-[10px] font-black border ${
+                              vatRate > 0
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                : "bg-white/5 text-stone-400 border-white/10"
+                            }`}
+                          >
+                            VAT {vatRate}%
+                          </span>
+                        </div>
                         <span className="text-[10px] text-stone-400">
                           Tổng tiền đơn hàng sau thuế VAT
                         </span>
                       </div>
-                      <span className="font-mono text-base sm:text-lg font-black text-amber-300">
+                      <span className="font-mono text-base sm:text-lg font-black text-amber-300 shrink-0">
                         {formatVndCurrency(creditAmount)}
                       </span>
                     </div>
@@ -2216,8 +2345,15 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
                       <input
                         type="number"
-                        value={debitAmount}
-                        onChange={(e) => setDebitAmount(Number(e.target.value) || 0)}
+                        min={0}
+                        step={1000}
+                        value={debitAmount === 0 ? "" : debitAmount}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          setDebitAmount(val === "" ? 0 : Math.max(0, Number(val)));
+                        }}
                         className="w-full bg-black border border-emerald-400/60 rounded-xl px-3 py-2 text-sm text-emerald-400 font-mono font-black focus:outline-hidden focus:border-emerald-300 min-h-[44px]"
                       />
                     </div>
