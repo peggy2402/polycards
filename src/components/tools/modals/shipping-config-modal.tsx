@@ -69,16 +69,43 @@ export function ShippingConfigModal({
   // Xử lý lưu cấu hình
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Khi BẬT chính sách phí ship: Bắt buộc mức phí ship tiêu chuẩn phải > 0
+    if (config.enabled) {
+      const feeNum = Number(config.standardFee);
+      if (isNaN(feeNum) || feeNum <= 0) {
+        onShowToast("Khi bật chính sách, mức phí ship tiêu chuẩn phải lớn hơn 0 đ.", "warning");
+        return;
+      }
+      if (config.condition === "min_packs" && (!config.minPacksCount || config.minPacksCount < 1)) {
+        onShowToast("Số lượng bộ thẻ tối thiểu để Freeship phải từ 1 bộ trở lên.", "warning");
+        return;
+      }
+    }
+
     try {
       setIsSaving(true);
+      // Khi TẮT: đảm bảo standardFee có giá trị hợp lệ để khi bật lại không bị rỗng
+      const payload: ShippingConfig = {
+        ...config,
+        standardFee: Number(config.standardFee) > 0 ? Number(config.standardFee) : 30000,
+        minPacksCount: Math.max(1, Number(config.minPacksCount) || 2),
+        minOrderAmount: Math.max(0, Number(config.minOrderAmount) || 300000),
+      };
+
       const res = await fetch("/api/shipping/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
-        onShowToast("Đã lưu cấu hình phí vận chuyển thành công!", "success");
+        onShowToast(
+          config.enabled
+            ? "Đã lưu và BẬT cấu hình phí vận chuyển thành công!"
+            : "Đã TẮT chính sách phí ship thành công (Freeship Toàn Quốc)!",
+          "success"
+        );
         if (json.data) setConfig(json.data);
       } else {
         onShowToast(json.message || "Lỗi lưu cấu hình.", "error");
@@ -143,30 +170,45 @@ export function ShippingConfigModal({
               <p className="text-xs font-semibold text-stone-400">Đang đồng bộ cấu hình từ database...</p>
             </div>
           ) : (
-            <form onSubmit={handleSave} id="shipping-form" className="space-y-6">
+            <form onSubmit={handleSave} noValidate id="shipping-form" className="space-y-6">
               {/* 1. Kích hoạt tính năng */}
-              <div className="flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-stone-950/70">
-                <div className="space-y-0.5">
-                  <span className="text-xs sm:text-sm font-black text-white block">
-                    Bật chính sách phí vận chuyển
-                  </span>
-                  <span className="text-[11px] text-stone-400 font-medium">
-                    Nếu tắt, tất cả đơn hàng đều tự động tính là 0 ₫ (Freeship toàn quốc).
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setConfig((prev) => ({ ...prev, enabled: !prev.enabled }))}
-                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    config.enabled ? "bg-amber-400" : "bg-stone-700"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-stone-950 shadow-md ring-0 transition duration-200 ease-in-out ${
-                      config.enabled ? "translate-x-5" : "translate-x-0"
+              <div className="p-4 rounded-2xl border border-white/10 bg-stone-950/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-xs sm:text-sm font-black text-white block">
+                      Bật chính sách phí vận chuyển
+                    </span>
+                    <span className="text-[11px] text-stone-400 font-medium">
+                      Nếu tắt, tất cả đơn hàng đều tự động tính là 0 ₫ (Freeship toàn quốc).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfig((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                      config.enabled ? "bg-amber-400" : "bg-stone-700"
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-stone-950 shadow-md ring-0 transition duration-200 ease-in-out ${
+                        config.enabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Banner trạng thái */}
+                {!config.enabled ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>Chính sách đang <strong>TẮT</strong>: Mọi đơn hàng trên web sẽ áp dụng <strong>Freeship Toàn Quốc</strong> (0 ₫). Bấm <strong>Lưu Cấu Hình</strong> để lưu trạng thái này.</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                    <Truck className="h-4 w-4 shrink-0" />
+                    <span>Chính sách đang <strong>BẬT</strong>: Phí ship tiêu chuẩn là <strong>{formatVndCurrency(config.standardFee || 0)}</strong> (tự động Freeship khi đạt điều kiện).</span>
+                  </div>
+                )}
               </div>
 
               {/* 2. Mức phí vận chuyển tiêu chuẩn */}
@@ -174,18 +216,17 @@ export function ShippingConfigModal({
                 <label className="text-xs font-black text-stone-200 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <Banknote className="h-4 w-4 text-amber-400" />
-                    <span>Mức phí vận chuyển tiêu chuẩn (VNĐ) *</span>
+                    <span>Mức phí vận chuyển tiêu chuẩn (VNĐ) {config.enabled && <span className="text-amber-400">*</span>}</span>
                   </span>
                   <span className="text-amber-400 font-mono font-black text-xs">
-                    {formatVndCurrency(config.standardFee)}
+                    {formatVndCurrency(config.standardFee || 0)}
                   </span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    min={0}
+                    min={config.enabled ? 1000 : 0}
                     step={1000}
-                    required
                     value={config.standardFee === 0 ? "" : config.standardFee}
                     onChange={(e) => {
                       const val = e.target.value === "" ? 0 : Number(e.target.value);
@@ -195,7 +236,7 @@ export function ShippingConfigModal({
                     className="w-full rounded-2xl border border-white/10 bg-stone-950 px-4 py-2.5 text-sm font-black text-white focus:border-amber-400 focus:outline-hidden transition-all font-mono"
                   />
                   <div className="flex gap-1.5 shrink-0">
-                    {[0, 25000, 30000, 35000].map((fee) => (
+                    {[20000, 25000, 30000, 35000].map((fee) => (
                       <button
                         key={fee}
                         type="button"
@@ -206,7 +247,7 @@ export function ShippingConfigModal({
                             : "bg-stone-950 border-white/10 text-stone-400 hover:text-white hover:bg-stone-800"
                         }`}
                       >
-                        {fee === 0 ? "0 đ" : `${fee / 1000}k`}
+                        {`${fee / 1000}k`}
                       </button>
                     ))}
                   </div>

@@ -786,11 +786,15 @@ function OrderContent() {
           <div className="flex items-center gap-1.5 bg-amber-100/80 px-2.5 py-1 rounded-full border border-amber-300 text-[11px] font-black text-amber-950">
             <Truck className="h-3 w-3 text-amber-600" />
             <span>
-              {shippingConfig.condition === "always_free"
+              {!shippingConfig.enabled
+                ? "Freeship Toàn Quốc"
+                : shippingConfig.condition === "always_free"
                 ? "Freeship Toàn Quốc"
                 : shippingConfig.condition === "min_packs"
                 ? `Freeship Từ ${shippingConfig.minPacksCount} Bộ`
-                : "Ưu Đãi Vận Chuyển"}
+                : shippingConfig.condition === "min_amount"
+                ? `Freeship Đơn Từ ${formatVndCurrency(shippingConfig.minOrderAmount)}`
+                : `Freeship Từ ${shippingConfig.minPacksCount} Bộ`}
             </span>
           </div>
         </div>
