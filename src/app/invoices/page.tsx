@@ -145,29 +145,34 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 // Phân tích ngày tháng của hóa đơn
 function parseInvoiceDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
-  // Match định dạng: "HH:mm:ss dd/MM/yyyy" hoặc "HH:mm:ss, dd/MM/yyyy"
-  const timeFirstMatch = dateStr.match(/^(?:(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?[,\s]+)(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const s = String(dateStr).trim();
+  if (!s) return null;
+
+  // Match định dạng: "HH:mm:ss dd/MM/yyyy" hoặc "HH:mm:ss, dd/MM/yyyy" hoặc "HH:mm dd/MM/yyyy"
+  const timeFirstMatch = s.match(/^(?:(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?[,\s]+)(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (timeFirstMatch) {
     const h = Number(timeFirstMatch[1]);
     const mi = Number(timeFirstMatch[2]);
-    const s = timeFirstMatch[3] ? Number(timeFirstMatch[3]) : 0;
+    const sec = timeFirstMatch[3] ? Number(timeFirstMatch[3]) : 0;
     const d = Number(timeFirstMatch[4]);
     const m = Number(timeFirstMatch[5]) - 1;
     const y = Number(timeFirstMatch[6]);
-    return new Date(y, m, d, h, mi, s);
+    return new Date(y, m, d, h, mi, sec);
   }
-  // Match định dạng: "dd/MM/yyyy HH:mm:ss" hoặc "dd/MM/yyyy"
-  const dateFirstMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  // Match định dạng: "dd/MM/yyyy HH:mm:ss" hoặc "dd/MM/yyyy, HH:mm:ss" hoặc "dd/MM/yyyy"
+  const dateFirstMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
   if (dateFirstMatch) {
     const d = Number(dateFirstMatch[1]);
     const m = Number(dateFirstMatch[2]) - 1;
     const y = Number(dateFirstMatch[3]);
     const h = dateFirstMatch[4] ? Number(dateFirstMatch[4]) : 0;
     const mi = dateFirstMatch[5] ? Number(dateFirstMatch[5]) : 0;
-    const s = dateFirstMatch[6] ? Number(dateFirstMatch[6]) : 0;
-    return new Date(y, m, d, h, mi, s);
+    const sec = dateFirstMatch[6] ? Number(dateFirstMatch[6]) : 0;
+    return new Date(y, m, d, h, mi, sec);
   }
-  const parsed = new Date(dateStr);
+  // Thử parse ISO dạng "YYYY-MM-DD HH:mm:ss" hoặc chuẩn ISO
+  const normalizedIso = s.includes(" ") && !s.includes("T") ? s.replace(" ", "T") : s;
+  const parsed = new Date(normalizedIso);
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -2550,7 +2555,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                   {selectedInvoice.code}
                 </span>
                 <span className="text-[11px] text-slate-500 block mt-0.5">
-                  Ngày: {selectedInvoice.createdAt}
+                  Ngày: {formatInvoiceDateTime(selectedInvoice.createdAt) || selectedInvoice.createdAt}
                 </span>
               </div>
             </div>
