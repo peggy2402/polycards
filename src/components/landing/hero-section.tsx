@@ -10,6 +10,8 @@ import {
   Eye,
   Smartphone,
   CheckCircle2,
+  Sparkles,
+  Layers,
 } from "lucide-react";
 import { HeroButterflyArCard } from "./hero-butterfly-ar-card";
 import { speakWord, stopAllCardAudio } from "@/lib/speech-audio";
@@ -81,10 +83,41 @@ export function HeroSection() {
               </span>
             </h1>
 
-            {/* Subtitle */}
-            <p className="mx-auto max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg lg:mx-0 font-medium">
-              Bộ thẻ bài đồ chơi giáo dục cao cấp kết hợp công nghệ thực tế ảo AR. Bé tự tay cầm nắm thẻ bài xinh xắn, quét mã QR để mở ra thế giới muông thú 3D chuyển động sống động kèm giọng đọc bản xứ chuẩn quốc tế IPA.
-            </p>
+            {/* Subtitle with Highlighting & Feature Badges */}
+            <div className="mx-auto max-w-xl lg:mx-0 space-y-3.5">
+              <p className="text-base sm:text-lg leading-relaxed text-slate-700 font-medium text-center lg:text-left">
+                <strong className="font-bold text-slate-950">Bộ thẻ bài đồ chơi giáo dục cao cấp</strong> kết hợp công nghệ{" "}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100 text-amber-950 font-black text-sm border border-amber-300 shadow-2xs align-middle">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Thực Tế Ảo AR</span>
+                </span>
+                . Bé tự tay cầm nắm thẻ bài xinh xắn, quét mã QR mở ra{" "}
+                <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                  thế giới muông thú 3D sống động
+                </span>{" "}
+                kèm giọng phát âm bản xứ{" "}
+                <span className="font-bold text-slate-900 underline decoration-amber-400 decoration-2 underline-offset-4">
+                  chuẩn quốc tế IPA
+                </span>
+                .
+              </p>
+
+              {/* Hàng 3 Mini Feature Badges trực quan */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 pt-0.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 border border-amber-200/90 text-xs font-bold text-amber-950 shadow-2xs">
+                  <Layers className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Thẻ Cầm Nắm Vật Lý</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 border border-emerald-200 text-xs font-bold text-emerald-900 shadow-2xs">
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>3D AR Tương Tác 360°</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 border border-sky-200 text-xs font-bold text-sky-950 shadow-2xs">
+                  <Volume2 className="h-3.5 w-3.5 text-sky-600" />
+                  <span>Phát Âm Bản Xứ IPA</span>
+                </span>
+              </div>
+            </div>
 
             {/* Tactile 3D Action Buttons */}
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start pt-2">
