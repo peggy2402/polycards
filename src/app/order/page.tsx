@@ -42,6 +42,7 @@ import {
   Copy,
   Check,
   AlertCircle,
+  Search,
 } from "lucide-react";
 
 // Cấu hình tài khoản ngân hàng thụ hưởng Poly Cards
@@ -732,6 +733,13 @@ function OrderContent() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
           <Link
+            href={`/lookup?q=${encodeURIComponent(cleanPhone || createdOrderCode)}`}
+            className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border-2 border-amber-400 bg-amber-50 px-6 text-sm font-black text-amber-950 hover:bg-amber-100 active:scale-95 transition-all shadow-md cursor-pointer"
+          >
+            <Search className="h-4 w-4 text-amber-700" />
+            <span>Theo Dõi &amp; Tra Cứu Đơn Này</span>
+          </Link>
+          <Link
             href="/"
             className="inline-flex min-h-[48px] w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-amber-500 px-6 text-sm font-black text-stone-950 shadow-lg hover:bg-amber-400 active:scale-95 transition-all"
           >
@@ -753,13 +761,23 @@ function OrderContent() {
       {/* Top Header Checkout Bar */}
       <div className="mx-auto max-w-5xl px-3 sm:px-6 pt-3 pb-4">
         <div className="flex items-center justify-between border-b border-amber-200/80 pb-3">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-black text-stone-700 hover:text-amber-700 active:scale-95 transition-all"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Trang Chủ</span>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-black text-stone-700 hover:text-amber-700 active:scale-95 transition-all"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Trang Chủ</span>
+            </Link>
+
+            <Link
+              href="/lookup"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 text-xs font-bold transition-all active:scale-95"
+            >
+              <Search className="h-3 w-3 text-amber-700" />
+              <span>Tra Cứu Đơn</span>
+            </Link>
+          </div>
 
           <h1 className="text-sm sm:text-lg font-black text-stone-950">
             Đặt Mua Bộ Thẻ Thực Tế Ảo Poly Cards

@@ -3,6 +3,8 @@ import { dbUpsertOrder, dbSyncCustomerFromOrder } from "@/lib/mongodb";
 import { SeedOrderItem, SeedOrderLineItem } from "@/data/seed-data";
 import { OrderStatus, DeliveryMethod } from "@/types/animal";
 import { normalizePhoneNumber } from "@/lib/pricing";
+import { recordInventoryTransaction } from "@/lib/inventory";
+import { sendOrderNotificationEmails } from "@/lib/mailer";
 
 export async function POST(req: NextRequest) {
   try {
@@ -124,6 +126,23 @@ export async function POST(req: NextRequest) {
     // 3. Lưu vào cơ sở dữ liệu MongoDB
     await dbUpsertOrder(newOrder);
 
+    // 3.1. Tự động ghi nhận xuất kho & tính toán nợ trước (Backorder) cho từng bộ thẻ
+    try {
+      for (const item of lineItems) {
+        const targetPackCode = item.packCode || "POLY30-DONGVAT-ENVI";
+        await recordInventoryTransaction({
+          packCode: targetPackCode,
+          type: "ORDER_SALE",
+          quantity: -Math.abs(item.quantity || 1),
+          orderCode,
+          customerName: cleanCustName,
+          note: `Khách đặt mua đơn trực tuyến ${orderCode}`,
+        });
+      }
+    } catch (invErr) {
+      console.error("Lỗi đồng bộ tồn kho khi đặt hàng:", invErr);
+    }
+
     // 4. Gửi thông báo Discord Webhook
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
     const formattedPrice = new Intl.NumberFormat("vi-VN", {
@@ -240,6 +259,34 @@ export async function POST(req: NextRequest) {
       } catch (webhookErr) {
         console.error("Lỗi gửi Discord webhook:", webhookErr);
       }
+    }
+
+    // 5. Gửi email thông báo tự động về hello@polycards.vn & Gmail quản trị viên
+    try {
+      await sendOrderNotificationEmails({
+        orderCode,
+        customerName: cleanCustName,
+        customerPhone: cleanCustPhone,
+        customerEmail: email ? email.trim() : undefined,
+        customerAddress: cleanCustAddress,
+        totalPrice: finalTotal,
+        subtotal: finalSubtotal,
+        shippingFee: Number(shippingFee) || 0,
+        paymentMethod: isBanking ? "Chuyển khoản QR ngân hàng" : "Thanh toán khi nhận hàng (COD)",
+        deliveryMethodLabel: deliveryMethodLabelMap[deliveryMethod] || deliveryMethod,
+        items: lineItems.map((it) => ({
+          name: it.name,
+          packCode: it.packCode,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          totalPrice: it.totalPrice,
+        })),
+        comboName: comboName || undefined,
+        comboDiscount: Number(comboDiscount) || 0,
+        note: note && note.trim() !== "" ? note.trim() : undefined,
+      });
+    } catch (mailErr) {
+      console.error("Lỗi gửi email đơn hàng:", mailErr);
     }
 
     return NextResponse.json({

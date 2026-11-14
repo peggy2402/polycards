@@ -113,7 +113,15 @@ export interface ToastItem {
   type: "success" | "error" | "info" | "warning";
 }
 
-export type StudioTab = "editor" | "products" | "categories" | "licenses" | "invoices" | "customers" | "ai-chat";
+export type StudioTab =
+  | "editor"
+  | "products"
+  | "inventory"
+  | "categories"
+  | "licenses"
+  | "invoices"
+  | "customers"
+  | "ai-chat";
 
 export interface ZipExportProgressItem {
   slug: string;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SeedOrderItem } from "@/data/seed-data";
+import { recordInventoryTransaction } from "@/lib/inventory";
 import {
   dbGetOrders,
   dbUpsertOrder,
@@ -227,6 +228,26 @@ export async function POST(request: NextRequest) {
 
     const saved = await dbUpsertOrder(newOrder);
     await dbSyncCustomerFromOrder(saved);
+
+    // Tự động cập nhật trừ tồn kho hoặc ghi nhận nợ hàng (Backorder) cho đơn tạo mới
+    if (!existing && saved.items && saved.items.length > 0) {
+      try {
+        for (const it of saved.items) {
+          if (it.packCode) {
+            await recordInventoryTransaction({
+              packCode: it.packCode,
+              type: "ORDER_SALE",
+              quantity: -Math.abs(it.quantity || 1),
+              orderCode: saved.code,
+              customerName: saved.customerName,
+              note: `Bán tại quầy POS hóa đơn ${saved.code}`,
+            });
+          }
+        }
+      } catch (invErr) {
+        console.error("Lỗi cập nhật kho từ đơn POS:", invErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

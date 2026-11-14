@@ -18,6 +18,7 @@ import {
   Users,
   ExternalLink,
   Bot,
+  Boxes,
 } from "lucide-react";
 import {
   getProductCategories,
@@ -74,6 +75,7 @@ import { LicensesTab } from "@/components/tools/tabs/licenses-tab";
 import { InvoicesTab } from "@/components/tools/tabs/invoices-tab";
 import { CustomersTab } from "@/components/tools/tabs/customers-tab";
 import { AiTab } from "@/components/tools/tabs/ai-tab";
+import { InventoryTab } from "@/components/tools/tabs/inventory-tab";
 
 export default function ToolsPage() {
   // 1. Quản lý xác thực bảo mật tác giả Poly Cards
@@ -401,7 +403,7 @@ export default function ToolsPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab") as StudioTab;
-        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers", "ai-chat"];
+        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers", "inventory", "ai-chat"];
         let targetTab: StudioTab | null = null;
 
         if (urlTab && validTabs.includes(urlTab)) {
@@ -446,7 +448,7 @@ export default function ToolsPage() {
       try {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab") as StudioTab;
-        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers", "ai-chat"];
+        const validTabs: StudioTab[] = ["editor", "products", "categories", "licenses", "invoices", "customers", "inventory", "ai-chat"];
         if (urlTab && validTabs.includes(urlTab)) {
           setActiveStudioTab(urlTab);
         }
@@ -2846,6 +2848,24 @@ export default function ToolsPage() {
 
             <button
               type="button"
+              onClick={() => setActiveStudioTab("inventory")}
+              className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeStudioTab === "inventory"
+                  ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-stone-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Boxes className="h-4 w-4 shrink-0" />
+              <span>Kho Hàng</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black uppercase ${
+                activeStudioTab === "inventory" ? "bg-stone-950 text-amber-300" : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+              }`}>
+                10 Bộ
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveStudioTab("categories")}
               className={`py-2 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                 activeStudioTab === "categories"
@@ -3058,6 +3078,14 @@ export default function ToolsPage() {
           onDownloadZipForCards={handleDownloadZipForCards}
           printQueueCount={printQueue.length}
           isGeneratingZip={isGeneratingZip}
+        />
+      )}
+
+      {/* TAB: QUẢN LÝ KHO THÀNH PHẨM & ĐẶT TRƯỚC (INVENTORY & BACKORDER) */}
+      {activeStudioTab === "inventory" && (
+        <InventoryTab
+          onShowToast={showToast}
+          onNavigateToInvoices={() => setActiveStudioTab("invoices")}
         />
       )}
 

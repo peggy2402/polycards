@@ -10,7 +10,7 @@ export interface CardQrPosition {
   size: number;
 }
 
-export type OrderStatus = "CHO_DUYET" | "DA_NHAN" | "DA_HUY";
+export type OrderStatus = "CHO_DUYET" | "DANG_GIAO" | "DA_NHAN" | "DA_HUY";
 
 export type DeliveryMethod =
   | "TRUC_TIEP"
