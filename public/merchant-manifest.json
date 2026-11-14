@@ -1,0 +1,30 @@
+{
+  "name": "Poly Merchant - Nhận Đơn Hàng Live",
+  "short_name": "Poly Merchant",
+  "description": "Ứng dụng nhận đơn và chốt đơn hàng Poly Cards theo thời gian thực",
+  "start_url": "/merchant",
+  "scope": "/merchant",
+  "display": "standalone",
+  "background_color": "#0c0a09",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/apple-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ]
+}
