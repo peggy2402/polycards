@@ -208,7 +208,18 @@ export function AiChatWidget() {
 
   // Hiển thị lời mời trò chuyện sau 4 giây truy cập (kiểm tra khoảng cách thời gian từ lần đóng trước)
   useEffect(() => {
-    if (pathname === "/order" || isOpen) return;
+    if (
+      !pathname ||
+      pathname === "/order" ||
+      pathname.startsWith("/tools") ||
+      pathname.startsWith("/invoices") ||
+      pathname.startsWith("/merchant") ||
+      pathname.startsWith("/studio") ||
+      pathname.startsWith("/ar/") ||
+      isOpen
+    ) {
+      return;
+    }
 
     if (typeof window !== "undefined") {
       try {
@@ -312,8 +323,15 @@ export function AiChatWidget() {
     setMessages([resetWelcome]);
   };
 
-  // ẨN CHAT KHI ĐANG Ở TRANG AR VIEW HOẶC WEB APP MERCHANT NHẬN ĐƠN
-  if (pathname && (pathname.startsWith("/ar/") || pathname.startsWith("/studio") || pathname.startsWith("/merchant"))) {
+  // ẨN CHAT KHI ĐANG Ở TRANG AR VIEW HOẶC CÁC TRANG QUẢN TRỊ BACK OFFICE (/tools, /invoices, /merchant, /studio)
+  if (
+    !pathname ||
+    pathname.startsWith("/ar/") ||
+    pathname.startsWith("/studio") ||
+    pathname.startsWith("/merchant") ||
+    pathname.startsWith("/tools") ||
+    pathname.startsWith("/invoices")
+  ) {
     return null;
   }
 
