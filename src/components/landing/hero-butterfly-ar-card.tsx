@@ -15,6 +15,13 @@ import { HeroQrMatrixSwap } from "./hero-qr-matrix-swap";
 // =========================================================================
 export const BUTTERFLY_SCALE_MULTIPLIER = 0.52;
 
+// Placeholders mờ siêu nhẹ (Base64 WebP) giúp thẻ hiển thị ngay tức thì, chống nhảy layout (Zero CLS)
+const BLUR_SAU =
+  "data:image/webp;base64,UklGRpwAAABXRUJQVlA4IJAAAADQAwCdASoQABcAPzmEuVOvKKWisAgB4CcJbAC1IUAAgaXqz7/UYIAA3ZAbvaFqauYEGgDWzZtNmPUQPBw0G1pRXHfnrYyazoxRqtfrZYS3u/sMbZAZ1jfwlfwB5jSZDmCYnnAHd0E29IC2EF6IxrYJBM0Pw2oI6bxej/xwH6RkXfH98Z6EW0cTsWKJPKyNeAA=";
+
+const BLUR_TRUOC =
+  "data:image/webp;base64,UklGRqAAAABXRUJQVlA4IJQAAADQAwCdASoQABcAPzmGuVOvKSWisAgB4CcJbACsMoAB5hf6fxOzUAAA3ZAbvaFqauMGtzBiAo1dj4XIEXGE4IKgvuqJep7DBkLzckX8POqp1/UoUj2vQBFCSJgPCKye6XRVCiFVn6JS200Vv6swWkvoBo5jcgr9+MIAgR03i9H+wAvW7x/j++WQSCK65GYlm35VfAAA=";
+
 interface HeroButterflyArCardProps {
   cardBeforeSrc?: string; // Ảnh thẻ 2D có hình bướm gốc
   cardAfterSrc?: string; // Ảnh phôi nền sạch không có bướm
@@ -22,8 +29,8 @@ interface HeroButterflyArCardProps {
 }
 
 export function HeroButterflyArCard({
-  cardBeforeSrc = "/images/cards/butterfly-card-truoc.png",
-  cardAfterSrc = "/images/cards/butterfly-card-sau.png",
+  cardBeforeSrc = "/images/cards/butterfly-card-truoc.webp",
+  cardAfterSrc = "/images/cards/butterfly-card-sau.webp",
   modelUrl = "/models/buom-animated.glb",
 }: HeroButterflyArCardProps) {
   // Trạng thái AR 3D: ban đầu bắt đầu ở chế độ Thẻ 2D chuẩn, sau đó tự động hóa thân mượt mà sang 3D
@@ -421,19 +428,21 @@ export function HeroButterflyArCard({
     >
       {/* KHUNG THẺ VẬT LÝ BO GÓC CAO CẤP (Chứa 2 lớp ảnh thẻ 1063x1535 và mã QR, bo góc và đổ bóng) */}
       <div className="relative aspect-[1063/1535] w-full overflow-hidden rounded-[2.2rem] bg-gradient-to-b from-amber-100 to-amber-50 shadow-2xl shadow-amber-950/20 ring-4 ring-white/90 transition-transform duration-300 hover:scale-[1.015]">
-        {/* 1. LỚP ẢNH DƯỚI: butterfly-card-sau.png (Phôi nền sạch KHÔNG CÓ BƯỚM) */}
+        {/* 1. LỚP ẢNH DƯỚI: butterfly-card-sau.webp (Phôi nền sạch KHÔNG CÓ BƯỚM - Tối ưu 188KB) */}
         <div className="absolute inset-0 z-0">
           <Image
             src={cardAfterSrc}
             alt="Phôi sạch thẻ bài học tiếng Anh Butterfly Poly Cards"
             fill
             priority
+            placeholder="blur"
+            blurDataURL={BLUR_SAU}
             sizes="(max-width: 640px) 100vw, 420px"
             className="object-cover"
           />
         </div>
 
-        {/* 2. LỚP ẢNH TRÊN: butterfly-card-truoc.png (Thẻ 2D CÓ CON BƯỚM TRONG TRANH) */}
+        {/* 2. LỚP ẢNH TRÊN: butterfly-card-truoc.webp (Thẻ 2D CÓ CON BƯỚM TRONG TRANH - Tối ưu 206KB) */}
         {/* Hiệu ứng chuyển cảnh mờ dần cực kỳ êm dịu (duration-1500 ease-in-out) */}
         <div
           className={`absolute inset-0 z-10 transition-opacity duration-1500 ease-in-out ${
@@ -445,6 +454,8 @@ export function HeroButterflyArCard({
             alt="Thẻ bài học tiếng Anh Butterfly Poly Cards 2D gốc"
             fill
             priority
+            placeholder="blur"
+            blurDataURL={BLUR_TRUOC}
             sizes="(max-width: 640px) 100vw, 420px"
             className="object-cover"
           />

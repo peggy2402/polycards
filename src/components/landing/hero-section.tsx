@@ -146,8 +146,8 @@ export function HeroSection() {
             <div className="relative mx-auto flex max-w-sm flex-col items-center overflow-visible">
               {/* Thẻ biến hình AR 3D sống động (Card Trước 2D mờ dần -> Card Sau lộ ra + Bướm 3D vỗ cánh bay ra) */}
               <HeroButterflyArCard
-                cardBeforeSrc="/images/cards/butterfly-card-truoc.png"
-                cardAfterSrc="/images/cards/butterfly-card-sau.png"
+                cardBeforeSrc="/images/cards/butterfly-card-truoc.webp"
+                cardAfterSrc="/images/cards/butterfly-card-sau.webp"
                 modelUrl="/models/buom-animated.glb"
               />
 
