@@ -19,6 +19,7 @@ import {
   Eye,
   Receipt,
   PackageCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { SeedCustomerItem, SeedOrderItem } from "@/data/seed-data";
 import { formatVndCurrency } from "@/lib/formatters";
@@ -34,10 +35,12 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterType, setFilterType] = useState<"ALL" | "TRUCTIEP" | "ONLINE">("ALL");
 
-  // State modal
+  // State modal & Xác nhận xóa
   const [selectedCustomer, setSelectedCustomer] = useState<SeedCustomerItem | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<SeedCustomerItem | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<SeedCustomerItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = (msg: string) => {
@@ -146,27 +149,44 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
     }
   };
 
-  const handleDeleteCustomer = async (c: SeedCustomerItem) => {
-    if (!confirm(`Bạn có chắc muốn xóa khách hàng "${c.name}" khỏi hệ thống?`)) return;
+  // Mở hộp thoại xác nhận xóa ở giữa màn hình
+  const handleDeleteCustomer = (c: SeedCustomerItem) => {
+    setCustomerToDelete(c);
+  };
 
+  // Thực hiện xóa khi người dùng bấm xác nhận
+  const handleConfirmDelete = async () => {
+    if (!customerToDelete) return;
     try {
-      const res = await fetch(`/api/customers?id=${c.id}`, { method: "DELETE" });
+      setIsDeleting(true);
+      const res = await fetch(`/api/customers?id=${customerToDelete.id}`, { method: "DELETE" });
       if (res.ok) {
-        setCustomers((prev) => prev.filter((item) => item.id !== c.id));
-        showToast(`Đã xóa khách hàng "${c.name}" thành công!`);
-        if (selectedCustomer?.id === c.id) setSelectedCustomer(null);
+        const deletedName = customerToDelete.name;
+        setCustomers((prev) => prev.filter((item) => item.id !== customerToDelete.id));
+        showToast(`Đã xóa khách hàng "${deletedName}" thành công!`);
+        if (selectedCustomer?.id === customerToDelete.id) {
+          setSelectedCustomer(null);
+        }
+        setCustomerToDelete(null);
+      } else {
+        showToast("Không thể xóa khách hàng. Vui lòng thử lại.");
       }
     } catch {
       showToast("Lỗi khi xóa khách hàng.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* TOAST THÔNG BÁO HIỂN THỊ Ở CHÍNH GIỮA MÀN HÌNH */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 border border-emerald-400 text-emerald-300 font-bold px-4 py-2.5 rounded-2xl shadow-2xl text-xs flex items-center gap-2">
-          <Check className="h-4 w-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-stone-950/95 border-2 border-emerald-400 text-white font-bold px-5 py-3.5 rounded-3xl shadow-2xl shadow-emerald-500/20 text-xs sm:text-sm flex items-center gap-3 backdrop-blur-md animate-in zoom-in-95 fade-in duration-200 pointer-events-none">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+            <Check className="h-4 w-4" />
+          </div>
+          <span className="text-stone-100">{toastMessage}</span>
         </div>
       )}
 
@@ -637,6 +657,70 @@ export function CustomersTab({ onNavigateToPOS }: CustomersTabProps) {
                 Lưu Thông Tin Khách Hàng
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {/* DIALOG XÁC NHẬN XÓA KHÁCH HÀNG Ở CHÍNH GIỮA MÀN HÌNH */}
+      {customerToDelete && (
+        <div
+          onClick={() => !isDeleting && setCustomerToDelete(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm sm:max-w-md bg-stone-900 border-2 border-rose-500/50 rounded-3xl p-5 sm:p-6 text-white shadow-2xl shadow-rose-950/40 space-y-4 animate-in zoom-in-95 duration-200"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="h-11 w-11 rounded-2xl flex items-center justify-center bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0 shadow-inner">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm sm:text-base font-black text-white">
+                  Xác Nhận Xóa Khách Hàng
+                </h3>
+                <p className="text-xs text-stone-300 mt-1.5 leading-relaxed">
+                  Bạn có chắc muốn xóa khách hàng{" "}
+                  <strong className="text-rose-300 font-black">
+                    &ldquo;{customerToDelete.name}&rdquo;
+                  </strong>{" "}
+                  {customerToDelete.phone ? `(${customerToDelete.phone})` : `(Mã: ${customerToDelete.id})`}{" "}
+                  khỏi hệ thống?
+                </p>
+                <p className="text-[11px] text-stone-400 mt-2 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-xl text-rose-300/90 flex items-center gap-1.5 font-medium">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+                  <span>Dữ liệu khách hàng sẽ bị xóa vĩnh viễn và không thể hoàn tác.</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setCustomerToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-black text-xs shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Đang xóa...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Xác Nhận Xóa</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
