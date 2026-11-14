@@ -312,8 +312,8 @@ export function AiChatWidget() {
     setMessages([resetWelcome]);
   };
 
-  // ẨN CHAT KHI ĐANG Ở TRANG AR VIEW TOÀN MÀN HÌNH (tránh che khuất camera và nút 3D)
-  if (pathname && (pathname.startsWith("/ar/") || pathname.startsWith("/studio"))) {
+  // ẨN CHAT KHI ĐANG Ở TRANG AR VIEW HOẶC WEB APP MERCHANT NHẬN ĐƠN
+  if (pathname && (pathname.startsWith("/ar/") || pathname.startsWith("/studio") || pathname.startsWith("/merchant"))) {
     return null;
   }
 

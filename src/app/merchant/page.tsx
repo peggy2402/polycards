@@ -31,8 +31,9 @@ import {
   ArrowUpRight,
   Check,
   Copy,
+  Volume2,
 } from "lucide-react";
-import { formatVndCurrency } from "@/lib/formatters";
+import { formatVndCurrency, formatOrderDateTime, parseOrderTimestamp } from "@/lib/formatters";
 import { SeedOrderItem } from "@/data/seed-data";
 import { OrderStatus } from "@/types/animal";
 
@@ -58,7 +59,7 @@ export default function MerchantAppPage() {
   // Trạng thái cập nhật nhanh đơn
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
-  // 1. Hàm phát âm thanh chuông Ting Ting 2 nốt cao trong trẻo qua Web Audio API
+  // 1. Hàm phát âm thanh chuông Ting Ting 3 nốt cao ngân vang qua Web Audio API
   const playTingTing = useCallback(() => {
     if (!soundEnabled) return;
     try {
@@ -102,12 +103,19 @@ export default function MerchantAppPage() {
       osc3.start(ctx.currentTime + 0.3);
       osc3.stop(ctx.currentTime + 0.9);
 
-      // Rung điện thoại (nếu thiết bị hỗ trợ)
+      // Rung điện thoại
       if ("vibrate" in navigator) {
         navigator.vibrate([200, 100, 250, 100, 400]);
       }
     } catch {}
   }, [soundEnabled]);
+
+  // Xin quyền thông báo Notification của trình duyệt khi mở app
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
 
   // 2. Tải danh sách đơn hàng từ API
   const fetchOrders = useCallback(async (isPolling = false) => {
@@ -128,6 +136,17 @@ export default function MerchantAppPage() {
             const latest = freshOrders[0];
             setNewOrderBanner(latest);
             playTingTing();
+
+            // Bắn thông báo đẩy trình duyệt kể cả khi đang đóng/ẩn app
+            if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+              try {
+                new Notification(`Đơn hàng mới #${latest.code}`, {
+                  body: `${latest.customerName} vừa đặt mua (${formatVndCurrency(latest.totalPrice || latest.creditAmount || 0)})`,
+                  icon: "/apple-icon.png",
+                  tag: latest.code,
+                });
+              } catch {}
+            }
           }
         }
 
@@ -259,7 +278,20 @@ export default function MerchantAppPage() {
     };
   }, [orders]);
 
-  // 6. Lọc danh sách theo tab và ô tìm kiếm
+  // VẤN ĐỀ 6.1: Cập nhật App Badge số đếm đỏ ngoài icon App trên màn hình chính PWA
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && "setAppBadge" in navigator) {
+      try {
+        if (stats.pendingCount > 0) {
+          (navigator as any).setAppBadge(stats.pendingCount);
+        } else {
+          (navigator as any).clearAppBadge();
+        }
+      } catch {}
+    }
+  }, [stats.pendingCount]);
+
+  // VẤN ĐỀ 1: Sắp xếp đơn hàng luôn theo thời gian mới nhất lên đầu (HH:mm:ss dd/MM/yyyy)
   const filteredOrders = useMemo(() => {
     let result = [...orders];
 
@@ -285,10 +317,10 @@ export default function MerchantAppPage() {
       );
     }
 
-    // Sắp xếp đơn mới nhất lên trên
+    // Luôn sắp xếp theo thời gian mới nhất lên đầu
     result.sort((a, b) => {
-      const tA = new Date(a.createdAt || 0).getTime();
-      const tB = new Date(b.createdAt || 0).getTime();
+      const tA = parseOrderTimestamp(a);
+      const tB = parseOrderTimestamp(b);
       return tB - tA;
     });
 
@@ -335,7 +367,7 @@ export default function MerchantAppPage() {
             >
               {soundEnabled ? (
                 <>
-                  <Bell className="h-4 w-4 text-amber-400 animate-wiggle" />
+                  <Bell className="h-4 w-4 text-amber-400" />
                   <span className="hidden sm:inline text-[11px] font-black">Chuông: BẬT</span>
                 </>
               ) : (
@@ -368,31 +400,10 @@ export default function MerchantAppPage() {
             </button>
           </div>
         </div>
-
-        {/* Banner Đơn Mới Vừa Xuất Hiện (Tự Ẩn hoặc Bấm Để Tắt) */}
-        {newOrderBanner && (
-          <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-stone-950 px-4 py-2 border-b border-amber-300/40 animate-in slide-in-from-top duration-300 shadow-lg">
-            <div className="max-w-4xl mx-auto flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <Sparkles className="h-4 w-4 shrink-0 text-stone-950 animate-bounce" />
-                <span className="font-black truncate">
-                  ĐƠN MỚI: #{newOrderBanner.code} • {newOrderBanner.customerName} ({formatVndCurrency(newOrderBanner.totalPrice || newOrderBanner.creditAmount || 0)})
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNewOrderBanner(null)}
-                className="px-2 py-0.5 rounded-lg bg-stone-950/20 hover:bg-stone-950/40 text-stone-950 font-black text-[11px] shrink-0"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* ================= BODY CONTENT ================= */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-4 py-4 space-y-4 pb-28">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-4 py-4 space-y-4 pb-32">
         {/* KPI CARDS (TỔNG QUAN NHANH TRONG NGÀY) */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {/* 1. Đơn Chờ Duyệt */}
@@ -433,16 +444,16 @@ export default function MerchantAppPage() {
             <span className="text-[10px] text-stone-500 font-medium">Bưu tá đang phát</span>
           </div>
 
-          {/* 3. Doanh Thu Thực Thu */}
-          <div className="p-3 rounded-2xl bg-stone-900/80 border border-white/10">
+          {/* 3. Doanh Thu Thực Thu (VẤN ĐỀ 7: ĐÃ BỎ TRUNCATE ĐỂ HIỂN THỊ ĐẦY ĐỦ RÕ RÀNG) */}
+          <div className="p-3 rounded-2xl bg-stone-900/80 border border-white/10 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] font-bold text-stone-400">Thực Thu</span>
               <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <div className="text-base sm:text-lg font-black text-emerald-400 font-mono truncate">
+            <div className="text-xs sm:text-base font-black text-emerald-400 font-mono tracking-tight leading-tight whitespace-nowrap overflow-visible">
               {formatVndCurrency(stats.totalRevenue)}
             </div>
-            <span className="text-[10px] text-stone-500 font-medium truncate block">
+            <span className="text-[10px] text-stone-500 font-medium block mt-1 leading-tight whitespace-nowrap overflow-visible">
               Dự kiến: {formatVndCurrency(stats.totalExpected)}
             </span>
           </div>
@@ -563,6 +574,9 @@ export default function MerchantAppPage() {
               const debitAmount = order.debitAmount || 0;
               const status = order.orderStatus || "CHO_DUYET";
 
+              // VẤN ĐỀ 2: ĐỊNH DẠNG ĐẦY ĐỦ HH:mm:ss dd/MM/yyyy
+              const formattedDate = formatOrderDateTime(order.createdAt, order.id);
+
               return (
                 <div
                   key={orderId}
@@ -576,7 +590,7 @@ export default function MerchantAppPage() {
                       : "border-white/10 opacity-70"
                   }`}
                 >
-                  {/* Hàng 1: Mã đơn, Thời gian, Badge Trạng Thái */}
+                  {/* Hàng 1: Mã đơn, Thời gian đầy đủ (HH:mm:ss dd/MM/yyyy), Badge Trạng Thái */}
                   <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-xs sm:text-sm font-black text-amber-400">
@@ -594,8 +608,9 @@ export default function MerchantAppPage() {
                           <Copy className="h-3 w-3" />
                         )}
                       </button>
-                      <span className="text-[10px] text-stone-500 font-medium">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "Vừa xong"}
+                      {/* HIỂN THỊ CẢ GIỜ PHÚT GIÂY & NGÀY THÁNG NĂM */}
+                      <span className="text-[11px] text-stone-400 font-mono font-medium truncate">
+                        {formattedDate}
                       </span>
                     </div>
 
@@ -772,6 +787,56 @@ export default function MerchantAppPage() {
         )}
       </main>
 
+      {/* ================= VẤN ĐỀ 6.2: POPUP ĐƠN MỚI NẢY LÊN TỪ DƯỚI (NGAY TRÊN THANH NAVIGATION) ================= */}
+      {newOrderBanner && (
+        <div
+          key={newOrderBanner.code}
+          className="fixed bottom-16 sm:bottom-20 left-3 right-3 sm:left-auto sm:right-5 sm:max-w-md z-50 animate-bounce duration-500"
+        >
+          <div className="rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900 to-amber-950 border-2 border-amber-400 p-3.5 shadow-2xl shadow-amber-400/30 backdrop-blur-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 rounded-xl bg-amber-400 text-stone-950 font-black flex items-center justify-center shrink-0 shadow-md shadow-amber-400/20">
+                <Sparkles className="h-5 w-5 animate-spin" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/30">
+                    ĐƠN MỚI VỪA ĐẾN
+                  </span>
+                  <span className="font-mono text-xs font-black text-white">#{newOrderBanner.code}</span>
+                </div>
+                <p className="text-xs font-bold text-stone-200 truncate mt-0.5">
+                  {newOrderBanner.customerName} •{" "}
+                  <span className="text-amber-400 font-mono font-black">
+                    {formatVndCurrency(newOrderBanner.totalPrice || newOrderBanner.creditAmount || 0)}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("CHO_DUYET");
+                  setNewOrderBanner(null);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-black transition-all shadow-xs cursor-pointer"
+              >
+                Xem Ngay
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewOrderBanner(null)}
+                className="p-1.5 text-stone-400 hover:text-white text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL HƯỚNG DẪN CÀI ĐẶT PWA LÊN MÀN HÌNH CHÍNH ================= */}
       {isPwaGuideOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-4 animate-in fade-in">
@@ -812,14 +877,14 @@ export default function MerchantAppPage() {
 
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>Sau khi cài, app sẽ mở toàn màn hình (Standalone) và có chuông reo báo đơn mới!</span>
+                <span>Sau khi cài, app sẽ mở toàn màn hình (Standalone), hiển thị số đếm Badge đơn mới và có chuông reo!</span>
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => setIsPwaGuideOpen(false)}
-              className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs transition-colors shadow-md"
+              className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs transition-colors shadow-md cursor-pointer"
             >
               Đã Hiểu
             </button>
@@ -866,4 +931,3 @@ export default function MerchantAppPage() {
     </div>
   );
 }
-

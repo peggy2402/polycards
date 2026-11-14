@@ -540,6 +540,28 @@ export async function dbGetOrders(): Promise<SeedOrderItem[]> {
   const result = docs
     .map((d) => stripMongoId(d))
     .filter((o) => !MOCK_ORDER_IDS.has(o.id) && !o.code.startsWith("SEED-"));
+
+  // Luôn sắp xếp đơn hàng mới nhất lên đầu theo thời gian
+  result.sort((a, b) => {
+    const parseTs = (ord: any) => {
+      if (ord.id) {
+        const m = ord.id.match(/\d{12,14}/);
+        if (m) return Number(m[0]);
+      }
+      if (ord.createdAt) {
+        const d = new Date(ord.createdAt).getTime();
+        if (!isNaN(d) && d > 0) return d;
+        const parts = ord.createdAt.match(/(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?.*?(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (parts) {
+          const [, hh, mm, ss = "0", day, month, year] = parts;
+          const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hh), Number(mm), Number(ss)).getTime();
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+      }
+      return 0;
+    };
+    return parseTs(b) - parseTs(a);
+  });
   cache.orders = { data: result, timestamp: now };
   return result;
 }

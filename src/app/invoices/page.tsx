@@ -2537,7 +2537,7 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
                     Hệ sinh thái Thẻ bài Học tập Thực tế ảo WebAR tương tác 3D
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Website: polycards.vn &bull; Hotline: 0988.xxx.xxx
+                    Website: polycards.vn &bull; Hotline: 0356.226.707
                   </p>
                 </div>
               </div>

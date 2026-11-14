@@ -1629,7 +1629,7 @@ export function InvoicesTab({ onNavigateToPOS, onEditInvoice }: InvoicesTabProps
                         Hệ sinh thái Thẻ bài Học tập Thực tế ảo WebAR tương tác 3D
                       </p>
                       <p className="text-[10px] text-stone-500 font-mono">
-                        Website: polycards.vn &bull; Hotline: 0988.xxx.xxx
+                        Website: polycards.vn &bull; Hotline: 0356.226.707
                       </p>
                     </div>
                   </div>
