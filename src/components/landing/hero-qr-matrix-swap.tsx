@@ -60,7 +60,7 @@ export function HeroQrMatrixSwap({
     <Link
       href={href}
       title="Chạm để mở trải nghiệm WebAR thực tế ảo"
-      className="group absolute z-25 overflow-hidden rounded-xl border border-amber-300/80 bg-white shadow-md transition-all hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95"
+      className="group absolute z-30 pointer-events-auto overflow-hidden rounded-xl border border-amber-300/80 bg-white shadow-md transition-all hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95"
       style={{
         left,
         bottom,

@@ -668,18 +668,16 @@ export function HeroButterflyArCard({
         </div>
 
         {/* 4. MÃ QR MATRIX SWAP GÓC DƯỚI BÊN TRÁI (Chuẩn kích thước ô vuông in thẻ) */}
-        <div className="relative z-60 pointer-events-auto">
-          <HeroQrMatrixSwap
-            left="6.4%"
-            bottom="12.5%"
-            width="24%"
-            height="15%"
-            href="/ar/butterfly"
-          />
-        </div>
+        <HeroQrMatrixSwap
+          left="6.4%"
+          bottom="12.5%"
+          width="24%"
+          height="15%"
+          href="/ar/butterfly"
+        />
 
         {/* 5. NÚT HUY HIỆU TƯƠNG TÁC CHUYỂN ĐỔI CHẾ ĐỘ Ở GÓC TRÊN CÙNG BÊN PHẢI */}
-        <div className="absolute top-3.5 right-3.5 z-60 pointer-events-auto">
+        <div className="absolute top-3.5 right-3.5 z-30 pointer-events-auto">
           <button
             type="button"
             onClick={triggerTransition}
@@ -713,11 +711,11 @@ export function HeroButterflyArCard({
         </div>
       </div>
 
-      {/* 7. LỚP CANVAS THREE.JS 3D NỔI LÊN TRÊN TẤT CẢ (Z-INDEX CỰC ĐẠI z-50 / OVERFLOW VISIBLE) */}
+      {/* 7. LỚP CANVAS THREE.JS 3D NỔI LÊN TRÊN THẺ (Z-INDEX z-20 / OVERFLOW VISIBLE) */}
       {/* Mở rộng biên độ sang hai bên 192px (-left-48 -right-48) để không bao giờ bị cắt xén cánh (ZERO CLIPPING) */}
       <div
         ref={canvasContainerRef}
-        className={`absolute -left-48 -right-48 -top-28 -bottom-24 z-50 overflow-visible transition-opacity duration-1000 ${
+        className={`absolute -left-48 -right-48 -top-28 -bottom-24 z-20 overflow-visible transition-opacity duration-1000 ${
           is3DMode ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
