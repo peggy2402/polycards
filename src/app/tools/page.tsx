@@ -458,12 +458,24 @@ export default function ToolsPage() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Nhận diện session bảo mật
+  // Nhận diện session bảo mật & đồng bộ Cookie
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = sessionStorage.getItem("polycards_tools_auth");
       if (saved === "true") {
-        setIsAuthenticated(true);
+        fetch("/api/tools/auth")
+          .then((r) => r.json())
+          .then((data) => {
+            if (data?.authenticated) {
+              setIsAuthenticated(true);
+            } else {
+              setIsAuthenticated(false);
+              sessionStorage.removeItem("polycards_tools_auth");
+            }
+          })
+          .catch(() => {
+            setIsAuthenticated(true);
+          });
       }
     }
   }, []);
@@ -2723,6 +2735,7 @@ export default function ToolsPage() {
     setIsAuthenticated(false);
     sessionStorage.removeItem("polycards_tools_auth");
     setPasscode("");
+    fetch("/api/tools/auth", { method: "DELETE" }).catch(() => {});
   };
 
   // Màn hình khóa PIN nếu chưa đăng nhập

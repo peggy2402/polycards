@@ -1,21 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  cleanPasscode,
+  getAdminSecretKey,
+  generateAdminToken,
+  verifyAdminAuth,
+} from "@/lib/admin-auth";
 
-function cleanKey(val: string | undefined): string {
-  if (!val) return "";
-  let cleaned = val.trim();
-  if (
-    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-    (cleaned.startsWith("'") && cleaned.endsWith("'"))
-  ) {
-    cleaned = cleaned.slice(1, -1).trim();
-  }
-  return cleaned;
+/**
+ * GET /api/tools/auth
+ * Kiểm tra trạng thái đăng nhập của Admin (dựa trên Cookie hoặc Header)
+ */
+export async function GET(req: NextRequest) {
+  const isAuth = verifyAdminAuth(req);
+  return NextResponse.json({
+    success: isAuth,
+    authenticated: isAuth,
+  });
 }
 
+/**
+ * POST /api/tools/auth
+ * Xác thực mã PIN / Passcode của Tác giả & Cấp HttpOnly Cookie bảo mật
+ */
 export async function POST(req: NextRequest) {
   try {
     const { passcode } = await req.json();
-    const secretKey = cleanKey(process.env.POLY_KEY_TOOLS) || "polycard2025";
+    const secretKey = getAdminSecretKey();
 
     if (!passcode || typeof passcode !== "string") {
       return NextResponse.json(
@@ -24,12 +34,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const inputClean = cleanKey(passcode);
+    const inputClean = cleanPasscode(passcode);
     if (inputClean === secretKey) {
-      return NextResponse.json({
+      const token = generateAdminToken(secretKey);
+      const res = NextResponse.json({
         success: true,
         message: "Xác thực tác giả thành công!",
       });
+
+      // Thiết lập HttpOnly Cookie an toàn cho trình duyệt
+      res.cookies.set("polycards_admin_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 ngày
+      });
+
+      return res;
     }
 
     return NextResponse.json(
@@ -45,4 +67,23 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * DELETE /api/tools/auth
+ * Đăng xuất tác giả & Xóa Cookie xác thực
+ */
+export async function DELETE() {
+  const res = NextResponse.json({
+    success: true,
+    message: "Đã đăng xuất tác giả thành công.",
+  });
+  res.cookies.set("polycards_admin_token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+  return res;
 }

@@ -6,6 +6,7 @@ import {
   isMongoConfigured,
   DbPackCodeItem,
 } from "@/lib/mongodb";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền tác giả để thêm/cập nhật mã bộ thẻ." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     if (!body.code || !String(body.code).trim()) {
       return NextResponse.json(
@@ -71,6 +79,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền tác giả để xóa mã bộ thẻ." },
+        { status: 401 }
+      );
+    }
+
     const url = new URL(request.url);
     let code = url.searchParams.get("code");
 

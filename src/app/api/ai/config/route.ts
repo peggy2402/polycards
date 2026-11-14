@@ -1,16 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAiConfig, saveAiConfig, DEFAULT_AI_CONFIG } from "@/lib/ai-service";
 import { AiChatConfig } from "@/types/ai";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/ai/config
- * Lấy thông tin cấu hình AI Chatbot & System Prompt
+ * Lấy thông tin cấu hình AI Chatbot.
+ * - Khách công khai: Chỉ nhận các thông tin hiển thị giao diện an toàn (Ẩn 100% System Prompt & Thông tin máy chủ).
+ * - Admin xác thực: Nhận đầy đủ cấu hình để chỉnh sửa trong Admin Tools.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const config = await getAiConfig();
+    const isAdmin = verifyAdminAuth(req);
+
+    // Nếu là khách công khai / widget chat: Chỉ trả về cấu hình an toàn cho UI
+    if (!isAdmin) {
+      return NextResponse.json({
+        success: true,
+        config: {
+          enabled: config.enabled ?? true,
+          botName: config.botName || "PolyCards AI",
+          welcomeMessage: config.welcomeMessage,
+          quickQuestions: config.quickQuestions || [],
+          bubbleDurationSec: config.bubbleDurationSec,
+          bubbleIntervalMin: config.bubbleIntervalMin,
+          bubbleTitle: config.bubbleTitle,
+          bubbleMessage: config.bubbleMessage,
+        },
+      });
+    }
+
+    // Nếu là Admin đã đăng nhập: Trả về đầy đủ cấu hình để chỉnh sửa
     return NextResponse.json({
       success: true,
       config,
@@ -32,10 +55,17 @@ export async function GET() {
 
 /**
  * POST /api/ai/config
- * Lưu cấu hình AI Chatbot & System Prompt từ Admin Tools (Tuyệt đối không lưu API Key)
+ * Lưu cấu hình AI Chatbot & System Prompt từ Admin Tools (Yêu cầu xác thực Admin)
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!verifyAdminAuth(req)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền quản trị viên Poly Cards để thay đổi cấu hình AI." },
+        { status: 401 }
+      );
+    }
+
     const body: Partial<AiChatConfig> = await req.json().catch(() => ({}));
 
     // Loại bỏ mọi trường apiKey nếu client vô tình gửi lên

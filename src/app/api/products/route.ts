@@ -5,6 +5,7 @@ import { normalizeCategorySlug } from "@/lib/activation";
 import { cleanPhonetic } from "@/lib/phonetic-utils";
 import { isR2Configured, uploadToR2 } from "@/lib/r2";
 import { isSupabaseConfigured, uploadToSupabase } from "@/lib/supabase-storage";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 import {
   dbGetProducts,
   dbUpsertProduct,
@@ -141,6 +142,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền tác giả để thêm/cập nhật sản phẩm." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
     // Hỗ trợ cập nhật hàng loạt (Batch update, ví dụ: gán mã bộ cho nhiều thẻ cùng lúc)
@@ -353,6 +361,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền tác giả để xóa sản phẩm." },
+        { status: 401 }
+      );
+    }
+
     // 1. Kiểm tra nếu có body JSON yêu cầu xóa hàng loạt
     let body: Record<string, unknown> | string[] | null = null;
     try {

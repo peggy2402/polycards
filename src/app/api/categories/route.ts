@@ -6,6 +6,7 @@ import {
   dbDeleteCategory,
   isMongoConfigured,
 } from "@/lib/mongodb";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
 export async function GET() {
   try {
@@ -31,6 +32,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền tác giả để thêm/cập nhật danh mục." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     if (!body.name || !String(body.name).trim()) {
       return NextResponse.json(
@@ -83,6 +91,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json(
+        { success: false, message: "Từ chối truy cập: Yêu cầu quyền tác giả để xóa danh mục." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
