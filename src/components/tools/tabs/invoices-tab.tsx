@@ -38,6 +38,7 @@ import { SeedOrderItem } from "@/data/seed-data";
 import { OrderStatus, DeliveryMethod } from "@/types/animal";
 import { formatVndCurrency } from "@/lib/formatters";
 import { formatVnd } from "@/lib/pricing";
+import { STORE_SIGNATURE_BASE64 } from "@/constants/signature";
 
 // Phân tích ngày tháng của hóa đơn
 function parseInvoiceDate(dateStr?: string | null): Date | null {
@@ -1795,18 +1796,28 @@ export function InvoicesTab({ onNavigateToPOS, onEditInvoice }: InvoicesTabProps
 
                 {/* Chữ Ký Người Bán & Người Mua */}
                 <div className="pt-3 border-t border-stone-200 grid grid-cols-2 text-center text-xs text-stone-700">
-                  <div>
-                    <span className="font-bold block">Người Mua Hàng</span>
-                    <span className="text-[10px] text-stone-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
-                    <div className="h-8" />
-                    <span className="font-bold text-stone-800">{selectedInvoice.customerName}</span>
+                  <div className="flex flex-col items-center justify-between min-h-[100px]">
+                    <div>
+                      <span className="font-bold block text-stone-800">Người Mua Hàng</span>
+                      <span className="text-[10px] text-stone-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
+                    </div>
+                    <div className="h-12 flex items-center justify-center" />
+                    <span className="font-bold text-stone-800 block">{selectedInvoice.customerName}</span>
                   </div>
 
-                  <div>
-                    <span className="font-bold block">Người Lập Phiếu / Thu Ngân</span>
-                    <span className="text-[10px] text-stone-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
-                    <div className="h-8" />
-                    <span className="font-bold text-stone-800">Poly Cards Store</span>
+                  <div className="flex flex-col items-center justify-between min-h-[100px]">
+                    <div>
+                      <span className="font-bold block text-stone-800">Người Lập Phiếu / Thu Ngân</span>
+                      <span className="text-[10px] text-stone-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
+                    </div>
+                    <div className="h-12 flex items-center justify-center my-0.5">
+                      <img
+                        src={STORE_SIGNATURE_BASE64}
+                        alt="Chữ ký xác thực Poly Cards Store"
+                        className="h-11 w-auto max-w-[150px] object-contain select-none pointer-events-none drop-shadow-sm"
+                      />
+                    </div>
+                    <span className="font-bold text-stone-800 block">Poly Cards Store</span>
                   </div>
                 </div>
 

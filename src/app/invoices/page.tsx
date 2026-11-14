@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { formatVndCurrency } from "@/lib/formatters";
 import { getMergedProducts, getProductCategories } from "@/lib/products-store";
+import { STORE_SIGNATURE_BASE64 } from "@/constants/signature";
 import { Animal, ProductCategory, DbComboRule, OrderStatus, DeliveryMethod } from "@/types/animal";
 import { evaluateBestCombo, DEFAULT_COMBO_RULES } from "@/lib/combo-engine";
 import { normalizePhoneNumber } from "@/lib/pricing";
@@ -2747,18 +2748,28 @@ Cảm ơn quý khách đã tin dùng Poly Cards! Chúc bé học tập vui vẻ!
 
             {/* Chữ Ký Người Bán & Người Mua */}
             <div className="pt-4 border-t border-slate-200 grid grid-cols-2 text-center text-xs text-slate-700">
-              <div>
-                <span className="font-bold block">Người Mua Hàng</span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
-                <div className="h-10" />
-                <span className="font-bold text-slate-800">{selectedInvoice.customerName}</span>
+              <div className="flex flex-col items-center justify-between min-h-[110px]">
+                <div>
+                  <span className="font-bold block text-slate-800">Người Mua Hàng</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
+                </div>
+                <div className="h-14 flex items-center justify-center" />
+                <span className="font-bold text-slate-800 block">{selectedInvoice.customerName}</span>
               </div>
 
-              <div>
-                <span className="font-bold block">Người Lập Phiếu / Thu Ngân</span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
-                <div className="h-10" />
-                <span className="font-bold text-slate-800">Poly Cards Store</span>
+              <div className="flex flex-col items-center justify-between min-h-[110px]">
+                <div>
+                  <span className="font-bold block text-slate-800">Người Lập Phiếu / Thu Ngân</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">(Ký và ghi rõ họ tên)</span>
+                </div>
+                <div className="h-14 flex items-center justify-center my-0.5">
+                  <img
+                    src={STORE_SIGNATURE_BASE64}
+                    alt="Chữ ký xác thực Poly Cards Store"
+                    className="h-12 w-auto max-w-[160px] object-contain select-none pointer-events-none drop-shadow-sm"
+                  />
+                </div>
+                <span className="font-bold text-slate-800 block">Poly Cards Store</span>
               </div>
             </div>
           </div>
