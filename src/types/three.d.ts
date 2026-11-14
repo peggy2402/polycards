@@ -10,7 +10,11 @@ declare module "three" {
   export const Mesh: any;
   export const Group: any;
   export const Box3: any;
+  export const Vector2: any;
   export const Vector3: any;
+  export const Raycaster: any;
+  export const Plane: any;
+  export const Quaternion: any;
   export const AnimationMixer: any;
   export const Clock: any;
   export const SRGBColorSpace: any;
@@ -18,13 +22,19 @@ declare module "three" {
   export const MathUtils: {
     lerp: (x: number, y: number, t: number) => number;
     mapLinear: (x: number, a1: number, a2: number, b1: number, b2: number) => number;
+    clamp: (val: number, min: number, max: number) => number;
   };
   export type Scene = any;
   export type PerspectiveCamera = any;
   export type WebGLRenderer = any;
   export type AnimationMixer = any;
+  export type AnimationAction = any;
   export type Group = any;
   export type Mesh = any;
+  export type Vector2 = any;
+  export type Vector3 = any;
+  export type Raycaster = any;
+  export type Plane = any;
 }
 
 declare module "three/examples/jsm/loaders/GLTFLoader.js" {
